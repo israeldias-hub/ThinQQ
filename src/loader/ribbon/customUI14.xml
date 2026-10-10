@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="Rx_OnLoad">
+  <ribbon>
+    <tabs>
+      <tab id="tqqTab" label="ThinQQ" insertAfterMso="TabInsert">
+        <group id="grpAbout" label="ThinQQ">
+          <button id="btnAbout" label="Sobre" size="large" imageMso="Info" onAction="Rx_OnAbout"/>
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>
