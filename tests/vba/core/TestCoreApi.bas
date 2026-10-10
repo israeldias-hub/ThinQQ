@@ -338,3 +338,103 @@ Public Sub Test_Core_Refresh_NoActiveChart_NoThrow()
     Core_Refresh
     Teardown wb
 End Sub
+
+Public Sub Test_Core_NumFmt_ZeroOnLinkedTotal_RendersEmpty()
+    Dim wb As Workbook
+    Set wb = NewTempWorkbook()
+    AssertEqual "", Rendered("int", 0, 5, 2, wb), "total zero oculto (int)"
+    Teardown wb
+    Set wb = NewTempWorkbook()
+    AssertEqual "", Rendered("dec1", 0, 5, 2, wb), "total zero oculto (dec1)"
+    Teardown wb
+End Sub
+
+Public Sub Test_Core_NumFmt_Waterfall_RenderedText()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, s As Series, th As String, dc As String, k As Long
+    Dim keys As Variant
+    th = Application.International(xlThousandsSeparator): dc = Application.International(xlDecimalSeparator)
+    For k = 0 To 1
+        Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+        ws.Range("A1:B1").Value = Array("Etapa", "Valor")
+        ws.Range("A2:B2").Value = Array("Início", 1000)
+        ws.Range("A3:B3").Value = Array("A", -150)
+        ws.Range("A4:B4").Value = Array("Fim", "e")
+        ws.Range("A1").Select
+        Core_Insert "waterfall"
+        Set cht = Core_ActiveChart()
+        Set s = Chart_FindSeries(cht, "tqq_lbl")
+        AssertTrue Not s Is Nothing
+        If k = 0 Then
+            Core_SetOption "numfmt", "int"
+            AssertEqual "1" & th & "000", s.Points(1).DataLabel.Text, "cascata int inicio"
+            AssertEqual "-150", s.Points(2).DataLabel.Text, "cascata int delta negativo"
+            AssertEqual "850", s.Points(3).DataLabel.Text, "cascata int fim"
+        Else
+            Core_SetOption "numfmt", "dec1"
+            AssertEqual "1" & th & "000" & dc & "0", s.Points(1).DataLabel.Text, "cascata dec1 inicio"
+            AssertEqual "-150" & dc & "0", s.Points(2).DataLabel.Text, "cascata dec1 delta negativo"
+        End If
+        Teardown wb
+    Next
+End Sub
+
+Public Sub Test_Core_SetOption_Gap_OnLineChart_NotPersisted()
+    Dim wb As Workbook, ws As Worksheet
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "line"
+    AssertEqual "line", Registry_ChartType(Core_ActiveChart())
+    Core_SetOption "gap", "80"
+    AssertEqual "", Core_GetOption("gap"), "gap não se aplica a linha e não é persistido"
+    Teardown wb
+End Sub
+
+Public Sub Test_Core_RebuildFromRange_SourceOnOtherSheet_KeepsSheetAndPosition()
+    Dim wb As Workbook, ws As Worksheet, ws2 As Worksheet, cht As Chart, nc As Chart, l As Double, t As Double, w As Double, h As Double
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    Set ws2 = wb.Worksheets.Add(After:=ws)
+    ws2.Range("A1:B1").Value = Array("Ano", "Leste")
+    ws2.Range("A2:B2").Value = Array(2022, 5)
+    ws2.Range("A3:B3").Value = Array(2023, 6)
+    ws.Activate
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    Core_SetOption "numfmt", "dec1"
+    l = ws.ChartObjects(1).Left: t = ws.ChartObjects(1).Top: w = ws.ChartObjects(1).Width: h = ws.ChartObjects(1).Height
+    AssertTrue Core_RebuildFromRange(cht, ws2.Range("A1:B3"))
+    AssertEqual 1, ws.ChartObjects.Count, "novo gráfico na planilha do antigo"
+    AssertEqual 0, ws2.ChartObjects.Count
+    AssertEqual l, ws.ChartObjects(1).Left
+    AssertEqual t, ws.ChartObjects(1).Top
+    AssertEqual w, ws.ChartObjects(1).Width
+    AssertEqual h, ws.ChartObjects(1).Height
+    Set nc = ws.ChartObjects(1).Chart
+    AssertEqual "dec1", Registry_GetOption(nc, "numfmt", "")
+    AssertEqual 2, Geom_ChartCategoryCount(nc)
+    AssertEqual 1, TqqNameCount(wb)
+    Teardown wb
+End Sub
+
+Public Sub Test_Core_RebuildFromRange_ChartSheetNotActive_NewChartSurvives()
+    Dim wb As Workbook, ws As Worksheet, ws2 As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    Set ws2 = wb.Worksheets.Add(After:=ws)
+    ws.Activate
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    ws2.Activate        ' o co.Select final falharia se a planilha do gráfico não fosse reativada
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("A1:B4"))
+    AssertEqual 1, ws.ChartObjects.Count, "o novo gráfico sobrevive"
+    AssertEqual 1, TqqNameCount(wb)
+    Teardown wb
+End Sub
+
+Public Sub Test_Errors_Log_NeverRaises()
+    Dim old As String
+    old = Environ$("LOCALAPPDATA")
+    Errors_Log "teste de log"        ' caminho normal
+    ' O corpo inteiro roda sob On Error Resume Next (Open/Print/Close inclusos): não propaga mesmo se a pasta não for gravável.
+    AssertTrue True
+End Sub

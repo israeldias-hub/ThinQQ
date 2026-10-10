@@ -181,6 +181,10 @@ Public Sub Core_SetOption(key As String, value As String)
     If c Is Nothing Then Exit Sub
     msg = ValidateOption(key, value)
     If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
+    If key = "gap" And Registry_ChartType(c) = "line" Then
+        Core_Notify "Espaço entre colunas não se aplica a gráficos de linha.", vbInformation
+        Exit Sub
+    End If
     ApplyOption c, key, value
     Core_SafeRefresh c
     Exit Sub
@@ -306,7 +310,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Function
     Set oldCo = c.Parent
     Set ws = oldCo.Parent: Set wb = ws.Parent
-    If ws.ProtectContents Or data.Source.Worksheet.ProtectContents Then
+    If ws.ProtectContents Then
         Core_Notify "A planilha está protegida. Desproteja a planilha para trocar a fonte de dados.", vbExclamation
         Exit Function
     End If
@@ -314,7 +318,8 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     l = oldCo.Left: t = oldCo.Top: w = oldCo.Width: h = oldCo.Height
     opts = CStr(Registry_Block(c).Cells(1, 4).Value)
     Application.ScreenUpdating = False
-    If kind = "waterfall" Then Set co = Waterfall_Insert(data.Source.Worksheet, data) Else Set co = Stacked_Insert(data.Source.Worksheet, data, kind)
+    ' O novo gráfico nasce na planilha do gráfico antigo (ws), não na da nova fonte.
+    If kind = "waterfall" Then Set co = Waterfall_Insert(ws, data) Else Set co = Stacked_Insert(ws, data, kind)
     Set nc = co.Chart
     On Error GoTo FailNew
     Registry_Block(nc).Cells(1, 4).Value = opts
@@ -324,27 +329,30 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     ApplyToggle nc, "totals", Registry_GetOption(nc, "totals", "0") = "1"
     ApplyToggle nc, "labels", Registry_GetOption(nc, "labels", "1") = "1"
     ApplyToggle nc, "connectors", Registry_GetOption(nc, "connectors", "0") = "1"
-    ' Sucesso: remove o antigo e assume a posição/tamanho dele.
     oldCo.Delete
+    ' A partir daqui o gráfico antigo não existe mais: nada pode apagar o novo. Falhas só são registradas.
+    On Error Resume Next
     CalcSheet_Cleanup wb
     co.Left = l: co.Top = t: co.Width = w: co.Height = h
     Application.ScreenUpdating = prevSU
     Watchers_Rehook
+    If Not ActiveSheet Is Nothing Then
+        If ActiveSheet.Name <> ws.Name Then ws.Activate
+    End If
     co.Select
+    If Err.Number <> 0 Then Errors_Log "Core_RebuildFromRange/final" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Core_SafeRefresh nc
     Core_RebuildFromRange = True
     Exit Function
 FailNew:
-    ' Falha depois de criar o novo: descarta o novo e mantém o antigo.
-    Dim en As Long, ed As String
+    ' Falha antes de remover o antigo: descarta o novo e mantém o antigo.
+    Dim en As Long, ed As String, nid As String
     en = Err.Number: ed = Err.Description
     On Error Resume Next
-    Dim nid As String
     nid = Mid$(co.Name, Len(ID_PREFIX) + 1)
     co.Delete
     CalcSheet_DeleteBlock wb, nid
     Application.ScreenUpdating = prevSU
-    Err.Clear
     On Error GoTo 0
     Errors_HandleErr "Core_RebuildFromRange", en, ed
     Exit Function

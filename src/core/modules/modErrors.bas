@@ -1,6 +1,7 @@
 Attribute VB_Name = "modErrors"
 Option Explicit
 
+' Nunca propaga erro (roda dentro de handlers Fail:): todo o corpo é protegido, inclusive Open/Print/Close.
 Public Sub Errors_Log(msg As String)
     On Error Resume Next
     Dim f As Integer, dir_ As String

@@ -24,7 +24,7 @@ End Sub
 
 ' Reaplica acima/abaixo conforme o sinal atual das séries auxiliares de rótulo.
 Public Sub Labels_RefreshPositions(cht As Chart)
-    Dim blk As Range, body As Range, s As Series, col As Long, i As Long, n As Long
+    Dim blk As Range, body As Range, s As Series, col As Long, i As Long, n As Long, en As Long, ed As String
     If mRefreshing Then Exit Sub
     mRefreshing = True
     On Error GoTo Done
@@ -45,14 +45,16 @@ Public Sub Labels_RefreshPositions(cht As Chart)
         End If
     Next
 Done:
+    If Err.Number <> 0 Then en = Err.Number: ed = Err.Description
     mRefreshing = False
+    If en <> 0 Then Errors_Log "Labels_RefreshPositions" & vbTab & en & vbTab & ed
 End Sub
 
 ' Rótulos ligados a células (Formula = célula da planilha _ThinQQ) exibem o TEXTO da célula, então o formato
 ' numérico precisa estar também na célula (gravado por NumberFormatLocal, como nos rótulos: o texto exibido segue os separadores do Excel).
 Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
     Dim blk As Range, body As Range, col As Long, n As Long
-    On Error Resume Next
+    On Error GoTo Fail
     Set blk = Registry_Block(cht)
     If blk Is Nothing Then Exit Sub
     Set body = Block_Body(blk)
@@ -60,4 +62,7 @@ Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
     If n < 1 Then Exit Sub
     If Registry_ChartType(cht) = "waterfall" Then col = WF_COL_LABELVAL Else col = 2
     body.Cells(2, col).Resize(n, 1).NumberFormatLocal = Style_LocalizeCode(fmt)
+    Exit Sub
+Fail:
+    Errors_Log "Labels_ApplyCellFormat" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
