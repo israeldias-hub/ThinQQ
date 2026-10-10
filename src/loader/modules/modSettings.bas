@@ -9,6 +9,9 @@ Public Const KEY_SKIPPED As String = "SkippedVersion"
 Public Const KEY_PENDING_LOADER As String = "PendingLoaderPath"
 Public Const KEY_INTERVAL As String = "CheckIntervalHours"
 Public Const KEY_LAST_NOTIFIED_CORE As String = "LastNotifiedCore"
+Public Const KEY_PENDING_LOADER_SHA As String = "PendingLoaderSha256"
+Public Const KEY_LAST_FAILURE As String = "LastFailure"
+Public Const KEY_ALLOW_UNVERIFIED As String = "AllowUnverified"   ' "1" = aceita manifesto sem SHA-256 (decisao do usuario)
 Public Const DEFAULT_UPDATE_SOURCE As String = "https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json"
 
 Public Function Settings_Get(key As String, Optional defaultValue As String = "") As String

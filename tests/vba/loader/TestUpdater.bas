@@ -1,10 +1,11 @@
 Attribute VB_Name = "TestUpdater"
 Option Explicit
 
-Private mSaved(0 To 5) As String
+Private mSaved(0 To 8) As String
+Private mStdCore As String          ' core de teste padrao (dist), restaurado no Cleanup
 
 Private Function SettingKeys() As Variant
-    SettingKeys = Array(KEY_UPDATE_SOURCE, KEY_SKIPPED, KEY_LAST_CHECK, KEY_PENDING_LOADER, KEY_INTERVAL, KEY_LAST_NOTIFIED_CORE)
+    SettingKeys = Array(KEY_UPDATE_SOURCE, KEY_SKIPPED, KEY_LAST_CHECK, KEY_PENDING_LOADER, KEY_INTERVAL, KEY_LAST_NOTIFIED_CORE, KEY_PENDING_LOADER_SHA, KEY_LAST_FAILURE, KEY_ALLOW_UNVERIFIED)
 End Function
 
 ' Guarda as configuracoes do usuario e zera os ganchos do updater.
@@ -15,11 +16,15 @@ Private Sub Setup()
         mSaved(i) = Settings_Get(CStr(k))
         i = i + 1
     Next
+    Settings_Delete KEY_LAST_FAILURE
+    Settings_Delete KEY_ALLOW_UNVERIFIED
     Updater_TestFormResult = ""
     Updater_FormShownCount = 0
+    Updater_PendingScheduleCount = 0
     Updater_TestSetBusy False
     Loader_LastMsg = ""
     Loader_SetRootOverride ""
+    If Not Loader_CoreWorkbook() Is Nothing Then mStdCore = Loader_CoreWorkbook().FullName
 End Sub
 
 ' Restaura tudo que o teste pode ter alterado (registro, raiz, ganchos).
@@ -34,6 +39,15 @@ Private Sub Cleanup()
         If Len(mSaved(i)) > 0 Then Settings_Set CStr(k), mSaved(i) Else Settings_Delete CStr(k)
         i = i + 1
     Next
+    ' fecha o core trocado a quente (pasta temporaria) e volta ao core de teste padrao
+    On Error Resume Next
+    If Len(mStdCore) > 0 Then
+        If Loader_CoreWorkbook() Is Nothing Then
+            Loader_OpenCore mStdCore
+        ElseIf StrComp(Loader_CoreWorkbook().FullName, mStdCore, vbTextCompare) <> 0 Then
+            Loader_OpenCore mStdCore
+        End If
+    End If
 End Sub
 
 ' Chamado no tratador de erro dos testes: restaura e repropaga a falha original.
@@ -118,7 +132,7 @@ Public Sub Test_Updater_Apply_FromLocalPath_InstallsCore()
     Setup
     root = TempDir()
     Loader_SetRootOverride root
-    Settings_Set KEY_SKIPPED, "9.9.9"
+    Settings_Set KEY_SKIPPED, "9.9.9|0.0.1"
     Settings_Delete KEY_LAST_NOTIFIED_CORE
     src = CoreFixture()
     sha = Transport_Sha256File(src)
@@ -144,7 +158,7 @@ Public Sub Test_Updater_Apply_BadSha_DoesNotInstall()
     Setup
     root = TempDir()
     Loader_SetRootOverride root
-    Settings_Set KEY_SKIPPED, "9.9.9"
+    Settings_Set KEY_SKIPPED, "9.9.9|0.0.1"
     src = CoreFixture()
     ok = Updater_Apply(LocalManifest(src, "0000000000000000000000000000000000000000000000000000000000000000"), "core", False)
     Loader_SetRootOverride ""
@@ -152,7 +166,7 @@ Public Sub Test_Updater_Apply_BadSha_DoesNotInstall()
     AssertEqual "", Loader_FindNewestCoreVersion(root & "\versions")
     AssertTrue InStr(Loader_LastMsg, "Falha ao atualizar") > 0, "mensagem amigável esperada"
     AssertTrue InStr(Loader_LastMsg, "SHA-256") > 0
-    AssertEqual "9.9.9", Settings_Get(KEY_SKIPPED), "falha não deve limpar SkippedVersion"
+    AssertEqual "9.9.9|0.0.1", Settings_Get(KEY_SKIPPED), "falha não deve limpar SkippedVersion"
     Cleanup
     Exit Sub
 Fail:
@@ -184,7 +198,7 @@ Public Sub Test_Updater_Apply_MissingSource_FriendlyAndNothingInstalled()
     Setup
     root = TempDir()
     Loader_SetRootOverride root
-    ok = Updater_Apply(LocalManifest(root & "\nao-existe.xlam", ""), "core", False)
+    ok = Updater_Apply(LocalManifest(root & "\nao-existe.xlam", String$(64, "a")), "core", False)
     Loader_SetRootOverride ""
     AssertFalse ok
     AssertEqual "", Loader_FindNewestCoreVersion(root & "\versions")
@@ -227,7 +241,9 @@ Public Sub Test_Updater_Apply_LoaderPart_SchedulesPending()
     Loader_SetRootOverride ""
     AssertTrue ok
     AssertEqual root & "\tmp\ThinQQ.xlam", Settings_Get(KEY_PENDING_LOADER)
-    Settings_Delete KEY_PENDING_LOADER        ' o Core_ApplyPendingLoader agendado vira no-op
+    AssertEqual sha, Settings_Get(KEY_PENDING_LOADER_SHA), "SHA esperado gravado ao lado do caminho pendente"
+    AssertEqual 1, Updater_PendingScheduleCount, "troca do loader agendada (core carregado e novo o bastante)"
+    Settings_Delete KEY_PENDING_LOADER
     Cleanup
     Exit Sub
 Fail:
@@ -247,6 +263,7 @@ Public Sub Test_Updater_Apply_LoaderPart_BadSha_NotPending()
     Loader_SetRootOverride ""
     AssertFalse ok
     AssertEqual "", Settings_Get(KEY_PENDING_LOADER)
+    AssertEqual 0, Updater_PendingScheduleCount
     AssertEqual 0, Len(Dir(root & "\tmp\ThinQQ.xlam")), "arquivo com SHA errado deve ser apagado"
     Cleanup
     Exit Sub
@@ -345,7 +362,7 @@ Public Sub Test_Updater_Check_Silent_SkippedVersion_DoesNotPrompt()
     On Error GoTo Fail
     Setup
     UseManifestFile Manifest("9.9.9", CoreFixture(), "")
-    Settings_Set KEY_SKIPPED, "9.9.9"
+    Settings_Set KEY_SKIPPED, "9.9.9|0.0.1"
     Updater_TestFormResult = "update"
     Updater_Check True
     AssertEqual 0, Updater_FormShownCount, "versão ignorada não deve incomodar na verificação silenciosa"
@@ -360,11 +377,11 @@ Public Sub Test_Updater_Check_Interactive_SkippedVersion_StillPrompts()
     On Error GoTo Fail
     Setup
     UseManifestFile Manifest("9.9.9", CoreFixture(), "")
-    Settings_Set KEY_SKIPPED, "9.9.9"
+    Settings_Set KEY_SKIPPED, "9.9.9|0.0.1"
     Updater_TestFormResult = "later"
     Updater_Check False
     AssertEqual 1, Updater_FormShownCount, "verificação manual sempre mostra a atualização"
-    AssertEqual "9.9.9", Settings_Get(KEY_SKIPPED)
+    AssertEqual "9.9.9|0.0.1", Settings_Get(KEY_SKIPPED)
     Cleanup
     Exit Sub
 Fail:
@@ -382,7 +399,7 @@ Public Sub Test_Updater_Check_Silent_NewVersion_Prompts_Later_And_Skip()
     Updater_TestFormResult = "skip"
     Updater_Check True
     AssertEqual 2, Updater_FormShownCount
-    AssertEqual "9.9.9", Settings_Get(KEY_SKIPPED)
+    AssertEqual "9.9.9|0.0.1", Settings_Get(KEY_SKIPPED)
     Updater_Check True
     AssertEqual 2, Updater_FormShownCount
     AssertTrue Len(Settings_Get(KEY_LAST_CHECK)) > 0
@@ -399,7 +416,7 @@ Public Sub Test_Updater_Check_Update_InstallsAndClearsSkip()
     root = TempDir()
     src = CoreFixture()
     UseManifestFile Manifest("9.9.9", src, Transport_Sha256File(src))
-    Settings_Set KEY_SKIPPED, "9.9.9"
+    Settings_Set KEY_SKIPPED, "9.9.9|0.0.1"
     Loader_SetRootOverride root
     Updater_TestFormResult = "update"
     Updater_Check False
@@ -466,6 +483,158 @@ Public Sub Test_Updater_StartupCheck_Unreachable_IsSilentAndTrapped()
     AssertFalse Updater_IsBusy()
     Updater_CheckInteractive
     AssertTrue InStr(Loader_LastMsg, "Não foi possível verificar") > 0
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+Public Sub Test_Updater_ShouldCheckNow_RecentFailure_RetriesAfterOneHour()
+    Dim t As Date
+    t = DateSerial(2026, 3, 1) + TimeSerial(12, 0, 0)
+    AssertFalse Updater_ShouldCheckNow("", t, 24, "2026-03-01 11:30:00"), "falha ha 30 min: não insiste"
+    AssertTrue Updater_ShouldCheckNow("", t, 24, "2026-03-01 10:30:00"), "falha ha 90 min: tenta de novo"
+    AssertFalse Updater_ShouldCheckNow("2026-03-01 08:00:00", t, 24, "2026-03-01 08:00:00"), "sucesso recente e intervalo 24 h"
+    AssertTrue Updater_ShouldCheckNow("2026-02-27 08:00:00", t, 24, "lixo"), "falha inválida é ignorada"
+End Sub
+
+Public Sub Test_Updater_Check_Failure_RecordsLastFailure_And_Startup_BacksOff()
+    On Error GoTo Fail
+    Setup
+    Settings_Set KEY_UPDATE_SOURCE, TempDir() & "\nao-existe.json"
+    Settings_Delete KEY_LAST_CHECK
+    Updater_StartupCheck
+    AssertTrue Len(Settings_Get(KEY_LAST_FAILURE)) > 0, "falha registrada"
+    UseManifestFile Manifest("9.9.9", CoreFixture(), "")
+    Updater_StartupCheck
+    AssertEqual 0, Updater_FormShownCount, "logo após falha o startup não tenta de novo"
+    Settings_Set KEY_LAST_FAILURE, "2020-01-01 10:00:00"
+    Updater_StartupCheck
+    AssertEqual 1, Updater_FormShownCount, "após 1 h tenta de novo"
+    AssertEqual "", Settings_Get(KEY_LAST_FAILURE), "sucesso limpa a falha"
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+Public Sub Test_Updater_Evaluate_SchemaVersionNewer_IsNone()
+    AssertEqual "none", Updater_Evaluate("{""schemaVersion"":2,""coreVersion"":""9.0.0"",""loaderVersion"":""9.0.0""}", "1.0.0", "1.0.0")
+    AssertEqual "core", Updater_Evaluate("{""schemaVersion"":1,""coreVersion"":""9.0.0""}", "1.0.0", "1.0.0")
+End Sub
+
+Public Sub Test_Updater_VersionLine_And_SkipKey()
+    Dim j As String
+    j = "{""coreVersion"":""1.2.0"",""loaderVersion"":""1.1.0"",""publishedAt"":""2026-10-10""}"
+    AssertTrue InStr(Updater_VersionLine("core", "1.0.0", j), "Nova: 1.2.0") > 0
+    AssertTrue InStr(Updater_VersionLine("loader", "1.0.0", j), "carregador") > 0, "loader-only deve dizer que é o carregador"
+    AssertTrue InStr(Updater_VersionLine("loader", "1.0.0", j), "1.1.0") > 0
+    AssertTrue InStr(Updater_VersionLine("both", "1.0.0", j), "Carregador") > 0
+    AssertEqual "1.2.0|1.1.0", Updater_SkipKey(j)
+End Sub
+
+Public Sub Test_Updater_Apply_NoSha_IsRefusedByDefault()
+    Dim root As String, ok As Boolean, json As String
+    On Error GoTo Fail
+    Setup
+    root = TempDir()
+    Loader_SetRootOverride root
+    ok = Updater_Apply(Manifest("9.9.9", CoreFixture(), ""), "core", False)
+    AssertFalse ok
+    AssertTrue InStr(Loader_LastMsg, "não informa o hash") > 0, "mensagem amigável esperada: " & Loader_LastMsg
+    AssertEqual "", Loader_FindNewestCoreVersion(root & "\versions")
+    json = "{""loaderVersion"":""9.9.9"",""loaderUrl"":""" & Replace(RepoPath() & "\tests\fixtures\http\hello.txt", "\", "\\") & """,""loaderSha256"":""""}"
+    Settings_Delete KEY_PENDING_LOADER
+    ok = Updater_Apply(json, "loader", True)
+    Loader_SetRootOverride ""
+    AssertFalse ok
+    AssertEqual "", Settings_Get(KEY_PENDING_LOADER)
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+Public Sub Test_Updater_Apply_NoSha_InstallsWhenAllowUnverified()
+    Dim root As String, ok As Boolean
+    On Error GoTo Fail
+    Setup
+    root = TempDir()
+    Loader_SetRootOverride root
+    Settings_Set KEY_ALLOW_UNVERIFIED, "1"
+    ok = Updater_Apply(Manifest("9.9.9", CoreFixture(), ""), "core", True)
+    Loader_SetRootOverride ""
+    AssertTrue ok, "com AllowUnverified=1 instala sem SHA"
+    AssertTrue Len(Dir(root & "\versions\9.9.9\" & Loader_CoreFileName())) > 0
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+Public Sub Test_Updater_Apply_ShaInUpperCase_Matches()
+    Dim root As String, ok As Boolean
+    On Error GoTo Fail
+    Setup
+    root = TempDir()
+    Loader_SetRootOverride root
+    ok = Updater_Apply(Manifest("9.9.9", CoreFixture(), UCase$(Transport_Sha256File(CoreFixture()))), "core", True)
+    Loader_SetRootOverride ""
+    AssertTrue ok
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' SHA confere, mas o arquivo nao e um core valido: nada fica instalado e o core anterior volta a responder.
+Public Sub Test_Updater_Apply_CorruptButShaMatches_RollsBack()
+    Dim root As String, bad As String, prev As String, ok As Boolean, f As Integer
+    On Error GoTo Fail
+    Setup
+    root = TempDir()
+    bad = TempDir() & "\core-corrompido.xlam"
+    f = FreeFile: Open bad For Output As #f: Print #f, "isto nao e um xlam": Close #f
+    prev = Loader_CoreWorkbook().FullName
+    Loader_SetRootOverride root
+    Settings_Set KEY_SKIPPED, "x"
+    ok = Updater_Apply(Manifest("9.9.9", bad, Transport_Sha256File(bad)), "core", False)
+    Loader_SetRootOverride ""
+    AssertFalse ok
+    AssertEqual 0, Len(Dir(root & "\versions\9.9.9", vbDirectory)), "pasta da versão nova apagada"
+    AssertTrue Not Loader_CoreWorkbook() Is Nothing, "core anterior recarregado"
+    AssertEqual prev, Loader_CoreWorkbook().FullName
+    AssertEqual "pong", Loader_RunCore("Core_Ping")
+    AssertTrue InStr(Loader_LastMsg, "Falha ao atualizar") > 0
+    AssertEqual "x", Settings_Get(KEY_SKIPPED), "falha não mexe nas configurações"
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' Core mais novo corrompido: o startup cai para a versao valida anterior.
+Public Sub Test_Loader_OpenBestCore_FallsBackWhenNewestIsCorrupt()
+    Dim root As String, vd As String, f As Integer, c As Collection
+    On Error GoTo Fail
+    Setup
+    root = TempDir()
+    vd = root & "\versions"
+    MkDir vd: MkDir vd & "\1.0.0": MkDir vd & "\9.9.9": MkDir vd & "\2.0.0"
+    FileCopy CoreFixture(), vd & "\1.0.0\" & Loader_CoreFileName()
+    f = FreeFile: Open vd & "\9.9.9\" & Loader_CoreFileName() For Output As #f: Print #f, "corrompido": Close #f
+    f = FreeFile: Open vd & "\2.0.0\" & Loader_CoreFileName() For Output As #f: Print #f, "corrompido": Close #f
+    Set c = Loader_ListCoreVersions(vd)
+    AssertEqual 3, c.Count
+    AssertEqual "9.9.9", c(1)
+    AssertEqual "2.0.0", c(2)
+    AssertEqual "1.0.0", c(3)
+    AssertEqual "1.0.0", Loader_OpenBestCore(vd)
+    AssertEqual vd & "\1.0.0\" & Loader_CoreFileName(), Loader_CoreWorkbook().FullName
+    AssertEqual "pong", Loader_RunCore("Core_Ping")
+    Loader_CloseCore
+    Kill vd & "\1.0.0\" & Loader_CoreFileName()
+    AssertEqual "", Loader_OpenBestCore(vd)
     Cleanup
     Exit Sub
 Fail:

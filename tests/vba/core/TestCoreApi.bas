@@ -1,5 +1,8 @@
 Attribute VB_Name = "TestCoreApi"
 Option Explicit
+Private mSavedPending As String
+Private mSavedPendingSha As String
+Private mSavedLoaderPath As String
 
 Private Function Fixture(wb As Workbook) As Worksheet
     Dim ws As Worksheet
@@ -431,99 +434,190 @@ Public Sub Test_Core_RebuildFromRange_ChartSheetNotActive_NewChartSurvives()
     Teardown wb
 End Sub
 
-Private Sub RestorePending(savedPending As String, savedLoaderPath As String)
-    If Len(savedPending) > 0 Then SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", savedPending Else On Error Resume Next: DeleteSetting "ThinQQ", "Updater", "PendingLoaderPath"
-    On Error Resume Next
-    Core_RegisterLoader "", savedLoaderPath
+
+Private Sub PendingSetup()
+    mSavedPending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    mSavedPendingSha = GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", "")
+    mSavedLoaderPath = Core_LoaderPath()
 End Sub
 
-' Core_ApplyPendingLoader contra uma copia temporaria (nunca o loader real em execucao):
-' o arquivo alvo e substituido, o pendente apagado e a configuracao limpa.
-Public Sub Test_Core_ApplyPendingLoader_ReplacesTargetAndClearsSetting()
-    Dim d As String, pend As String, target As String, wb As Workbook, pendLen As Long
-    Dim savedPending As String, savedLoader As String, f As Integer, prevAlerts As Boolean
-    savedPending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
-    savedLoader = Core_LoaderPath()
-    On Error GoTo Fail
-    d = TempDir()
-    pend = d & "\pend\ThinQQ.xlam"
-    MkDir d & "\pend"
-    MkDir d & "\inst"
-    target = d & "\inst\ThinQQ.xlam"
-    prevAlerts = Application.DisplayAlerts
-    Application.DisplayAlerts = False
-    Set wb = Application.Workbooks.Add
-    wb.SaveAs Filename:=pend, FileFormat:=55      ' xlOpenXMLAddIn
-    wb.Close SaveChanges:=False
-    Application.DisplayAlerts = prevAlerts
-    pendLen = FileLen(pend)
-    f = FreeFile: Open target For Output As #f: Print #f, "conteudo antigo do loader": Close #f
-    AssertTrue FileLen(target) <> pendLen, "pré-condição: alvo difere do pendente"
-    Core_RegisterLoader "", target
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
-    Core_ApplyPendingLoader
-    AssertEqual pendLen, FileLen(target), "alvo deve ter o conteúdo do pendente"
-    AssertEqual 0, Len(Dir(pend)), "pendente deve ser apagado"
-    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderPath", ""), "configuração deve ser limpa"
+Private Sub PutSetting(key As String, value As String)
+    If Len(value) > 0 Then
+        SaveSetting "ThinQQ", "Updater", key, value
+    Else
+        On Error Resume Next
+        DeleteSetting "ThinQQ", "Updater", key
+        On Error GoTo 0
+    End If
+End Sub
+
+Private Sub PendingRestore()
     On Error Resume Next
     Application.Workbooks("ThinQQ.xlam").Close SaveChanges:=False
-    On Error GoTo 0
-    RestorePending savedPending, savedLoader
-    Exit Sub
-Fail:
+    PutSetting "PendingLoaderPath", mSavedPending
+    PutSetting "PendingLoaderSha256", mSavedPendingSha
+    Core_RegisterLoader "", mSavedLoaderPath
+End Sub
+
+Private Sub PendingFail()
     Dim n As Long, s As String, ds As String
     n = Err.Number: s = Err.Source: ds = Err.Description
     Application.DisplayAlerts = True
-    On Error Resume Next
-    Application.Workbooks("ThinQQ.xlam").Close SaveChanges:=False
-    RestorePending savedPending, savedLoader
-    On Error GoTo 0
+    PendingRestore
     Err.Raise n, s, ds
 End Sub
 
+Private Sub WriteText(path As String, text As String)
+    Dim f As Integer
+    f = FreeFile: Open path For Output As #f: Print #f, text: Close #f
+End Sub
+
+' .xlam valido e vazio (sem macros) gerado no caminho informado.
+Private Sub MakeAddinFile(path As String)
+    Dim wb As Workbook, prev As Boolean
+    prev = Application.DisplayAlerts
+    Application.DisplayAlerts = False
+    Set wb = Application.Workbooks.Add
+    wb.SaveAs Filename:=path, FileFormat:=55      ' xlOpenXMLAddIn
+    wb.Close SaveChanges:=False
+    Application.DisplayAlerts = prev
+End Sub
+
+' Core_ApplyPendingLoader contra uma copia temporaria (nunca o loader real em execucao).
+Public Sub Test_Core_ApplyPendingLoader_ReplacesTargetAndClearsSetting()
+    Dim d As String, pend As String, target As String, pendLen As Long
+    PendingSetup
+    On Error GoTo Fail
+    d = TempDir()
+    MkDir d & "\pend": MkDir d & "\inst"
+    pend = d & "\pend\ThinQQ.xlam": target = d & "\inst\ThinQQ.xlam"
+    MakeAddinFile pend
+    pendLen = FileLen(pend)
+    WriteText target, "conteudo antigo do loader"
+    AssertTrue FileLen(target) <> pendLen, "pré-condição: alvo difere do pendente"
+    Core_RegisterLoader "", target
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", UCase$(Util_Sha256File(pend))     ' maiusculas: comparacao case-insensitive
+    Core_ApplyPendingLoader
+    AssertEqual pendLen, FileLen(target), "alvo deve ter o conteúdo do pendente"
+    AssertEqual 0, Len(Dir(pend)), "pendente deve ser apagado"
+    AssertEqual 0, Len(Dir(target & ".new")) + Len(Dir(target & ".bak")), "sem sobras .new/.bak"
+    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderPath", ""), "configuração deve ser limpa"
+    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", "")
+    PendingRestore
+    Exit Sub
+Fail:
+    PendingFail
+End Sub
+
+Public Sub Test_Core_ApplyPendingLoader_ShaMismatch_DiscardsAndKeepsTarget()
+    Dim d As String, pend As String, target As String, oldLen As Long
+    PendingSetup
+    On Error GoTo Fail
+    d = TempDir()
+    pend = d & "\pend.xlam": target = d & "\ThinQQ.xlam"
+    MakeAddinFile pend
+    WriteText target, "intacto"
+    oldLen = FileLen(target)
+    Core_RegisterLoader "", target
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", "0000000000000000000000000000000000000000000000000000000000000000"
+    Core_ApplyPendingLoader
+    AssertEqual oldLen, FileLen(target), "alvo intacto"
+    AssertEqual 0, Len(Dir(pend)), "arquivo adulterado deve ser apagado"
+    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", "")
+    ' sem SHA registrado: tambem recusa
+    MakeAddinFile pend
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
+    PutSetting "PendingLoaderSha256", ""
+    Core_ApplyPendingLoader
+    AssertEqual oldLen, FileLen(target)
+    AssertEqual 0, Len(Dir(pend))
+    PendingRestore
+    Exit Sub
+Fail:
+    PendingFail
+End Sub
+
+Public Sub Test_Core_ApplyPendingLoader_ReloadFails_RestoresOldAndKeepsPending()
+    Dim d As String, pend As String, target As String
+    PendingSetup
+    On Error GoTo Fail
+    d = TempDir()
+    pend = d & "\pend.xlam": target = d & "\ThinQQ.xlam"
+    WriteText pend, "isto nao e um xlam valido"
+    WriteText target, "loader antigo"
+    Core_RegisterLoader "", target
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", Util_Sha256File(pend)
+    Core_ApplyPendingLoader
+    AssertEqual "loader antigo", Replace(Replace(ReadText(target), vbCr, ""), vbLf, ""), "loader antigo restaurado"
+    AssertTrue Len(Dir(pend)) > 0, "pendente mantido"
+    AssertEqual pend, GetSetting("ThinQQ", "Updater", "PendingLoaderPath", ""), "pendente continua registrado"
+    AssertEqual 0, Len(Dir(target & ".new")) + Len(Dir(target & ".bak")), "sem sobras .new/.bak"
+    PendingRestore
+    Exit Sub
+Fail:
+    PendingFail
+End Sub
+
 Public Sub Test_Core_ApplyPendingLoader_MissingPendingFile_ClearsSettingAndKeepsTarget()
-    Dim d As String, target As String, f As Integer, savedPending As String, savedLoader As String
-    savedPending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
-    savedLoader = Core_LoaderPath()
+    Dim d As String, target As String
+    PendingSetup
     On Error GoTo Fail
     d = TempDir()
     target = d & "\ThinQQ.xlam"
-    f = FreeFile: Open target For Output As #f: Print #f, "intacto": Close #f
+    WriteText target, "intacto"
     Core_RegisterLoader "", target
     SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", d & "\nao-existe.xlam"
     Core_ApplyPendingLoader
     AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
-    AssertTrue FileLen(target) > 0 And Len(Dir(target)) > 0, "alvo intacto"
-    RestorePending savedPending, savedLoader
+    AssertTrue Len(Dir(target)) > 0 And FileLen(target) > 0, "alvo intacto"
+    PendingRestore
     Exit Sub
 Fail:
-    Dim n As Long, s As String, ds As String
-    n = Err.Number: s = Err.Source: ds = Err.Description
-    RestorePending savedPending, savedLoader
-    Err.Raise n, s, ds
+    PendingFail
 End Sub
 
 Public Sub Test_Core_ApplyPendingLoader_NoLoaderRegistered_IsNoOpAndNeverRaises()
-    Dim d As String, pend As String, f As Integer, savedPending As String, savedLoader As String
-    savedPending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
-    savedLoader = Core_LoaderPath()
+    Dim d As String, pend As String
+    PendingSetup
     On Error GoTo Fail
     d = TempDir()
     pend = d & "\p.xlam"
-    f = FreeFile: Open pend For Output As #f: Print #f, "x": Close #f
+    WriteText pend, "x"
     Core_RegisterLoader "", ""
     SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
     Core_ApplyPendingLoader
     AssertTrue Len(Dir(pend)) > 0, "sem loader registrado nada é feito"
     AssertEqual pend, GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
-    ' alvo inexistente/invalido: o erro e contido (Errors_Handle), nunca propaga
+    ' alvo em pasta inexistente + SHA valido: o erro e contido, nunca propaga
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", Util_Sha256File(pend)
     Core_RegisterLoader "", d & "\sem-pasta\ThinQQ.xlam"
     Core_ApplyPendingLoader
-    RestorePending savedPending, savedLoader
+    PendingRestore
     Exit Sub
 Fail:
-    Dim n As Long, s As String, ds As String
-    n = Err.Number: s = Err.Source: ds = Err.Description
-    RestorePending savedPending, savedLoader
-    Err.Raise n, s, ds
+    PendingFail
 End Sub
+
+Public Sub Test_Util_Sha256File_KnownAndMissing()
+    Dim d As String
+    d = TempDir()
+    Dim f As Integer
+    f = FreeFile: Open d & "\a.txt" For Binary As #f: Put #f, , CByte(97): Put #f, , CByte(98): Put #f, , CByte(99): Close #f
+    AssertEqual "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", Util_Sha256File(d & "\a.txt")
+    AssertEqual "", Util_Sha256File(d & "\nao-existe.txt")
+End Sub
+
+Private Function ReadText(path As String) As String
+    Dim f As Integer, ln As String
+    f = FreeFile
+    Open path For Input As #f
+    Do While Not EOF(f)
+        Line Input #f, ln
+        ReadText = ReadText & ln
+    Loop
+    Close #f
+End Function

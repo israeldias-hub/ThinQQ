@@ -88,6 +88,45 @@ Public Function Loader_FindNewestCoreVersion(versionsDir As String) As String
     Loader_FindNewestCoreVersion = best
 End Function
 
+' Versoes validas (com o arquivo do core) em ordem decrescente.
+Public Function Loader_ListCoreVersions(versionsDir As String) As Collection
+    Dim fso As Object, sub_ As Object, arr() As String, n As Long, i As Long, j As Long, t As String, res As Collection
+    Set res = New Collection
+    Set Loader_ListCoreVersions = res
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If Not fso.FolderExists(versionsDir) Then Exit Function
+    ReDim arr(0 To 0)
+    For Each sub_ In fso.GetFolder(versionsDir).SubFolders
+        If IsValidVersion(sub_.Name) Then
+            If fso.FileExists(sub_.Path & "\" & Loader_CoreFileName()) Then
+                ReDim Preserve arr(0 To n)
+                arr(n) = sub_.Name: n = n + 1
+            End If
+        End If
+    Next
+    For i = 0 To n - 2
+        For j = i + 1 To n - 1
+            If CompareVersions(arr(j), arr(i)) > 0 Then t = arr(i): arr(i) = arr(j): arr(j) = t
+        Next
+    Next
+    For i = 0 To n - 1
+        res.Add arr(i)
+    Next
+End Function
+
+' Abre o core mais novo que carregar de fato (health check incluso); se falhar, tenta a proxima versao.
+' Retorna a versao aberta ("" se nenhuma abriu).
+Public Function Loader_OpenBestCore(versionsDir As String) As String
+    Dim v As Variant
+    For Each v In Loader_ListCoreVersions(versionsDir)
+        If Loader_OpenCore(versionsDir & "\" & CStr(v) & "\" & Loader_CoreFileName()) Then
+            Loader_OpenBestCore = CStr(v)
+            Exit Function
+        End If
+        Loader_Log "Loader_OpenBestCore: core " & CStr(v) & " nao carregou; tentando versao anterior"
+    Next
+End Function
+
 Public Function Loader_CoreWorkbook() As Workbook
     On Error Resume Next
     Set Loader_CoreWorkbook = Application.Workbooks(Loader_CoreFileName())
@@ -106,14 +145,17 @@ End Sub
 
 ' Abre (ou troca) o core. Retorna False se falhar.
 Public Function Loader_OpenCore(path As String) As Boolean
-    Dim wb As Workbook
+    Dim wb As Workbook, prevAlerts As Boolean
     Set wb = Loader_CoreWorkbook()
     If Not wb Is Nothing Then
         If StrComp(wb.FullName, path, vbTextCompare) = 0 Then Loader_OpenCore = True: Exit Function
         Loader_CloseCore
     End If
     On Error GoTo Fail
+    prevAlerts = Application.DisplayAlerts
+    Application.DisplayAlerts = False
     Set wb = Application.Workbooks.Open(Filename:=path, ReadOnly:=True, UpdateLinks:=0)
+    Application.DisplayAlerts = prevAlerts
     Dim pong As Variant
     On Error Resume Next
     pong = Application.Run("'" & wb.Name & "'!Core_Ping")
@@ -132,6 +174,7 @@ Public Function Loader_OpenCore(path As String) As Boolean
     Loader_OpenCore = True
     Exit Function
 Fail:
+    Application.DisplayAlerts = prevAlerts
     Loader_Log "Loader_OpenCore falhou: " & path & " - " & Err.Description
     Loader_OpenCore = False
 End Function
@@ -169,8 +212,7 @@ Public Sub Loader_Startup()
     On Error GoTo Fail
     Dim ver As String
     Loader_EnsureFolders
-    ver = Loader_FindNewestCoreVersion(Loader_VersionsDir())
-    If ver = "" Then
+    If Loader_FindNewestCoreVersion(Loader_VersionsDir()) = "" Then
         Loader_Log "core não encontrado em " & Loader_VersionsDir()
         If MsgBox("O ThinQQ está instalado, mas o módulo principal (core) não foi encontrado." & vbLf & _
                   "Deseja baixá-lo agora pela fonte de atualização?", vbYesNo + vbQuestion, APP_NAME) = vbYes Then
@@ -178,10 +220,12 @@ Public Sub Loader_Startup()
         End If
         Exit Sub
     End If
-    If Not Loader_OpenCore(Loader_VersionsDir() & "\" & ver & "\" & Loader_CoreFileName()) Then
-        MsgBox "Não foi possível carregar o ThinQQ core " & ver & ". Veja o log em " & Loader_Root() & "\logs.", vbExclamation, APP_NAME
+    ver = Loader_OpenBestCore(Loader_VersionsDir())
+    If ver = "" Then
+        MsgBox "Não foi possível carregar o ThinQQ core. Veja o log em " & Loader_Root() & "\logs.", vbExclamation, APP_NAME
         Exit Sub
     End If
+    Updater_SchedulePendingLoader 4
     mStartupCheckAt = Now + TimeSerial(0, 0, 8)
     Application.OnTime mStartupCheckAt, "'" & ThisWorkbook.Name & "'!Updater_StartupCheck"
     Exit Sub

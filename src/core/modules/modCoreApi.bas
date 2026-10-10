@@ -362,24 +362,49 @@ Fail:
 End Function
 
 ' Substitui o arquivo do loader (registrado em PendingLoaderPath) e o recarrega.
-' Executado via OnTime a partir do core, para que nenhum código do loader esteja na pilha.
-' Invocado por OnTime: qualquer erro aqui abriria dialogo modal, entao tudo e contido (Errors_Handle).
+' Executado via OnTime a partir do core, para que nenhum codigo do loader esteja na pilha.
+' Seguranca: o caminho pendente vem do registro, entao o SHA-256 gravado pelo atualizador
+' (PendingLoaderSha256) e recalculado aqui (certutil, Util_Sha256File); divergencia => descarta o arquivo.
+' Atomicidade: copia para <alvo>.new e faz backup <alvo>.bak ANTES de fechar o loader; qualquer falha depois
+' restaura o backup, recarrega o loader antigo e deixa o pendente registrado. Nunca propaga erro e nunca usa
+' MsgBox direto (OnTime): so Errors_Log + Core_Notify.
 Public Sub Core_ApplyPendingLoader()
+    Dim pending As String, target As String, expectSha As String, nw As String, bak As String
+    Dim ai As AddIn, found As Boolean, started As Boolean, committed As Boolean, en As Long, ed As String, prevAlerts As Boolean
     On Error GoTo Fail
-    Dim pending As String, target As String, ai As AddIn, found As Boolean
     pending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
     target = mLoaderPath
     If Len(pending) = 0 Or Len(target) = 0 Then Exit Sub
-    If Len(Dir(pending)) = 0 Then SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", "": Exit Sub
+    If Len(Dir(pending)) = 0 Then
+        SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
+        SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", ""
+        Exit Sub
+    End If
+    expectSha = LCase$(GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", ""))
+    If Len(expectSha) = 0 Or Util_Sha256File(pending) <> expectSha Then
+        Errors_Log "Core_ApplyPendingLoader: SHA-256 do loader pendente nao confere; descartado: " & pending
+        Kill pending
+        SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
+        SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", ""
+        Core_Notify "A atualização do carregador do ThinQQ foi descartada: o arquivo não passou na verificação de integridade.", vbExclamation, False
+        Exit Sub
+    End If
+    nw = target & ".new": bak = target & ".bak"
+    If Len(Dir(nw)) > 0 Then Kill nw
+    If Len(Dir(bak)) > 0 Then Kill bak
+    FileCopy pending, nw
+    If Len(Dir(target)) > 0 Then FileCopy target, bak
+    started = True
+    prevAlerts = Application.DisplayAlerts
+    Application.DisplayAlerts = False
     For Each ai In Application.AddIns
         If StrComp(ai.FullName, target, vbTextCompare) = 0 Then ai.Installed = False: found = True
     Next
     On Error Resume Next
     Application.Workbooks(Util_FileName(target)).Close SaveChanges:=False
     On Error GoTo Fail
-    FileCopy pending, target
-    Kill pending
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
+    If Len(Dir(target)) > 0 Then Kill target
+    Name nw As target
     If found Then
         For Each ai In Application.AddIns
             If StrComp(ai.FullName, target, vbTextCompare) = 0 Then ai.Installed = True
@@ -387,8 +412,39 @@ Public Sub Core_ApplyPendingLoader()
     Else
         Application.Workbooks.Open target
     End If
+    committed = True
+    On Error Resume Next
+    Application.DisplayAlerts = prevAlerts
+    Kill bak
+    Kill pending
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", ""
     Errors_Log "loader substituído: " & target
     Exit Sub
 Fail:
-    Errors_Handle "Core_ApplyPendingLoader"
+    en = Err.Number: ed = Err.Description
+    ' A restauracao fica em outro procedimento: dentro de um handler ativo o On Error Resume Next nao protege
+    ' de forma confiavel (um novo erro escapava para o chamador).
+    If started And Not committed Then RestoreLoaderFiles target, nw, bak, found, prevAlerts
+    Errors_Log "Core_ApplyPendingLoader" & vbTab & en & vbTab & ed & IIf(started And Not committed, " (loader antigo restaurado)", "")
+    Core_Notify "Não foi possível atualizar o carregador do ThinQQ. A versão anterior foi mantida.", vbExclamation, False
+End Sub
+
+' Desfaz a troca do loader: devolve o backup, apaga o .new e recarrega o loader antigo. Nunca propaga erro.
+Private Sub RestoreLoaderFiles(target As String, nw As String, bak As String, wasAddin As Boolean, prevAlerts As Boolean)
+    Dim ai As AddIn
+    On Error Resume Next
+    If Len(Dir(bak)) > 0 Then
+        If Len(Dir(target)) > 0 Then Kill target
+        Name bak As target
+    End If
+    If Len(Dir(nw)) > 0 Then Kill nw
+    If wasAddin Then
+        For Each ai In Application.AddIns
+            If StrComp(ai.FullName, target, vbTextCompare) = 0 Then ai.Installed = True
+        Next
+    Else
+        Application.Workbooks.Open target
+    End If
+    Application.DisplayAlerts = prevAlerts
 End Sub
