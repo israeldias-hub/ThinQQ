@@ -160,7 +160,7 @@ Public Sub Stacked_HideTotalLegendEntry(cht As Chart)
 End Sub
 
 ' Primeira posição vertical livre (sem sobrepor outros gráficos da planilha) para o retângulo proposto.
-Private Function FreeTop(ws As Worksheet, l As Double, t As Double, w As Double, h As Double) As Double
+Public Function FreeTop(ws As Worksheet, l As Double, t As Double, w As Double, h As Double) As Double
     Dim co As ChartObject, moved As Boolean
     Do
         moved = False
