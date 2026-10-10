@@ -1,0 +1,5 @@
+dist/
+tests/results/
+tests/fixtures/release/
+*.tmp
+~$*
