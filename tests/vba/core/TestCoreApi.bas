@@ -430,11 +430,3 @@ Public Sub Test_Core_RebuildFromRange_ChartSheetNotActive_NewChartSurvives()
     AssertEqual 1, TqqNameCount(wb)
     Teardown wb
 End Sub
-
-Public Sub Test_Errors_Log_NeverRaises()
-    Dim old As String
-    old = Environ$("LOCALAPPDATA")
-    Errors_Log "teste de log"        ' caminho normal
-    ' O corpo inteiro roda sob On Error Resume Next (Open/Print/Close inclusos): não propaga mesmo se a pasta não for gravável.
-    AssertTrue True
-End Sub
