@@ -3,9 +3,80 @@
   <ribbon>
     <tabs>
       <tab id="tqqTab" label="ThinQQ" insertAfterMso="TabInsert">
-        <group id="grpAbout" label="ThinQQ">
-          <button id="btnAbout" label="Sobre" size="large" imageMso="Info" onAction="Rx_OnAbout"/>
+
+        <group id="grpInsert" label="Inserir gráfico">
+          <button id="btnStacked" label="Colunas empilhadas" size="large" imageMso="ChartTypeColumnInsertGallery"
+                  tag="stacked" onAction="Rx_OnInsert"
+                  screentip="Colunas empilhadas" supertip="Selecione a tabela (linha de cabeçalho + coluna de categorias) e clique. Totais e rótulos entram automaticamente."/>
+          <button id="btnClustered" label="Colunas agrupadas" size="large" imageMso="ChartTypeColumnInsertGallery"
+                  tag="clustered" onAction="Rx_OnInsert" screentip="Colunas agrupadas"/>
+          <button id="btnStacked100" label="Colunas 100%" size="large" imageMso="ChartTypeColumnInsertGallery"
+                  tag="stacked100" onAction="Rx_OnInsert" screentip="Colunas 100% empilhadas"/>
+          <button id="btnWaterfall" label="Cascata" size="large" imageMso="ChartTypeOtherInsertGallery"
+                  tag="waterfall" onAction="Rx_OnInsert"
+                  screentip="Cascata (ponte)" supertip="Tabela com 2 colunas: etapa e valor. Escreva 'e' no valor para uma barra de total/subtotal calculada."/>
+          <button id="btnLine" label="Linha" size="large" imageMso="ChartTypeLineInsertGallery"
+                  tag="line" onAction="Rx_OnInsert" screentip="Linha com rótulos"/>
         </group>
+
+        <group id="grpChart" label="Gráfico selecionado">
+          <toggleButton id="tglTotals" label="Totais" imageMso="AutoSum" tag="totals"
+                        onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
+                        screentip="Totais acima das colunas"/>
+          <toggleButton id="tglLabels" label="Rótulos" imageMso="TextBoxInsert" tag="labels"
+                        onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
+                        screentip="Rótulos de valor"/>
+          <toggleButton id="tglConnectors" label="Conectores" imageMso="ShapeStraightConnector" tag="connectors"
+                        onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
+                        screentip="Linhas conectando as colunas"/>
+          <separator id="sep1"/>
+          <dropDown id="ddFormat" label="Formato" tag="numfmt" onAction="Rx_OnDropdown"
+                    getSelectedItemID="Rx_GetSelectedId" getEnabled="Rx_GetEnabled" screentip="Formato dos números">
+            <item id="int"  label="1.234"/>
+            <item id="dec1" label="1.234,5"/>
+            <item id="dec2" label="1.234,56"/>
+            <item id="pct0" label="12%"/>
+            <item id="pct1" label="12,3%"/>
+            <item id="mil"  label="Milhares (1.234 → 1)"/>
+            <item id="mi"   label="Milhões (1,2)"/>
+          </dropDown>
+          <dropDown id="ddPalette" label="Paleta" tag="palette" onAction="Rx_OnDropdown"
+                    getSelectedItemID="Rx_GetSelectedId" getEnabled="Rx_GetEnabled" screentip="Cores das séries">
+            <item id="padrao" label="Padrão ThinQQ"/>
+            <item id="cinza"  label="Tons de cinza"/>
+            <item id="tema"   label="Cores do tema"/>
+          </dropDown>
+          <dropDown id="ddGap" label="Espaço" tag="gap" onAction="Rx_OnDropdown"
+                    getSelectedItemID="Rx_GetSelectedId" getEnabled="Rx_GetEnabled" screentip="Espaço entre colunas">
+            <item id="30"  label="Estreito (30%)"/>
+            <item id="50"  label="Normal (50%)"/>
+            <item id="80"  label="Largo (80%)"/>
+            <item id="120" label="Muito largo (120%)"/>
+          </dropDown>
+          <separator id="sep2"/>
+          <button id="btnCagr" label="Seta CAGR" imageMso="ArrowsMore" tag="cagr" onAction="Rx_OnAnnotation"
+                  getEnabled="Rx_GetEnabled" screentip="Seta de crescimento anual composto entre duas categorias"/>
+          <button id="btnDiff" label="Seta diferença" imageMso="ArrowsMore" tag="diff" onAction="Rx_OnAnnotation"
+                  getEnabled="Rx_GetEnabled" screentip="Seta com a diferença absoluta e relativa entre dois totais"/>
+          <button id="btnRemoveAnn" label="Remover setas" imageMso="Delete" onAction="Rx_OnRemoveAnnotations"
+                  getEnabled="Rx_GetEnabled"/>
+          <separator id="sep3"/>
+          <button id="btnRefresh" label="Atualizar" imageMso="Refresh" onAction="Rx_OnRefresh"
+                  screentip="Reposiciona setas e rótulos e limpa dados internos sem uso"/>
+          <button id="btnChangeSource" label="Alterar dados" imageMso="TableInsert" onAction="Rx_OnChangeSource"
+                  getEnabled="Rx_GetEnabled" screentip="Trocar a tabela de origem do gráfico"/>
+        </group>
+
+        <group id="grpAbout" label="ThinQQ">
+          <button id="btnSamples" label="Exemplos" size="large" imageMso="FileNew" onAction="Rx_OnSamples"
+                  screentip="Abre uma pasta com tabelas e gráficos de exemplo"/>
+          <button id="btnTutorial" label="Tutorial" size="large" imageMso="Help" onAction="Rx_OnTutorial"/>
+          <button id="btnCheckUpdates" label="Verificar atualizações" imageMso="Refresh" onAction="Rx_OnCheckUpdates"/>
+          <button id="btnSettings" label="Configurações" imageMso="PropertySheet" onAction="Rx_OnSettings"
+                  screentip="Fonte de atualização (URL ou pasta)"/>
+          <button id="btnAbout" label="Sobre" imageMso="Info" onAction="Rx_OnAbout"/>
+        </group>
+
       </tab>
     </tabs>
   </ribbon>

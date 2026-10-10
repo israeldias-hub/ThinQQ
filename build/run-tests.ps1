@@ -72,6 +72,12 @@ try {
     Close-ExcelApp $xl
     if ($server) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
 }
+if (-not $timedOut -and $targets -contains 'loader') {
+    Write-Host '=== ribbon-pacote ==='
+    $global:LASTEXITCODE = 0
+    & (Join-Path $RepoRoot 'tests\ps\Test-Ribbon.ps1') -RepoRoot $RepoRoot
+    if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
+}
 $elapsed = '{0:N1}s' -f $swTotal.Elapsed.TotalSeconds
 if ($timedOut) { Write-ExcelTimeout $wd; Write-Host "Tempo: $elapsed"; exit 2 }
 Write-Host "Tempo: $elapsed"
