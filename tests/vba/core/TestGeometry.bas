@@ -1,0 +1,28 @@
+Attribute VB_Name = "TestGeometry"
+Option Explicit
+
+Public Sub Test_Geom_CategoryCenterX()
+    AssertAlmost 150, Geom_CategoryCenterX(100, 400, 4, 1)   ' slot de 100: centro em 100+50
+    AssertAlmost 450, Geom_CategoryCenterX(100, 400, 4, 4)
+End Sub
+
+Public Sub Test_Geom_BarWidth()
+    AssertAlmost 100, Geom_SlotWidth(400, 4)
+    AssertAlmost 66.6666667, Geom_BarWidth(100, 50)
+    AssertAlmost 100, Geom_BarWidth(100, 0)
+End Sub
+
+Public Sub Test_Geom_ValueToY()
+    AssertAlmost 50, Geom_ValueToY(50, 200, 0, 100, 100)        ' topo
+    AssertAlmost 250, Geom_ValueToY(50, 200, 0, 100, 0)         ' base
+    AssertAlmost 150, Geom_ValueToY(50, 200, -100, 100, 0)      ' zero no meio
+    AssertAlmost 250, Geom_ValueToY(50, 200, 5, 5, 5)           ' escala degenerada
+End Sub
+
+Public Sub Test_Geom_Periods()
+    AssertAlmost 3, Geom_Periods(2022, 2025, 1, 4)
+    AssertAlmost 3, Geom_Periods("2022", "2025", 1, 4)
+    AssertAlmost 2, Geom_Periods("T1", "T3", 1, 3)
+    AssertAlmost 2, Geom_Periods(DateSerial(2020, 1, 1), DateSerial(2022, 1, 1), 1, 2), 0.01
+    AssertAlmost 3, Geom_Periods(10, 40, 1, 4)                  ' numeros fora da faixa de anos: usa indices
+End Sub

@@ -95,8 +95,8 @@ Public Function Waterfall_Insert(ws As Worksheet, data As clsChartData) As Chart
     Registry_SetOption cht, "palette", "padrao"
     Registry_SetOption cht, "gap", "50"
     Registry_SetOption cht, "totals", "0"
-    Registry_SetOption cht, "connectors", "0"
     Waterfall_SetLabels cht, True
+    Ann_SetWaterfallConnectors cht, True
     Set Waterfall_Insert = co
     Exit Function
 Fail:
