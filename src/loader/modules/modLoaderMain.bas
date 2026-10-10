@@ -3,9 +3,21 @@ Option Explicit
 Public Const APP_NAME As String = "ThinQQ"
 Private mRootOverride As String
 Private mStartupCheckAt As Date
+Public Loader_LastMsg As String      ' ultima mensagem enviada por Loader_Msg (usada nos testes)
 
 Public Function Loader_Ping() As String
     Loader_Ping = "pong"
+End Function
+
+' Unico ponto de MsgBox do loader fora da faixa: em build de Teste apenas registra (nunca bloqueia).
+Public Function Loader_Msg(prompt As String, Optional style As VbMsgBoxStyle = vbInformation) As VbMsgBoxResult
+    Loader_LastMsg = prompt
+    If BUILD_CONFIG = "Test" Then
+        Loader_Log "Msg (teste): " & Replace(prompt, vbLf, " | ")
+        Loader_Msg = vbOK
+    Else
+        Loader_Msg = MsgBox(prompt, style, APP_NAME)
+    End If
 End Function
 
 Public Sub Loader_SetRootOverride(path As String)
@@ -184,10 +196,4 @@ Public Sub Loader_Shutdown()
         mStartupCheckAt = 0
     End If
     Loader_CloseCore
-End Sub
-
-Public Sub Updater_StartupCheck()
-End Sub
-
-Public Sub Updater_CheckInteractive()
 End Sub

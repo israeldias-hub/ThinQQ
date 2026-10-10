@@ -430,3 +430,100 @@ Public Sub Test_Core_RebuildFromRange_ChartSheetNotActive_NewChartSurvives()
     AssertEqual 1, TqqNameCount(wb)
     Teardown wb
 End Sub
+
+Private Sub RestorePending(savedPending As String, savedLoaderPath As String)
+    If Len(savedPending) > 0 Then SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", savedPending Else On Error Resume Next: DeleteSetting "ThinQQ", "Updater", "PendingLoaderPath"
+    On Error Resume Next
+    Core_RegisterLoader "", savedLoaderPath
+End Sub
+
+' Core_ApplyPendingLoader contra uma copia temporaria (nunca o loader real em execucao):
+' o arquivo alvo e substituido, o pendente apagado e a configuracao limpa.
+Public Sub Test_Core_ApplyPendingLoader_ReplacesTargetAndClearsSetting()
+    Dim d As String, pend As String, target As String, wb As Workbook, pendLen As Long
+    Dim savedPending As String, savedLoader As String, f As Integer, prevAlerts As Boolean
+    savedPending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    savedLoader = Core_LoaderPath()
+    On Error GoTo Fail
+    d = TempDir()
+    pend = d & "\pend\ThinQQ.xlam"
+    MkDir d & "\pend"
+    MkDir d & "\inst"
+    target = d & "\inst\ThinQQ.xlam"
+    prevAlerts = Application.DisplayAlerts
+    Application.DisplayAlerts = False
+    Set wb = Application.Workbooks.Add
+    wb.SaveAs Filename:=pend, FileFormat:=55      ' xlOpenXMLAddIn
+    wb.Close SaveChanges:=False
+    Application.DisplayAlerts = prevAlerts
+    pendLen = FileLen(pend)
+    f = FreeFile: Open target For Output As #f: Print #f, "conteudo antigo do loader": Close #f
+    AssertTrue FileLen(target) <> pendLen, "pré-condição: alvo difere do pendente"
+    Core_RegisterLoader "", target
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
+    Core_ApplyPendingLoader
+    AssertEqual pendLen, FileLen(target), "alvo deve ter o conteúdo do pendente"
+    AssertEqual 0, Len(Dir(pend)), "pendente deve ser apagado"
+    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderPath", ""), "configuração deve ser limpa"
+    On Error Resume Next
+    Application.Workbooks("ThinQQ.xlam").Close SaveChanges:=False
+    On Error GoTo 0
+    RestorePending savedPending, savedLoader
+    Exit Sub
+Fail:
+    Dim n As Long, s As String, ds As String
+    n = Err.Number: s = Err.Source: ds = Err.Description
+    Application.DisplayAlerts = True
+    On Error Resume Next
+    Application.Workbooks("ThinQQ.xlam").Close SaveChanges:=False
+    RestorePending savedPending, savedLoader
+    On Error GoTo 0
+    Err.Raise n, s, ds
+End Sub
+
+Public Sub Test_Core_ApplyPendingLoader_MissingPendingFile_ClearsSettingAndKeepsTarget()
+    Dim d As String, target As String, f As Integer, savedPending As String, savedLoader As String
+    savedPending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    savedLoader = Core_LoaderPath()
+    On Error GoTo Fail
+    d = TempDir()
+    target = d & "\ThinQQ.xlam"
+    f = FreeFile: Open target For Output As #f: Print #f, "intacto": Close #f
+    Core_RegisterLoader "", target
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", d & "\nao-existe.xlam"
+    Core_ApplyPendingLoader
+    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    AssertTrue FileLen(target) > 0 And Len(Dir(target)) > 0, "alvo intacto"
+    RestorePending savedPending, savedLoader
+    Exit Sub
+Fail:
+    Dim n As Long, s As String, ds As String
+    n = Err.Number: s = Err.Source: ds = Err.Description
+    RestorePending savedPending, savedLoader
+    Err.Raise n, s, ds
+End Sub
+
+Public Sub Test_Core_ApplyPendingLoader_NoLoaderRegistered_IsNoOpAndNeverRaises()
+    Dim d As String, pend As String, f As Integer, savedPending As String, savedLoader As String
+    savedPending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    savedLoader = Core_LoaderPath()
+    On Error GoTo Fail
+    d = TempDir()
+    pend = d & "\p.xlam"
+    f = FreeFile: Open pend For Output As #f: Print #f, "x": Close #f
+    Core_RegisterLoader "", ""
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
+    Core_ApplyPendingLoader
+    AssertTrue Len(Dir(pend)) > 0, "sem loader registrado nada é feito"
+    AssertEqual pend, GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    ' alvo inexistente/invalido: o erro e contido (Errors_Handle), nunca propaga
+    Core_RegisterLoader "", d & "\sem-pasta\ThinQQ.xlam"
+    Core_ApplyPendingLoader
+    RestorePending savedPending, savedLoader
+    Exit Sub
+Fail:
+    Dim n As Long, s As String, ds As String
+    n = Err.Number: s = Err.Source: ds = Err.Description
+    RestorePending savedPending, savedLoader
+    Err.Raise n, s, ds
+End Sub

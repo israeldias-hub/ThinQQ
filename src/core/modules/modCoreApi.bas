@@ -360,3 +360,35 @@ Fail:
     Application.ScreenUpdating = prevSU
     Errors_Handle "Core_RebuildFromRange"
 End Function
+
+' Substitui o arquivo do loader (registrado em PendingLoaderPath) e o recarrega.
+' Executado via OnTime a partir do core, para que nenhum código do loader esteja na pilha.
+' Invocado por OnTime: qualquer erro aqui abriria dialogo modal, entao tudo e contido (Errors_Handle).
+Public Sub Core_ApplyPendingLoader()
+    On Error GoTo Fail
+    Dim pending As String, target As String, ai As AddIn, found As Boolean
+    pending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    target = mLoaderPath
+    If Len(pending) = 0 Or Len(target) = 0 Then Exit Sub
+    If Len(Dir(pending)) = 0 Then SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", "": Exit Sub
+    For Each ai In Application.AddIns
+        If StrComp(ai.FullName, target, vbTextCompare) = 0 Then ai.Installed = False: found = True
+    Next
+    On Error Resume Next
+    Application.Workbooks(Util_FileName(target)).Close SaveChanges:=False
+    On Error GoTo Fail
+    FileCopy pending, target
+    Kill pending
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
+    If found Then
+        For Each ai In Application.AddIns
+            If StrComp(ai.FullName, target, vbTextCompare) = 0 Then ai.Installed = True
+        Next
+    Else
+        Application.Workbooks.Open target
+    End If
+    Errors_Log "loader substituído: " & target
+    Exit Sub
+Fail:
+    Errors_Handle "Core_ApplyPendingLoader"
+End Sub
