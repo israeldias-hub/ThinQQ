@@ -10,9 +10,10 @@ $swTotal = [System.Diagnostics.Stopwatch]::StartNew()
 $cut = (Get-Date).AddDays(-1)
 $stale = @(Get-ChildItem -LiteralPath $env:TEMP -Directory -Filter 'thinqq_test_*' -ErrorAction SilentlyContinue |
     Where-Object { $_.LastWriteTime -lt $cut -and -not $_.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint) })
-foreach ($d in $stale) { Remove-Item -LiteralPath $d.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+$removed = 0
+foreach ($d in $stale) { Remove-Item -LiteralPath $d.FullName -Recurse -Force -ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath $d.FullName)) { $removed++ } }
 Get-ChildItem -Path (Join-Path $env:TEMP '*') -Include 'modBuildInfo_*.bas','modTestDispatch_*.bas' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-Write-Host "Limpeza: $($stale.Count) pasta(s) thinqq_test_* antigas removidas de %TEMP%"
+Write-Host "Limpeza: $removed pasta(s) thinqq_test_* antigas removidas de %TEMP%"
 
 if (-not $NoBuild) {
     $global:LASTEXITCODE = 0

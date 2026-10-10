@@ -14,7 +14,15 @@ function Assert-VbomTrusted {
 }
 
 function New-ExcelApp {
+    # Snapshot dos Excel já abertos: o app novo tem que ser um processo NOVO (nunca matar/fechar o do usuário).
+    $before = @(Get-Process -Name EXCEL -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
     $xl = New-Object -ComObject Excel.Application
+    $xlPid = Get-ExcelPid $xl
+    if ($xlPid -le 0 -or $before -contains $xlPid) {
+        # Não chama Quit: pode ser uma instância do usuário.
+        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($xl) } catch { }
+        throw "Não foi possível garantir que o Excel é uma instância nova (PID $xlPid já existia ou é inválido); abortando para não afetar o seu Excel."
+    }
     $xl.Visible = $false
     $xl.DisplayAlerts = $false
     $xl.EnableEvents = $false
@@ -24,7 +32,7 @@ function New-ExcelApp {
 function Close-ExcelApp($xl) {
     if ($null -ne $xl) {
         try { $xl.Quit() } catch { }
-        [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($xl)
+        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($xl) } catch { }
     }
     [GC]::Collect(); [GC]::WaitForPendingFinalizers()
 }
@@ -148,19 +156,25 @@ function Get-ExcelPid($xl) {
     return [int]$procId
 }
 
-function Start-ExcelWatchdog($xl, [int]$TimeoutSec) {
-    $xlPid = Get-ExcelPid $xl
-    $marker = Join-Path ([System.IO.Path]::GetTempPath()) "thinqq_watchdog_$PID`_$xlPid.flag"
-    Remove-Item $marker -Force -ErrorAction SilentlyContinue
-    # O watchdog espera este processo por $TimeoutSec; se ele ainda existir, sinaliza e mata o Excel.
+# Watchdog genérico por PID (valores escapados para string entre aspas simples; usado também em testes com processo fictício).
+function Start-PidWatchdog([int]$TargetPid, [int]$TimeoutSec, [string]$Marker) {
+    if ($TargetPid -le 0) { throw "PID inválido para o watchdog ($TargetPid)." }
+    $m = $Marker.Replace("'", "''")
     $cmd = "Wait-Process -Id $PID -Timeout $TimeoutSec -ErrorAction SilentlyContinue; " +
-           "if (Get-Process -Id $PID -ErrorAction SilentlyContinue) { Set-Content -LiteralPath '$marker' 'timeout'; Stop-Process -Id $xlPid -Force -ErrorAction SilentlyContinue }"
+           "if (Get-Process -Id $PID -ErrorAction SilentlyContinue) { Set-Content -LiteralPath '$m' 'timeout'; Stop-Process -Id $TargetPid -Force -ErrorAction SilentlyContinue }"
     $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd))
     $pwsh = (Get-Process -Id $PID).Path
     $proc = Start-Process -FilePath $pwsh -ArgumentList @('-NoProfile', '-NonInteractive', '-EncodedCommand', $enc) -PassThru -WindowStyle Hidden
-    return [pscustomobject]@{ Proc = $proc; Marker = $marker; ExcelPid = $xlPid }
+    return [pscustomobject]@{ Proc = $proc; Marker = $Marker; ExcelPid = $TargetPid }
 }
 
+function Start-ExcelWatchdog($xl, [int]$TimeoutSec) {
+    $xlPid = Get-ExcelPid $xl
+    if ($xlPid -le 0) { throw 'Não foi possível obter o PID do Excel (Hwnd inválido); watchdog não iniciado.' }
+    $marker = Join-Path ([System.IO.Path]::GetTempPath()) "thinqq_watchdog_$PID`_$xlPid.flag"
+    Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
+    return Start-PidWatchdog $xlPid $TimeoutSec $marker
+}
 function Stop-ExcelWatchdog($wd) {
     if ($null -eq $wd) { return }
     if ($wd.Proc -and -not $wd.Proc.HasExited) { Stop-Process -Id $wd.Proc.Id -Force -ErrorAction SilentlyContinue }
@@ -183,11 +197,14 @@ function Write-TestDispatchModule([string[]]$TestFiles, [string]$OutPath) {
         $text = Get-Content -Path $f -Raw -Encoding utf8
         if ($text -notmatch '(?m)^Attribute VB_Name = "(Test\w*)"') { continue }
         $mod = $Matches[1]
+        foreach ($w in [regex]::Matches($text, '(?m)^\s*(?:(?:Public|Private|Friend)\s+)?Sub\s+(Test_\w+)[^\r\n]*')) {
+            if ($w.Value -notmatch '^\s*Public Sub Test_\w+\s*\(\s*\)') { Write-Warning "$mod.$($w.Groups[1].Value) não é 'Public Sub Test_x()'; não será executado." }
+        }
         foreach ($m in [regex]::Matches($text, '(?m)^\s*Public Sub (Test_\w+)\s*\(\s*\)')) {
             $cases.Add("        Case ""$mod.$($m.Groups[1].Value)"": $mod.$($m.Groups[1].Value)")
         }
     }
-    $body = ($cases -join "`n")
+    $body = ($cases -join "`r`n")
     $content = @"
 Attribute VB_Name = "modTestDispatch"
 ' Gerado pelo build - nao editar
