@@ -1,6 +1,24 @@
-param([ValidateSet('loader','core','all')] [string]$Target = 'all', [switch]$NoBuild)
+param(
+    [ValidateSet('loader','core','all')] [string]$Target = 'all',
+    [switch]$NoBuild,
+    [int]$TimeoutSec = 600   # watchdog da execução no Excel: mata o Excel iniciado aqui se não terminar (saída 2)
+)
 . "$PSScriptRoot\lib\Build-Common.ps1"
-if (-not $NoBuild) { & "$PSScriptRoot\build.ps1" -Target all -Configuration Test }
+$swTotal = [System.Diagnostics.Stopwatch]::StartNew()
+
+# Limpeza conservadora do %TEMP%: só pastas thinqq_test_* com mais de 1 dia e modBuildInfo_*.bas
+$cut = (Get-Date).AddDays(-1)
+$stale = @(Get-ChildItem -LiteralPath $env:TEMP -Directory -Filter 'thinqq_test_*' -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -lt $cut -and -not $_.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint) })
+foreach ($d in $stale) { Remove-Item -LiteralPath $d.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+Get-ChildItem -Path (Join-Path $env:TEMP '*') -Include 'modBuildInfo_*.bas','modTestDispatch_*.bas' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+Write-Host "Limpeza: $($stale.Count) pasta(s) thinqq_test_* antigas removidas de %TEMP%"
+
+if (-not $NoBuild) {
+    $global:LASTEXITCODE = 0
+    & "$PSScriptRoot\build.ps1" -Target all -Configuration Test
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 
 $resultsDir = Join-Path $RepoRoot 'tests\results'
 New-Item -ItemType Directory -Force $resultsDir | Out-Null
@@ -24,10 +42,12 @@ if ($node) {
     Set-Content (Join-Path $resultsDir 'http-base.txt') 'http://127.0.0.1:18080/' -NoNewline
 }
 
-$totalFailed = 0
+
+$totalFailed = 0; $noTests = $false; $timedOut = $false
 $xl = New-ExcelApp
-$xl.EnableEvents = $true
+$wd = Start-ExcelWatchdog $xl $TimeoutSec
 try {
+    $xl.EnableEvents = $true
     $core = $xl.Workbooks.Open((Join-Path $DistDir 'ThinQQ.core.test.xlam'))
     foreach ($t in $targets) {
         $wb = if ($t -eq 'core') { $core } else { $xl.Workbooks.Open((Join-Path $DistDir 'ThinQQ.test.xlam')) }
@@ -35,12 +55,25 @@ try {
         Remove-Item $out -ErrorAction SilentlyContinue
         $failed = $xl.Run("'$($wb.Name)'!modTestRunner.RunAllTests", $out)
         Write-Host "=== $t ==="
-        Get-Content $out
+        $tap = Get-Content $out
+        $tap
+        $plan = $tap | Where-Object { $_ -match '^1\.\.(\d+)$' } | Select-Object -First 1
+        if (-not $plan -or [int]($plan -replace '^1\.\.', '') -eq 0) {
+            Write-Host "ERRO: nenhum teste encontrado em '$t'" -ForegroundColor Red
+            $noTests = $true
+        }
         $totalFailed += [int]$failed
     }
+} catch {
+    if (Test-ExcelWatchdogFired $wd) { $timedOut = $true } else { throw }
 } finally {
+    Stop-ExcelWatchdog $wd
     Close-ExcelApp $xl
     if ($server) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
 }
+$elapsed = '{0:N1}s' -f $swTotal.Elapsed.TotalSeconds
+if ($timedOut) { Write-ExcelTimeout $wd; Write-Host "Tempo: $elapsed"; exit 2 }
+Write-Host "Tempo: $elapsed"
+if ($noTests) { Write-Host 'nenhum teste encontrado' -ForegroundColor Red; exit 1 }
 if ($totalFailed -gt 0) { Write-Host "FALHAS: $totalFailed" -ForegroundColor Red; exit 1 }
 Write-Host 'Todos os testes passaram' -ForegroundColor Green

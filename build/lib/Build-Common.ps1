@@ -132,3 +132,73 @@ function Add-RibbonToPackage([string]$PackagePath, [string]$RibbonXmlPath) {
         }
     } finally { $zip.Dispose() }
 }
+
+# ---- Watchdog do Excel -------------------------------------------------------
+# Erro de compilação VBA ou diálogo modal trava a chamada COM para sempre. Um processo pwsh
+# separado mata SOMENTE o Excel que este script iniciou (PID obtido via $xl.Hwnd) após o timeout;
+# a chamada COM pendente então lança exceção e o chamador sai com código 2.
+Add-Type -Namespace ThinQQ -Name Win32 -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern uint GetWindowThreadProcessId(System.IntPtr hWnd, out uint pid);
+'@ -ErrorAction SilentlyContinue
+
+function Get-ExcelPid($xl) {
+    [uint32]$procId = 0
+    [void][ThinQQ.Win32]::GetWindowThreadProcessId([IntPtr]::new([int64]$xl.Hwnd), [ref]$procId)
+    return [int]$procId
+}
+
+function Start-ExcelWatchdog($xl, [int]$TimeoutSec) {
+    $xlPid = Get-ExcelPid $xl
+    $marker = Join-Path ([System.IO.Path]::GetTempPath()) "thinqq_watchdog_$PID`_$xlPid.flag"
+    Remove-Item $marker -Force -ErrorAction SilentlyContinue
+    # O watchdog espera este processo por $TimeoutSec; se ele ainda existir, sinaliza e mata o Excel.
+    $cmd = "Wait-Process -Id $PID -Timeout $TimeoutSec -ErrorAction SilentlyContinue; " +
+           "if (Get-Process -Id $PID -ErrorAction SilentlyContinue) { Set-Content -LiteralPath '$marker' 'timeout'; Stop-Process -Id $xlPid -Force -ErrorAction SilentlyContinue }"
+    $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd))
+    $pwsh = (Get-Process -Id $PID).Path
+    $proc = Start-Process -FilePath $pwsh -ArgumentList @('-NoProfile', '-NonInteractive', '-EncodedCommand', $enc) -PassThru -WindowStyle Hidden
+    return [pscustomobject]@{ Proc = $proc; Marker = $marker; ExcelPid = $xlPid }
+}
+
+function Stop-ExcelWatchdog($wd) {
+    if ($null -eq $wd) { return }
+    if ($wd.Proc -and -not $wd.Proc.HasExited) { Stop-Process -Id $wd.Proc.Id -Force -ErrorAction SilentlyContinue }
+}
+
+function Test-ExcelWatchdogFired($wd) {
+    return ($null -ne $wd -and (Test-Path -LiteralPath $wd.Marker))
+}
+
+function Write-ExcelTimeout($wd) {
+    Remove-Item -LiteralPath $wd.Marker -Force -ErrorAction SilentlyContinue
+    Write-Host 'TIMEOUT: o Excel não terminou (provável erro de compilação VBA ou diálogo modal)' -ForegroundColor Red
+}
+
+# Gera modTestDispatch com chamadas DIRETAS a cada Test_* (Select Case). Application.Run abre diálogo modal
+# em erro não tratado no Excel invisível; chamada direta respeita o On Error do modTestRunner.
+function Write-TestDispatchModule([string[]]$TestFiles, [string]$OutPath) {
+    $cases = New-Object System.Collections.Generic.List[string]
+    foreach ($f in $TestFiles) {
+        $text = Get-Content -Path $f -Raw -Encoding utf8
+        if ($text -notmatch '(?m)^Attribute VB_Name = "(Test\w*)"') { continue }
+        $mod = $Matches[1]
+        foreach ($m in [regex]::Matches($text, '(?m)^\s*Public Sub (Test_\w+)\s*\(\s*\)')) {
+            $cases.Add("        Case ""$mod.$($m.Groups[1].Value)"": $mod.$($m.Groups[1].Value)")
+        }
+    }
+    $body = ($cases -join "`n")
+    $content = @"
+Attribute VB_Name = "modTestDispatch"
+' Gerado pelo build - nao editar
+Option Explicit
+
+Public Sub Dispatch(ByVal qualifiedName As String)
+    Select Case qualifiedName
+$body
+        Case Else: Err.Raise vbObjectError + 514, "Dispatch", "teste nao despachado: " & qualifiedName
+    End Select
+End Sub
+"@
+    Set-Content -Path $OutPath -Value $content -Encoding ascii
+}

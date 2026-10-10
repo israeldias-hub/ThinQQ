@@ -5,14 +5,17 @@
 param(
     [ValidateSet('loader','core','all')] [string]$Target = 'all',
     [ValidateSet('Release','Test')]      [string]$Configuration = 'Release',
-    [switch]$Install
+    [switch]$Install,
+    [int]$TimeoutSec = 180   # watchdog por alvo: mata o Excel iniciado aqui se não terminar (saída 2)
 )
 . "$PSScriptRoot\lib\Build-Common.ps1"
 Assert-VbomTrusted
 $versions = Get-Content (Join-Path $RepoRoot 'version.json') -Raw | ConvertFrom-Json
 New-Item -ItemType Directory -Force $DistDir | Out-Null
+Get-ChildItem -Path (Join-Path $env:TEMP '*') -Include 'modBuildInfo_*.bas','modTestDispatch_*.bas' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue   # sobras de builds antigos
 $targets = if ($Target -eq 'all') { @('loader','core') } else { @($Target) }
 
+$timedOut = $false
 foreach ($t in $targets) {
     $srcDir  = Join-Path $RepoRoot "src\$t"
     $version = $versions.$t
@@ -24,7 +27,9 @@ foreach ($t in $targets) {
     $buildInfo = Join-Path $env:TEMP "modBuildInfo_$t.bas"
     Write-BuildInfoModule -Version $version -Configuration $Configuration -OutPath $buildInfo
 
+    $dispatch = Join-Path $env:TEMP "modTestDispatch_$t.bas"
     $xl = New-ExcelApp
+    $wd = Start-ExcelWatchdog $xl $TimeoutSec
     try {
         $wb = $xl.Workbooks.Add()
         while ($wb.Worksheets.Count -gt 1) { $wb.Worksheets.Item($wb.Worksheets.Count).Delete() }
@@ -50,6 +55,8 @@ foreach ($t in $targets) {
             Get-ChildItem (Join-Path $RepoRoot 'tests\vba\common') -Filter *.bas | ForEach-Object { Import-VbaFile $vbproj $_.FullName }
             $tDir = Join-Path $RepoRoot "tests\vba\$t"
             if (Test-Path $tDir) { Get-ChildItem $tDir -Filter *.bas | ForEach-Object { Import-VbaFile $vbproj $_.FullName } }
+            Write-TestDispatchModule -TestFiles @(Get-ChildItem $tDir -Filter *.bas -ErrorAction SilentlyContinue | ForEach-Object FullName) -OutPath $dispatch
+            Import-VbaFile $vbproj $dispatch
         }
 
         Set-DocProperty $wb 'Title' 'ThinQQ'
@@ -57,7 +64,14 @@ foreach ($t in $targets) {
         $wb.IsAddin = $true
         $wb.SaveAs($outPath, 55)   # 55 = xlOpenXMLAddIn
         $wb.Close($false)
-    } finally { Close-ExcelApp $xl }
+    } catch {
+        if (Test-ExcelWatchdogFired $wd) { $timedOut = $true } else { throw }
+    } finally {
+        Stop-ExcelWatchdog $wd
+        Close-ExcelApp $xl
+        Remove-Item $buildInfo, $dispatch -Force -ErrorAction SilentlyContinue
+    }
+    if ($timedOut) { Write-ExcelTimeout $wd; exit 2 }
 
     if ($t -eq 'loader') { Add-RibbonToPackage -PackagePath $outPath -RibbonXmlPath (Join-Path $srcDir 'ribbon\customUI14.xml') }
     Write-Host "OK  $outPath"
