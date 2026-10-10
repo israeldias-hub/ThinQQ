@@ -61,7 +61,7 @@ Private Function CellLabel(c As Range) As String
     If VarType(v) = vbString Then CellLabel = v: Exit Function
     s = CStr(c.Text)
     If Left$(s, 1) = "#" Then
-        If VarType(v) = vbDate Then s = Format$(v, "dd/mm/yyyy") Else s = CStr(v)
+        If VarType(c.Value) = vbDate Then s = Format$(c.Value, "dd/mm/yyyy") Else s = CStr(v)
     End If
     CellLabel = s
 End Function

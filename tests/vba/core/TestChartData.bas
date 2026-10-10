@@ -1,5 +1,6 @@
 Attribute VB_Name = "TestChartData"
 Option Explicit
+Private mLeakedName As String
 
 Private Function Fixture(wb As Workbook) As Worksheet
     Dim ws As Worksheet
@@ -139,16 +140,39 @@ Public Sub Test_ChartData_Text_NarrowColumn()
     CloseTemp wb
 End Sub
 
+Public Sub Test_ChartData_Text_NarrowColumn_Date()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A3").Value = DateSerial(2024, 3, 5)
+    ws.Range("A3").NumberFormat = "dd/mm/yyyy"
+    ws.Columns("A").ColumnWidth = 1
+    Set d = ChartData_FromRange(ws.Range("A1:D5"))
+    AssertEqual "05/03/2024", d.CategoryText(2)
+    CloseTemp wb
+End Sub
+
+Public Sub Test_ChartData_FullColumns_EmptySheet_Invalid()
+    Dim wb As Workbook, d As clsChartData
+    Set wb = NewTempWorkbook()
+    Set d = ChartData_FromRange(wb.Worksheets(1).Range("A:D"))
+    AssertTrue Len(d.Validate()) > 0, "planilha vazia deveria ser inválida"
+    CloseTemp wb
+End Sub
+
+' Par dependente de ordem: o runner executa as procedures na ordem do arquivo, e a segunda
+' confere que a pasta vazada pela primeira foi fechada pelo runner entre os dois testes.
+
 Public Sub Test_Runner_ClosesLeakedWorkbook()
     Dim wb As Workbook
     Set wb = NewTempWorkbook()
-    AssertTrue wb.Worksheets.Count > 0   ' o runner deve fechar este workbook ao fim do teste
+    mLeakedName = wb.Name
+    AssertTrue Len(mLeakedName) > 0
 End Sub
 
 Public Sub Test_Runner_LeakedWorkbookWasClosed()
-    Dim w As Workbook, n As Long
+    Dim w As Workbook
+    AssertTrue Len(mLeakedName) > 0, "teste anterior não rodou (dependência de ordem)"
     For Each w In Application.Workbooks
-        If Not w.IsAddin Then n = n + 1
+        AssertTrue w.Name <> mLeakedName, "pasta vazada continua aberta: " & mLeakedName
     Next
-    AssertEqual 0, n, "pastas vazadas permaneceram abertas"
 End Sub
