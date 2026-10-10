@@ -23,10 +23,13 @@ End Function
 
 Public Function Stacked_Insert(ws As Worksheet, data As clsChartData, kind As String) As ChartObject
     Dim id As String, co As ChartObject, cht As Chart, s As Series, j As Long, anchor As Range
+    Dim en As Long, es As String, ed As String
+    On Error GoTo Fail
     id = Registry_NewId()
     Stacked_BuildBlock ws.Parent, id, data, kind
+    Util_TestHookAfterBlock
     Set anchor = data.Source.Cells(1, data.Source.Columns.Count + 2)
-    Set co = ws.ChartObjects.Add(anchor.Left, FreeTop(ws, anchor.Left, anchor.Top, 460, 280), 460, 280)
+    Set co = ws.ChartObjects.Add(anchor.Left, Chart_FreeTop(ws, anchor.Left, anchor.Top, 460, 280), 460, 280)
     co.Name = ID_PREFIX & id
     Set cht = co.Chart
     Do While cht.SeriesCollection.Count > 0
@@ -61,6 +64,14 @@ Public Function Stacked_Insert(ws As Worksheet, data As clsChartData, kind As St
     Stacked_SetTotals cht, (kind = "stacked" Or kind = "stacked100")
     Stacked_SetConnectors cht, False
     Set Stacked_Insert = co
+    Exit Function
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error Resume Next
+    If Not co Is Nothing Then co.Delete
+    If Len(id) > 0 Then CalcSheet_DeleteBlock ws.Parent, id
+    On Error GoTo 0
+    Err.Raise en, es, ed
 End Function
 
 Public Sub Stacked_SetTotals(cht As Chart, turnOn As Boolean)
@@ -159,20 +170,6 @@ Public Sub Stacked_HideTotalLegendEntry(cht As Chart)
     Next
 End Sub
 
-' Primeira posição vertical livre (sem sobrepor outros gráficos da planilha) para o retângulo proposto.
-Public Function FreeTop(ws As Worksheet, l As Double, t As Double, w As Double, h As Double) As Double
-    Dim co As ChartObject, moved As Boolean
-    Do
-        moved = False
-        For Each co In ws.ChartObjects
-            If l < co.Left + co.Width And co.Left < l + w And t < co.Top + co.Height And co.Top < t + h Then
-                t = co.Top + co.Height + 12
-                moved = True
-            End If
-        Next
-    Loop While moved
-    FreeTop = t
-End Function
 Private Function IsStackedColumnGroup(g As ChartGroup) As Boolean
     Dim ct As Long
     If g.SeriesCollection.Count = 0 Then Exit Function

@@ -6,15 +6,22 @@ Option Explicit
 Public Const WF_COL_CAT As Long = 1
 Public Const WF_COL_END As Long = 6
 Public Const WF_COL_BASE As Long = 9
+Public Const WF_COL_UPPOS As Long = 12
+Public Const WF_COL_UPNEG As Long = 13
+Public Const WF_COL_DOWNPOS As Long = 14
+Public Const WF_COL_DOWNNEG As Long = 15
+Public Const WF_COL_TOTAL As Long = 16
 Public Const WF_COL_LABELVAL As Long = 17
 Public Const WF_COL_LABELPOS As Long = 18
+' Unica fonte da lista de marcadores de total (minusculas, sem espacos): usada pela funcao VBA e pela formula do bloco.
+Public Const WF_MARKERS As String = "e,t,=,total,subtotal"
+' Nota: total na primeira linha tem Start = 0 e End = 0 (nada desenhado); o calculo "para tras" (estilo
+' think-cell, total define o ponto de partida) esta fora de escopo.
 
 Public Function Waterfall_IsTotalMarker(v As Variant) As Boolean
     If IsEmpty(v) Then Exit Function
     If VarType(v) <> vbString Then Exit Function
-    Select Case LCase$(Trim$(CStr(v)))
-        Case "e", "t", "=", "total", "subtotal": Waterfall_IsTotalMarker = True
-    End Select
+    Waterfall_IsTotalMarker = (InStr("," & WF_MARKERS & ",", "," & LCase$(Trim$(CStr(v))) & ",") > 0) And Len(Trim$(CStr(v))) > 0
 End Function
 
 Public Function Waterfall_BuildBlock(wb As Workbook, id As String, data As clsChartData) As Range
@@ -33,7 +40,7 @@ Public Function Waterfall_BuildBlock(wb As Workbook, id As String, data As clsCh
         body.Cells(i + 1, 5).FormulaR1C1 = IIf(i = 1, "=0", "=R[-1]C[1]")
     Next
     With body.Offset(1, 0).Resize(n, 1)
-        .Offset(0, 2).FormulaR1C1 = "=IF(ISNUMBER(RC[-1]),FALSE,OR(LOWER(TRIM(RC[-1]&""""))={""e"",""t"",""="",""total"",""subtotal""}))"
+        .Offset(0, 2).FormulaR1C1 = "=IF(ISERROR(RC[-1]),FALSE,IF(ISNUMBER(RC[-1]),FALSE,OR(LOWER(TRIM(RC[-1]&""""))={""" & Replace(WF_MARKERS, ",", """,""") & """})))"   ' erro na origem = 0, nao total
         .Offset(0, 3).FormulaR1C1 = "=IF(RC[-1],0,IF(ISNUMBER(RC[-2]),RC[-2],0))"
         .Offset(0, 5).FormulaR1C1 = "=RC[-1]+RC[-2]"
         .Offset(0, 6).FormulaR1C1 = "=IF(RC[-4],MIN(0,RC[-1]),MIN(RC[-2],RC[-1]))"
@@ -54,20 +61,23 @@ End Function
 
 Public Function Waterfall_Insert(ws As Worksheet, data As clsChartData) As ChartObject
     Dim id As String, body As Range, n As Long, co As ChartObject, cht As Chart, anchor As Range
+    Dim en As Long, es As String, ed As String
     Dim names As Variant, cols As Variant, k As Long, s As Series, sh As String
+    On Error GoTo Fail
     id = Registry_NewId()
     Set body = Block_Body(Waterfall_BuildBlock(ws.Parent, id, data))
+    Util_TestHookAfterBlock
     n = data.CategoryCount
     sh = "='" & CALC_SHEET & "'!"
     Set anchor = data.Source.Cells(1, data.Source.Columns.Count + 2)
-    Set co = ws.ChartObjects.Add(anchor.Left, FreeTop(ws, anchor.Left, anchor.Top, 460, 280), 460, 280)
+    Set co = ws.ChartObjects.Add(anchor.Left, Chart_FreeTop(ws, anchor.Left, anchor.Top, 460, 280), 460, 280)
     co.Name = ID_PREFIX & id
     Set cht = co.Chart
     Do While cht.SeriesCollection.Count > 0
         cht.SeriesCollection(1).Delete
     Loop
     names = Array("tqq_base", "tqq_uppos", "tqq_upneg", "tqq_downpos", "tqq_downneg", "tqq_total")
-    cols = Array(9, 12, 13, 14, 15, 16)
+    cols = Array(WF_COL_BASE, WF_COL_UPPOS, WF_COL_UPNEG, WF_COL_DOWNPOS, WF_COL_DOWNNEG, WF_COL_TOTAL)
     For k = 0 To 5
         Set s = cht.SeriesCollection.NewSeries
         s.Name = names(k)
@@ -88,6 +98,14 @@ Public Function Waterfall_Insert(ws As Worksheet, data As clsChartData) As Chart
     Registry_SetOption cht, "connectors", "0"
     Waterfall_SetLabels cht, True
     Set Waterfall_Insert = co
+    Exit Function
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error Resume Next
+    If Not co Is Nothing Then co.Delete
+    If Len(id) > 0 Then CalcSheet_DeleteBlock ws.Parent, id
+    On Error GoTo 0
+    Err.Raise en, es, ed
 End Function
 
 Public Sub Waterfall_ApplyColors(cht As Chart, paletteName As String)

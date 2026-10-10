@@ -1,6 +1,31 @@
 Attribute VB_Name = "modChartUtil"
 Option Explicit
 
+' Gancho de teste: quando True (e BUILD_CONFIG = "Test"), os Insert falham logo apos alocar o bloco,
+' para verificar o rollback. Nunca e usado fora dos testes.
+Public Util_FailAfterBlockForTest As Boolean
+
+Public Sub Util_TestHookAfterBlock()
+    If BUILD_CONFIG = "Test" Then
+        If Util_FailAfterBlockForTest Then Err.Raise vbObjectError + 9999, "ThinQQ", "Falha simulada (teste)"
+    End If
+End Sub
+
+' Primeira posicao vertical livre (sem sobrepor outros graficos da planilha) para o retangulo proposto.
+Public Function Chart_FreeTop(ws As Worksheet, l As Double, t As Double, w As Double, h As Double) As Double
+    Dim co As ChartObject, moved As Boolean
+    Do
+        moved = False
+        For Each co In ws.ChartObjects
+            If l < co.Left + co.Width And co.Left < l + w And t < co.Top + co.Height And co.Top < t + h Then
+                t = co.Top + co.Height + 12
+                moved = True
+            End If
+        Next
+    Loop While moved
+    Chart_FreeTop = t
+End Function
+
 Public Sub Util_EnsureDir(path As String)
     Dim fso As Object
     Set fso = CreateObject("Scripting.FileSystemObject")
