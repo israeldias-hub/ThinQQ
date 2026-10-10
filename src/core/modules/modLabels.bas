@@ -28,7 +28,7 @@ Public Sub Labels_RefreshPositions(cht As Chart)
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
     If Registry_ChartType(cht) = "waterfall" Then
-        Set s = Chart_FindSeries(cht, "tqq_lbl"): col = 17
+        Set s = Chart_FindSeries(cht, "tqq_lbl"): col = 17   ' coluna 17 = WF_COL_LABELVAL (constante definida na Tarefa 9)
     Else
         Set s = Chart_FindSeries(cht, "tqq_total"): col = 2
     End If

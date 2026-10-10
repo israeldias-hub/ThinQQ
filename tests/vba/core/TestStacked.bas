@@ -146,6 +146,8 @@ Public Sub Test_Stacked_Insert_SheetNameWithQuote()
     Set wb = NewTempWorkbook(): Set d = Fixture(wb, "Plano 'A' 2026")
     Set cht = Stacked_Insert(d.Source.Worksheet, d, "stacked").Chart
     AssertEqual "Sul", cht.SeriesCollection(1).Name
+    AssertTrue InStr(cht.SeriesCollection(1).Formula, "''A''") > 0, "apóstrofos dobrados na fórmula da série"
+    AssertTrue InStr(Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Formula, CALC_SHEET) > 0, "rótulo ligado ao bloco"
     AssertEqual 35, Block_Body(Registry_Block(cht)).Cells(2, 2).Value
     CloseTemp wb
 End Sub
@@ -158,5 +160,89 @@ Public Sub Test_Stacked_Legend_DoesNotListTotal()
     Stacked_SetTotals cht, False
     Stacked_SetTotals cht, True
     AssertEqual 3, cht.Legend.LegendEntries.Count, "legenda após reativar totais"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Stacked_Legend_ExtraSeries_KeepsDataEntries()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, s As Series, n1 As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Stacked_Insert(d.Source.Worksheet, d, "stacked").Chart
+    AssertEqual 3, cht.Legend.LegendEntries.Count, "só as 3 séries de dados"
+    Set s = cht.SeriesCollection.NewSeries
+    s.Name = "Extra": s.Values = "=Dados!$B$2:$B$5"
+    n1 = cht.Legend.LegendEntries.Count
+    Stacked_HideTotalLegendEntry cht
+    Stacked_HideTotalLegendEntry cht
+    AssertEqual n1, cht.Legend.LegendEntries.Count, "chamada repetida não remove entrada real"
+    AssertTrue n1 >= 3, "entradas das séries de dados preservadas"
+    ' religar a legenda: a entrada do total volta e deve ser removida de novo, sem tocar nas reais
+    cht.HasLegend = False: cht.HasLegend = True
+    AssertEqual cht.SeriesCollection.Count, cht.Legend.LegendEntries.Count
+    Stacked_HideTotalLegendEntry cht
+    AssertEqual cht.SeriesCollection.Count - 1, cht.Legend.LegendEntries.Count
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Stacked_ErrorCell_IgnoredInTotal()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, body As Range, i As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    d.Source.Worksheet.Range("C2").Formula = "=NA()"
+    Set cht = Stacked_Insert(d.Source.Worksheet, d, "stacked").Chart
+    Set body = Block_Body(Registry_Block(cht))
+    AssertEqual 15, body.Cells(2, 2).Value
+    For i = 2 To 5
+        AssertFalse IsError(body.Cells(i, 2).Value), "total com erro"
+        AssertFalse IsError(body.Cells(i, 3).Value), "totalpos com erro"
+    Next
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Stacked_SetTotals_OnlyForStackedKinds()
+    Dim wb As Workbook, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Stacked_Insert(d.Source.Worksheet, d, "clustered").Chart
+    Stacked_SetTotals cht, True
+    AssertTrue Chart_FindSeries(cht, "tqq_total") Is Nothing
+    AssertEqual 3, cht.SeriesCollection.Count
+    Stacked_SetTotals cht, False
+    CloseTemp wb
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Stacked_Insert(d.Source.Worksheet, d, "line").Chart
+    Stacked_SetTotals cht, True
+    AssertTrue Chart_FindSeries(cht, "tqq_total") Is Nothing
+    AssertEqual "0", Registry_GetOption(cht, "totals")
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Stacked_TwoInserts_DoNotOverlap()
+    Dim wb As Workbook, d As clsChartData, a As ChartObject, b As ChartObject
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set a = Stacked_Insert(d.Source.Worksheet, d, "stacked")
+    Set b = Stacked_Insert(d.Source.Worksheet, d, "stacked")
+    AssertTrue b.Top >= a.Top + a.Height, "segundo gráfico sobrepõe o primeiro"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Stacked_Connectors_Line_PersistsZero()
+    Dim wb As Workbook, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Stacked_Insert(d.Source.Worksheet, d, "line").Chart
+    Stacked_SetConnectors cht, True
+    AssertEqual "0", Registry_GetOption(cht, "connectors")
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Stacked_LabelContrast_FollowsFill()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, i As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:G1").Value = Array("Ano", "S1", "S2", "S3", "S4", "S5", "S6")
+    ws.Range("A2:G2").Value = Array(2022, 1, 2, 3, 4, 5, 6)
+    ws.Range("A3:G3").Value = Array(2023, 1, 2, 3, 4, 5, 6)
+    Set d = ChartData_FromRange(ws.Range("A1:G3"))
+    Set cht = Stacked_Insert(ws, d, "stacked").Chart
+    AssertEqual RGB(255, 255, 255), cht.SeriesCollection(1).DataLabels.Font.Color
+    Style_ApplySeriesColors cht, "cinza"
+    AssertEqual RGB(255, 255, 255), cht.SeriesCollection(1).DataLabels.Font.Color
+    AssertEqual RGB(64, 64, 64), cht.SeriesCollection(5).DataLabels.Font.Color
     CloseTemp wb
 End Sub

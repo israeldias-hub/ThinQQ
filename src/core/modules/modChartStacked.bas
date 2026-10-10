@@ -11,7 +11,7 @@ Public Function Stacked_BuildBlock(wb As Workbook, id As String, data As clsChar
     For i = 1 To data.CategoryCount
         body.Cells(i + 1, 1).Formula = ChartData_ExternalAddress(data.Source.Cells(i + 1, 1))
         Set rowCells = data.Source.Cells(i + 1, 2).Resize(1, data.SeriesCount)
-        body.Cells(i + 1, 2).Formula = "=SUM(" & Mid$(ChartData_ExternalAddress(rowCells), 2) & ")"
+        body.Cells(i + 1, 2).Formula = "=AGGREGATE(9,6," & Mid$(ChartData_ExternalAddress(rowCells), 2) & ")"   ' ignora erros (#N/A) e texto
         If kind = "stacked100" Then
             body.Cells(i + 1, 3).Formula = "=1"
         Else
@@ -26,7 +26,7 @@ Public Function Stacked_Insert(ws As Worksheet, data As clsChartData, kind As St
     id = Registry_NewId()
     Stacked_BuildBlock ws.Parent, id, data, kind
     Set anchor = data.Source.Cells(1, data.Source.Columns.Count + 2)
-    Set co = ws.ChartObjects.Add(anchor.Left, anchor.Top, 460, 280)
+    Set co = ws.ChartObjects.Add(anchor.Left, FreeTop(ws, anchor.Left, anchor.Top, 460, 280), 460, 280)
     co.Name = ID_PREFIX & id
     Set cht = co.Chart
     Do While cht.SeriesCollection.Count > 0
@@ -56,8 +56,8 @@ Public Function Stacked_Insert(ws As Worksheet, data As clsChartData, kind As St
         cht.ChartGroups(1).GapWidth = IIf(kind = "clustered", 80, 50)
         Registry_SetOption cht, "gap", IIf(kind = "clustered", "80", "50")
     End If
-    Stacked_SetLabels cht, True
     Style_ApplySeriesColors cht, "padrao"
+    Stacked_SetLabels cht, True
     Stacked_SetTotals cht, (kind = "stacked" Or kind = "stacked100")
     Stacked_SetConnectors cht, False
     Set Stacked_Insert = co
@@ -66,6 +66,9 @@ End Function
 Public Sub Stacked_SetTotals(cht As Chart, turnOn As Boolean)
     Dim s As Series, body As Range, n As Long, fmt As String
     Set s = Chart_FindSeries(cht, "tqq_total")
+    If turnOn Then
+        If Registry_ChartType(cht) <> "stacked" And Registry_ChartType(cht) <> "stacked100" Then Exit Sub
+    End If
     If Not turnOn Then
         If Not s Is Nothing Then s.Delete
         Registry_SetOption cht, "totals", "0"
@@ -80,12 +83,8 @@ Public Sub Stacked_SetTotals(cht As Chart, turnOn As Boolean)
         s.ChartType = xlLine
         s.Format.Line.Visible = msoFalse
         s.MarkerStyle = xlMarkerStyleNone
-        If cht.HasLegend Then
-            On Error Resume Next
-            cht.Legend.LegendEntries(cht.Legend.LegendEntries.Count).Delete
-            On Error GoTo 0
-        End If
     End If
+    Stacked_HideTotalLegendEntry cht
     fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
     Labels_LinkPoints s, body.Cells(2, 2).Resize(n, 1), fmt
     s.DataLabels.Font.Bold = True
@@ -122,15 +121,61 @@ End Sub
 
 ' Linhas de série (conectores entre segmentos). Grupos sem suporte (linha/agrupadas) são ignorados.
 Public Sub Stacked_SetConnectors(cht As Chart, turnOn As Boolean)
-    Dim g As ChartGroup
+    Dim g As ChartGroup, accepted As Boolean
     On Error Resume Next
     For Each g In cht.ChartGroups
-        g.HasSeriesLines = turnOn
-        If turnOn Then
-            g.SeriesLines.Format.Line.ForeColor.RGB = RGB(166, 166, 166)
-            g.SeriesLines.Format.Line.Weight = 0.75
+        Err.Clear
+        If IsStackedColumnGroup(g) Then g.HasSeriesLines = turnOn Else Err.Raise 5
+        If Err.Number = 0 Then
+            If turnOn Then
+                If g.HasSeriesLines Then
+                    accepted = True
+                    g.SeriesLines.Format.Line.ForeColor.RGB = RGB(166, 166, 166)
+                    g.SeriesLines.Format.Line.Weight = 0.75
+                End If
+            End If
         End If
     Next
     On Error GoTo 0
-    Registry_SetOption cht, "connectors", IIf(turnOn, "1", "0")
+    Registry_SetOption cht, "connectors", IIf(turnOn And accepted, "1", "0")
 End Sub
+
+' Esconde da legenda a entrada da série auxiliar tqq_total. A posição da entrada é calculada pela ordem
+' dos grupos de gráfico (colunas antes de linhas) e das séries dentro do grupo. Idempotente: se há menos
+' entradas que séries, a entrada já foi removida e nada é feito.
+Public Sub Stacked_HideTotalLegendEntry(cht As Chart)
+    Dim g As ChartGroup, k As Long, idx As Long
+    If Not cht.HasLegend Then Exit Sub
+    If Chart_FindSeries(cht, "tqq_total") Is Nothing Then Exit Sub
+    If cht.Legend.LegendEntries.Count < cht.SeriesCollection.Count Then Exit Sub
+    For Each g In cht.ChartGroups
+        For k = 1 To g.SeriesCollection.Count
+            idx = idx + 1
+            If g.SeriesCollection(k).Name = "tqq_total" Then
+                cht.Legend.LegendEntries(idx).Delete
+                Exit Sub
+            End If
+        Next
+    Next
+End Sub
+
+' Primeira posição vertical livre (sem sobrepor outros gráficos da planilha) para o retângulo proposto.
+Private Function FreeTop(ws As Worksheet, l As Double, t As Double, w As Double, h As Double) As Double
+    Dim co As ChartObject, moved As Boolean
+    Do
+        moved = False
+        For Each co In ws.ChartObjects
+            If l < co.Left + co.Width And co.Left < l + w And t < co.Top + co.Height And co.Top < t + h Then
+                t = co.Top + co.Height + 12
+                moved = True
+            End If
+        Next
+    Loop While moved
+    FreeTop = t
+End Function
+Private Function IsStackedColumnGroup(g As ChartGroup) As Boolean
+    Dim ct As Long
+    If g.SeriesCollection.Count = 0 Then Exit Function
+    ct = g.SeriesCollection(1).ChartType
+    IsStackedColumnGroup = (ct = xlColumnStacked Or ct = xlColumnStacked100)
+End Function

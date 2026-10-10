@@ -76,7 +76,7 @@ Public Sub Style_ApplySeriesColors(cht As Chart, paletteName As String)
             Else
                 Style_SetColor s.Format.Fill.ForeColor, c
                 s.Format.Line.Visible = msoFalse
-                If s.HasDataLabels And c >= 0 Then s.DataLabels.Font.Color = Style_ContrastFont(CLng(c))
+                If s.HasDataLabels Then If s.DataLabels.Position = xlLabelPositionCenter Then s.DataLabels.Font.Color = Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
             End If
             k = k + 1
         End If
