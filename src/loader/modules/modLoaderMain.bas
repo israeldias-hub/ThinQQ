@@ -2,6 +2,7 @@ Attribute VB_Name = "modLoaderMain"
 Option Explicit
 Public Const APP_NAME As String = "ThinQQ"
 Private mRootOverride As String
+Private mStartupCheckAt As Date
 
 Public Function Loader_Ping() As String
     Loader_Ping = "pong"
@@ -38,7 +39,10 @@ Private Sub EnsureDir(path As String)
     Dim fso As Object
     Set fso = CreateObject("Scripting.FileSystemObject")
     If fso.FolderExists(path) Then Exit Sub
-    If Not fso.FolderExists(fso.GetParentFolderName(path)) Then EnsureDir fso.GetParentFolderName(path)
+    Dim parent As String
+    parent = fso.GetParentFolderName(path)
+    If Len(parent) = 0 Then Exit Sub
+    If Not fso.FolderExists(parent) Then EnsureDir parent
     fso.CreateFolder path
 End Sub
 
@@ -98,6 +102,18 @@ Public Function Loader_OpenCore(path As String) As Boolean
     End If
     On Error GoTo Fail
     Set wb = Application.Workbooks.Open(Filename:=path, ReadOnly:=True, UpdateLinks:=0)
+    Dim pong As Variant
+    On Error Resume Next
+    pong = Application.Run("'" & wb.Name & "'!Core_Ping")
+    On Error GoTo Fail
+    If CStr(pong) <> "pong" Then
+        Loader_Log "Loader_OpenCore: Core_Ping nao respondeu (macros desabilitadas?): " & path
+        On Error Resume Next
+        wb.Close SaveChanges:=False
+        On Error GoTo 0
+        Loader_OpenCore = False
+        Exit Function
+    End If
     On Error Resume Next
     Application.Run "'" & Loader_CoreFileName() & "'!Core_RegisterLoader", ThisWorkbook.Name, ThisWorkbook.FullName
     On Error GoTo 0
@@ -113,12 +129,22 @@ Public Function Loader_RunCore(procName As String, ParamArray args() As Variant)
     Dim macro As String
     If Loader_CoreWorkbook() Is Nothing Then Exit Function
     macro = "'" & Loader_CoreFileName() & "'!" & procName
-    Select Case UBound(args) - LBound(args) + 1
+    Dim n As Long
+    n = UBound(args) - LBound(args) + 1
+    If n > 3 Then Err.Raise vbObjectError + 513, "Loader_RunCore", "Loader_RunCore: máximo de 3 argumentos"
+    On Error GoTo RunFail
+    Select Case n
         Case 0: Loader_RunCore = Application.Run(macro)
         Case 1: Loader_RunCore = Application.Run(macro, args(0))
         Case 2: Loader_RunCore = Application.Run(macro, args(0), args(1))
         Case 3: Loader_RunCore = Application.Run(macro, args(0), args(1), args(2))
     End Select
+    Exit Function
+RunFail:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    Loader_RunCore = Empty
+    Loader_Log "Loader_RunCore(" & procName & ") erro " & en & ": " & ed
 End Function
 
 Public Function Loader_CurrentCoreVersion() As String
@@ -144,7 +170,8 @@ Public Sub Loader_Startup()
         MsgBox "Não foi possível carregar o ThinQQ core " & ver & ". Veja o log em " & Loader_Root() & "\logs.", vbExclamation, APP_NAME
         Exit Sub
     End If
-    Application.OnTime Now + TimeSerial(0, 0, 8), "'" & ThisWorkbook.Name & "'!Updater_StartupCheck"
+    mStartupCheckAt = Now + TimeSerial(0, 0, 8)
+    Application.OnTime mStartupCheckAt, "'" & ThisWorkbook.Name & "'!Updater_StartupCheck"
     Exit Sub
 Fail:
     Loader_Log "Loader_Startup: " & Err.Description
@@ -152,6 +179,10 @@ End Sub
 
 Public Sub Loader_Shutdown()
     On Error Resume Next
+    If mStartupCheckAt <> 0 Then
+        Application.OnTime mStartupCheckAt, "'" & ThisWorkbook.Name & "'!Updater_StartupCheck", , False
+        mStartupCheckAt = 0
+    End If
     Loader_CloseCore
 End Sub
 

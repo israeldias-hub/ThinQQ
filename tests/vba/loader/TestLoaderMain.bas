@@ -52,3 +52,35 @@ Public Sub Test_OpenCore_SamePath_IsNoop()
     AssertTrue Loader_OpenCore(p)
     AssertEqual p, Loader_CoreWorkbook().FullName
 End Sub
+
+Public Sub Test_RunCore_TooManyArgs_Raises()
+    Dim n As Long
+    On Error Resume Next
+    Loader_RunCore "Core_Ping", 1, 2, 3, 4
+    n = Err.Number
+    On Error GoTo 0
+    AssertEqual vbObjectError + 513, n
+End Sub
+
+Public Sub Test_RunCore_MissingProc_ReturnsEmpty_NoRaise()
+    Dim v As Variant, n As Long
+    Loader_SetRootOverride TempDir() & "\r"
+    On Error Resume Next
+    v = Loader_RunCore("Core_NaoExiste")
+    n = Err.Number
+    On Error GoTo 0
+    Loader_SetRootOverride ""
+    AssertEqual 0, n
+    AssertTrue IsEmpty(v), "esperado Empty"
+End Sub
+
+Public Sub Test_RunCore_MissingProc_Logs()
+    Dim d As String, f As Integer, txt As String
+    d = TempDir() & "\r"
+    Loader_SetRootOverride d
+    Loader_RunCore "Core_NaoExiste"
+    Loader_SetRootOverride ""
+    f = FreeFile: Open d & "\logs\thinqq.log" For Input As #f
+    txt = Input$(LOF(f), f): Close #f
+    AssertTrue InStr(txt, "Core_NaoExiste") > 0, "log sem a entrada"
+End Sub
