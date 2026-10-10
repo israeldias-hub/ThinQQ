@@ -47,12 +47,31 @@ Public Sub Test_Transport_Sha256_KnownVector()
 End Sub
 
 Public Sub Test_Transport_FetchText_MissingFile_Raises()
-    Dim raised As Boolean
+    Dim n As Long
     On Error Resume Next
     Transport_FetchText "C:\nao\existe\manifest.json"
-    raised = (Err.Number <> 0)
+    n = Err.Number
     On Error GoTo 0
-    AssertTrue raised, "deveria lançar erro para arquivo inexistente"
+    AssertEqual CStr(vbObjectError + 1002), CStr(n), "erro esperado para arquivo inexistente"
+End Sub
+
+Public Sub Test_Transport_Sha256_SpecialPath()
+    Dim d As String, f As Integer, b() As Byte
+    d = TempDir() & "\a b & é"
+    MkDir d
+    b = StrConv("abc", vbFromUnicode)
+    f = FreeFile: Open d & "\abc.bin" For Binary As #f: Put #f, , b: Close #f
+    AssertEqual "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", Transport_Sha256File(d & "\abc.bin")
+End Sub
+
+Public Sub Test_Transport_Sha256_MissingFile_Raises()
+    Dim n As Long, r As String
+    On Error Resume Next
+    r = Transport_Sha256File(TempDir() & "\nao-existe.bin")
+    n = Err.Number
+    On Error GoTo 0
+    AssertTrue n <> 0, "deveria lançar erro para arquivo inexistente"
+    AssertEqual "", r
 End Sub
 
 Public Sub Test_Transport_Http_FetchText()
@@ -60,12 +79,13 @@ Public Sub Test_Transport_Http_FetchText()
 End Sub
 
 Public Sub Test_Transport_Http_404_Raises()
-    Dim raised As Boolean
+    Dim n As Long, u As String
+    u = HttpBase() & "http/nao-existe.txt"
     On Error Resume Next
-    Transport_FetchText HttpBase() & "http/nao-existe.txt"
-    raised = (Err.Number <> 0)
+    Transport_FetchText u
+    n = Err.Number
     On Error GoTo 0
-    AssertTrue raised, "deveria lançar erro em HTTP 404"
+    AssertEqual CStr(vbObjectError + 1001), CStr(n), "erro esperado em HTTP 404"
 End Sub
 
 Public Sub Test_Transport_Http_DownloadFile()
