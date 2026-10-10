@@ -8,9 +8,9 @@
           <button id="btnStacked" label="Colunas empilhadas" size="large" imageMso="ChartTypeColumnInsertGallery"
                   tag="stacked" onAction="Rx_OnInsert"
                   screentip="Colunas empilhadas" supertip="Selecione a tabela (linha de cabeçalho + coluna de categorias) e clique. Totais e rótulos entram automaticamente."/>
-          <button id="btnClustered" label="Colunas agrupadas" size="large" imageMso="ChartTypeColumnInsertGallery"
+          <button id="btnClustered" label="Colunas agrupadas" size="large" imageMso="ChartTypeBarInsertGallery"
                   tag="clustered" onAction="Rx_OnInsert" screentip="Colunas agrupadas"/>
-          <button id="btnStacked100" label="Colunas 100%" size="large" imageMso="ChartTypeColumnInsertGallery"
+          <button id="btnStacked100" label="Colunas 100%" size="large" imageMso="ChartTypeAreaInsertGallery"
                   tag="stacked100" onAction="Rx_OnInsert" screentip="Colunas 100% empilhadas"/>
           <button id="btnWaterfall" label="Cascata" size="large" imageMso="ChartTypeOtherInsertGallery"
                   tag="waterfall" onAction="Rx_OnInsert"
@@ -56,10 +56,10 @@
           <separator id="sep2"/>
           <button id="btnCagr" label="Seta CAGR" imageMso="ArrowsMore" tag="cagr" onAction="Rx_OnAnnotation"
                   getEnabled="Rx_GetEnabled" screentip="Seta de crescimento anual composto entre duas categorias"/>
-          <button id="btnDiff" label="Seta diferença" imageMso="ArrowsMore" tag="diff" onAction="Rx_OnAnnotation"
+          <button id="btnDiff" label="Seta diferença" imageMso="ShapeUpArrow" tag="diff" onAction="Rx_OnAnnotation"
                   getEnabled="Rx_GetEnabled" screentip="Seta com a diferença absoluta e relativa entre dois totais"/>
           <button id="btnRemoveAnn" label="Remover setas" imageMso="Delete" onAction="Rx_OnRemoveAnnotations"
-                  getEnabled="Rx_GetEnabled"/>
+                  getEnabled="Rx_GetEnabled" screentip="Remove todas as setas do gráfico selecionado"/>
           <separator id="sep3"/>
           <button id="btnRefresh" label="Atualizar" imageMso="Refresh" onAction="Rx_OnRefresh"
                   screentip="Reposiciona setas e rótulos e limpa dados internos sem uso"/>
@@ -70,11 +70,14 @@
         <group id="grpAbout" label="ThinQQ">
           <button id="btnSamples" label="Exemplos" size="large" imageMso="FileNew" onAction="Rx_OnSamples"
                   screentip="Abre uma pasta com tabelas e gráficos de exemplo"/>
-          <button id="btnTutorial" label="Tutorial" size="large" imageMso="Help" onAction="Rx_OnTutorial"/>
-          <button id="btnCheckUpdates" label="Verificar atualizações" imageMso="Refresh" onAction="Rx_OnCheckUpdates"/>
+          <button id="btnTutorial" label="Tutorial" size="large" imageMso="Help" onAction="Rx_OnTutorial"
+                  screentip="Abre o tutorial do ThinQQ"/>
+          <button id="btnCheckUpdates" label="Verificar atualizações" imageMso="AddInManager" onAction="Rx_OnCheckUpdates"
+                  screentip="Procura uma versão mais nova do ThinQQ"/>
           <button id="btnSettings" label="Configurações" imageMso="PropertySheet" onAction="Rx_OnSettings"
                   screentip="Fonte de atualização (URL ou pasta)"/>
-          <button id="btnAbout" label="Sobre" imageMso="Info" onAction="Rx_OnAbout"/>
+          <button id="btnAbout" label="Sobre" imageMso="Info" onAction="Rx_OnAbout"
+                  screentip="Versões e pasta de instalação"/>
         </group>
 
       </tab>

@@ -5,6 +5,7 @@ $pkg = Join-Path $RepoRoot 'dist\ThinQQ.test.xlam'
 $src = Join-Path $RepoRoot 'src\loader\ribbon\customUI14.xml'
 $script:fail = 0
 function Check([bool]$c, [string]$m) { if ($c) { Write-Host "ok - $m" } else { Write-Host "not ok - $m"; $script:fail++ } }
+if (-not (Test-Path -LiteralPath $pkg)) { Write-Host "not ok - pacote ausente: $pkg"; exit 1 }
 $fs = New-Object System.IO.FileStream($pkg, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
 $zip = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Read)
 try {

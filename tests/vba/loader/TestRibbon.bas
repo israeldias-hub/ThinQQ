@@ -206,3 +206,49 @@ Public Sub Test_Ribbon_TutorialPath_FallsBackToUrl()
     Loader_SetRootOverride ""
     AssertTrue Transport_IsHttp(p), "sem arquivo local deve usar a URL"
 End Sub
+
+' Todo Public Sub Rx_* tem tratamento de erro antes da primeira linha executavel (nunca propaga para a faixa).
+Public Sub Test_Ribbon_AllCallbacks_HaveErrorContainment()
+    Dim lines() As String, i As Long, j As Long, ln As String, nm As String, n As Long, t As String
+    lines = Split(Replace(RibbonModuleCode(), vbCr, ""), vbLf)
+    For i = 0 To UBound(lines)
+        ln = Trim$(lines(i))
+        If Left$(ln, 15) = "Public Sub Rx_O" Or Left$(ln, 15) = "Public Sub Rx_G" Then
+            nm = Mid$(ln, 12, InStr(ln, "(") - 12)
+            For j = i + 1 To UBound(lines)
+                t = Trim$(lines(j))
+                If Len(t) > 0 And Left$(t, 1) <> "'" And Left$(t, 4) <> "Dim " Then
+                    AssertTrue Left$(t, 8) = "On Error", "sem On Error antes da 1a linha executavel em " & nm
+                    Exit For
+                End If
+            Next
+            n = n + 1
+        End If
+    Next
+    AssertTrue n >= 14, "poucos callbacks Rx_ encontrados: " & n
+End Sub
+
+' Atualizar (btnRefresh) fica sempre habilitado de proposito (atualizacao da pasta de trabalho inteira);
+' os demais controles do grupo "Grafico selecionado" dependem de haver grafico selecionado.
+Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
+    Dim d As Object, n As Object, c As Long
+    Set d = LoadRibbon()
+    For Each n In d.SelectNodes("//u:group[@id='grpChart']/*[not(self::u:separator)]")
+        If n.Attributes.getNamedItem("id").Text = "btnRefresh" Then
+            AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "btnRefresh deve ficar sempre habilitado"
+        Else
+            AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "sem getEnabled: " & n.Attributes.getNamedItem("id").Text
+        End If
+        c = c + 1
+    Next
+    AssertTrue c >= 10
+End Sub
+
+' Sem core com Core_InsertSamples (Tarefa 15) o botao nao pode bloquear nem propagar erro.
+Public Sub Test_Ribbon_OnSamples_WithoutCoreProc_DoesNotBlock()
+    Rx_OnSamples Nothing
+End Sub
+
+Public Sub Test_Ribbon_TutorialUrl_IsGithubPages()
+    AssertEqual "https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html", TUTORIAL_URL
+End Sub
