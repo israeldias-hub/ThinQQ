@@ -26,3 +26,10 @@ Public Sub Test_Geom_Periods()
     AssertAlmost 2, Geom_Periods(DateSerial(2020, 1, 1), DateSerial(2022, 1, 1), 1, 2), 0.01
     AssertAlmost 3, Geom_Periods(10, 40, 1, 4)                  ' numeros fora da faixa de anos: usa indices
 End Sub
+
+Public Sub Test_Geom_CategoryCenterX_NotBetween()
+    AssertAlmost 100, Geom_CategoryCenterX(100, 300, 4, 1, False)    ' primeiro ponto na borda esquerda
+    AssertAlmost 200, Geom_CategoryCenterX(100, 300, 4, 2, False)
+    AssertAlmost 400, Geom_CategoryCenterX(100, 300, 4, 4, False)    ' ultimo na borda direita
+    AssertAlmost 250, Geom_CategoryCenterX(100, 300, 1, 1, False)    ' n = 1: centro
+End Sub

@@ -7,8 +7,14 @@ Public Function Geom_SlotWidth(insideWidth As Double, nCats As Long) As Double
     Geom_SlotWidth = insideWidth / nCats
 End Function
 
-Public Function Geom_CategoryCenterX(insideLeft As Double, insideWidth As Double, nCats As Long, idx As Long) As Double
-    Geom_CategoryCenterX = insideLeft + (idx - 0.5) * insideWidth / nCats
+Public Function Geom_CategoryCenterX(insideLeft As Double, insideWidth As Double, nCats As Long, idx As Long, Optional between As Boolean = True) As Double
+    If between Then
+        Geom_CategoryCenterX = insideLeft + (idx - 0.5) * insideWidth / nCats
+    ElseIf nCats <= 1 Then
+        Geom_CategoryCenterX = insideLeft + insideWidth / 2
+    Else
+        Geom_CategoryCenterX = insideLeft + (idx - 1) * insideWidth / (nCats - 1)
+    End If
 End Function
 
 Public Function Geom_BarWidth(slotWidth As Double, gapWidthPct As Double) As Double
@@ -44,9 +50,10 @@ End Function
 
 Public Function Geom_ChartCategoryCenterX(cht As Chart, idx As Long) As Double
     With cht.PlotArea
-        Geom_ChartCategoryCenterX = Geom_CategoryCenterX(.InsideLeft, .InsideWidth, Geom_ChartCategoryCount(cht), idx)
+        Geom_ChartCategoryCenterX = Geom_CategoryCenterX(.InsideLeft, .InsideWidth, Geom_ChartCategoryCount(cht), idx, Geom_ChartBetween(cht))
     End With
 End Function
+
 
 Public Function Geom_ChartValueToY(cht As Chart, v As Double) As Double
     Dim ax As Axis
@@ -58,9 +65,19 @@ End Function
 
 Public Function Geom_ChartBarHalfWidth(cht As Chart) As Double
     Dim gap As Double
+    If Registry_ChartType(cht) = "line" Then Exit Function    ' linha: sem barras, ancora no ponto
     gap = 50
     On Error Resume Next
     gap = cht.ChartGroups(1).GapWidth
     On Error GoTo 0
     Geom_ChartBarHalfWidth = Geom_BarWidth(Geom_SlotWidth(cht.PlotArea.InsideWidth, Geom_ChartCategoryCount(cht)), gap) / 2
+End Function
+
+' True quando os pontos ficam no meio das fatias (padrão de colunas); False quando o eixo cruza nas categorias
+' (linha com AxisBetweenCategories = False: primeiro ponto na borda esquerda, último na direita).
+Public Function Geom_ChartBetween(cht As Chart) As Boolean
+    Geom_ChartBetween = True
+    On Error Resume Next
+    Geom_ChartBetween = cht.Axes(xlCategory).AxisBetweenCategories
+    On Error GoTo 0
 End Function

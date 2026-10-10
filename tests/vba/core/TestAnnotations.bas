@@ -188,3 +188,162 @@ Public Sub Test_Ann_MoveLine_ArrowAtEnd()
     AssertFalse ln.HorizontalFlip = msoTrue
     CloseTemp wb
 End Sub
+
+' ---------- rodada de correcoes ----------
+
+Private Function KindFixture(wb As Workbook, kind As String, Optional rows As Long = 4) As Chart
+    Dim ws As Worksheet, d As clsChartData, i As Long
+    Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Ano", "Sul", "Norte")
+    For i = 1 To rows
+        ws.Range("A" & (i + 1) & ":C" & (i + 1)).Value = Array(2021 + i, 100 + 10 * i, 50 + 10 * i)
+    Next
+    Set d = ChartData_FromRange(ws.Range("A1:C" & (rows + 1)))
+    Set KindFixture = Stacked_Insert(ws, d, kind).Chart
+End Function
+
+Private Function CountPrefix(cht As Chart, p As String) As Long
+    Dim i As Long
+    For i = 1 To cht.Shapes.Count
+        If Left$(cht.Shapes(i).Name, Len(p)) = p Then CountPrefix = CountPrefix + 1
+    Next
+End Function
+
+Public Sub Test_Ann_Stacked100_DifferenceRaises7001()
+    Dim wb As Workbook, cht As Chart, en As Long
+    Set wb = NewTempWorkbook(): Set cht = KindFixture(wb, "stacked100")
+    On Error Resume Next
+    Ann_AddDifference cht, 1, 4
+    en = Err.Number
+    On Error GoTo 0
+    AssertEqual vbObjectError + 7001, en
+    AssertEqual 0, CountPrefix(cht, "tqq_ann_diff")
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_Stacked100_CagrUsesRawTotals()
+    Dim wb As Workbook, cht As Chart, ln As Shape
+    Set wb = NewTempWorkbook(): Set cht = KindFixture(wb, "stacked100")
+    Set ln = Ann_AddCagr(cht, 1, 4)
+    ' totais brutos: 2022 = 110+60 = 170; 2025 = 140+90 = 230 -> (230/170)^(1/3)-1 = 10,6%
+    AssertEqual "CAGR +10,6%", cht.Shapes("tqq_ann_cagr_1_lbl").TextFrame2.TextRange.Text
+    AssertAlmost 0, ln.Height, 0.5, "100%: ambos os topos em 1 -> linha plana"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_Stacked100_RefreshHidesExistingDiff()
+    Dim wb As Workbook, cht As Chart, ln As Shape
+    Set wb = NewTempWorkbook(): Set cht = KindFixture(wb, "stacked")
+    Set ln = Ann_AddDifference(cht, 1, 4)
+    AssertTrue ln.Visible = msoTrue
+    cht.ChartType = xlColumnStacked100
+    Registry_Block(cht).Cells(1, 2).Value = "stacked100"
+    Ann_Refresh cht
+    AssertTrue ln.Visible = msoFalse, "seta de diferenca oculta em 100%"
+    AssertTrue cht.Shapes("tqq_ann_diff_1_lbl").Visible = msoFalse
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_Refresh_IsolatesShapeFailure()
+    Dim wb As Workbook, cht As Chart, a As Shape, b As Shape
+    Set wb = NewTempWorkbook(): Set cht = StackedFixture(wb)
+    Set a = Ann_AddCagr(cht, 1, 4)
+    Set b = Ann_AddCagr(cht, 2, 3)
+    ' sabota a primeira: troca o rotulo (caixa de texto) por uma linha com o mesmo nome -> TextRange falha
+    cht.Shapes("tqq_ann_cagr_1_lbl").Delete
+    cht.Shapes.AddLine(0, 0, 5, 5).Name = "tqq_ann_cagr_1_lbl"
+    b.Left = 0: b.Top = 0
+    Ann_Refresh cht
+    AssertAlmost Geom_ChartCategoryCenterX(cht, 2), b.Left, 0.5, "segunda anotacao reposicionada apesar da falha da primeira"
+    AssertTrue InStr(Ann_LastError(), "tqq_ann_cagr_1") > 0, "erro registrado: " & Ann_LastError()
+    Ann_Refresh cht     ' a guarda foi liberada: nova chamada funciona
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_Refresh_HidesStaleAndRestores()
+    Dim wb As Workbook, cht As Chart, ln As Shape, ws As Worksheet, s As Series
+    Set wb = NewTempWorkbook(): Set cht = KindFixture(wb, "stacked", 5)
+    Set ws = wb.Worksheets("Dados")
+    Set ln = Ann_AddCagr(cht, 1, 5)
+    AssertTrue ln.Visible = msoTrue
+    Set s = cht.SeriesCollection(1)
+    Dim oldF As String: oldF = s.Formula
+    s.Values = ws.Range("B2:B5")                 ' 4 pontos
+    Ann_Refresh cht
+    AssertTrue ln.Visible = msoFalse, "anotacao fora da faixa fica oculta"
+    AssertTrue cht.Shapes("tqq_ann_cagr_1_lbl").Visible = msoFalse
+    s.Formula = oldF
+    Ann_Refresh cht
+    AssertTrue ln.Visible = msoTrue, "volta a aparecer quando valida"
+    AssertTrue cht.Shapes("tqq_ann_cagr_1_lbl").Visible = msoTrue
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_Refresh_RebuildsWaterfallConnectors()
+    Dim wb As Workbook, cht As Chart
+    Set wb = NewTempWorkbook(): Set cht = WaterfallFixture(wb)
+    AssertEqual 3, CountPrefix(cht, "tqq_ann_conn_")
+    cht.Shapes("tqq_ann_conn_2").Delete
+    Ann_Refresh cht
+    AssertEqual 3, CountPrefix(cht, "tqq_ann_conn_")
+    Registry_SetOption cht, "connectors", "0"
+    cht.Shapes("tqq_ann_conn_2").Delete
+    Ann_Refresh cht
+    AssertEqual 2, CountPrefix(cht, "tqq_ann_conn_"), "conectores desligados nao sao recriados"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_Waterfall_Connectors_IndependentY()
+    Dim wb As Workbook, cht As Chart, ax As Axis, it As Double, ih As Double
+    Set wb = NewTempWorkbook(): Set cht = WaterfallFixture(wb)
+    it = cht.PlotArea.InsideTop: ih = cht.PlotArea.InsideHeight: Set ax = cht.Axes(xlValue)
+    ' End: 100, 70 (queda de 30), 120, 120
+    AssertAlmost it + ih * (ax.MaximumScale - 70) / (ax.MaximumScale - ax.MinimumScale), cht.Shapes("tqq_ann_conn_2").Top, 1
+    AssertAlmost it + ih * (ax.MaximumScale - 120) / (ax.MaximumScale - ax.MinimumScale), cht.Shapes("tqq_ann_conn_3").Top, 1
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_Line_NotBetweenCategories()
+    Dim wb As Workbook, cht As Chart, ln As Shape
+    Set wb = NewTempWorkbook(): Set cht = KindFixture(wb, "line")
+    cht.Axes(xlCategory).AxisBetweenCategories = False
+    Set ln = Ann_AddCagr(cht, 1, 4)
+    AssertAlmost cht.PlotArea.InsideLeft, ln.Left, 1
+    AssertAlmost cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth, ln.Left + ln.Width, 1
+    AssertAlmost 0, Geom_ChartBarHalfWidth(cht), 0.001, "linha nao tem barras"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_NewName_AvoidsCompanionCollisions()
+    Dim wb As Workbook, cht As Chart, ln As Shape
+    Set wb = NewTempWorkbook(): Set cht = StackedFixture(wb)
+    cht.Shapes.AddLine(0, 0, 5, 5).Name = "tqq_ann_cagr_1_lbl"      ' orfao que colidiria com o rotulo
+    Set ln = Ann_AddCagr(cht, 1, 4)
+    AssertEqual "tqq_ann_cagr_2", ln.Name
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_Labels_StayInsideChartArea()
+    Dim wb As Workbook, cht As Chart, lbl As Shape
+    Set wb = NewTempWorkbook(): Set cht = StackedFixture(wb)
+    Ann_AddCagr cht, 1, 4
+    Ann_AddDifference cht, 1, 4
+    For Each lbl In cht.Shapes
+        If Right$(lbl.Name, 4) = "_lbl" Then
+            AssertTrue lbl.Left >= 0 And lbl.Top >= 0, lbl.Name & " nao pode sair por cima/esquerda"
+            AssertTrue lbl.Left + lbl.Width <= cht.ChartArea.Width + 0.5, lbl.Name & " nao pode sair pela direita"
+        End If
+    Next
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_CategoryData_EmptyAndShortSeries()
+    Dim wb As Workbook, cht As Chart, v() As Double, t() As Double, ws As Worksheet
+    Set wb = NewTempWorkbook(): Set cht = KindFixture(wb, "stacked", 4)
+    Set ws = wb.Worksheets("Dados")
+    cht.SeriesCollection(2).Values = ws.Range("C2:C3")     ' serie 2 mais curta que n: conta como zero
+    Ann_GetCategoryData cht, v, t
+    AssertEqual 4, UBound(v)
+    AssertAlmost 140, v(4), 0.001, "serie curta conta como zero, sem erro"
+    CloseTemp wb
+End Sub
