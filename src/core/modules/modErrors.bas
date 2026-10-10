@@ -14,9 +14,12 @@ End Sub
 
 ' Usar em rótulos Fail: de funções públicas. Loga e avisa o usuário (sem caixa em build de teste).
 Public Sub Errors_Handle(context As String)
-    Dim num As Long, desc As String
-    num = Err.Number: desc = Err.Description
+    Errors_HandleErr context, Err.Number, Err.Description
+End Sub
+
+' Igual a Errors_Handle, com o erro já capturado (quando o Err foi limpo por uma limpeza de recursos).
+Public Sub Errors_HandleErr(context As String, num As Long, desc As String)
     Errors_Log context & vbTab & num & vbTab & desc
     Core_Notify "Ocorreu um erro no ThinQQ (" & context & "):" & vbLf & desc & vbLf & vbLf & _
-                "Detalhes em %LOCALAPPDATA%\ThinQQ\logs\thinqq.log", vbExclamation
+                "Detalhes em %LOCALAPPDATA%\ThinQQ\logs\thinqq.log", vbExclamation, False
 End Sub

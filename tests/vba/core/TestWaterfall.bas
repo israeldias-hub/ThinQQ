@@ -1,12 +1,6 @@
 Attribute VB_Name = "TestWaterfall"
 Option Explicit
 
-Private Function LocalizeFormat(fmt As String) As String
-    Dim t As String, d As String
-    t = Application.International(xlThousandsSeparator): d = Application.International(xlDecimalSeparator)
-    LocalizeFormat = Replace(Replace(Replace(fmt, ",", "@@"), ".", d), "@@", t)
-End Function
-
 Private Function Fixture(wb As Workbook, Optional sheetName As String = "Ponte") As clsChartData
     Dim ws As Worksheet
     Set ws = wb.Worksheets(1)
@@ -273,7 +267,7 @@ Public Sub Test_Waterfall_Insert_ColorsAndLabelFormat()
     Set body = Block_Body(Registry_Block(cht))
     AssertEqual -150, body.Cells(3, WF_COL_LABELVAL).Value
     Set lbl = Chart_FindSeries(cht, "tqq_lbl")
-    AssertTrue lbl.Points(2).DataLabel.NumberFormat = "#,##0;-#,##0;" Or lbl.Points(2).DataLabel.NumberFormat = LocalizeFormat("#,##0;-#,##0;"), "formato com sinal de menos, zero vazio"
+    AssertEqual "#,##0;-#,##0;", lbl.Points(2).DataLabel.NumberFormat, "formato com sinal de menos, zero vazio"
     AssertEqual xlLabelPositionBelow, lbl.Points(2).DataLabel.Position
     CloseTemp wb
 End Sub

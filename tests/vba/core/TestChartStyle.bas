@@ -15,12 +15,6 @@ Private Function MakeChart(wb As Workbook) As Chart
     Set MakeChart = co.Chart
 End Function
 
-Private Function LocalizeFormat(fmt As String) As String
-    Dim t As String, d As String
-    t = Application.International(xlThousandsSeparator): d = Application.International(xlDecimalSeparator)
-    LocalizeFormat = Replace(Replace(Replace(fmt, ",", "@@"), ".", d), "@@", t)
-End Function
-
 Public Sub Test_Style_Palettes_HaveSixColors()
     AssertEqual 6, UBound(Style_Palette("padrao")) - LBound(Style_Palette("padrao")) + 1
     AssertEqual 6, UBound(Style_Palette("cinza")) - LBound(Style_Palette("cinza")) + 1
@@ -70,7 +64,7 @@ Public Sub Test_Style_ApplyNumberFormat_OnLabels()
     Set wb = NewTempWorkbook(): Set cht = MakeChart(wb)
     cht.SeriesCollection(1).HasDataLabels = True
     Style_ApplyNumberFormat cht, Style_NumberFormat("dec2")
-    ' DataLabels.NumberFormat devolve o código na notação do idioma do Excel (pt-BR: #.##0,00): traduz os separadores
-    AssertEqual LocalizeFormat("#,##0.00;-#,##0.00;"), cht.SeriesCollection(1).DataLabels.NumberFormat
+
+    AssertEqual "#,##0.00;-#,##0.00;", cht.SeriesCollection(1).DataLabels.NumberFormat
     CloseTemp wb
 End Sub

@@ -53,17 +53,9 @@ Public Function SeriesName(j As Long) As String
     SeriesName = CellLabel(SeriesNameCell(j))
 End Function
 
-' Texto da célula; evita '#####' de colunas estreitas.
+' Texto da célula; evita '#####' de colunas estreitas (ver Util_CellLabel).
 Private Function CellLabel(c As Range) As String
-    Dim v As Variant, s As String
-    v = c.Value2
-    If IsError(v) Then CellLabel = CStr(c.Text): Exit Function
-    If VarType(v) = vbString Then CellLabel = v: Exit Function
-    s = CStr(c.Text)
-    If Left$(s, 1) = "#" Then
-        If VarType(c.Value) = vbDate Then s = Format$(c.Value, "dd/mm/yyyy") Else s = CStr(v)
-    End If
-    CellLabel = s
+    CellLabel = Util_CellLabel(c)
 End Function
 
 Public Function Validate() As String

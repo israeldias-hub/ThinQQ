@@ -96,20 +96,35 @@ Public Function Style_NumberFormat(key As String) As String
 End Function
 
 Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
-    Dim s As Series
+    Dim s As Series, i As Long
+    Labels_ApplyCellFormat cht, fmt
     For Each s In cht.SeriesCollection
-        If s.HasDataLabels Then Style_AssignNumberFormat s.DataLabels, fmt
+        If s.HasDataLabels Then
+            Style_AssignNumberFormat s.DataLabels, fmt
+            ' rótulos ligados a células (por ponto) guardam formato próprio
+            For i = 1 To s.Points.Count
+                If s.Points(i).HasDataLabel Then Style_AssignNumberFormat s.Points(i).DataLabel, fmt
+            Next
+        End If
     Next
 End Sub
 
-' Atribui o código de formato (em inglês) a DataLabels/DataLabel. Dependendo do estado do Excel
-' (ex.: gráfico ativo em idioma com separadores diferentes) o setter interpreta o texto na notação
-' local; confere pela leitura e, se divergir, reatribui o código traduzido para o idioma.
+' Tabela de formatos: os códigos em inglês (Style_NumberFormat) são a fonte neutra. Formatos de rótulos
+' de gráfico são interpretados na notação do idioma do Excel neste ambiente, então os rótulos são sempre
+' gravados por NumberFormatLocal com o código derivado por Style_LocalizeCode (nunca por NumberFormat).
+' (A regra "códigos em inglês" do plano vale para formatos de célula/intervalo.)
+Public Function Style_LocalizeCode(fmt As String) As String
+    Dim d As String, t As String
+    d = Application.International(xlDecimalSeparator)
+    t = Application.International(xlThousandsSeparator)
+    If Len(d) <> 1 Then d = "."
+    If Len(t) <> 1 Then t = ","
+    If t = d Then t = IIf(d = ",", ".", ",")
+    ' NBSP (separador de milhar de alguns idiomas) é usado literalmente no código
+    Style_LocalizeCode = Replace(Replace(Replace(fmt, ",", ChrW(1)), ".", d), ChrW(1), t)
+End Function
+
+' Atribui o formato (código em inglês de Style_NumberFormat) a um DataLabels/DataLabel, de forma determinística.
 Public Sub Style_AssignNumberFormat(target As Object, fmt As String)
-    Dim t As String, d As String, loc As String
-    target.NumberFormat = fmt
-    t = Application.International(xlThousandsSeparator): d = Application.International(xlDecimalSeparator)
-    If t = "," And d = "." Then Exit Sub
-    loc = Replace(Replace(Replace(fmt, ",", "@@"), ".", d), "@@", t)
-    If target.NumberFormat <> loc Then target.NumberFormat = loc
+    target.NumberFormatLocal = Style_LocalizeCode(fmt)
 End Sub

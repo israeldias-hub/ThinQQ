@@ -13,12 +13,6 @@ Private Function Fixture(wb As Workbook, Optional sheetName As String = "Dados")
     Set Fixture = ChartData_FromRange(ws.Range("A1:D5"))
 End Function
 
-Private Function LocalizeFormat(fmt As String) As String
-    Dim t As String, d As String
-    t = Application.International(xlThousandsSeparator): d = Application.International(xlDecimalSeparator)
-    LocalizeFormat = Replace(Replace(Replace(fmt, ",", "@@"), ".", d), "@@", t)
-End Function
-
 Public Sub Test_Stacked_Insert_CreatesSeriesAndTotals()
     Dim wb As Workbook, d As clsChartData, co As ChartObject, cht As Chart, tot As Series, body As Range
     Set wb = NewTempWorkbook(): Set d = Fixture(wb)
@@ -51,7 +45,7 @@ Public Sub Test_Stacked_SegmentLabels_CenteredWithFormat()
     Set cht = Stacked_Insert(d.Source.Worksheet, d, "stacked").Chart
     AssertTrue cht.SeriesCollection(1).HasDataLabels
     AssertEqual xlLabelPositionCenter, cht.SeriesCollection(1).DataLabels.Position
-    AssertEqual LocalizeFormat("#,##0;-#,##0;"), cht.SeriesCollection(1).DataLabels.NumberFormat
+    AssertEqual "#,##0;-#,##0;", cht.SeriesCollection(1).DataLabels.NumberFormat   ' getter devolve o código neutro (gravado por NumberFormatLocal)
     Stacked_SetLabels cht, False
     AssertFalse cht.SeriesCollection(1).HasDataLabels
     AssertEqual "0", Registry_GetOption(cht, "labels")

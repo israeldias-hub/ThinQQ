@@ -61,3 +61,16 @@ Public Function Chart_FindSeries(cht As Chart, name As String) As Series
         If s.Name = name Then Set Chart_FindSeries = s: Exit Function
     Next
 End Function
+
+' Texto da célula; evita '#####' de colunas estreitas.
+Public Function Util_CellLabel(c As Range) As String
+    Dim v As Variant, s As String
+    v = c.Value2
+    If IsError(v) Then Util_CellLabel = CStr(c.Text): Exit Function
+    If VarType(v) = vbString Then Util_CellLabel = v: Exit Function
+    s = CStr(c.Text)
+    If Left$(s, 1) = "#" Then
+        If VarType(c.Value) = vbDate Then s = Format$(c.Value, "dd/mm/yyyy") Else s = CStr(v)
+    End If
+    Util_CellLabel = s
+End Function
