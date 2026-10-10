@@ -62,3 +62,93 @@ Public Sub Test_ChartData_Validate_MultiArea()
     AssertTrue Len(d.Validate()) > 0
     CloseTemp wb
 End Sub
+
+Public Sub Test_ChartData_Validate_SingleEmptyCell()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    Set d = ChartData_FromRange(ws.Range("H20"))
+    AssertTrue InStr(d.Validate(), "mínimo 2 linhas x 2 colunas") > 0, d.Validate()
+    CloseTemp wb
+End Sub
+
+Public Sub Test_ChartData_FullColumns_LimitedToUsedRange()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    Set d = ChartData_FromRange(ws.Range("A:D"))
+    AssertEqual 4, d.CategoryCount
+    AssertEqual 3, d.SeriesCount
+    AssertEqual "", d.Validate()
+    Set d = ChartData_FromRange(ws.Rows("1:5"))
+    AssertEqual 4, d.CategoryCount
+    CloseTemp wb
+End Sub
+
+Public Sub Test_ChartData_Validate_TooLarge()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    Set d = New clsChartData
+    d.Init ws.Range("A1:D100005")
+    AssertTrue InStr(d.Validate(), "muito grande") > 0, d.Validate()
+    CloseTemp wb
+End Sub
+
+Public Sub Test_ChartData_Validate_CalcSheetRejected()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    wb.Worksheets.Add.Name = CALC_SHEET
+    Set ws = wb.Worksheets(CALC_SHEET)
+    ws.Range("A1:B2").Value = 1
+    Set d = ChartData_FromRange(ws.Range("A1:B2"))
+    AssertTrue InStr(d.Validate(), "planilha interna") > 0, d.Validate()
+    CloseTemp wb
+End Sub
+
+Public Sub Test_ChartData_Validate_MultiArea_Message()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    Set d = ChartData_FromRange(ws.Range("A1:B5,D1:D5"))
+    AssertTrue InStr(d.Validate(), "única área") > 0, d.Validate()
+    CloseTemp wb
+End Sub
+
+Public Sub Test_ChartData_TextAndBlankCells_Accessible()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, v As Variant
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("C3").Value = "n/d"
+    ws.Range("D4").ClearContents
+    Set d = ChartData_FromRange(ws.Range("A1:D5"))
+    AssertEqual 4, d.CategoryCount
+    AssertEqual 3, d.SeriesCount
+    AssertEqual "", d.Validate()
+    AssertEqual "n/d", d.ValueCell(2, 2).Value
+    v = d.ValueCell(3, 3).Value
+    AssertTrue IsEmpty(v), "célula vazia"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_ChartData_Text_NarrowColumn()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A3").Value = 2023
+    ws.Range("A3").NumberFormat = "#,##0.00000"
+    ws.Range("B1").Value = "Um cabeçalho bastante longo"
+    ws.Columns("A:B").ColumnWidth = 1
+    Set d = ChartData_FromRange(ws.Range("A1:D5"))
+    AssertEqual "2023", d.CategoryText(2)
+    AssertEqual "Um cabeçalho bastante longo", d.SeriesName(1)
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Runner_ClosesLeakedWorkbook()
+    Dim wb As Workbook
+    Set wb = NewTempWorkbook()
+    AssertTrue wb.Worksheets.Count > 0   ' o runner deve fechar este workbook ao fim do teste
+End Sub
+
+Public Sub Test_Runner_LeakedWorkbookWasClosed()
+    Dim w As Workbook, n As Long
+    For Each w In Application.Workbooks
+        If Not w.IsAddin Then n = n + 1
+    Next
+    AssertEqual 0, n, "pastas vazadas permaneceram abertas"
+End Sub

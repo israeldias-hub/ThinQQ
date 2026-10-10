@@ -24,7 +24,32 @@ Public Function RunAllTests(outputPath As String) As Long
     RunAllTests = mFailed
 End Function
 
+Private Function OpenBooks() As String
+    Dim w As Workbook, s As String
+    For Each w In Application.Workbooks: s = s & "|" & w.Name: Next
+    OpenBooks = s & "|"
+End Function
+
+' Fecha pastas abertas durante o teste (vazadas por falha de assert).
+Private Sub CloseLeaked(baseline As String)
+    Dim i As Long, w As Workbook, prev As Boolean
+    prev = Application.DisplayAlerts: Application.DisplayAlerts = False
+    On Error Resume Next
+    For i = Application.Workbooks.Count To 1 Step -1
+        Set w = Application.Workbooks(i)
+        If InStr(baseline, "|" & w.Name & "|") = 0 Then w.Close SaveChanges:=False
+    Next
+    Application.DisplayAlerts = prev
+End Sub
+
 Private Sub RunOne(moduleName As String, procName As String)
+    Dim baseline As String
+    baseline = OpenBooks()
+    RunOne2 moduleName, procName
+    CloseLeaked baseline
+End Sub
+
+Private Sub RunOne2(moduleName As String, procName As String)
     On Error GoTo Fail
     Application.Run "'" & ThisWorkbook.Name & "'!" & moduleName & "." & procName
     mPassed = mPassed + 1

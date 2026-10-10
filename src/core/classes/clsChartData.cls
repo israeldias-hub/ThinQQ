@@ -28,6 +28,7 @@ Public Property Get SeriesCount() As Long
 End Property
 
 Public Function CategoryCells() As Range
+    If CategoryCount < 1 Then Err.Raise 1004, "clsChartData", "A tabela não tem categorias."
     Set CategoryCells = mSource.Offset(1, 0).Resize(CategoryCount, 1)
 End Function
 
@@ -36,6 +37,7 @@ Public Function SeriesNameCell(j As Long) As Range
 End Function
 
 Public Function SeriesValueCells(j As Long) As Range
+    If CategoryCount < 1 Then Err.Raise 1004, "clsChartData", "A tabela não tem categorias."
     Set SeriesValueCells = mSource.Offset(1, j).Resize(CategoryCount, 1)
 End Function
 
@@ -44,16 +46,30 @@ Public Function ValueCell(i As Long, j As Long) As Range
 End Function
 
 Public Function CategoryText(i As Long) As String
-    CategoryText = CStr(mSource.Cells(i + 1, 1).Text)
+    CategoryText = CellLabel(mSource.Cells(i + 1, 1))
 End Function
 
 Public Function SeriesName(j As Long) As String
-    SeriesName = CStr(SeriesNameCell(j).Text)
+    SeriesName = CellLabel(SeriesNameCell(j))
+End Function
+
+' Texto da célula; evita '#####' de colunas estreitas.
+Private Function CellLabel(c As Range) As String
+    Dim v As Variant, s As String
+    v = c.Value2
+    If IsError(v) Then CellLabel = CStr(c.Text): Exit Function
+    If VarType(v) = vbString Then CellLabel = v: Exit Function
+    s = CStr(c.Text)
+    If Left$(s, 1) = "#" Then
+        If VarType(v) = vbDate Then s = Format$(v, "dd/mm/yyyy") Else s = CStr(v)
+    End If
+    CellLabel = s
 End Function
 
 Public Function Validate() As String
     If mSource Is Nothing Then Validate = "Selecione a tabela de dados.": Exit Function
     If mSource.Areas.Count > 1 Then Validate = "Selecione uma única área contígua.": Exit Function
+    If mSource.Rows.Count > 100000 Or mSource.Columns.Count > 200 Then Validate = "A seleção é muito grande. Selecione apenas a tabela de dados.": Exit Function
     If mSource.Rows.Count < 2 Or mSource.Columns.Count < 2 Then
         Validate = "Selecione a tabela com a linha de cabeçalho (nomes das séries) e a coluna de categorias (mínimo 2 linhas x 2 colunas)."
         Exit Function
