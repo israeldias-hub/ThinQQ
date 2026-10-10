@@ -47,11 +47,14 @@ Private Sub RunOne(moduleName As String, procName As String)
     baseline = OpenBooks()
     RunOne2 moduleName, procName
     CloseLeaked baseline
+    CleanupTempDirs
 End Sub
 
 Private Sub RunOne2(moduleName As String, procName As String)
     On Error GoTo Fail
-    Application.Run "'" & ThisWorkbook.Name & "'!" & moduleName & "." & procName
+    ' Application.Run abre dialogo modal em erro nao tratado no Excel invisivel (o On Error nao captura);
+    ' por isso chama via modTestDispatch (gerado pelo build com chamadas diretas).
+    modTestDispatch.Dispatch moduleName & "." & procName
     mPassed = mPassed + 1
     mLog = mLog & "ok " & (mPassed + mFailed) & " - " & moduleName & "." & procName & vbLf
     Exit Sub

@@ -1,6 +1,7 @@
 Attribute VB_Name = "modAssert"
 Option Explicit
 Public Const ASSERT_ERR As Long = vbObjectError + 513
+Private mTempDirs As Collection   ' pastas criadas por TempDir; o runner apaga após cada teste
 
 Public Sub AssertTrue(cond As Boolean, Optional msg As String = "esperado True")
     If Not cond Then Err.Raise ASSERT_ERR, "Assert", msg
@@ -33,12 +34,14 @@ Public Sub CloseTemp(wb As Workbook)
     wb.Close SaveChanges:=False
 End Sub
 
-' Pasta temporária nova e vazia (o chamador apaga se quiser).
+' Pasta temporaria nova e vazia (registrada; o modTestRunner apaga apos cada teste).
 Public Function TempDir() As String
     Dim p As String
     Randomize
     p = Environ$("TEMP") & "\thinqq_test_" & Format$(Now, "hhnnss") & "_" & CLng(Rnd * 1000000)
     MkDir p
+    If mTempDirs Is Nothing Then Set mTempDirs = New Collection
+    mTempDirs.Add p
     TempDir = p
 End Function
 
@@ -48,3 +51,15 @@ Public Function RepoPath() As String
     Set fso = CreateObject("Scripting.FileSystemObject")
     RepoPath = fso.GetParentFolderName(ThisWorkbook.Path)
 End Function
+
+' Apaga as pastas criadas por TempDir (erros ignorados).
+Public Sub CleanupTempDirs()
+    Dim fso As Object, p As Variant
+    If mTempDirs Is Nothing Then Exit Sub
+    On Error Resume Next
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    For Each p In mTempDirs
+        If Left$(fso.GetFileName(CStr(p)), 12) = "thinqq_test_" Then fso.DeleteFolder CStr(p), True
+    Next
+    Set mTempDirs = New Collection
+End Sub
