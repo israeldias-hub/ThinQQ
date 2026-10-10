@@ -219,3 +219,23 @@ End Sub
 "@
     Set-Content -Path $OutPath -Value $content -Encoding ascii
 }
+
+# Compila o projeto VBA inteiro (Depurar > Compilar), pegando erros de sintaxe em procedimentos nunca chamados.
+# Retorna $null se compilou; senão "Modulo:linha" do erro. Em caso de erro o Excel fica com diálogo modal pendente:
+# o chamador deve encerrar o processo (Stop-Process no PID do Excel iniciado pelo build).
+function Invoke-VbaCompile($xl, $wb) {
+    $xl.VBE.MainWindow.Visible = $true
+    $xl.VBE.ActiveVBProject = $wb.VBProject
+    $ctl = $xl.VBE.CommandBars.FindControl(1, 578)   # 578 = Compilar VBAProject
+    if ($null -eq $ctl) { throw 'Controle "Compilar VBAProject" (Id 578) não encontrado no VBE.' }
+    $ctl.Execute()
+    if (-not $xl.VBE.CommandBars.FindControl(1, 578).Enabled) { return $null }   # desabilitado = projeto já compilado
+    $where = '?'
+    try {
+        $p = $xl.VBE.ActiveCodePane
+        $a = [ref]0; $b = [ref]0; $c = [ref]0; $d = [ref]0
+        $p.GetSelection($a, $b, $c, $d)
+        $where = "$($p.CodeModule.Parent.Name):$($a.Value)"
+    } catch { }
+    return $where
+}

@@ -10,6 +10,13 @@ param(
 )
 . "$PSScriptRoot\lib\Build-Common.ps1"
 Assert-VbomTrusted
+. "$PSScriptRoot\lib\Vba-Lint.ps1"
+$lint = Test-VbaLint $RepoRoot
+if ($lint.Count -gt 0) {
+    Write-Host 'ERRO: fontes VBA com continuação de linha inválida:' -ForegroundColor Red
+    $lint | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+    exit 1
+}
 $versions = Get-Content (Join-Path $RepoRoot 'version.json') -Raw | ConvertFrom-Json
 New-Item -ItemType Directory -Force $DistDir | Out-Null
 Get-ChildItem -Path (Join-Path $env:TEMP '*') -Include 'modBuildInfo_*.bas','modTestDispatch_*.bas' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue   # sobras de builds antigos

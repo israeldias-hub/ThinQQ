@@ -44,14 +44,26 @@ if ($node) {
 }
 
 
-$totalFailed = 0; $noTests = $false; $timedOut = $false
+$totalFailed = 0; $noTests = $false; $timedOut = $false; $compileFailed = $false
 $xl = New-ExcelApp
 $wd = Start-ExcelWatchdog $xl $TimeoutSec
 try {
     $xl.EnableEvents = $true
     $core = $xl.Workbooks.Open((Join-Path $DistDir 'ThinQQ.core.test.xlam'))
+    $loaderWb = $null
+    if ($targets -contains 'loader') { $loaderWb = $xl.Workbooks.Open((Join-Path $DistDir 'ThinQQ.test.xlam')) }
+    # Compilação completa de cada projeto (pega erro de sintaxe em procedimento nunca chamado pelos testes).
+    foreach ($pair in @(@('core', $core), @('loader', $loaderWb))) {
+        if ($null -eq $pair[1] -or $targets -notcontains $pair[0]) { continue }
+        $err = Invoke-VbaCompile $xl $pair[1]
+        if ($err) {
+            Write-Host "ERRO: erro de compilação VBA no projeto '$($pair[0])' (módulo:linha = $err)" -ForegroundColor Red
+            $compileFailed = $true
+            throw 'erro de compilação VBA'
+        }
+    }
     foreach ($t in $targets) {
-        $wb = if ($t -eq 'core') { $core } else { $xl.Workbooks.Open((Join-Path $DistDir 'ThinQQ.test.xlam')) }
+        $wb = if ($t -eq 'core') { $core } else { $loaderWb }
         $out = Join-Path $resultsDir "$t.tap"
         Remove-Item $out -ErrorAction SilentlyContinue
         $failed = $xl.Run("'$($wb.Name)'!modTestRunner.RunAllTests", $out)
@@ -66,11 +78,21 @@ try {
         $totalFailed += [int]$failed
     }
 } catch {
-    if (Test-ExcelWatchdogFired $wd) { $timedOut = $true } else { throw }
+    if (Test-ExcelWatchdogFired $wd) { $timedOut = $true } elseif (-not $compileFailed) { throw }
 } finally {
     Stop-ExcelWatchdog $wd
-    Close-ExcelApp $xl
+    if ($compileFailed) {
+        # diálogo modal pendente impede Quit: encerra só o processo iniciado por este script
+        $xp = Get-ExcelPid $xl
+        if ($xp -gt 0) { Stop-Process -Id $xp -Force -ErrorAction SilentlyContinue }
+    } else { Close-ExcelApp $xl }
     if ($server) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
+}
+if (-not $timedOut) {
+    Write-Host '=== vba-lint ==='
+    $global:LASTEXITCODE = 0
+    & (Join-Path $RepoRoot 'tests\ps\Test-VbaLint.ps1') -RepoRoot $RepoRoot
+    if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
 }
 if (-not $timedOut -and $targets -contains 'loader') {
     Write-Host '=== ribbon-pacote ==='
@@ -79,6 +101,7 @@ if (-not $timedOut -and $targets -contains 'loader') {
     if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
 }
 $elapsed = '{0:N1}s' -f $swTotal.Elapsed.TotalSeconds
+if ($compileFailed) { Write-Host "Tempo: $elapsed"; exit 3 }
 if ($timedOut) { Write-ExcelTimeout $wd; Write-Host "Tempo: $elapsed"; exit 2 }
 Write-Host "Tempo: $elapsed"
 if ($noTests) { Write-Host 'nenhum teste encontrado' -ForegroundColor Red; exit 1 }

@@ -169,7 +169,8 @@ End Sub
 
 Public Sub Rx_OnAbout(control As IRibbonControl)
     On Error GoTo Fail
-    RxMsg "ThinQQ" & vbLf & "Loader " & APP_VERSION & "  |  Core " & Loader_CurrentCoreVersion() & vbLf & vbLf & _           "Gráficos de apresentação para Excel." & vbLf & "Pasta: " & Loader_Root(), vbInformation
+    RxMsg "ThinQQ" & vbLf & "Loader " & APP_VERSION & "  |  Core " & Loader_CurrentCoreVersion() & vbLf & vbLf & _
+           "Gráficos de apresentação para Excel." & vbLf & "Pasta: " & Loader_Root(), vbInformation
     Exit Sub
 Fail:
     RxMsg "Não foi possível exibir as informações: " & Err.Description, vbExclamation
