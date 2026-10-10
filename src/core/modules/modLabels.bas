@@ -11,7 +11,7 @@ Public Sub Labels_LinkPoints(s As Series, valueCells As Range, numFmt As String)
         With s.Points(i)
             .HasDataLabel = True
             .DataLabel.Formula = sheetRef & valueCells.Cells(i, 1).Address(True, True)
-            .DataLabel.NumberFormat = numFmt
+            Style_AssignNumberFormat .DataLabel, numFmt
             .DataLabel.Font.Size = 9
             .DataLabel.Font.Color = RGB(64, 64, 64)
             v = valueCells.Cells(i, 1).Value

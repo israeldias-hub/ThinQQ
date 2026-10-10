@@ -1,5 +1,9 @@
 Option Explicit
 
 Private Sub Workbook_Open()
-    ' Core_OnLoaded passa a existir na Tarefa 11; até lá nada a fazer.
+    Core_OnLoaded
+End Sub
+
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    Core_OnUnload
 End Sub

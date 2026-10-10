@@ -111,7 +111,7 @@ Public Sub Stacked_SetLabels(cht As Chart, turnOn As Boolean)
             If turnOn Then
                 With s.DataLabels
                     .ShowValue = True: .ShowSeriesName = False: .ShowCategoryName = False
-                    .NumberFormat = fmt
+                    Style_AssignNumberFormat s.DataLabels, fmt
                     .Font.Size = 9
                     If s.ChartType = xlLine Or s.ChartType = xlLineMarkers Then
                         .Position = xlLabelPositionAbove

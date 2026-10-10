@@ -170,7 +170,7 @@ Public Sub Ann_Refresh(cht As Chart)
                     Ann_LayoutOne cht, shp, kind, fromIdx, toIdx, values, tops, fmt
                     If Err.Number <> 0 Then
                         mLastError = "Ann_Refresh " & nm & " " & Err.Number & " " & Err.Description
-                        Debug.Print mLastError
+                        Errors_Log mLastError
                         Err.Clear
                     End If
                     On Error GoTo Done

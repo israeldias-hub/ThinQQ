@@ -98,6 +98,18 @@ End Function
 Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
     Dim s As Series
     For Each s In cht.SeriesCollection
-        If s.HasDataLabels Then s.DataLabels.NumberFormat = fmt
+        If s.HasDataLabels Then Style_AssignNumberFormat s.DataLabels, fmt
     Next
+End Sub
+
+' Atribui o código de formato (em inglês) a DataLabels/DataLabel. Dependendo do estado do Excel
+' (ex.: gráfico ativo em idioma com separadores diferentes) o setter interpreta o texto na notação
+' local; confere pela leitura e, se divergir, reatribui o código traduzido para o idioma.
+Public Sub Style_AssignNumberFormat(target As Object, fmt As String)
+    Dim t As String, d As String, loc As String
+    target.NumberFormat = fmt
+    t = Application.International(xlThousandsSeparator): d = Application.International(xlDecimalSeparator)
+    If t = "," And d = "." Then Exit Sub
+    loc = Replace(Replace(Replace(fmt, ",", "@@"), ".", d), "@@", t)
+    If target.NumberFormat <> loc Then target.NumberFormat = loc
 End Sub
