@@ -1,6 +1,8 @@
 Attribute VB_Name = "modJsonLite"
 Option Explicit
 ' Leitor mínimo de JSON "plano": chaves de primeiro nível com valores string/número/booleano.
+' A busca e uma procura simples pelo texto "chave" (nao percorre a estrutura), adequada a manifestos planos.
+' Nunca levanta erro por entrada malformada.
 
 Public Function JsonGetString(json As String, key As String) As String
     Dim p As Long, q As Long, needle As String
@@ -49,7 +51,13 @@ Private Function JsonReadString(json As String, startPos As Long) As String
                 Case "t": out = out & vbTab
                 Case "b": out = out & Chr$(8)
                 Case "f": out = out & Chr$(12)
-                Case "u": out = out & ChrW$(CLng("&H" & Mid$(json, i + 2, 4))): i = i + 4
+                Case "u"
+                    If i + 5 <= Len(json) And Mid$(json, i + 2, 4) Like "[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]" Then
+                        out = out & ChrW$(CLng("&H" & Mid$(json, i + 2, 4)))
+                        i = i + 4
+                    Else
+                        out = out & "?"    ' escape \u malformado ou truncado: nunca levanta erro
+                    End If
                 Case Else: out = out & esc    ' \" \ \/
             End Select
             i = i + 2

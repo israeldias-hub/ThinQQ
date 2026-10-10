@@ -28,3 +28,17 @@ Public Sub Test_Json_MultilinePretty()
     AssertEqual "1.0.0", JsonGetString(j, "coreVersion")
     AssertEqual "x", JsonGetString(j, "notes")
 End Sub
+
+Public Sub Test_Json_BadUnicodeEscape_DoesNotRaise()
+    Dim bs As String, r As String
+    bs = Chr$(92)
+    r = JsonGetString("{""a"":""x" & bs & "uZZZZy""}", "a")
+    AssertEqual "x?ZZZZy", r
+End Sub
+
+Public Sub Test_Json_TruncatedUnicodeEscape_DoesNotRaise()
+    Dim bs As String
+    bs = Chr$(92)
+    AssertEqual "x?12", JsonGetString("{""a"":""x" & bs & "u12", "a")
+    AssertEqual "x?", JsonGetString("{""a"":""x" & bs & "u", "a")
+End Sub
