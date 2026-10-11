@@ -6,9 +6,49 @@ Private Function TitleRows() As Variant
     TitleRows = Array(1, 22, 43, 64, 85, 106)
 End Function
 
-Public Sub Test_Samples_Create()
-    Dim wb As Workbook, ws As Worksheet, co As ChartObject, kinds As String
+' Linha do titulo de cada secao (7..18) em "Exemplos 2"!A: 1, 22, 43, ..., 232.
+Private Function TitleRows2() As Variant
+    Dim r(0 To 11) As Long, k As Long
+    For k = 0 To 11: r(k) = 1 + 21 * k: Next
+    TitleRows2 = r
+End Function
+
+' Tamanho do log de erros do build Test (Errors_Log): os exemplos nao devem registrar nada nele.
+Private Function ErrLogSize() As Long
+    Dim p As String
+    p = Errors_LogDir() & "\thinqq.log"
+    If Len(Dir(p)) > 0 Then ErrLogSize = FileLen(p)
+End Function
+
+' Uma unica pasta de exemplos para todas as verificacoes de conteudo (Samples_Create monta 19 graficos).
+Public Sub Test_Samples_BothSheets()
+    Dim wb As Workbook, en As Long, es As String, ed As String, logBefore As Long, noticesBefore As Long
+    logBefore = ErrLogSize()
+    noticesBefore = Core_NoticeCount()
     Set wb = Samples_Create()
+    On Error GoTo Cleanup
+    AssertEqual "Exemplos", wb.ActiveSheet.Name, "a primeira planilha continua ativa"
+    AssertEqual "Exemplos", wb.Worksheets(1).Name
+    AssertEqual wb.Worksheets("Exemplos").Index + 1, wb.Worksheets("Exemplos 2").Index, "a segunda planilha vem logo depois da primeira"
+    CheckSheet1Create wb
+    CheckSheet1Layout wb
+    CheckSheet1Content wb
+    CheckSheet2KindsAndFeatures wb
+    CheckSheet2Layout wb
+    CheckSheet2Labels wb
+    CheckNoErrorsAnywhere wb
+    AssertEqual logBefore, ErrLogSize(), "montar os exemplos nao registra erros no log"
+    AssertEqual noticesBefore, Core_NoticeCount(), "montar os exemplos nao mostra avisos ao usuario (em Release seriam MsgBox)"
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub
+
+Private Sub CheckSheet1Create(wb As Workbook)
+    Dim ws As Worksheet, co As ChartObject, kinds As String
     Set ws = wb.Worksheets("Exemplos")
     AssertEqual 6, ws.ChartObjects.Count
     For Each co In ws.ChartObjects
@@ -20,13 +60,11 @@ Public Sub Test_Samples_Create()
     AssertTrue Not ws.ChartObjects(1).Chart.Shapes("tqq_ann_cagr_1") Is Nothing
     AssertTrue Not ws.ChartObjects(1).Chart.Shapes("tqq_ann_diff_1") Is Nothing
     AssertEqual "e", LCase$(ws.Range("B27").Value)
-    CloseTemp wb
 End Sub
 
 ' Cada grafico fica abaixo do titulo da sua secao e acima do titulo da proxima; graficos nao se sobrepoem.
-Public Sub Test_Samples_Layout_NoOverlap()
-    Dim wb As Workbook, ws As Worksheet, i As Long, j As Long, tr As Variant, a As ChartObject, b As ChartObject
-    Set wb = Samples_Create()
+Private Sub CheckSheet1Layout(wb As Workbook)
+    Dim ws As Worksheet, i As Long, j As Long, tr As Variant, a As ChartObject, b As ChartObject
     Set ws = wb.Worksheets("Exemplos")
     tr = TitleRows()
     AssertEqual 6, ws.ChartObjects.Count
@@ -40,14 +78,12 @@ Public Sub Test_Samples_Layout_NoOverlap()
         Next
         AssertTrue Len(CStr(ws.Cells(tr(i - 1), 1).Value)) > 0, "titulo " & i
     Next
-    CloseTemp wb
 End Sub
 
 ' O 100% nao tem seta de diferenca (so o indicador 100%, que Ann_ShapeCount nao conta); a cascata que cruza o zero tem totais 'e'.
-Public Sub Test_Samples_Content()
-    Dim wb As Workbook, ws As Worksheet, co As ChartObject, nWf As Long, found100 As Boolean, crossing As Boolean, body As Range, i As Long
+Private Sub CheckSheet1Content(wb As Workbook)
+    Dim ws As Worksheet, co As ChartObject, nWf As Long, found100 As Boolean, crossing As Boolean, body As Range, i As Long
     Dim sr As Series, n As Long, oneSeries As Long, cg As Shape, tl As Series
-    Set wb = Samples_Create()
     Set ws = wb.Worksheets("Exemplos")
     For Each co In ws.ChartObjects
         If Registry_ChartType(co.Chart) = "stacked100" Then
@@ -81,7 +117,6 @@ Public Sub Test_Samples_Content()
         If n = 1 Then oneSeries = oneSeries + 1: AssertFalse co.Chart.HasTitle, "grafico de 1 serie sem titulo: " & co.Name
     Next
     AssertTrue oneSeries >= 1, "deve haver ao menos um exemplo de 1 serie"
-    CloseTemp wb
 End Sub
 
 Private Function Ann_ShapeCount(cht As Chart) As Long
@@ -91,6 +126,143 @@ Private Function Ann_ShapeCount(cht As Chart) As Long
         If Left$(shp.Name, Len(ANN_PREFIX)) = ANN_PREFIX And Left$(shp.Name, Len(ANN_PREFIX & "ind100")) <> ANN_PREFIX & "ind100" Then Ann_ShapeCount = Ann_ShapeCount + 1
     Next
 End Function
+
+' Existe uma forma de anotacao com este nome no grafico?
+Private Function HasShape(cht As Chart, shapeName As String) As Boolean
+    Dim shp As Shape
+    For Each shp In cht.Shapes
+        If shp.Name = shapeName Then HasShape = True: Exit Function
+    Next
+End Function
+
+' Tipo de cada grafico de "Exemplos 2", na ordem de criacao (a secao 18 tem dois).
+Private Function ExpectedKinds2() As Variant
+    ExpectedKinds2 = Array("barstacked", "waterfall", "barwaterfall", "mekko", "mekkounits", "gantt", "doughnut", "pie", _
+                           "area", "combo", "stacked", "clustered", "clustered")
+End Function
+
+Private Sub CheckSheet2KindsAndFeatures(wb As Workbook)
+    Dim ws As Worksheet, co As ChartObject, kinds As String, c1 As Chart, c2 As Chart, ek As Variant, i As Long, vl As Series, v As Variant
+    Dim wsum As Double, tsum As Double
+    Set ws = wb.Worksheets("Exemplos 2")
+    AssertEqual 13, ws.ChartObjects.Count, "12 secoes, a ultima com 2 graficos"
+    ek = ExpectedKinds2()
+    i = 0
+    For Each co In ws.ChartObjects
+        AssertTrue Registry_IsThinQQChart(co.Chart), co.Name
+        kinds = kinds & Registry_ChartType(co.Chart) & ";"
+        i = i + 1
+        AssertEqual CStr(ek(i - 1)), Registry_ChartType(co.Chart), "tipo do grafico " & i & " de Exemplos 2"
+    Next
+    AssertTrue InStr(kinds, "barstacked;") > 0 And InStr(kinds, "barwaterfall;") > 0 And InStr(kinds, "mekko;") > 0 And InStr(kinds, "mekkounits;") > 0, kinds
+    AssertTrue InStr(kinds, "gantt;") > 0 And InStr(kinds, "pie;") > 0 And InStr(kinds, "doughnut;") > 0 And InStr(kinds, "area;") > 0 And InStr(kinds, "combo;") > 0, kinds
+    AssertTrue HasShape(ws.ChartObjects(1).Chart, "tqq_ann_diff_1"), "7: seta de diferenca"
+    AssertEqual 2, Waterfall_SeriesCount(ws.ChartObjects(2).Chart), "8: cascata com 2 series"
+    AssertTrue HasShape(ws.ChartObjects(4).Chart, "tqq_ann_ind100"), "10: indicador 100% do Mekko (%)"
+    AssertTrue Not Chart_FindSeries(ws.ChartObjects(5).Chart, "tqq_vline") Is Nothing, "11: linha de valor"
+    ' 11: media PONDERADA pela largura (50*50 + 30*30 + 20*20) / 100 = 38, calculada aqui a partir das celulas
+    Set vl = Chart_FindSeries(ws.ChartObjects(5).Chart, "tqq_vline")
+    v = vl.Values
+    wsum = 0: tsum = 0
+    For i = 87 To 89
+        wsum = wsum + ws.Cells(i, 2).Value
+        tsum = tsum + ws.Cells(i, 2).Value * (ws.Cells(i, 3).Value + ws.Cells(i, 4).Value)
+    Next
+    AssertAlmost tsum / wsum, CDbl(v(LBound(v))), 0.000001, "11: media ponderada da linha de valor"
+    AssertTrue HasShape(ws.ChartObjects(6).Chart, "tqq_ann_bracket_1"), "12: colchete"
+    AssertEqual "doughnut", Registry_ChartType(ws.ChartObjects(7).Chart), "13: rosca"
+    AssertEqual "pie", Registry_ChartType(ws.ChartObjects(8).Chart), "14: pizza"
+    AssertEqual "1", Registry_GetOption(ws.ChartObjects(8).Chart, "pieout"), "14: rotulos fora"
+    AssertEqual "1", Registry_GetOption(ws.ChartObjects(10).Chart, "secondary"), "16: linha no eixo secundario"
+    AssertTrue Not Chart_FindSeries(ws.ChartObjects(11).Chart, "tqq_vline") Is Nothing, "17: linha de valor"
+    ' 17: a linha de valor e a media dos totais das colunas (soma de B213:D216 dividida por 4 anos; calculada aqui, nao pelo bloco)
+    Set vl = Chart_FindSeries(ws.ChartObjects(11).Chart, "tqq_vline")
+    v = vl.Values
+    AssertAlmost Application.WorksheetFunction.Sum(ws.Range("B213:D216")) / 4, CDbl(v(LBound(v))), 0.000001, "17: valor da linha de valor"
+    Set c1 = ws.ChartObjects(12).Chart: Set c2 = ws.ChartObjects(13).Chart
+    AssertEqual c1.Axes(xlValue).MaximumScale, c2.Axes(xlValue).MaximumScale, "18: mesma escala"
+    AssertTrue Len(Registry_GetOption(c1, "vmax")) > 0
+    AssertEqual ws.ChartObjects(12).Top, ws.ChartObjects(13).Top
+End Sub
+
+Private Sub CheckSheet2Layout(wb As Workbook)
+    Dim ws As Worksheet, i As Long, j As Long, tr As Variant, a As ChartObject, b As ChartObject, sec As Long
+    Set ws = wb.Worksheets("Exemplos 2")
+    tr = TitleRows2()
+    For i = 1 To ws.ChartObjects.Count
+        Set a = ws.ChartObjects(i)
+        sec = IIf(i <= 12, i, 12)
+        AssertTrue a.Top >= ws.Cells(tr(sec - 1), 1).Top, "grafico " & i & " acima do titulo da secao " & sec
+        If sec < 12 Then AssertTrue a.Top + a.Height <= ws.Cells(tr(sec), 1).Top, "grafico " & i & " invade a secao seguinte"
+        For j = i + 1 To ws.ChartObjects.Count
+            Set b = ws.ChartObjects(j)
+            AssertFalse a.Left < b.Left + b.Width And b.Left < a.Left + a.Width And a.Top < b.Top + b.Height And b.Top < a.Top + a.Height, "graficos " & i & " e " & j & " sobrepostos"
+        Next
+    Next
+    For i = 0 To 11
+        AssertTrue Len(CStr(ws.Cells(tr(i), 1).Value)) > 0, "titulo " & (i + 7)
+    Next
+    AssertEqual "7) ", Left$(CStr(ws.Cells(1, 1).Value), 3), "numeracao continua a da primeira planilha"
+    AssertEqual "18) ", Left$(CStr(ws.Cells(232, 1).Value), 4)
+    AssertEqual 18, ws.Columns("A").ColumnWidth, "largura da coluna A"
+    AssertEqual 14, ws.Columns("B").ColumnWidth, "largura da coluna B"
+End Sub
+
+' Texto realmente exibido em alguns rotulos, com expectativas derivadas dos dados e da localidade do Excel.
+Private Sub CheckSheet2Labels(wb As Workbook)
+    Dim ws As Worksheet, cht As Chart, ts As String, txt As String
+    Set ws = wb.Worksheets("Exemplos 2")
+    ts = Application.International(xlThousandsSeparator)
+    ' 7: totais das barras empilhadas (10+5, 25+10, 40+20)
+    Set cht = ws.ChartObjects(1).Chart
+    AssertEqual "15", Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Text, "7: total do Sul"
+    AssertEqual "60", Chart_FindSeries(cht, "tqq_total").Points(3).DataLabel.Text, "7: total do Norte"
+    ' 8: cascata com 2 series: subtotal 130 (70 + 60) e fim -90
+    Set cht = ws.ChartObjects(2).Chart
+    AssertEqual "130", Chart_FindSeries(cht, "tqq_lbl").Points(3).DataLabel.Text, "8: subtotal"
+    AssertEqual "-90", Chart_FindSeries(cht, "tqq_lbl").Points(5).DataLabel.Text, "8: fim"
+    ' 9: cascata horizontal: receita 1.200, EBITDA 250 (1200-700-250), lucro 170 (250-80)
+    Set cht = ws.ChartObjects(3).Chart
+    AssertEqual "1" & ts & "200", Chart_FindSeries(cht, "tqq_lbl").Points(1).DataLabel.Text, "9: receita"
+    AssertEqual "250", Chart_FindSeries(cht, "tqq_lbl").Points(4).DataLabel.Text, "9: EBITDA"
+    AssertEqual "170", Chart_FindSeries(cht, "tqq_lbl").Points(6).DataLabel.Text, "9: lucro"
+    ' 14: pizza com rotulos fora mostra nome e valor da primeira fatia
+    Set cht = ws.ChartObjects(8).Chart
+    txt = cht.SeriesCollection(1).Points(1).DataLabel.Text
+    AssertTrue InStr(txt, "Eletro") > 0 And InStr(txt, "50") > 0, "14: rotulo da pizza: " & txt
+    ' 16: a margem da combinacao e mostrada como percentual (celula em 0%)
+    Set cht = ws.ChartObjects(10).Chart
+    AssertEqual "42%", Chart_FindSeries(cht, "Margem").Points(1).DataLabel.Text, "16: margem de 2022"
+    AssertEqual "47%", Chart_FindSeries(cht, "Margem").Points(3).DataLabel.Text, "16: margem de 2024"
+End Sub
+
+' Nenhuma celula das planilhas de exemplos (fora a _ThinQQ, onde NA() e intencional) tem valor de erro (#N/D, #DIV/0!...) e nenhum
+' rotulo exibido vira erro.
+Private Sub CheckNoErrorsAnywhere(wb As Workbook)
+    Dim ws As Worksheet
+    For Each ws In wb.Worksheets
+        If ws.Name <> CALC_SHEET Then CheckSheetNoErrors ws
+    Next
+End Sub
+
+Private Sub CheckSheetNoErrors(ws As Worksheet)
+    Dim c As Range, co As ChartObject, s As Series, k As Long, t As String
+    For Each c In ws.UsedRange.Cells
+        AssertFalse IsError(c.Value), ws.Name & "!" & c.Address(False, False) & " tem valor de erro"
+    Next
+    For Each co In ws.ChartObjects
+        For Each s In co.Chart.SeriesCollection
+            If s.HasDataLabels Then
+                For k = 1 To s.Points.Count
+                    If s.Points(k).HasDataLabel Then
+                        t = s.Points(k).DataLabel.Text
+                        AssertFalse Left$(t, 1) = "#", ws.Name & "/" & co.Name & "/" & s.Name & " ponto " & k & ": rotulo '" & t & "'"
+                    End If
+                Next
+            End If
+        Next
+    Next
+End Sub
 
 ' Sem efeito colateral em outra pasta; falha no meio fecha a pasta de exemplos e propaga o erro.
 Public Sub Test_Samples_Failure_ClosesWorkbook_NoSideEffects()
