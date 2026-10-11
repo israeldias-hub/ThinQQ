@@ -33,3 +33,12 @@ Public Sub Test_Geom_CategoryCenterX_NotBetween()
     AssertAlmost 400, Geom_CategoryCenterX(100, 300, 4, 4, False)    ' ultimo na borda direita
     AssertAlmost 250, Geom_CategoryCenterX(100, 300, 1, 1, False)    ' n = 1: centro
 End Sub
+
+Public Sub Test_Geom_CategoryCenterY_And_ValueToX()
+    AssertAlmost 125, Geom_CategoryCenterY(100, 200, 4, 1)     ' slot de 50: categoria 1 no topo, centro em 100+25
+    AssertAlmost 275, Geom_CategoryCenterY(100, 200, 4, 4)
+    AssertAlmost 50, Geom_ValueToX(50, 300, 0, 100, 0)
+    AssertAlmost 350, Geom_ValueToX(50, 300, 0, 100, 100)
+    AssertAlmost 200, Geom_ValueToX(50, 300, -100, 100, 0)
+    AssertAlmost 50, Geom_ValueToX(50, 300, 5, 5, 5)           ' escala degenerada
+End Sub

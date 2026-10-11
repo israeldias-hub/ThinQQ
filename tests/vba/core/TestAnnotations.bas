@@ -383,3 +383,212 @@ Public Sub Test_Stacked_DateCategories_UseTextAxis_AndGeometryMatches()
     AssertAlmost expectEnd, ln.Left + ln.Width, 0.5, "fim da seta no centro da ultima categoria"
     CloseTemp wb
 End Sub
+
+' ---------- Tarefa 2: barras horizontais (fixture crua, sem depender da Tarefa 3) ----------
+
+' Grafico de barras cru registrado como barstacked: bloco com categorias e totais, uma serie, estilo base.
+Private Function RawBarFixture(wb As Workbook) As Chart
+    Dim ws As Worksheet, blk As Range, body As Range, co As ChartObject, s As Series, i As Long
+    Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:B1").Value = Array("Cat", "Valor")
+    ws.Range("A2:B2").Value = Array("a", 10): ws.Range("A3:B3").Value = Array("b", 25): ws.Range("A4:B4").Value = Array("c", 40)
+    Set blk = CalcSheet_AllocateBlock(wb, "geo001", "barstacked", "'Dados'!$A$1:$B$4", 4, 4)
+    Set body = Block_Body(blk)
+    body.Cells(1, 1).Value = "Categoria": body.Cells(1, 2).Value = "Total"
+    For i = 1 To 3
+        body.Cells(i + 1, 1).Formula = "=Dados!$A$" & (i + 1)
+        body.Cells(i + 1, 2).Formula = "=Dados!$B$" & (i + 1)
+    Next
+    Set co = ws.ChartObjects.Add(150, 10, 460, 280)
+    co.Name = ID_PREFIX & "geo001"
+    Set s = co.Chart.SeriesCollection.NewSeries
+    s.Name = "=Dados!$B$1": s.Values = "=Dados!$B$2:$B$4": s.XValues = "=Dados!$A$2:$A$4"
+    co.Chart.ChartType = xlBarStacked
+    Style_ApplyBase co.Chart
+    Registry_SetOption co.Chart, "numfmt", "int"
+    Set RawBarFixture = co.Chart
+End Function
+
+Public Sub Test_Geom_ChartCoords_HorizontalChart()
+    Dim wb As Workbook, cht As Chart, ax As Axis, il As Double, it As Double, iw As Double, ih As Double
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    AssertTrue Geom_ChartIsHorizontal(cht)
+    il = cht.PlotArea.InsideLeft: it = cht.PlotArea.InsideTop: iw = cht.PlotArea.InsideWidth: ih = cht.PlotArea.InsideHeight
+    Set ax = cht.Axes(xlValue)
+    AssertAlmost it + ih / 6, Geom_ChartCatCoord(cht, 1), 0.01, "categoria 1 no topo"
+    AssertAlmost it + ih * 5 / 6, Geom_ChartCatCoord(cht, 3), 0.01
+    AssertAlmost il + iw * (25 - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale), Geom_ChartValCoord(cht, 25), 0.01
+    AssertAlmost (ih / 3) / (1 + cht.ChartGroups(1).GapWidth / 100) / 2, Geom_ChartBarHalfWidth(cht), 0.01, "meia largura pela altura interna"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_Cagr_Horizontal_RunsAlongCategoriesRightOfBars()
+    Dim wb As Workbook, cht As Chart, ln As Shape, lbl As Shape, ax As Axis, xEnd As Double
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    Set ln = Ann_AddCagr(cht, 1, 3)
+    Set ax = cht.Axes(xlValue)
+    xEnd = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth * (40 - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale)
+    AssertAlmost Geom_ChartCatCoord(cht, 1), ln.Top, 1, "comeca na faixa da categoria 1"
+    AssertAlmost Geom_ChartCatCoord(cht, 3) - Geom_ChartCatCoord(cht, 1), ln.Height, 1
+    AssertAlmost xEnd + 10, ln.Left + ln.Width, 1.5, "fim da seta 10 pt a direita da barra mais longa"
+    AssertTrue ln.VerticalFlip = msoFalse And ln.HorizontalFlip = msoFalse, "seta desce para a direita (ponta em 'c')"
+    Set lbl = cht.Shapes("tqq_ann_cagr_1_lbl")
+    AssertEqual "CAGR +100,0%", lbl.TextFrame2.TextRange.Text      ' (40/10)^(1/2)-1
+    AssertTrue lbl.Left >= ln.Left + ln.Width + 2, "rotulo a direita da seta"
+    AssertTrue lbl.Left + lbl.Width <= cht.ChartArea.Width + 0.5, "dentro do grafico"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_Diff_Horizontal_BelowLastBar()
+    Dim wb As Workbook, cht As Chart, ln As Shape, lvl As Shape, lbl As Shape
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    Set ln = Ann_AddDifference(cht, 1, 3)
+    Set lvl = cht.Shapes("tqq_ann_diff_1_lvl"): Set lbl = cht.Shapes("tqq_ann_diff_1_lbl")
+    AssertAlmost 0, ln.Height, 0.01, "seta de diferenca horizontal"
+    AssertTrue ln.Top >= Geom_ChartCatCoord(cht, 3) + Geom_ChartBarHalfWidth(cht) + 8, "abaixo da ultima barra"
+    AssertAlmost Geom_ChartValCoord(cht, 10), ln.Left, 1
+    AssertAlmost Geom_ChartValCoord(cht, 40) - Geom_ChartValCoord(cht, 10), ln.Width, 1
+    AssertAlmost 0, lvl.Width, 0.01, "linha de nivel vertical"
+    AssertAlmost Geom_ChartValCoord(cht, 10), lvl.Left, 1
+    AssertEqual "+30 (+300%)", lbl.TextFrame2.TextRange.Text
+    AssertTrue lbl.Top >= ln.Top + 4, "rotulo abaixo da seta"
+    AssertTrue cht.ChartArea.Height - (cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight) >= 33.5, "folga abaixo da area de plotagem (Ann_EnsureRoom)"
+    AssertTrue lbl.Top + lbl.Height <= cht.ChartArea.Height + 0.5, "rotulo da diferenca dentro do grafico"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_Refusals_ByKind()
+    Dim wb As Workbook, cht As Chart, en As Long, ed As String
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    Registry_Block(cht).Cells(1, 2).Value = "pie"            ' finge outro tipo: a recusa vem da matriz
+    On Error Resume Next
+    Ann_AddCagr cht, 1, 3
+    en = Err.Number: ed = Err.Description: Err.Clear
+    AssertEqual vbObjectError + 7001, en
+    AssertEqual "A seta CAGR não está disponível para este tipo de gráfico.", ed
+    Ann_AddDifference cht, 1, 3
+    en = Err.Number: ed = Err.Description: Err.Clear
+    On Error GoTo 0
+    AssertEqual vbObjectError + 7001, en
+    AssertEqual "A seta de diferença não está disponível para este tipo de gráfico.", ed
+    Registry_Block(cht).Cells(1, 2).Value = "barstacked100"
+    On Error Resume Next
+    Ann_AddDifference cht, 1, 3
+    ed = Err.Description: Err.Clear
+    On Error GoTo 0
+    AssertEqual "A seta de diferença não está disponível para gráficos 100%.", ed
+    CloseTemp wb
+End Sub
+
+' Posicoes medidas nas barras desenhadas (Point.Left/Top/Width/Height), sem usar a formula de producao: o centro
+' da faixa, o fim da barra, o zero e a meia espessura batem com Geom_Chart* (categoria 1 no topo, eixo cheio).
+Public Sub Test_Geom_HorizontalCoords_MatchRenderedBars()
+    Dim wb As Workbook, cht As Chart, pt As Point, i As Long, vals As Variant, ax As Axis
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    vals = Array(10, 25, 40)
+    For i = 1 To 3
+        Set pt = cht.SeriesCollection(1).Points(i)
+        AssertAlmost pt.Top + pt.Height / 2, Geom_ChartCatCoord(cht, i), 0.6, "centro da faixa " & i
+        AssertAlmost pt.Left + pt.Width, Geom_ChartValCoord(cht, CDbl(vals(i - 1))), 0.6, "fim da barra " & i
+        AssertAlmost pt.Height / 2, Geom_ChartBarHalfWidth(cht), 0.6, "meia espessura " & i
+    Next
+    Set ax = cht.Axes(xlValue)
+    ax.MinimumScale = -20: ax.MaximumScale = 50          ' escala fixa que inclui o negativo: o zero sai da borda
+    For i = 1 To 3
+        Set pt = cht.SeriesCollection(1).Points(i)
+        AssertAlmost pt.Left, Geom_ChartValCoord(cht, 0), 0.6, "zero (inicio da barra " & i & ")"
+        AssertAlmost pt.Left + pt.Width, Geom_ChartValCoord(cht, CDbl(vals(i - 1))), 0.6, "fim da barra " & i & " com escala fixa"
+    Next
+    CloseTemp wb
+End Sub
+
+' Conector horizontal: linha vertical no fim da barra i, da base da barra i ao topo da barra i+1.
+Public Sub Test_Ann_Conn_Horizontal_VerticalBetweenBars()
+    Dim wb As Workbook, cht As Chart, c As Shape, i As Long, a As Point, b As Point
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    Ann_SetWaterfallConnectors cht, True
+    For i = 1 To 2
+        Set c = cht.Shapes("tqq_ann_conn_" & i)
+        Set a = cht.SeriesCollection(1).Points(i): Set b = cht.SeriesCollection(1).Points(i + 1)
+        AssertAlmost 0, c.Width, 0.01, "conector " & i & " vertical"
+        AssertAlmost a.Left + a.Width, c.Left, 0.6, "conector " & i & " no fim da barra " & i
+        AssertAlmost a.Top + a.Height, c.Top, 0.6, "conector " & i & " sai da base da barra " & i
+        AssertAlmost b.Top, c.Top + c.Height, 0.6, "conector " & i & " chega ao topo da barra " & (i + 1)
+    Next
+    CloseTemp wb
+End Sub
+
+' Ann_GetCategoryData por tipo de barra/area/combinacao: o tipo vem do bloco; as series sao as do grafico.
+Public Sub Test_Ann_CategoryData_BarAreaComboKinds()
+    Dim wb As Workbook, cht As Chart, ws As Worksheet, s As Series, v() As Double, t() As Double, k As Variant
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb): Set ws = wb.Worksheets("Dados")
+    ws.Range("C1:C4").Value = Application.Transpose(Array("B", 5, -10, 20))
+    ws.Range("D1:D4").Value = Application.Transpose(Array("L", 1, 2, 3))
+    ws.Range("E1:E4").Value = Application.Transpose(Array("aux", 100, 100, 100))
+    Set s = cht.SeriesCollection.NewSeries: s.Name = "=Dados!$C$1": s.Values = "=Dados!$C$2:$C$4": s.XValues = "=Dados!$A$2:$A$4"
+    Set s = cht.SeriesCollection.NewSeries: s.Name = "=Dados!$D$1": s.Values = "=Dados!$D$2:$D$4": s.XValues = "=Dados!$A$2:$A$4"
+    Set s = cht.SeriesCollection.NewSeries: s.Name = "tqq_total": s.Values = "=Dados!$E$2:$E$4": s.XValues = "=Dados!$A$2:$A$4"
+    ' series: A = 10,25,40; B = 5,-10,20; L = 1,2,3; auxiliar tqq_total = 100 (nunca entra)
+    For Each k In Array("barstacked", "area")
+        Registry_Block(cht).Cells(1, 2).Value = k
+        Ann_GetCategoryData cht, v, t
+        AssertAlmost 16, v(1), 0.001, k & " soma 1": AssertAlmost 17, v(2), 0.001, k & " soma 2 (negativo entra)": AssertAlmost 63, v(3), 0.001, k & " soma 3"
+        AssertAlmost 16, t(1), 0.001, k & " topo 1": AssertAlmost 27, t(2), 0.001, k & " topo 2 (so positivos)": AssertAlmost 63, t(3), 0.001, k & " topo 3"
+    Next
+    For Each k In Array("barstacked100", "area100")
+        Registry_Block(cht).Cells(1, 2).Value = k
+        Ann_GetCategoryData cht, v, t
+        AssertAlmost 17, v(2), 0.001, k & " valores brutos": AssertAlmost 1, t(1), 0.001, k & " topo 1": AssertAlmost 1, t(2), 0.001, k & " topo 1": AssertAlmost 1, t(3), 0.001, k & " topo 1"
+    Next
+    Registry_Block(cht).Cells(1, 2).Value = "barclustered"
+    Ann_GetCategoryData cht, v, t
+    AssertAlmost 10, v(1), 0.001, "agrupada: serie 1": AssertAlmost 40, t(3), 0.001, "agrupada: serie 1"
+    Registry_Block(cht).Cells(1, 2).Value = "combo"
+    Ann_GetCategoryData cht, v, t
+    AssertAlmost 15, v(1), 0.001, "combinacao: colunas A+B, sem a linha L": AssertAlmost 15, v(2), 0.001, "combinacao: colunas A+B": AssertAlmost 60, v(3), 0.001, "combinacao: colunas A+B"
+    AssertAlmost 15, t(1), 0.001, "combinacao topo 1": AssertAlmost 25, t(2), 0.001, "combinacao topo 2 (so positivos)": AssertAlmost 60, t(3), 0.001, "combinacao topo 3"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Ann_CategoryData_BarWaterfall_UsesEndColumn()
+    Dim wb As Workbook, cht As Chart, v() As Double, t() As Double
+    Set wb = NewTempWorkbook(): Set cht = WaterfallFixture(wb)
+    Registry_Block(cht).Cells(1, 2).Value = "barwaterfall"
+    Ann_GetCategoryData cht, v, t
+    AssertAlmost 100, v(1), 0.001: AssertAlmost 70, v(2), 0.001: AssertAlmost 120, v(3), 0.001: AssertAlmost 120, t(4), 0.001
+    CloseTemp wb
+End Sub
+
+' Em tipo que nao suporta seta, Ann_Refresh oculta a forma (ex.: CAGR em Mekko/pizza), em vez de reposiciona-la.
+Public Sub Test_Ann_Refresh_HidesCagrWhenKindDoesNotSupport()
+    Dim wb As Workbook, cht As Chart, ln As Shape
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    Set ln = Ann_AddCagr(cht, 1, 3)
+    AssertTrue ln.Visible = msoTrue
+    Registry_Block(cht).Cells(1, 2).Value = "pie"
+    Ann_Refresh cht
+    AssertTrue ln.Visible = msoFalse, "CAGR oculto em tipo sem suporte"
+    AssertTrue cht.Shapes("tqq_ann_cagr_1_lbl").Visible = msoFalse
+    Registry_Block(cht).Cells(1, 2).Value = "barstacked"
+    Ann_Refresh cht
+    AssertTrue ln.Visible = msoTrue, "volta quando o tipo suporta"
+    CloseTemp wb
+End Sub
+
+' Ann_EnsureRoom em barras: 60 pt a direita da area interna com CAGR; so reserva embaixo quando ha seta de
+' diferenca; e so aumenta a folga (nunca devolve largura a area de plotagem).
+Public Sub Test_Ann_EnsureRoom_Horizontal_RightRoomAndOnlyGrows()
+    Dim wb As Workbook, cht As Chart, ln As Shape, w0 As Double
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    Set ln = Ann_AddCagr(cht, 1, 3)
+    AssertTrue cht.ChartArea.Width - (cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth) >= 59.5, "folga a direita para a seta e o rotulo do CAGR"
+    AssertTrue cht.ChartArea.Height - (cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight) < 30, "sem seta de diferenca nada e reservado embaixo"
+    cht.PlotArea.Width = cht.PlotArea.Width - 100          ' folga maior que a necessaria
+    w0 = cht.PlotArea.InsideWidth
+    Set ln = Ann_AddCagr(cht, 2, 3)
+    AssertAlmost w0, cht.PlotArea.InsideWidth, 0.5, "so aumenta a folga: a largura nao e devolvida"
+    Set ln = Ann_AddDifference(cht, 1, 3)
+    AssertAlmost w0, cht.PlotArea.InsideWidth, 0.5, "a seta de diferenca so mexe na altura"
+    AssertTrue cht.ChartArea.Height - (cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight) >= 33.5, "34 pt abaixo com a seta de diferenca"
+    CloseTemp wb
+End Sub

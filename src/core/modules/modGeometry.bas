@@ -29,6 +29,20 @@ Public Function Geom_ValueToY(insideTop As Double, insideHeight As Double, axisM
     End If
 End Function
 
+' Barras horizontais: categoria 1 no topo (Style_ApplyBase inverte o eixo de categorias), uma fatia por categoria.
+Public Function Geom_CategoryCenterY(insideTop As Double, insideHeight As Double, nCats As Long, idx As Long) As Double
+    Geom_CategoryCenterY = insideTop + (idx - 0.5) * insideHeight / nCats
+End Function
+
+' Valor no eixo horizontal (barras): o minimo na esquerda da area interna, o maximo na direita.
+Public Function Geom_ValueToX(insideLeft As Double, insideWidth As Double, axisMin As Double, axisMax As Double, v As Double) As Double
+    If axisMax = axisMin Then
+        Geom_ValueToX = insideLeft
+    Else
+        Geom_ValueToX = insideLeft + insideWidth * (v - axisMin) / (axisMax - axisMin)
+    End If
+End Function
+
 ' Períodos entre duas categorias: anos se forem datas ou anos (1900..2200); senão diferença de índices.
 Public Function Geom_Periods(catFrom As Variant, catTo As Variant, idxFrom As Long, idxTo As Long) As Double
     Dim p As Double
@@ -63,6 +77,43 @@ Public Function Geom_ChartValueToY(cht As Chart, v As Double) As Double
     End With
 End Function
 
+' Orientacao do grafico: barras (e Gantt) tem categorias na vertical e valores na horizontal.
+Public Function Geom_ChartIsHorizontal(cht As Chart) As Boolean
+    Geom_ChartIsHorizontal = Kinds_IsHorizontal(Registry_ChartType(cht))
+End Function
+
+Public Function Geom_ChartCategoryCenterY(cht As Chart, idx As Long) As Double
+    With cht.PlotArea
+        Geom_ChartCategoryCenterY = Geom_CategoryCenterY(.InsideTop, .InsideHeight, Geom_ChartCategoryCount(cht), idx)
+    End With
+End Function
+
+Public Function Geom_ChartValueToX(cht As Chart, v As Double) As Double
+    Dim ax As Axis
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    With cht.PlotArea
+        Geom_ChartValueToX = Geom_ValueToX(.InsideLeft, .InsideWidth, ax.MinimumScale, ax.MaximumScale, v)
+    End With
+End Function
+
+' Coordenada da categoria no sentido das categorias: x nas colunas, y nas barras (categoria 1 no topo).
+Public Function Geom_ChartCatCoord(cht As Chart, idx As Long) As Double
+    If Geom_ChartIsHorizontal(cht) Then
+        Geom_ChartCatCoord = Geom_ChartCategoryCenterY(cht, idx)
+    Else
+        Geom_ChartCatCoord = Geom_ChartCategoryCenterX(cht, idx)
+    End If
+End Function
+
+' Coordenada do valor no sentido dos valores: y nas colunas, x nas barras.
+Public Function Geom_ChartValCoord(cht As Chart, v As Double) As Double
+    If Geom_ChartIsHorizontal(cht) Then
+        Geom_ChartValCoord = Geom_ChartValueToX(cht, v)
+    Else
+        Geom_ChartValCoord = Geom_ChartValueToY(cht, v)
+    End If
+End Function
+
 Public Function Geom_ChartBarHalfWidth(cht As Chart) As Double
     Dim gap As Double
     If Registry_ChartType(cht) = "line" Then Exit Function    ' linha: sem barras, ancora no ponto
@@ -70,7 +121,12 @@ Public Function Geom_ChartBarHalfWidth(cht As Chart) As Double
     On Error Resume Next
     gap = cht.ChartGroups(1).GapWidth
     On Error GoTo 0
-    Geom_ChartBarHalfWidth = Geom_BarWidth(Geom_SlotWidth(cht.PlotArea.InsideWidth, Geom_ChartCategoryCount(cht)), gap) / 2
+    ' a espessura da barra e medida no sentido das categorias: largura interna nas colunas, altura nas barras
+    If Geom_ChartIsHorizontal(cht) Then
+        Geom_ChartBarHalfWidth = Geom_BarWidth(Geom_SlotWidth(cht.PlotArea.InsideHeight, Geom_ChartCategoryCount(cht)), gap) / 2
+    Else
+        Geom_ChartBarHalfWidth = Geom_BarWidth(Geom_SlotWidth(cht.PlotArea.InsideWidth, Geom_ChartCategoryCount(cht)), gap) / 2
+    End If
 End Function
 
 ' True quando os pontos ficam no meio das fatias (padrão de colunas); False quando o eixo cruza nas categorias

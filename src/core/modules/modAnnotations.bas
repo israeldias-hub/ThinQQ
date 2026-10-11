@@ -27,7 +27,8 @@ End Function
 ' Em empilhadas, segmentos negativos entram em values mas são ignorados em tops (a seta encosta no topo positivo).
 ' Séries mais curtas que n contam como zero; com n = 0 devolve arrays 0..0.
 Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef tops() As Double)
-    Dim kind As String, n As Long, i As Long, s As Series, vals As Variant, v As Double, ends() As Double
+    Dim kind As String, n As Long, i As Long, k As Long, s As Series, vals As Variant, v As Double, ends() As Double
+    Dim nSeries As Long, lastIdx As Long
     kind = Registry_ChartType(cht)
     n = Geom_ChartCategoryCount(cht)
     If n = 0 Then
@@ -36,19 +37,28 @@ Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef top
     End If
     ReDim values(1 To n): ReDim tops(1 To n)
     Select Case kind
-        Case "waterfall"
+        Case "waterfall", "barwaterfall"
             ends = Waterfall_EndValues(cht)
             For i = 1 To n
                 If i <= UBound(ends) Then values(i) = ends(i): tops(i) = ends(i)
             Next
-        Case "clustered", "line"
+        Case "clustered", "barclustered", "line"
             For i = 1 To n
                 v = Ann_SeriesValue(cht.SeriesCollection(1), i)
                 values(i) = v: tops(i) = v
             Next
         Case Else
-            For Each s In cht.SeriesCollection
-                If Not Style_IsHelperSeries(s) Then
+            ' soma das series (stacked, stacked100, barstacked, barstacked100, area, area100); na combinacao a
+            ' ultima serie nao auxiliar e a linha e fica de fora (so as colunas empilham)
+            If kind = "combo" Then
+                For k = 1 To cht.SeriesCollection.Count
+                    If Not Style_IsHelperSeries(cht.SeriesCollection(k)) Then nSeries = nSeries + 1: lastIdx = k
+                Next
+                If nSeries < 2 Then lastIdx = 0
+            End If
+            For k = 1 To cht.SeriesCollection.Count
+                Set s = cht.SeriesCollection(k)
+                If Not Style_IsHelperSeries(s) And k <> lastIdx Then
                     vals = s.Values
                     For i = 1 To n
                         v = Ann_ArrayValue(vals, i)
@@ -57,7 +67,7 @@ Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef top
                     Next
                 End If
             Next
-            If kind = "stacked100" Then
+            If Kinds_Is100(kind) Then
                 For i = 1 To n: tops(i) = 1: Next
             End If
     End Select
@@ -75,6 +85,7 @@ End Function
 
 Public Function Ann_AddCagr(cht As Chart, fromIdx As Long, toIdx As Long) As Shape
     Dim nm As String, ln As Shape
+    If Not Kinds_Supports(Registry_ChartType(cht), "cagr") Then Err.Raise vbObjectError + 7001, "Ann_AddCagr", "A seta CAGR não está disponível para este tipo de gráfico."
     nm = Ann_NewName(cht, "cagr")
     Set ln = cht.Shapes.AddLine(0, 0, 10, 10)
     ln.Name = nm
@@ -85,28 +96,54 @@ Public Function Ann_AddCagr(cht As Chart, fromIdx As Long, toIdx As Long) As Sha
         .EndArrowheadLength = msoArrowheadShort: .EndArrowheadWidth = msoArrowheadNarrow
     End With
     Ann_AddLabel cht, nm
-    Ann_EnsureHeadroom cht
+    Ann_EnsureRoom cht
     Ann_Refresh cht
     Set Ann_AddCagr = ln
 End Function
 
-' Com os totais ligados, abre espaço acima da área de plotagem para a seta de CAGR e seu rótulo passarem
-' acima dos rótulos dos totais (mesmo quando a coluna mais alta quase toca o topo do eixo). Só aumenta.
-Private Sub Ann_EnsureHeadroom(cht As Chart)
-    Dim need As Double, delta As Double
+' Abre espaço na área de plotagem para as setas e seus rótulos (só aumenta a folga).
+' Colunas: com os totais ligados, 52 pt acima da área de plotagem para a seta de CAGR e seu rótulo passarem acima
+' dos rótulos dos totais (mesmo quando a coluna mais alta quase toca o topo do eixo).
+' Barras: 60 pt à direita da área interna (seta de CAGR, rótulo do total e rótulo da seta) e, havendo seta de
+' diferença, 34 pt abaixo dela (10 até a seta + 6 + rótulo de ~16 + 2).
+Private Sub Ann_EnsureRoom(cht As Chart)
+    Dim need As Double, delta As Double, k As Long
     On Error Resume Next
-    If Registry_GetOption(cht, "totals", "0") <> "1" Then Exit Sub
-    need = 52
-    delta = need - cht.PlotArea.InsideTop
-    If delta > 0 Then
-        cht.PlotArea.Height = cht.PlotArea.Height - delta
-        cht.PlotArea.Top = cht.PlotArea.Top + delta
+    If Geom_ChartIsHorizontal(cht) Then
+        For k = 1 To 3     ' a largura/altura interna nem sempre acompanha 1:1 a externa: confere e repete
+            delta = 60 - (cht.ChartArea.Width - (cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth))
+            If delta <= 0.01 Then Exit For
+            cht.PlotArea.Width = cht.PlotArea.Width - delta
+        Next
+        If Ann_CountPrefix(cht, ANN_PREFIX & "diff_") > 0 Then
+            For k = 1 To 3
+                delta = 34 - (cht.ChartArea.Height - (cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight))
+                If delta <= 0.01 Then Exit For
+                cht.PlotArea.Height = cht.PlotArea.Height - delta
+            Next
+        End If
+    Else
+        If Registry_GetOption(cht, "totals", "0") <> "1" Then Exit Sub
+        need = 52
+        delta = need - cht.PlotArea.InsideTop
+        If delta > 0 Then
+            cht.PlotArea.Height = cht.PlotArea.Height - delta
+            cht.PlotArea.Top = cht.PlotArea.Top + delta
+        End If
     End If
-    If Err.Number <> 0 Then Errors_Log "Ann_EnsureHeadroom" & vbTab & Err.Number & vbTab & Err.Description
+    If Err.Number <> 0 Then Errors_Log "Ann_EnsureRoom" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
+
 Public Function Ann_AddDifference(cht As Chart, fromIdx As Long, toIdx As Long) As Shape
-    Dim nm As String, ln As Shape, lvl As Shape
-    If Registry_ChartType(cht) = "stacked100" Then Err.Raise vbObjectError + 7001, "Ann_AddDifference", "A seta de diferença não está disponível para gráficos 100%."
+    Dim nm As String, ln As Shape, lvl As Shape, kind As String
+    kind = Registry_ChartType(cht)
+    If Not Kinds_Supports(kind, "diff") Then
+        If Kinds_Is100(kind) Then
+            Err.Raise vbObjectError + 7001, "Ann_AddDifference", "A seta de diferença não está disponível para gráficos 100%."
+        Else
+            Err.Raise vbObjectError + 7001, "Ann_AddDifference", "A seta de diferença não está disponível para este tipo de gráfico."
+        End If
+    End If
     nm = Ann_NewName(cht, "diff")
     Set ln = cht.Shapes.AddLine(0, 0, 0, 10)
     ln.Name = nm
@@ -121,6 +158,7 @@ Public Function Ann_AddDifference(cht As Chart, fromIdx As Long, toIdx As Long) 
     lvl.AlternativeText = "kind=level;owner=" & nm
     lvl.Line.ForeColor.RGB = RGB(166, 166, 166): lvl.Line.Weight = 0.75: lvl.Line.DashStyle = msoLineDash
     Ann_AddLabel cht, nm
+    If Geom_ChartIsHorizontal(cht) Then Ann_EnsureRoom cht     ' colunas: como na Fase 1, a diferenca nao mexe na area de plotagem
     Ann_Refresh cht
     Set Ann_AddDifference = ln
 End Function
@@ -164,7 +202,7 @@ Public Sub Ann_Refresh(cht As Chart)
     If n = 0 Then GoTo Done
     chartKind = Registry_ChartType(cht)
     ' conectores da cascata acompanham o número de categorias (a guarda impede recursão via Ann_SetWaterfallConnectors)
-    If chartKind = "waterfall" And Registry_GetOption(cht, "connectors", "0") = "1" Then
+    If Kinds_Family(chartKind) = "waterfall" And Registry_GetOption(cht, "connectors", "0") = "1" Then
         If Ann_CountConnectors(cht) <> n - 1 Then Ann_SetWaterfallConnectors cht, True
     End If
     Ann_GetCategoryData cht, values, tops
@@ -178,7 +216,7 @@ Public Sub Ann_Refresh(cht As Chart)
                 fromIdx = Val(Ann_ParseParam(shp.AlternativeText, "from"))
                 toIdx = Val(Ann_ParseParam(shp.AlternativeText, "to"))
                 valid = (fromIdx >= 1 And toIdx <= n And fromIdx < toIdx)
-                If kind = "diff" And chartKind = "stacked100" Then valid = False
+                If valid And (kind = "cagr" Or kind = "diff") Then valid = Kinds_Supports(chartKind, kind)
                 Ann_SetShapeVisible cht, nm, valid
                 If valid Then
                     On Error Resume Next
@@ -258,15 +296,25 @@ End Function
 
 Private Sub Ann_LayoutCagr(cht As Chart, ln As Shape, fromIdx As Long, toIdx As Long, values() As Double, tops() As Double, fmt As String)
     Dim x1 As Double, x2 As Double, y1 As Double, y2 As Double, lbl As Shape, rate As Double, txt As String
-    Dim body As Range, periods As Double, extra As Double
-    x1 = Geom_ChartCategoryCenterX(cht, fromIdx): x2 = Geom_ChartCategoryCenterX(cht, toIdx)
-    ' Com os totais ligados, o rótulo do total ocupa o espaço logo acima da coluna: a seta sobe um pouco mais.
+    Dim body As Range, periods As Double, extra As Double, xMax As Double
+    ' Com os totais ligados, o rótulo do total ocupa o espaço logo depois da barra: a seta se afasta um pouco mais.
     If Registry_GetOption(cht, "totals", "0") = "1" Then extra = 18
-    y1 = Geom_ChartValueToY(cht, tops(fromIdx)) - 10 - extra
-    y2 = Geom_ChartValueToY(cht, tops(toIdx)) - 10 - extra
-    ' fica dentro do gráfico, com espaço para o rótulo da seta acima da linha
-    If y1 < 22 Then y1 = 22
-    If y2 < 22 Then y2 = 22
+    If Geom_ChartIsHorizontal(cht) Then
+        ' barras: a seta corre ao longo das categorias, à direita do fim das barras (ponta em 'to')
+        y1 = Geom_ChartCatCoord(cht, fromIdx): y2 = Geom_ChartCatCoord(cht, toIdx)
+        x1 = Geom_ChartValCoord(cht, tops(fromIdx)) + 10 + extra
+        x2 = Geom_ChartValCoord(cht, tops(toIdx)) + 10 + extra
+        xMax = cht.ChartArea.Width - 24
+        If x1 > xMax Then x1 = xMax
+        If x2 > xMax Then x2 = xMax
+    Else
+        x1 = Geom_ChartCatCoord(cht, fromIdx): x2 = Geom_ChartCatCoord(cht, toIdx)
+        y1 = Geom_ChartValCoord(cht, tops(fromIdx)) - 10 - extra
+        y2 = Geom_ChartValCoord(cht, tops(toIdx)) - 10 - extra
+        ' fica dentro do gráfico, com espaço para o rótulo da seta acima da linha
+        If y1 < 22 Then y1 = 22
+        If y2 < 22 Then y2 = 22
+    End If
     Ann_MoveLine ln, x1, y1, x2, y2
     Set body = Block_Body(Registry_Block(cht))
     periods = Geom_Periods(body.Cells(fromIdx + 1, 1).Value, body.Cells(toIdx + 1, 1).Value, fromIdx, toIdx)
@@ -278,38 +326,63 @@ Private Sub Ann_LayoutCagr(cht As Chart, ln As Shape, fromIdx As Long, toIdx As 
     Set lbl = Ann_Shape(cht, ln.Name & "_lbl")
     If lbl Is Nothing Then Exit Sub
     lbl.TextFrame2.TextRange.Text = txt
-    lbl.Left = (x1 + x2) / 2 - lbl.Width / 2
-    lbl.Top = IIf(y1 < y2, y1, y2) - lbl.Height - 4
+    If Geom_ChartIsHorizontal(cht) Then
+        lbl.Left = IIf(x1 > x2, x1, x2) + 4
+        lbl.Top = (y1 + y2) / 2 - lbl.Height / 2
+    Else
+        lbl.Left = (x1 + x2) / 2 - lbl.Width / 2
+        lbl.Top = IIf(y1 < y2, y1, y2) - lbl.Height - 4
+    End If
     Ann_ClampShape cht, lbl
 End Sub
 
 Private Sub Ann_LayoutDiff(cht As Chart, ln As Shape, fromIdx As Long, toIdx As Long, values() As Double, tops() As Double, fmt As String)
-    Dim xFrom As Double, xTo As Double, yFrom As Double, yTo As Double, xArrow As Double, half As Double
+    Dim xFrom As Double, xTo As Double, yFrom As Double, yTo As Double, xArrow As Double, yArrow As Double, half As Double
     Dim lvl As Shape, lbl As Shape, diff As Double, txt As String
     half = Geom_ChartBarHalfWidth(cht)
-    xFrom = Geom_ChartCategoryCenterX(cht, fromIdx): xTo = Geom_ChartCategoryCenterX(cht, toIdx)
-    yFrom = Geom_ChartValueToY(cht, tops(fromIdx)): yTo = Geom_ChartValueToY(cht, tops(toIdx))
-    xArrow = xTo + half + 10
-    If xArrow > cht.ChartArea.Width - 2 Then xArrow = cht.ChartArea.Width - 2
     Set lvl = Ann_Shape(cht, ln.Name & "_lvl")
-    If Not lvl Is Nothing Then Ann_MoveLine lvl, xFrom + half, yFrom, xArrow + 4, yFrom
-    Ann_MoveLine ln, xArrow, yFrom, xArrow, yTo
+    If Geom_ChartIsHorizontal(cht) Then
+        ' barras: seta dupla horizontal abaixo da última barra; linha de nível vertical a partir do fim da barra inicial
+        xFrom = Geom_ChartValCoord(cht, tops(fromIdx)): xTo = Geom_ChartValCoord(cht, tops(toIdx))
+        yArrow = Geom_ChartCatCoord(cht, toIdx) + half + 10
+        If yArrow > cht.ChartArea.Height - 2 Then yArrow = cht.ChartArea.Height - 2
+        If Not lvl Is Nothing Then Ann_MoveLine lvl, xFrom, Geom_ChartCatCoord(cht, fromIdx) + half, xFrom, yArrow + 4
+        Ann_MoveLine ln, xFrom, yArrow, xTo, yArrow
+    Else
+        xFrom = Geom_ChartCatCoord(cht, fromIdx): xTo = Geom_ChartCatCoord(cht, toIdx)
+        yFrom = Geom_ChartValCoord(cht, tops(fromIdx)): yTo = Geom_ChartValCoord(cht, tops(toIdx))
+        xArrow = xTo + half + 10
+        If xArrow > cht.ChartArea.Width - 2 Then xArrow = cht.ChartArea.Width - 2
+        If Not lvl Is Nothing Then Ann_MoveLine lvl, xFrom + half, yFrom, xArrow + 4, yFrom
+        Ann_MoveLine ln, xArrow, yFrom, xArrow, yTo
+    End If
     diff = values(toIdx) - values(fromIdx)
     txt = Format$(diff, Ann_SignedFormat(fmt))
     If values(fromIdx) <> 0 Then txt = txt & " (" & Format$(diff / Abs(values(fromIdx)), "+0%;-0%;0%") & ")"
     Set lbl = Ann_Shape(cht, ln.Name & "_lbl")
     If lbl Is Nothing Then Exit Sub
     lbl.TextFrame2.TextRange.Text = txt
-    lbl.Left = xArrow + 6
-    lbl.Top = (yFrom + yTo) / 2 - lbl.Height / 2
+    If Geom_ChartIsHorizontal(cht) Then
+        lbl.Left = (xFrom + xTo) / 2 - lbl.Width / 2
+        lbl.Top = yArrow + 6
+    Else
+        lbl.Left = xArrow + 6
+        lbl.Top = (yFrom + yTo) / 2 - lbl.Height / 2
+    End If
     Ann_ClampShape cht, lbl
 End Sub
 
 Private Sub Ann_LayoutConn(cht As Chart, shp As Shape, i As Long, j As Long, tops() As Double)
-    Dim half As Double, y As Double
+    Dim half As Double, x As Double, y As Double
     half = Geom_ChartBarHalfWidth(cht)
-    y = Geom_ChartValueToY(cht, tops(i))
-    Ann_MoveLine shp, Geom_ChartCategoryCenterX(cht, i) + half, y, Geom_ChartCategoryCenterX(cht, j) - half, y
+    If Geom_ChartIsHorizontal(cht) Then
+        ' cascata horizontal: linha vertical em x = fim da barra i, da base da barra i ao topo da barra j
+        x = Geom_ChartValCoord(cht, tops(i))
+        Ann_MoveLine shp, x, Geom_ChartCatCoord(cht, i) + half, x, Geom_ChartCatCoord(cht, j) - half
+    Else
+        y = Geom_ChartValCoord(cht, tops(i))
+        Ann_MoveLine shp, Geom_ChartCatCoord(cht, i) + half, y, Geom_ChartCatCoord(cht, j) - half, y
+    End If
 End Sub
 
 Private Sub Ann_LayoutOne(cht As Chart, shp As Shape, kind As String, fromIdx As Long, toIdx As Long, values() As Double, tops() As Double, fmt As String)
@@ -336,10 +409,13 @@ Private Sub Ann_SetShapeVisible(cht As Chart, nm As String, vis As Boolean)
 End Sub
 
 Private Function Ann_CountConnectors(cht As Chart) As Long
-    Dim i As Long, p As String
-    p = ANN_PREFIX & "conn_"
+    Ann_CountConnectors = Ann_CountPrefix(cht, ANN_PREFIX & "conn_")
+End Function
+
+Private Function Ann_CountPrefix(cht As Chart, p As String) As Long
+    Dim i As Long
     For i = 1 To cht.Shapes.Count
-        If Left$(cht.Shapes(i).Name, Len(p)) = p Then Ann_CountConnectors = Ann_CountConnectors + 1
+        If Left$(cht.Shapes(i).Name, Len(p)) = p Then Ann_CountPrefix = Ann_CountPrefix + 1
     Next
 End Function
 
