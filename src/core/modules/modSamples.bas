@@ -97,7 +97,7 @@ Private Function Samples_CreateSheet2(wb As Workbook) As Worksheet
     Set co = Kinds_Insert(ws, d, "doughnut")
     Settle co
 
-    WriteTitle ws, 148, "14) Pizza com rótulos fora (nomes e linhas de chamada)"
+    WriteTitle ws, 148, "14) Pizza com rótulos fora (nomes e valores)"
     WriteTable ws.Range("A149"), Array(Array("Produto", "Vendas"), Array("Eletro", 50), Array("Móveis", 30), Array("Tintas", 20))
     Set d = ChartData_FromRange(ws.Range("A149:B152"))
     Set co = Kinds_Insert(ws, d, "pie")
