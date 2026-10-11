@@ -5,8 +5,22 @@ Option Explicit
 ' para verificar o rollback. Nunca e usado fora dos testes.
 Public Util_FailAfterBlockForTest As Boolean
 
-' Gancho de teste: quando True (e BUILD_CONFIG = "Test"), a leitura de formulas de graficos no Cleanup falha.
+' Ganchos de teste da limpeza de blocos (CalcSheet_Cleanup); todos so tem efeito com BUILD_CONFIG = "Test".
+' Util_FailChartReadForTest = True: a leitura de um grafico (no nivel do grafico) falha.
 Public Util_FailChartReadForTest As Boolean
+' Util_FailChartReadSiteForTest = READFAIL_*: a leitura falha no ponto indicado (0 = nenhum). Cada ponto e um lugar
+' onde a limpeza le o objeto Excel e, se a leitura falhar, nada pode ser apagado (falha fechada).
+Public Util_FailChartReadSiteForTest As Long
+Public Const READFAIL_SHAPE As Long = 1         ' ler uma forma da planilha (Type/HasChart)
+Public Const READFAIL_GROUP As Long = 2         ' ler um item de grupo de formas
+Public Const READFAIL_CHARTSHEET As Long = 3    ' ler uma planilha de grafico (wb.Charts)
+Public Const READFAIL_CHART As Long = 4         ' ler as series de um grafico
+Public Const READFAIL_SERIES As Long = 5        ' ler Series.Formula
+Public Const READFAIL_HASLABEL As Long = 6      ' ler Point.HasDataLabel
+Public Const READFAIL_FORMULA As Long = 7       ' ler DataLabel.Formula
+' Contador de pontos cujo rotulo a limpeza leu (so conta em Test) e limite de pontos por passada (0 = padrao).
+Public Util_LabelReadsForTest As Long
+Public Util_LabelBudgetForTest As Long
 
 Public Sub Util_TestHookAfterBlock()
     If BUILD_CONFIG = "Test" Then

@@ -8,6 +8,9 @@ Option Explicit
 ' fechada: se a leitura de algum gráfico falhar, nada é removido (CalcSheet_CleanupReadFailed).
 
 Private mReadFailed As Boolean
+Private mFailDetail As String       ' motivo da primeira falha de leitura (vai para o log)
+Private mPointsScanned As Long      ' pontos cujo rótulo foi lido na passada atual
+Private Const MAX_POINTS_PER_PASS As Long = 20000
 
 Public Function CalcSheet_Get(wb As Workbook, Optional createIfMissing As Boolean = True) As Worksheet
     Dim ws As Worksheet, active As Object, su As Boolean, en As Long, ed As String, created As Boolean
@@ -127,88 +130,178 @@ Public Function Block_Body(blk As Range) As Range
     Set Block_Body = blk.Offset(1, 0).Resize(blk.Rows.Count - 1, blk.Columns.Count)
 End Function
 
-' Texto com as fórmulas de série (Series.Formula) E dos rótulos ligados (DataLabel.Formula) de TODOS os gráficos da
-' pasta: gráficos embutidos de cada planilha (inclusive dentro de grupos de formas) e planilhas de gráfico. Uma cópia
-' de gráfico ThinQQ, ou um gráfico movido para planilha de gráfico, não tem mais o nome "tqq_<id>", mas continua
-' apontando para o bloco (por série ou, num 100% sem totais, só pelos rótulos ligados): a vida do bloco é decidida por
-' referência. Zera e preenche mReadFailed: qualquer falha de leitura (forma, grupo ou gráfico) o marca.
-Private Function AllChartReferences(wb As Workbook) As String
+' Texto com as fórmulas de série (Series.Formula) E dos rótulos ligados a este livro (DataLabel.Formula) de TODOS os
+' gráficos da pasta: gráficos embutidos de cada planilha (inclusive dentro de grupos de formas) e planilhas de
+' gráfico. Uma cópia de gráfico ThinQQ, ou um gráfico movido para planilha de gráfico, não tem mais o nome
+' "tqq_<id>", mas continua apontando para o bloco (por série ou, num 100% sem totais, só pelos rótulos ligados): a
+' vida do bloco é decidida por referência. labelCap = até que ponto ler rótulos em cada série (altura do maior
+' bloco). Zera e preenche mReadFailed: qualquer falha de leitura (forma, grupo ou gráfico) o marca e a passada para
+' na hora, sem ler os gráficos restantes.
+Private Function AllChartReferences(wb As Workbook, labelCap As Long) As String
     Dim ws As Worksheet, sh As Object, gi As Object, co As Object, acc As String
     mReadFailed = False
+    mFailDetail = ""
+    mPointsScanned = 0
     On Error GoTo Fail
     For Each ws In wb.Worksheets
         For Each sh In ws.Shapes
+            TestFailSite READFAIL_SHAPE
             If sh.Type = 6 Then                         ' msoGroup
                 For Each gi In sh.GroupItems
-                    If gi.HasChart Then acc = acc & ChartReferences(gi.Chart)
+                    TestFailSite READFAIL_GROUP
+                    If gi.HasChart Then acc = acc & ChartReferences(gi.Chart, labelCap)
+                    If mReadFailed Then GoTo Done
                 Next
             ElseIf sh.HasChart Then
-                acc = acc & ChartReferences(sh.Chart)
+                acc = acc & ChartReferences(sh.Chart, labelCap)
+                If mReadFailed Then GoTo Done
             End If
         Next
     Next
     For Each co In wb.Charts
-        acc = acc & ChartReferences(co)
+        TestFailSite READFAIL_CHARTSHEET
+        acc = acc & ChartReferences(co, labelCap)
+        If mReadFailed Then GoTo Done
     Next
+Done:
     AllChartReferences = acc
     Exit Function
 Fail:
-    mReadFailed = True
+    MarkFailed "forma ou planilha de gráfico: " & Err.Number & " " & Err.Description
     AllChartReferences = acc
 End Function
 
 ' Texto com as fórmulas de séries E de rótulos ligados de um gráfico. Qualquer erro de leitura marca mReadFailed.
-Private Function ChartReferences(ch As Object) As String
-    Dim s As Object, i As Long, acc As String
+' Limites da varredura de rótulos (o custo cresce com os pontos, e isto roda a cada Atualizar/Inserir enquanto
+' existir uma cópia de gráfico ThinQQ):
+'  - só os primeiros labelCap pontos de cada série: Labels_LinkPoints liga os pontos 1..n a UM bloco, logo nenhum
+'    rótulo além da altura do maior bloco pode referenciar um bloco;
+'  - série cuja própria fórmula já cita a planilha interna: seus rótulos ligam ao mesmo bloco, nada a ler;
+'  - para no primeiro rótulo que cita a planilha interna (todos os rótulos de uma série ligam ao mesmo bloco);
+'  - orçamento de MAX_POINTS_PER_PASS pontos por passada: estourou, falha fechada (nada é removido).
+Private Function ChartReferences(ch As Object, labelCap As Long) As String
+    Dim s As Object, i As Long, n As Long, acc As String, sf As String, lf As String, budget As Long
+    Dim en As Long, ed As String
     On Error GoTo Fail
-    If BUILD_CONFIG = "Test" Then
-        If Util_FailChartReadForTest Then Err.Raise vbObjectError + 9998, "ThinQQ", "Falha simulada de leitura (teste)"
-    End If
+    budget = PointBudget()
+    TestFailSite READFAIL_CHART
     For Each s In ch.SeriesCollection
-        acc = acc & vbLf & s.Formula
-        For i = 1 To s.Points.Count
-            acc = acc & vbLf & LabelFormula(s.Points(i))
-        Next
+        TestFailSite READFAIL_SERIES
+        sf = s.Formula
+        acc = acc & vbLf & sf
+        If InStr(1, sf, CALC_SHEET, vbTextCompare) = 0 Then
+            n = s.Points.Count
+            If n > labelCap Then n = labelCap
+            For i = 1 To n
+                mPointsScanned = mPointsScanned + 1
+                If mPointsScanned > budget Then
+                    MarkFailed "limite de " & budget & " pontos lidos por limpeza excedido"
+                    GoTo Done
+                End If
+                lf = LabelFormula(s.Points(i))
+                If mReadFailed Then GoTo Done
+                If InStr(1, lf, CALC_SHEET, vbTextCompare) > 0 Then
+                    acc = acc & vbLf & lf
+                    Exit For
+                End If
+            Next
+        End If
     Next
+Done:
     ChartReferences = acc
     Exit Function
 Fail:
-    mReadFailed = True
+    en = Err.Number: ed = Err.Description
+    ' Gráfico nativo do Excel 2016+ (cascata, funil, treemap...): o modelo de objetos não expõe Series.Formula
+    ' (erro 445). O ThinQQ não os cria e uma cópia de gráfico ThinQQ nunca é um deles: não é falha de leitura.
+    If en = 445 Then
+        If IsNativeChartEx(ch) Then Exit Function
+    End If
+    MarkFailed "gráfico: " & en & " " & ed
+    ChartReferences = acc
 End Function
 
-' Fórmula do rótulo ligado ("" se o ponto não tem rótulo ou se o rótulo é texto comum).
-' Só conta como falha quando nem .Formula nem .Text podem ser lidos (ou quando nem HasDataLabel pode ser lido).
-Private Function LabelFormula(p As Object) As String
-    Dim f As String, t As String, has As Boolean
+' Tipos de gráfico nativos do Excel 2016+ ("chartex"): treemap 117, histograma 118, cascata 119, sunburst 120,
+' box-whisker 121, pareto 122, funil 123 e mapa 140.
+Private Function IsNativeChartEx(ch As Object) As Boolean
+    Dim t As Long
     On Error Resume Next
-    has = p.HasDataLabel
-    If Err.Number <> 0 Then
-        Err.Clear
-        mReadFailed = True
-        Exit Function
-    End If
-    If Not has Then Exit Function
-    f = p.DataLabel.Formula
-    If Err.Number <> 0 Then
-        Err.Clear
-        t = p.DataLabel.Text
-        If Err.Number <> 0 Then
-            Err.Clear
-            mReadFailed = True
-        End If
-        Exit Function
-    End If
-    LabelFormula = f
+    t = ch.ChartType
+    If Err.Number <> 0 Then Err.Clear: Exit Function
+    IsNativeChartEx = (t >= 117 And t <= 123) Or t = 140
 End Function
 
-' O último CalcSheet_Cleanup não pôde ler algum gráfico e, por isso, não removeu nenhum bloco?
+' Fórmula do rótulo do ponto: "=_ThinQQ!$D$7" se ligado a uma célula; "" se o ponto não tem rótulo.
+' Comportamento observado no Excel 2019 pt-BR (Test_CalcSheet_LabelFormula_ObservedBehavior): ponto sem rótulo =>
+' HasDataLabel False (sem erro) e .DataLabel levanta erro; rótulo automático => .Formula devolve o TEXTO exibido
+' (ex. "10"); texto editado à mão => .Formula devolve o texto digitado; rótulo ligado => "=Dados!$B$2" (sempre em A1).
+' Ou seja, .Formula nunca levanta erro num rótulo existente: qualquer erro aqui (HasDataLabel ou .Formula) é
+' leitura falha e fecha a limpeza (não há mais o recurso de ler .Text). Texto livre que cite "_ThinQQ" só pode manter
+' um bloco vivo a mais (conservador), nunca apagar um.
+Private Function LabelFormula(p As Object) As String
+    On Error GoTo Fail
+    If BUILD_CONFIG = "Test" Then Util_LabelReadsForTest = Util_LabelReadsForTest + 1
+    TestFailSite READFAIL_HASLABEL
+    If Not p.HasDataLabel Then Exit Function
+    TestFailSite READFAIL_FORMULA
+    LabelFormula = p.DataLabel.Formula
+    Exit Function
+Fail:
+    MarkFailed "rótulo: " & Err.Number & " " & Err.Description
+End Function
+
+Private Sub MarkFailed(detail As String)
+    mReadFailed = True
+    If Len(mFailDetail) = 0 Then mFailDetail = detail
+End Sub
+
+' Máximo de pontos cujo rótulo é lido numa passada (em Test, Util_LabelBudgetForTest > 0 o substitui).
+Private Function PointBudget() As Long
+    PointBudget = MAX_POINTS_PER_PASS
+    If BUILD_CONFIG = "Test" Then
+        If Util_LabelBudgetForTest > 0 Then PointBudget = Util_LabelBudgetForTest
+    End If
+End Function
+
+' Gancho de teste: simula falha de leitura no ponto indicado (READFAIL_*). Inerte fora do build Test.
+Private Sub TestFailSite(site As Long)
+    If BUILD_CONFIG = "Test" Then
+        If Util_FailChartReadSiteForTest = site Or (site = READFAIL_CHART And Util_FailChartReadForTest) Then
+            Err.Raise vbObjectError + 9998, "ThinQQ", "Falha simulada de leitura (teste), ponto " & site
+        End If
+    End If
+End Sub
+
+' Altura (em linhas) do maior bloco registrado na planilha interna: limite de quantos pontos de uma série podem ter
+' rótulo ligado a um bloco.
+Private Function MaxBlockRows(wb As Workbook) As Long
+    Dim nm As Name, rng As Range
+    For Each nm In wb.Names
+        If Left$(nm.Name, Len(ID_PREFIX)) = ID_PREFIX Then
+            Set rng = Nothing
+            On Error Resume Next
+            Set rng = nm.RefersToRange
+            On Error GoTo 0
+            If Not rng Is Nothing Then
+                If rng.Worksheet.Name = CALC_SHEET Then
+                    If rng.Rows.Count > MaxBlockRows Then MaxBlockRows = rng.Rows.Count
+                End If
+            End If
+        End If
+    Next
+End Function
+
+' O último CalcSheet_Cleanup não pôde ler algum gráfico (ou excedeu o orçamento de leitura) e, por isso, não
+' removeu nenhum bloco?
 Public Function CalcSheet_CleanupReadFailed() As Boolean
     CalcSheet_CleanupReadFailed = mReadFailed
 End Function
 
 ' Faixas da planilha _ThinQQ citadas no texto de fórmulas (referências de outras pastas, "[x]_ThinQQ", são ignoradas).
+' Uma citação "_ThinQQ!..." que não pode ser interpretada como endereço marca mReadFailed (falha fechada) em vez de
+' ser descartada em silêncio.
 Private Function ReferencedCalcRanges(txt As String, calc As Worksheet) As Collection
-    Dim refs As New Collection, p As Long, q As Long, addr As String, ch As String
+    Dim refs As New Collection, p As Long, q As Long, addr As String, ch As String, rg As Range
     p = InStr(1, txt, CALC_SHEET, vbTextCompare)
     Do While p > 0
         q = p + Len(CALC_SHEET)
@@ -220,11 +313,13 @@ Private Function ReferencedCalcRanges(txt As String, calc As Worksheet) As Colle
                 ch = Mid$(txt, q, 1)
                 If ch Like "[A-Za-z0-9$:]" Then addr = addr & ch: q = q + 1 Else Exit Do
             Loop
+            Set rg = Nothing
             If Len(addr) > 0 Then
                 On Error Resume Next
-                refs.Add calc.Range(addr)
+                Set rg = calc.Range(addr)
                 On Error GoTo 0
             End If
+            If rg Is Nothing Then MarkFailed "referência à planilha interna não interpretável: '" & addr & "'" Else refs.Add rg
         End If
         p = InStr(q, txt, CALC_SHEET, vbTextCompare)
     Loop
@@ -247,8 +342,9 @@ End Function
 ' CalcSheet_CleanupReadFailed passa a ser True até a próxima limpeza).
 Public Function CalcSheet_Cleanup(wb As Workbook) As Long
     Dim i As Long, nm As Name, id As String, removed As Long, rng As Range
-    Dim refs As Collection, haveRefs As Boolean
+    Dim refs As Collection, haveRefs As Boolean, txt As String
     mReadFailed = False
+    mFailDetail = ""
     For i = wb.Names.Count To 1 Step -1
         Set nm = wb.Names(i)
         If Left$(nm.Name, Len(ID_PREFIX)) = ID_PREFIX Then
@@ -262,9 +358,10 @@ Public Function CalcSheet_Cleanup(wb As Workbook) As Long
                     If CStr(rng.Cells(1, 1).Value) = id Then
                         If Registry_FindChartObject(wb, id) Is Nothing Then
                             If Not haveRefs Then
-                                Set refs = ReferencedCalcRanges(AllChartReferences(wb), rng.Worksheet)
+                                txt = AllChartReferences(wb, MaxBlockRows(wb))
+                                If Not mReadFailed Then Set refs = ReferencedCalcRanges(txt, rng.Worksheet)
                                 If mReadFailed Then
-                                    Errors_Log "CalcSheet_Cleanup: leitura de gráfico falhou; nenhum bloco removido"
+                                    Errors_Log "CalcSheet_Cleanup: leitura de gráfico falhou; nenhum bloco removido [" & mFailDetail & "]"
                                     Exit Function
                                 End If
                                 haveRefs = True

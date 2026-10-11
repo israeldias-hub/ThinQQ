@@ -251,6 +251,37 @@ End Sub
 
 ' ---- Tarefa 0: falha fechada na limpeza ----
 
+Private Sub ResetCleanupHooks()
+    Util_FailChartReadForTest = False
+    Util_FailChartReadSiteForTest = 0
+    Util_LabelBudgetForTest = 0
+    Util_LabelReadsForTest = 0
+End Sub
+
+' Grafico de colunas embutido com nSeries series sobre Dados!A1:A<nPoints> (preenchida com =ROW()), com ou sem
+' rotulos automaticos. A planilha precisa se chamar "Dados".
+Private Function PlainChart(ws As Worksheet, nSeries As Long, nPoints As Long, withLabels As Boolean, Optional leftPos As Double = 10) As ChartObject
+    Dim co As ChartObject, s As Series, k As Long
+    ws.Range("A1").Resize(nPoints, 1).Formula = "=ROW()"
+    Set co = ws.ChartObjects.Add(leftPos, 10, 240, 150)
+    co.Chart.ChartType = xlColumnClustered
+    For k = 1 To nSeries
+        Set s = co.Chart.SeriesCollection.NewSeries
+        s.Values = "=Dados!$A$1:$A$" & nPoints
+        If withLabels Then s.HasDataLabels = True
+    Next
+    Set PlainChart = co
+End Function
+
+' True se ler a propriedade falha (usado para registrar o comportamento real do Excel).
+Private Function DataLabelFormulaFails(p As Object) As Boolean
+    Dim v As Variant
+    On Error Resume Next
+    v = p.DataLabel.Formula
+    DataLabelFormulaFails = (Err.Number <> 0)
+    Err.Clear
+End Function
+
 ' Falha fechada: se a leitura de qualquer grafico falhar, a limpeza nao remove nada (nem orfaos de verdade)
 Public Sub Test_CalcSheet_Cleanup_ReadFailure_DeletesNothing()
     Dim wb As Workbook, ws As Worksheet, n As Long, en As Long, es As String, ed As String
@@ -270,22 +301,264 @@ Public Sub Test_CalcSheet_Cleanup_ReadFailure_DeletesNothing()
     Exit Sub
 Cleanup:
     en = Err.Number: es = Err.Source: ed = Err.Description
-    Util_FailChartReadForTest = False
+    ResetCleanupHooks
     CloseTemp wb
     Err.Raise en, es, ed
 End Sub
 
-' Rotulo de texto comum (nao ligado) nao conta como referencia nem como falha de leitura
+' Falha fechada em CADA ponto onde a limpeza le o Excel: forma, item de grupo, planilha de grafico, grafico, serie,
+' HasDataLabel e DataLabel.Formula. Em todos: devolve 0, nada e apagado e a falha fica registrada.
+Public Sub Test_CalcSheet_Cleanup_ReadFailureAtEverySite_DeletesNothing()
+    Dim wb As Workbook, ws As Worksheet, co As ChartObject, rect As Shape, site As Long, n As Long
+    Dim en As Long, es As String, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    PlainChart ws, 1, 3, True                           ' grafico embutido, com rotulos
+    Set co = PlainChart(ws, 1, 3, True, 300)            ' outro, que vai para dentro de um grupo de formas
+    Set rect = ws.Shapes.AddShape(msoShapeRectangle, 10, 400, 50, 20)
+    ws.Shapes.Range(Array(co.Name, rect.Name)).Group
+    wb.Charts.Add                                       ' planilha de grafico
+    On Error GoTo Cleanup
+    For site = READFAIL_SHAPE To READFAIL_FORMULA
+        Util_FailChartReadSiteForTest = site
+        n = CalcSheet_Cleanup(wb)
+        Util_FailChartReadSiteForTest = 0
+        AssertEqual 0, n, "ponto " & site & ": nada removido"
+        AssertTrue CalcSheet_CleanupReadFailed(), "ponto " & site & ": falha registrada"
+        AssertTrue Not CalcSheet_FindBlock(wb, "orphan") Is Nothing, "ponto " & site & ": orfao intacto"
+    Next
+    AssertEqual 1, CalcSheet_Cleanup(wb), "sem falha (com forma, grupo, planilha de grafico e rotulos) o orfao sai"
+    AssertFalse CalcSheet_CleanupReadFailed()
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    ResetCleanupHooks
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub
+
+' Na primeira falha a passada para: os graficos restantes nem sao lidos.
+Public Sub Test_CalcSheet_Cleanup_StopsScanningAfterFirstFailure()
+    Dim wb As Workbook, ws As Worksheet, n As Long, reads As Long, en As Long, es As String, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    PlainChart ws, 1, 3, True
+    PlainChart ws, 1, 3, True, 300
+    On Error GoTo Cleanup
+    Util_LabelReadsForTest = 0
+    Util_FailChartReadSiteForTest = READFAIL_HASLABEL
+    n = CalcSheet_Cleanup(wb)
+    reads = Util_LabelReadsForTest
+    ResetCleanupHooks
+    AssertEqual 0, n
+    AssertTrue CalcSheet_CleanupReadFailed()
+    AssertEqual 1, reads, "so o primeiro ponto do primeiro grafico foi lido"
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    ResetCleanupHooks
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub
+
+' Orcamento de pontos por passada: estourou, falha fechada (limite reduzido por gancho de teste).
+Public Sub Test_CalcSheet_Cleanup_PointBudgetExceeded_FailsClosed()
+    Dim wb As Workbook, ws As Worksheet, n As Long, reads As Long, en As Long, es As String, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3      ' altura 5: ate 5 pontos por serie
+    PlainChart ws, 2, 4, True
+    On Error GoTo Cleanup
+    Util_LabelReadsForTest = 0
+    Util_LabelBudgetForTest = 3
+    n = CalcSheet_Cleanup(wb)
+    reads = Util_LabelReadsForTest
+    ResetCleanupHooks
+    AssertEqual 0, n, "estourou o orcamento: nada removido"
+    AssertTrue CalcSheet_CleanupReadFailed()
+    AssertTrue Not CalcSheet_FindBlock(wb, "orphan") Is Nothing
+    AssertEqual 3, reads, "para ao estourar o orcamento"
+    AssertEqual 1, CalcSheet_Cleanup(wb), "com o orcamento normal o orfao sai"
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    ResetCleanupHooks
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub
+
+' Grafico grande (3000 pontos x 10 series, sem rotulos ThinQQ): a varredura de rotulos e limitada pela altura do maior
+' bloco (5 linhas aqui), termina rapido e NAO conta como falha (sem o limite, 30000 pontos estourariam o orcamento).
+Public Sub Test_CalcSheet_Cleanup_LargeChart_IsBoundedAndNotAFailure()
+    Dim wb As Workbook, ws As Worksheet, n As Long, reads As Long, t0 As Double, el As Double
+    Dim en As Long, es As String, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    PlainChart ws, 10, 3000, False
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    On Error GoTo Cleanup
+    Util_LabelReadsForTest = 0
+    t0 = Timer
+    n = CalcSheet_Cleanup(wb)
+    el = Timer - t0
+    reads = Util_LabelReadsForTest
+    ResetCleanupHooks
+    AssertEqual 1, n, "o orfao sai"
+    AssertFalse CalcSheet_CleanupReadFailed(), "grafico grande nao e falha de leitura"
+    AssertTrue reads <= 50, "no maximo 5 pontos (altura do bloco) x 10 series; leu " & reads
+    AssertTrue el < 10, "a limpeza leva " & Format$(el, "0.00") & " s"
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    ResetCleanupHooks
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub
+
+' Serie cuja formula ja cita a planilha interna: nenhum rotulo dela e lido (os rotulos ligam ao mesmo bloco).
+Public Sub Test_CalcSheet_Cleanup_SeriesReferencingCalcSheet_ReadsNoLabels()
+    Dim wb As Workbook, ws As Worksheet, co As ChartObject, s As Series, blk As Range, n As Long, reads As Long
+    Dim en As Long, es As String, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    Set blk = CalcSheet_AllocateBlock(wb, "keep", "stacked", "x", 4, 3)
+    blk.Cells(2, 2).Resize(4, 1).Formula = "=ROW()"
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    Set co = ws.ChartObjects.Add(10, 10, 240, 150)
+    Set s = co.Chart.SeriesCollection.NewSeries
+    s.Values = "='" & CALC_SHEET & "'!" & blk.Cells(2, 2).Resize(4, 1).Address(True, True)
+    s.HasDataLabels = True
+    On Error GoTo Cleanup
+    Util_LabelReadsForTest = 0
+    n = CalcSheet_Cleanup(wb)
+    reads = Util_LabelReadsForTest
+    ResetCleanupHooks
+    AssertEqual 1, n, "so o orfao sai"
+    AssertTrue Not CalcSheet_FindBlock(wb, "keep") Is Nothing, "bloco referenciado pela serie fica"
+    AssertEqual 0, reads, "nenhum rotulo lido"
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    ResetCleanupHooks
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub
+
+' Bloco referenciado SO por rotulos ligados: fica vivo e a leitura para no primeiro rotulo ligado da serie.
+Public Sub Test_CalcSheet_Cleanup_LabelsOnlyReference_KeepsBlock_StopsAtFirstLinkedLabel()
+    Dim wb As Workbook, ws As Worksheet, co As ChartObject, s As Series, blk As Range, n As Long, reads As Long, i As Long
+    Dim en As Long, es As String, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    Set blk = CalcSheet_AllocateBlock(wb, "keep", "stacked", "x", 4, 3)
+    blk.Cells(2, 2).Resize(4, 1).Formula = "=ROW()"
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    Set co = PlainChart(ws, 1, 4, True)
+    Set s = co.Chart.SeriesCollection(1)
+    For i = 1 To 4
+        s.Points(i).DataLabel.Formula = "='" & CALC_SHEET & "'!" & blk.Cells(1 + i, 2).Address(True, True)
+    Next
+    On Error GoTo Cleanup
+    Util_LabelReadsForTest = 0
+    n = CalcSheet_Cleanup(wb)
+    reads = Util_LabelReadsForTest
+    ResetCleanupHooks
+    AssertEqual 1, n, "so o orfao sai"
+    AssertTrue Not CalcSheet_FindBlock(wb, "keep") Is Nothing, "bloco referenciado so por rotulos ligados fica"
+    AssertFalse CalcSheet_CleanupReadFailed()
+    AssertEqual 1, reads, "para no primeiro rotulo ligado"
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    ResetCleanupHooks
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub
+
+' Rotulo de texto comum (nao ligado) nao conta como referencia nem como falha de leitura; nem texto que apenas cita
+' "_ThinQQ" sem ser uma referencia (sem "!").
 Public Sub Test_CalcSheet_Cleanup_PlainLabels_DoNotBlockCleanup()
     Dim wb As Workbook, ws As Worksheet, co As ChartObject, s As Series
     Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
-    ws.Range("A1:B3").Value = Application.Transpose(Array(Array("a", "b", "c"), Array(1, 2, 3)))
+    ws.Range("A1:A3").Value = Application.Transpose(Array("a", "b", "c"))
+    ws.Range("B1:B3").Value = Application.Transpose(Array(1, 2, 3))
     Set co = ws.ChartObjects.Add(10, 10, 200, 150)
     Set s = co.Chart.SeriesCollection.NewSeries: s.Values = "=" & ws.Name & "!$B$1:$B$3"
     s.HasDataLabels = True
     s.Points(1).DataLabel.Text = "texto livre"
+    s.Points(2).DataLabel.Text = "texto com " & CALC_SHEET & " solto"
     CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
     AssertEqual 1, CalcSheet_Cleanup(wb), "orfao removido apesar de rotulos de texto em outro grafico"
     AssertFalse CalcSheet_CleanupReadFailed()
+    CloseTemp wb
+End Sub
+
+' Citacao "_ThinQQ!..." que nao pode ser interpretada como endereco: falha fechada, nada e removido.
+Public Sub Test_CalcSheet_Cleanup_UnparseableCalcSheetMention_FailsClosed()
+    Dim wb As Workbook, ws As Worksheet, co As ChartObject, s As Series, n As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    Set co = PlainChart(ws, 1, 3, True)
+    Set s = co.Chart.SeriesCollection(1)
+    s.Points(1).DataLabel.Text = "ver " & CALC_SHEET & "!zz"          ' texto livre, mas parece uma referencia ilegivel
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    n = CalcSheet_Cleanup(wb)
+    AssertEqual 0, n, "mencao ilegivel: nada removido"
+    AssertTrue CalcSheet_CleanupReadFailed()
+    AssertTrue Not CalcSheet_FindBlock(wb, "orphan") Is Nothing
+    CloseTemp wb
+End Sub
+
+' Grafico nativo do Excel 2016+ (cascata/chartex): Series.Formula levanta erro 445 e o ThinQQ nunca cria nem copia
+' um deles. Nao e falha de leitura: a limpeza continua removendo orfaos na pasta.
+Public Sub Test_CalcSheet_Cleanup_NativeChartEx_IsNotAReadFailure()
+    Dim wb As Workbook, ws As Worksheet, sh As Shape
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:A4").Value = Application.Transpose(Array("a", "b", "c", "d"))
+    ws.Range("B1:B4").Value = Application.Transpose(Array(10, -5, 7, 12))
+    ws.Range("A1:B4").Select
+    Set sh = ws.Shapes.AddChart2(-1, 119, 10, 10, 300, 200)         ' xlWaterfall (chartex)
+    AssertTrue sh.HasChart
+    AssertEqual 119, sh.Chart.ChartType
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    AssertEqual 1, CalcSheet_Cleanup(wb), "orfao removido apesar do grafico nativo"
+    AssertFalse CalcSheet_CleanupReadFailed()
+    CloseTemp wb
+End Sub
+
+' Registra o comportamento REAL do Excel (2019, pt-BR) que o codigo de limpeza assume ao ler rotulos.
+Public Sub Test_CalcSheet_LabelFormula_ObservedBehavior()
+    Dim wb As Workbook, ws As Worksheet, co As ChartObject, s As Series, s2 As Series, f As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("B1:B3").Value = Application.Transpose(Array(1, 2, 3))
+    Set co = PlainChart(ws, 2, 3, False)
+    Set s = co.Chart.SeriesCollection(1): Set s2 = co.Chart.SeriesCollection(2)
+    ' (a) sem rotulos: HasDataLabel = False sem erro; ler .DataLabel levanta erro
+    AssertFalse s.Points(1).HasDataLabel
+    AssertTrue DataLabelFormulaFails(s.Points(1)), "DataLabel de ponto sem rotulo levanta erro (por isso so se le .Formula se HasDataLabel)"
+    ' (b) rotulo automatico: .Formula devolve o texto exibido, nao levanta erro e nao comeca com "="
+    s.HasDataLabels = True
+    AssertTrue s.Points(1).HasDataLabel
+    AssertFalse DataLabelFormulaFails(s.Points(1)), "rotulo automatico: .Formula nao levanta erro"
+    AssertEqual s.Points(1).DataLabel.Text, s.Points(1).DataLabel.Formula, "rotulo automatico: .Formula = texto exibido"
+    ' (c) texto editado a mao: .Formula devolve o texto digitado
+    s.Points(1).DataLabel.Text = "texto livre"
+    AssertEqual "texto livre", s.Points(1).DataLabel.Formula, "texto editado: .Formula = texto digitado"
+    ' (d) rotulo ligado a celula: .Formula devolve a referencia em A1 (mesmo com o estilo L1C1 ligado)
+    s.Points(2).DataLabel.Formula = "=Dados!$B$2"
+    AssertEqual "=Dados!$B$2", s.Points(2).DataLabel.Formula
+    Application.ReferenceStyle = xlR1C1
+    On Error Resume Next
+    f = s.Points(2).DataLabel.Formula
+    Application.ReferenceStyle = xlA1
+    On Error GoTo 0
+    AssertEqual "=Dados!$B$2", f, "em A1 mesmo com ReferenceStyle = xlR1C1"
+    ' (e) rotulo so em alguns pontos / apagado: HasDataLabel False nos demais, sem erro
+    s2.Points(2).HasDataLabel = True
+    AssertFalse s2.Points(1).HasDataLabel
+    AssertTrue s2.Points(2).HasDataLabel
+    s2.Points(2).DataLabel.Delete
+    AssertFalse s2.Points(2).HasDataLabel
     CloseTemp wb
 End Sub

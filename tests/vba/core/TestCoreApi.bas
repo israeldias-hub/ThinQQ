@@ -888,11 +888,11 @@ Public Sub Test_Core_Cleanup_Stacked100NoTotals_CopyKeepsBlock()
     Core_Refresh
     AssertEqual 1, TqqNameCount(wb), "bloco referenciado so por rotulos ligados nao pode ser apagado"
     Set cht = ws.ChartObjects(1).Chart
-    AssertEqual "67%", cht.SeriesCollection(1).Points(1).DataLabel.Text, "a copia continua mostrando a participacao (100/150)"
+    AssertEqual Format$(100 / 150, "0%"), cht.SeriesCollection(1).Points(1).DataLabel.Text, "a copia continua mostrando a participacao (100/150)"
     ws.Range("A1:C5").Select
     Core_Insert "stacked"
     AssertEqual 2, TqqNameCount(wb), "copia + novo grafico"
-    AssertEqual "67%", cht.SeriesCollection(1).Points(1).DataLabel.Text, "o novo bloco nao reaproveitou as celulas da copia"
+    AssertEqual Format$(100 / 150, "0%"), cht.SeriesCollection(1).Points(1).DataLabel.Text, "o novo bloco nao reaproveitou as celulas da copia"
     Teardown wb
 End Sub
 
@@ -910,4 +910,41 @@ Public Sub Test_Core_Cleanup_ChartInsideGroup_KeepsBlock()
     Core_Refresh
     AssertEqual 1, TqqNameCount(wb), "bloco de grafico dentro de grupo preservado"
     Teardown wb
+End Sub
+
+' Falha fechada da limpeza nao impede o Insert: a limpeza aborta (orfao intacto, nada apagado) e o novo bloco fica
+' abaixo do orfao, sem reaproveitar as celulas dele. Depois, sem falha, a limpeza remove so o orfao.
+Public Sub Test_Core_Insert_WhileCleanupAborts_StillInsertsAndDoesNotOverlapOrphan()
+    Dim wb As Workbook, ws As Worksheet, orphan As Range, nb As Range, cht As Chart
+    Dim en As Long, es As String, ed As String
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.ChartObjects.Add 400, 10, 200, 150                       ' um grafico qualquer: ha leitura a fazer
+    Set orphan = CalcSheet_AllocateBlock(wb, "orphan", "stacked", "x", 4, 3)
+    orphan.Cells(2, 1).Value = "marca"
+    ws.Range("A1:C5").Select
+    On Error GoTo Cleanup
+    Util_FailChartReadSiteForTest = READFAIL_SHAPE
+    Core_Insert "stacked"
+    Util_FailChartReadSiteForTest = 0
+    AssertTrue CalcSheet_CleanupReadFailed(), "a limpeza do Insert abortou"
+    AssertEqual 2, ws.ChartObjects.Count, "o grafico foi inserido"
+    AssertEqual 2, TqqNameCount(wb), "orfao mantido + bloco novo"
+    Set cht = Core_ActiveChart()
+    AssertTrue Not cht Is Nothing
+    Set nb = Registry_Block(cht)
+    AssertTrue Application.Intersect(nb, orphan) Is Nothing, "o novo bloco nao reaproveita o orfao"
+    AssertTrue nb.Row > orphan.Row + orphan.Rows.Count - 1, "o novo bloco fica abaixo do orfao"
+    AssertEqual "marca", orphan.Cells(2, 1).Value, "o orfao nao foi sobrescrito"
+    Core_Refresh                                                ' sem falha: remove so o orfao
+    AssertFalse CalcSheet_CleanupReadFailed()
+    AssertEqual 1, TqqNameCount(wb), "so o bloco do novo grafico"
+    AssertTrue CalcSheet_FindBlock(wb, "orphan") Is Nothing
+    AssertTrue Not Registry_Block(cht) Is Nothing
+    Teardown wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailChartReadSiteForTest = 0
+    Teardown wb
+    Err.Raise en, es, ed
 End Sub
