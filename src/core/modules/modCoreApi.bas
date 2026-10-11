@@ -170,6 +170,15 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
             Case Else: Exit Sub
         End Select
     End If
+    If fam = "gantt" Then
+        ' Gantt: so os rotulos a direita das barras (Gantt_SetLabels). Totais, conectores e eixo secundario nao existem e nao gravam nada
+        ' (Core_RebuildFromRange chama todos); linha de valor, indicador 100% e rotulos fora seguem para a recusa propria (7002).
+        Select Case key
+            Case "labels": Gantt_SetLabels c, value: Exit Sub
+            Case "ind100", "vline", "pieout"
+            Case Else: Exit Sub
+        End Select
+    End If
     Select Case key
         Case "totals"
             If fam = "area" Then
@@ -253,6 +262,7 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
                 Case "area": Area_ApplyColors c, value
                 Case "pie": Pie_ApplyColors c, value
                 Case "mekko": Mekko_ApplyColors c, value        ' separadores de 1,5 pt e contraste dos rotulos (por ponto)
+                Case "gantt": Gantt_ApplyColors c, value        ' barras pal(1) e marcos pal(0) (as series do Gantt sao todas tqq_*)
                 Case Else: Style_ApplySeriesColors c, value
             End Select
         Case "gap"
@@ -310,12 +320,24 @@ Fail:
     End If
 End Sub
 
+' Setas (cagr, diff) e colchete (bracket, so no Gantt). O colchete vale sobre UMA atividade (de = ate): exige n >= 1 e so pede as atividades
+' quando de/ate nao formam um intervalo valido (de > ate ou fora de 1..n); recusado (7001) antes do formulario fora do Gantt. As setas seguem
+' exigindo n >= 2 e de < ate.
 Public Sub Core_AddAnnotation(kind As String, Optional fromIdx As Long = 0, Optional toIdx As Long = 0)
     On Error GoTo Fail
     Dim c As Chart, n As Long
     Set c = Core_ActiveChart()
     If c Is Nothing Then Exit Sub
     n = Geom_ChartCategoryCount(c)
+    If kind = "bracket" Then
+        If Not Kinds_SupportsChart(c, "bracket") Then Err.Raise vbObjectError + 7001, "Core_AddAnnotation", ANN_BRACKET_REFUSAL
+        If n < 1 Then Core_Notify "O gráfico precisa de pelo menos 1 atividade.": Exit Sub
+        If fromIdx < 1 Or toIdx > n Or fromIdx > toIdx Then
+            If Not Core_AskCategories(c, n, fromIdx, toIdx, True) Then Exit Sub
+        End If
+        Ann_AddBracket c, fromIdx, toIdx
+        Exit Sub
+    End If
     If n < 2 Then Core_Notify "O gráfico precisa de pelo menos 2 categorias.": Exit Sub
     If fromIdx < 1 Or toIdx > n Or fromIdx >= toIdx Then
         If Not Core_AskCategories(c, n, fromIdx, toIdx) Then Exit Sub
@@ -324,15 +346,16 @@ Public Sub Core_AddAnnotation(kind As String, Optional fromIdx As Long = 0, Opti
     Exit Sub
 Fail:
     If Err.Number = vbObjectError + 7001 Then
-        ' Seta (CAGR/diferença) em tipo que não a suporta (recusa da matriz de tipos): aviso ao usuário, não é falha.
+        ' Seta/colchete em tipo que não o suporta (recusa da matriz de tipos): aviso ao usuário, não é falha.
         Core_Notify Err.Description, vbInformation
     Else
         Errors_Handle "Core_AddAnnotation(" & kind & ")"
     End If
 End Sub
 
-' Abre o formulário de categorias. Nunca abre em build de teste (modal travaria o Excel invisível).
-Private Function Core_AskCategories(c As Chart, n As Long, ByRef fromIdx As Long, ByRef toIdx As Long) As Boolean
+' Abre o formulário de categorias (allowSame: o colchete aceita a mesma atividade nas duas pontas). Nunca abre em build de teste (modal
+' travaria o Excel invisível).
+Private Function Core_AskCategories(c As Chart, n As Long, ByRef fromIdx As Long, ByRef toIdx As Long, Optional allowSame As Boolean = False) As Boolean
     Dim frm As frmAnnotation, cats() As String, body As Range, i As Long
     If BUILD_CONFIG = "Test" Then Exit Function
     Set body = Block_Body(Registry_Block(c))
@@ -341,7 +364,7 @@ Private Function Core_AskCategories(c As Chart, n As Long, ByRef fromIdx As Long
         cats(i) = Util_CellLabel(body.Cells(i + 1, 1))
     Next
     Set frm = New frmAnnotation
-    frm.Prepare cats, 1, n
+    frm.Prepare cats, 1, n, allowSame
     frm.Show
     If frm.Result = "ok" Then
         fromIdx = frm.FromIdx: toIdx = frm.ToIdx
@@ -542,6 +565,8 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Combo" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Pie_RefreshAfterDataChange cht                   ' pizza com rotulos fora: o nome acompanha a fatia que passou a ter (ou deixou de ter) valor
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Pie" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Gantt_RefreshScale cht                           ' Gantt: a escala calculada no bloco (unidade e intervalo) vai para o eixo; antes dos colchetes
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Gantt" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Ann_Refresh cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Ann" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
 End Sub

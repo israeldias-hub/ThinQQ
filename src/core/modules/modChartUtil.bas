@@ -247,10 +247,10 @@ Public Sub Chart_SyncSecondaryX(cht As Chart)
 End Sub
 
 ' Depois de uma mudanca posterior a criacao (legenda ligada/desligada, formato numerico dos rotulos, redimensionamento do
-' grafico), a folga que o Insert deu aos totais (barras), as setas, o rotulo "nome valor" do fim da linha, o indicador 100%, o rotulo
-' da linha de valor e os totais acima do Mekko so valia para o estado do momento, e a area de plotagem de tamanho manual pode ter ficado
-' sob a legenda: reexecuta as contas (legenda, totais, setas, fim da linha, decoracoes, Mekko). So reduz a area de plotagem; sem nada
-' disso ligado nao faz nada.
+' grafico), a folga que o Insert deu aos totais (barras), as setas e colchetes, o rotulo "nome valor" do fim da linha, o indicador 100%, o
+' rotulo da linha de valor, os totais acima do Mekko e a escala de datas do Gantt so valia para o estado do momento, e a area de plotagem de
+' tamanho manual pode ter ficado sob a legenda: reexecuta as contas (legenda, totais, setas, fim da linha, decoracoes, Mekko, Gantt). So reduz a
+' area de plotagem; sem nada disso ligado nao faz nada.
 ' Nunca propaga erro (so registra).
 Public Sub Chart_EnsureRoomAfterChange(cht As Chart)
     On Error Resume Next
@@ -266,6 +266,8 @@ Public Sub Chart_EnsureRoomAfterChange(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Chart_EnsureRoomAfterChange/decoracoes" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Mekko_EnsureRoom cht                          ' Mekko: folga acima da area interna para os totais (nos demais tipos nao faz nada)
     If Err.Number <> 0 Then Errors_Log "Chart_EnsureRoomAfterChange/mekko" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Gantt_EnsureRoom cht                          ' Gantt: folga acima da area interna para a escala de datas (os colchetes: nas setas, acima)
+    If Err.Number <> 0 Then Errors_Log "Chart_EnsureRoomAfterChange/gantt" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
 End Sub
 
 ' Remove da legenda toda entrada de serie auxiliar (tqq_*). Idempotente e correta com varias auxiliares.

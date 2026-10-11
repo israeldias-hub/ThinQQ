@@ -187,6 +187,7 @@ Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
         Pie_ApplyNumberFormat cht, Registry_GetOption(cht, "numfmt", "int")
         Exit Sub
     End If
+    If Kinds_Family(Registry_ChartType(cht)) = "gantt" Then Exit Sub     ' Gantt: sem formato numerico (datas e texto; numfmt nao se aplica)
     If Kinds_Family(Registry_ChartType(cht)) = "mekko" Then
         ' Mekko: segmentos com o formato dos segmentos (pct0/pct1 no percentual), totais pct0 no percentual (largura) e numfmt nas
         ' unidades; por ponto (as auxiliares tem pontos sem rotulo que a escrita no nivel da serie recriaria)

@@ -7,6 +7,10 @@ Private Const ANN_ARROW_GAP As Double = 10      ' do fim da barra/topo da coluna
 Private Const ANN_TOTALS_EXTRA As Double = 18   ' afastamento extra (minimo) da seta de CAGR com os totais ligados; nas colunas, calibrado para a ALTURA do rotulo do total
 Private Const ANN_IND100 As String = "tqq_ann_ind100"     ' nome da linha do indicador 100% (o rotulo e ANN_IND100 & "_lbl")
 Private Const ANN_AUTO_SLACK As Double = 18     ' folga que o eixo com maximo automatico deixa depois da maior barra (~5% da escala, medida em graficos de ~460 pt)
+Private Const ANN_BRACKET As String = "tqq_ann_bracket_"  ' prefixo dos colchetes do Gantt (linha nm; tiques nm_t1/nm_t2; rotulo nm_lbl)
+Private Const ANN_BRACKET_BASE As Double = 40   ' folga (pt) acima da area interna com um colchete: escala (~20) + colchete e rotulo
+Private Const ANN_BRACKET_STEP As Double = 14   ' cada colchete a mais sobe 14 pt
+Public Const ANN_BRACKET_REFUSAL As String = "O colchete só está disponível em gráficos Gantt."
 
 Public Function Ann_TryCagr(startVal As Double, endVal As Double, periods As Double, ByRef rate As Double) As Boolean
     rate = 0
@@ -124,8 +128,19 @@ End Function
 ' 34 pt abaixo dela (10 até a seta + 6 + rótulo de ~16 + 2). A folga conta até a borda livre: a da área do gráfico ou,
 ' com legenda à direita/embaixo, a borda da legenda (o gráfico não desenha setas por cima dela).
 Private Sub Ann_EnsureRoom(cht As Chart)
-    Dim need As Double, delta As Double, k As Long
+    Dim need As Double, delta As Double, k As Long, nb As Long
     On Error Resume Next
+    ' colchetes (Gantt): acima da area interna, sobre a escala de datas; o k-esimo colchete fica 14 pt acima do anterior
+    nb = Ann_BracketMaxOrdinal(cht)
+    If nb > 0 Then
+        need = ANN_BRACKET_BASE + ANN_BRACKET_STEP * nb
+        For k = 1 To 3
+            delta = need - cht.PlotArea.InsideTop
+            If delta <= 0.01 Then Exit For
+            cht.PlotArea.Height = cht.PlotArea.Height - delta
+            cht.PlotArea.Top = cht.PlotArea.Top + delta
+        Next
+    End If
     If Geom_ChartIsHorizontal(cht) Then
         If Ann_CountPrefix(cht, ANN_PREFIX & "cagr_") > 0 Then
             need = Ann_RightRoomNeeded(cht)
@@ -159,7 +174,7 @@ End Sub
 ' gráfico): Ann_EnsureRoom só roda ao inserir a seta, e a legenda ligada depois, um rótulo de total mais largo ou um gráfico
 ' redimensionado podem deixar a seta e o rótulo sob a legenda ou fora da folga. Só reduz a área de plotagem. Sem setas não faz nada.
 Public Sub Ann_EnsureRoomAfterChange(cht As Chart)
-    If Ann_CountPrefix(cht, ANN_PREFIX & "cagr_") + Ann_CountPrefix(cht, ANN_PREFIX & "diff_") = 0 Then Exit Sub
+    If Ann_CountPrefix(cht, ANN_PREFIX & "cagr_") + Ann_CountPrefix(cht, ANN_PREFIX & "diff_") + Ann_CountPrefix(cht, ANN_BRACKET) = 0 Then Exit Sub
     Ann_EnsureRoom cht
 End Sub
 
@@ -265,6 +280,34 @@ Public Function Ann_AddDifference(cht As Chart, fromIdx As Long, toIdx As Long) 
     If Geom_ChartIsHorizontal(cht) Then Ann_EnsureRoom cht     ' colunas: como na Fase 1, a diferenca nao mexe na area de plotagem
     Ann_Refresh cht
     Set Ann_AddDifference = ln
+End Function
+
+' Colchete do Gantt sobre as atividades fromIdx..toIdx (fromIdx = toIdx vale: uma atividade so): linha horizontal nm (kind=bracket;from=i;to=j)
+' na area da escala, acima da area de plotagem, com dois tiques de 5 pt para baixo nas pontas (nm_t1, nm_t2: kind=tick;owner=nm) e o rotulo
+' nm_lbl com o periodo (dd/mm - dd/mm) acima da linha. Ann_Refresh posiciona (Ann_LayoutBracket); Ann_EnsureRoom abre a folga de cima (40 pt +
+' 14 pt por colchete). Recusa (7001) fora do Gantt.
+Public Function Ann_AddBracket(cht As Chart, fromIdx As Long, toIdx As Long) As Shape
+    Dim nm As String, ln As Shape, tk As Shape, lbl As Shape, sfx As Variant
+    If Not Kinds_Supports(Registry_ChartType(cht), "bracket") Then Err.Raise vbObjectError + 7001, "Ann_AddBracket", ANN_BRACKET_REFUSAL
+    nm = Ann_NewName(cht, "bracket")
+    Set ln = cht.Shapes.AddLine(0, 0, 10, 0)
+    ln.Name = nm
+    ln.AlternativeText = "kind=bracket;from=" & fromIdx & ";to=" & toIdx
+    ln.Line.ForeColor.RGB = RGB(89, 89, 89): ln.Line.Weight = 1
+    For Each sfx In Array("_t1", "_t2")
+        Set tk = cht.Shapes.AddLine(0, 0, 0, 5)
+        tk.Name = nm & sfx
+        tk.AlternativeText = "kind=tick;owner=" & nm
+        tk.Line.ForeColor.RGB = RGB(89, 89, 89): tk.Line.Weight = 1
+    Next
+    Ann_AddLabel cht, nm
+    Set lbl = cht.Shapes(nm & "_lbl")
+    lbl.TextFrame2.TextRange.Font.Bold = msoFalse
+    lbl.Fill.Visible = msoFalse
+    lbl.Line.Visible = msoFalse
+    Ann_EnsureRoom cht
+    Ann_Refresh cht
+    Set Ann_AddBracket = ln
 End Function
 
 Public Sub Ann_SetWaterfallConnectors(cht As Chart, turnOn As Boolean)
@@ -376,6 +419,23 @@ Public Sub Ann_Refresh(cht As Chart)
                     End If
                     On Error GoTo Done
                 End If
+            ElseIf kind = "bracket" Then
+                ' colchete (Gantt): uma atividade so (de = ate) vale; sem data nenhuma nas atividades do intervalo, oculto
+                fromIdx = Val(Ann_ParseParam(shp.AlternativeText, "from"))
+                toIdx = Val(Ann_ParseParam(shp.AlternativeText, "to"))
+                valid = (fromIdx >= 1 And toIdx <= n And fromIdx <= toIdx)
+                If valid Then valid = Kinds_Supports(chartKind, "bracket")
+                If valid Then
+                    On Error Resume Next
+                    valid = Ann_LayoutBracket(cht, shp, fromIdx, toIdx)
+                    If Err.Number <> 0 Then
+                        mLastError = "Ann_Refresh " & nm & " " & Err.Number & " " & Err.Description
+                        Errors_Log mLastError
+                        Err.Clear
+                    End If
+                    On Error GoTo Done
+                End If
+                Ann_SetShapeVisible cht, nm, valid
             ElseIf kind = "ind100" Then
                 ' indicador 100%: valido so nos tipos com o recurso (senao oculto); a posicao segue o PlotArea e a escala atuais
                 valid = Kinds_Supports(chartKind, "ind100")
@@ -409,7 +469,7 @@ Private Function Ann_NewName(cht As Chart, kind As String) As String
     Do
         k = k + 1
         nm = ANN_PREFIX & kind & "_" & k
-    Loop While Not Ann_Shape(cht, nm) Is Nothing Or Not Ann_Shape(cht, nm & "_lbl") Is Nothing Or Not Ann_Shape(cht, nm & "_lvl") Is Nothing
+    Loop While Not Ann_Shape(cht, nm) Is Nothing Or Not Ann_Shape(cht, nm & "_lbl") Is Nothing Or Not Ann_Shape(cht, nm & "_lvl") Is Nothing Or Not Ann_Shape(cht, nm & "_t1") Is Nothing
     Ann_NewName = nm
 End Function
 
@@ -568,6 +628,72 @@ Private Sub Ann_LayoutInd100(cht As Chart, ln As Shape)
     If Not lbl Is Nothing Then Ann_ClampShape cht, lbl
 End Sub
 
+' Colchete do Gantt: para cada atividade k em fromIdx..toIdx, ultimo dia le = fim (ou o inicio, num marco) e fim plotado pe = fim + 1 (a barra cobre
+' o dia do fim) ou o proprio dia do marco; d1 = menor inicio, d2 = maior le (zeros, de celulas sem data, ignorados). A linha vai de x(d1) a x(maior pe)
+' na altura InsideTop - 20 - 14 * (ordinal - 1) (ordinal = sufixo numerico do nome: o segundo colchete fica acima do primeiro), os tiques descem 5 pt
+' nas pontas e o rotulo "dd/mm - dd/mm" (d1 - d2; so "dd/mm" quando d1 = d2, um marco) fica centrado acima da linha. False (nada movido) sem
+' nenhuma data no intervalo.
+Private Function Ann_LayoutBracket(cht As Chart, ln As Shape, fromIdx As Long, toIdx As Long) As Boolean
+    Dim starts() As Double, ends() As Double, k As Long, d1 As Double, d2 As Double, le As Double, pe As Double, peMax As Double
+    Dim x1 As Double, x2 As Double, y As Double, t As Shape, lbl As Shape
+    Gantt_Dates cht, starts, ends
+    For k = fromIdx To toIdx
+        If k >= 1 And k >= LBound(starts) And k <= UBound(starts) Then
+            If starts(k) > 0 Then
+                If d1 = 0 Or starts(k) < d1 Then d1 = starts(k)
+            End If
+            If ends(k) > 0 Then
+                le = ends(k): pe = ends(k) + 1
+            Else
+                le = starts(k): pe = starts(k)
+            End If
+            If le > d2 Then d2 = le
+            If pe > peMax Then peMax = pe
+        End If
+    Next
+    If d1 <= 0 Or d2 <= 0 Or peMax <= 0 Then Exit Function
+    x1 = Geom_ChartValueToX(cht, d1)
+    x2 = Geom_ChartValueToX(cht, peMax)
+    y = cht.PlotArea.InsideTop - 20 - ANN_BRACKET_STEP * (Ann_BracketOrdinal(ln.Name) - 1)
+    Ann_MoveLine ln, x1, y, x2, y
+    Set t = Ann_Shape(cht, ln.Name & "_t1")
+    If Not t Is Nothing Then Ann_MoveLine t, x1, y, x1, y + 5
+    Set t = Ann_Shape(cht, ln.Name & "_t2")
+    If Not t Is Nothing Then Ann_MoveLine t, x2, y, x2, y + 5
+    Set lbl = Ann_Shape(cht, ln.Name & "_lbl")
+    If Not lbl Is Nothing Then
+        If d2 = d1 Then         ' um dia so (um marco): a data uma vez
+            lbl.TextFrame2.TextRange.Text = Format$(d1, "dd/mm")
+        Else
+            lbl.TextFrame2.TextRange.Text = Format$(d1, "dd/mm") & " - " & Format$(d2, "dd/mm")
+        End If
+        lbl.Left = (x1 + x2) / 2 - lbl.Width / 2
+        lbl.Top = y - lbl.Height
+        Ann_ClampShape cht, lbl
+    End If
+    Ann_LayoutBracket = True
+End Function
+
+' Ordinal do colchete: o sufixo numerico do nome (tqq_ann_bracket_2 -> 2); 1 se nao houver.
+Private Function Ann_BracketOrdinal(nm As String) As Long
+    Ann_BracketOrdinal = CLng(Val(Mid$(nm, Len(ANN_BRACKET) + 1)))
+    If Ann_BracketOrdinal < 1 Then Ann_BracketOrdinal = 1
+End Function
+
+' Maior ordinal entre os colchetes do grafico (0 sem colchete): a folga de cima cobre o colchete mais alto.
+Private Function Ann_BracketMaxOrdinal(cht As Chart) As Long
+    Dim i As Long, nm As String, k As Long
+    For i = 1 To cht.Shapes.Count
+        nm = cht.Shapes(i).Name
+        If Left$(nm, Len(ANN_BRACKET)) = ANN_BRACKET Then
+            If Ann_ParseParam(cht.Shapes(i).AlternativeText, "kind") = "bracket" Then
+                k = Ann_BracketOrdinal(nm)
+                If k > Ann_BracketMaxOrdinal Then Ann_BracketMaxOrdinal = k
+            End If
+        End If
+    Next
+End Function
+
 Private Sub Ann_LayoutOne(cht As Chart, shp As Shape, kind As String, fromIdx As Long, toIdx As Long, values() As Double, tops() As Double, fmt As String)
     Select Case kind
         Case "cagr": Ann_LayoutCagr cht, shp, fromIdx, toIdx, values, tops, fmt
@@ -576,12 +702,12 @@ Private Sub Ann_LayoutOne(cht As Chart, shp As Shape, kind As String, fromIdx As
     End Select
 End Sub
 
-' Mostra/oculta a forma e seus companheiros (_lbl, _lvl).
+' Mostra/oculta a forma e seus companheiros (_lbl, _lvl e os tiques do colchete _t1/_t2).
 Private Sub Ann_SetShapeVisible(cht As Chart, nm As String, vis As Boolean)
     Dim sfx As Variant, s As Shape, st As Long
     st = IIf(vis, msoTrue, msoFalse)
     On Error Resume Next
-    For Each sfx In Array("", "_lbl", "_lvl")
+    For Each sfx In Array("", "_lbl", "_lvl", "_t1", "_t2")
         Set s = Nothing
         Set s = cht.Shapes(nm & sfx)
         If Not s Is Nothing Then

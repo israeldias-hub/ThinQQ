@@ -233,6 +233,7 @@ Public Sub Labels_RefreshPositions(cht As Chart)
     kind = CStr(blk.Cells(1, 2).Value)
     If Kinds_Family(kind) = "pie" Then GoTo Done            ' rotulos nativos da pizza: sem auxiliar e sem posicao por sinal
     If Kinds_Family(kind) = "mekko" Then GoTo Done          ' Mekko: posicoes fixas (centro, acima do topo, abaixo do zero); a coluna 3 e a largura
+    If Kinds_Family(kind) = "gantt" Then GoTo Done          ' Gantt: rotulos sempre a direita (barras) e acima (escala); a coluna 3 e o Fim
     horiz = Kinds_IsHorizontal(kind)
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
@@ -284,6 +285,7 @@ Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
         Mekko_ApplyCellFormat cht
         Exit Sub
     End If
+    If Kinds_Family(kind) = "gantt" Then Exit Sub              ' Gantt: sem formato numerico; os rotulos mostram datas (dd/mm, mmm/yy) ou texto da tabela
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
     If n < 1 Then Exit Sub

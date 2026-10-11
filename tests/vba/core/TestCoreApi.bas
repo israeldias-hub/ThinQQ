@@ -973,20 +973,6 @@ Public Sub Test_Core_Supports_FollowsActiveChart()
     Teardown wb
 End Sub
 
-' Temporario: a Tarefa 10 o remove ao implementar o Gantt (o ultimo tipo a ficar pronto). Tipo valido ainda sem
-' implementacao avisa e nao deixa bloco.
-Public Sub Test_Core_Insert_KindNotReady_NotifiesWithoutChart()
-    Dim wb As Workbook, ws As Worksheet
-    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
-    ws.Range("A1:C5").Select
-    Core_ClearLastNotice
-    Core_Insert "gantt"
-    AssertEqual 0, ws.ChartObjects.Count
-    AssertEqual 0, TqqNameCount(wb)
-    AssertTrue InStr(Core_LastNotice(), "ainda não está disponível") > 0, Core_LastNotice()
-    Teardown wb
-End Sub
-
 ' Build Test: o log vai para %TEMP%\ThinQQ-test-logs, nunca para o log real do usuario.
 Public Sub Test_Errors_Log_TestBuildWritesToTempFolder()
     Dim marker As String, p As String, f As Integer, txt As String

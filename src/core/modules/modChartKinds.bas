@@ -92,9 +92,9 @@ Public Function Kinds_ExpectedCategoryRefs(kind As String, n As Long) As Long
     If Kinds_Family(kind) = "mekko" Then Kinds_ExpectedCategoryRefs = 5 * n Else Kinds_ExpectedCategoryRefs = n
 End Function
 
-' Despacho da insercao por familia. Cada Insert desfaz o que criou em caso de falha. As tarefas seguintes
-' acrescentam os Case das demais familias; ate la, o tipo valido sem implementacao avisa com o erro 7200
-' (tratado por Core_Insert como aviso ao usuario, sem registrar falha).
+' Despacho da insercao por familia. Cada Insert desfaz o que criou em caso de falha. Todas as familias validas tem
+' implementacao (o Gantt foi a ultima); o ramo 7200 fica como protecao para um tipo valido sem Case (Core_Insert o
+' trata como aviso ao usuario, sem registrar falha).
 Public Function Kinds_Insert(ws As Worksheet, data As clsChartData, kind As String) As ChartObject
     Select Case Kinds_Family(kind)
         Case "stacked"
@@ -109,6 +109,8 @@ Public Function Kinds_Insert(ws As Worksheet, data As clsChartData, kind As Stri
             Set Kinds_Insert = Mekko_Insert(ws, data, kind)
         Case "pie"
             Set Kinds_Insert = Pie_Insert(ws, data, kind)
+        Case "gantt"
+            Set Kinds_Insert = Gantt_Insert(ws, data)
         Case Else
             Err.Raise vbObjectError + 7200, "Kinds_Insert", "Este tipo de gráfico ainda não está disponível nesta versão: " & kind
     End Select
