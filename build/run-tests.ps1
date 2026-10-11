@@ -101,6 +101,17 @@ if (-not $timedOut -and $targets -contains 'loader') {
     & (Join-Path $RepoRoot 'tests\ps\Test-Ribbon.ps1') -RepoRoot $RepoRoot
     if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
 }
+if (-not $timedOut) {
+    Write-Host '=== instalador (pwsh e Windows PowerShell 5.1) + guarda de release ==='
+    $psExes = @((Get-Process -Id $PID).Path, (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'))
+    foreach ($exe in $psExes) {
+        foreach ($tst in @('Test-Installer.ps1', 'Test-ReleaseGuard.ps1')) {
+            $global:LASTEXITCODE = 0
+            & $exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "tests\ps\$tst")
+            if ($LASTEXITCODE -ne 0) { Write-Host "FALHOU: $tst em $exe" -ForegroundColor Red; $totalFailed += 1 }
+        }
+    }
+}
 if (-not $timedOut -and $LoaderSwap) {
     Write-Host '=== loader-swap ==='
     $global:LASTEXITCODE = 0

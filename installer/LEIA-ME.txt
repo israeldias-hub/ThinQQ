@@ -1,6 +1,9 @@
 ﻿ThinQQ - gráficos de apresentação para Excel
 ============================================
 
+REQUISITOS
+Excel do Office 16.0 (Excel 2016, 2019, 2021 ou Microsoft 365) no Windows. Não é necessário ser administrador.
+
 INSTALAÇÃO AUTOMÁTICA
 1. Descompacte o ZIP inteiro em uma pasta (não execute de dentro do ZIP).
 2. Feche o Excel.
@@ -8,7 +11,7 @@ INSTALAÇÃO AUTOMÁTICA
 4. Abra o Excel: a aba "ThinQQ" aparece na faixa de opções.
 
 INSTALAÇÃO MANUAL (se o script for bloqueado)
-1. Crie a pasta %LOCALAPPDATA%\ThinQQ (cole esse caminho na barra de endereços do Explorador).
+1. Crie a pasta %LOCALAPPDATA%\ThinQQ (cole esse caminho na barra de endereços do Explorador de Arquivos).
 2. Copie ThinQQ.xlam para essa pasta e ThinQQ.core.xlam para %LOCALAPPDATA%\ThinQQ\versions\<versão>\
    (a versão está no manifest.json, ex.: versions\1.0.0\). Copie tutorial.html para a mesma pasta da versão.
 3. Em cada arquivo .xlam: botão direito > Propriedades > marque "Desbloquear" > OK.
@@ -40,7 +43,12 @@ Se o Excel abrir sem a aba ThinQQ logo após uma atualização do loader, feche 
 %LOCALAPPDATA%\ThinQQ, apague (ou renomeie) ThinQQ.xlam e renomeie ThinQQ.xlam.bak para ThinQQ.xlam.
 Se não houver .bak, reinstale com Instalar-ThinQQ.cmd.
 
+VERSÕES ANTIGAS E REINSTALAÇÃO
+As versões antigas do core ficam em %LOCALAPPDATA%\ThinQQ\versions\ e podem ser apagadas (mantenha a mais nova).
+Ao reinstalar, o loader anterior é guardado em ThinQQ.xlam.bak (só o último). O instalador recusa trocar por um loader
+mais antigo que o instalado; para forçar: powershell -ExecutionPolicy Bypass -File install.ps1 -Force
+
 DESINSTALAÇÃO
-Feche o Excel e execute: powershell -ExecutionPolicy Bypass -File uninstall.ps1
+Feche o Excel e execute, a partir da pasta onde você descompactou o ZIP: powershell -ExecutionPolicy Bypass -File uninstall.ps1
 Isso remove o registro do suplemento, o Local Confiável, as configurações e a pasta
 %LOCALAPPDATA%\ThinQQ. Use -KeepFiles para manter os arquivos.
