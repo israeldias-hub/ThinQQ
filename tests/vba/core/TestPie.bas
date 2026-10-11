@@ -681,3 +681,43 @@ Public Sub Test_Pie_LastSlice_DiffersFromFirst_WhenCycleWraps()
         Teardown wb
     Next
 End Sub
+
+' Tarefa 15b: trocar a paleta com rotulos fora mantem o conteudo (nome + valor, fora, linhas de chamada, fonte cinza-escuro) e o que o
+' usuario fez nos rotulos: um rotulo arrastado fica onde foi solto e um rotulo apagado continua apagado (antes a troca reescrevia os rotulos
+' no nivel da serie, o que os devolvia a posicao padrao e recriava o apagado). Dentro, a fonte segue o contraste com a fatia nova.
+Public Sub Test_Pie_Palette_KeepsOutsideContent_DraggedAndDeletedLabels()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, s As Series, l1 As Double, t1 As Double, pal As Variant, k As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("A1:B4").Select
+    Core_Insert "pie"
+    Set cht = Core_ActiveChart(): Set s = cht.SeriesCollection(1)
+    Core_SetToggle "pieout", True
+    ForceLayout cht
+    s.Points(1).DataLabel.Left = s.Points(1).DataLabel.Left + 25            ' o usuario arrasta o rotulo 1
+    ForceLayout cht
+    l1 = s.Points(1).DataLabel.Left: t1 = s.Points(1).DataLabel.Top
+    s.Points(3).HasDataLabel = False                                          ' e apaga o rotulo 3
+    Core_SetOption "palette", "cinza"
+    ForceLayout cht
+    pal = Style_Palette("cinza")
+    For k = 1 To 3
+        AssertEqual CLng(pal(k - 1)), s.Points(k).Format.Fill.ForeColor.RGB, "fatia " & k & " na paleta cinza"
+    Next
+    AssertTrue InStr(s.Points(2).DataLabel.Text, "Móveis") > 0 And InStr(s.Points(2).DataLabel.Text, "30") > 0, "rotulo fora com nome e valor: " & s.Points(2).DataLabel.Text
+    AssertEqual xlLabelPositionOutsideEnd, s.Points(2).DataLabel.Position
+    AssertTrue s.HasLeaderLines, "linhas de chamada"
+    AssertEqual RGB(64, 64, 64), s.Points(2).DataLabel.Font.Color, "fora: cinza-escuro"
+    AssertFalse cht.HasLegend, "sem legenda com os rotulos fora"
+    AssertAlmost l1, s.Points(1).DataLabel.Left, 1, "rotulo arrastado continua onde o usuario soltou"
+    AssertAlmost t1, s.Points(1).DataLabel.Top, 1
+    AssertTrue InStr(s.Points(1).DataLabel.Text, "Eletro") > 0, "rotulo arrastado com o nome"
+    AssertFalse s.Points(3).HasDataLabel, "rotulo apagado pelo usuario continua apagado"
+    AssertEqual "cinza", Registry_GetOption(cht, "palette")
+    Core_SetToggle "pieout", False
+    Core_SetOption "palette", "padrao"
+    pal = Style_Palette("padrao")
+    For k = 1 To 3
+        If s.Points(k).HasDataLabel Then AssertEqual Style_ContrastFont(CLng(pal(k - 1))), s.Points(k).DataLabel.Font.Color, "dentro: contraste da fatia " & k
+    Next
+    Teardown wb
+End Sub

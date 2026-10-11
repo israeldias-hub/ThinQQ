@@ -109,10 +109,12 @@ Public Sub Pie_ApplyNumberFormat(cht As Chart, key As String)
     Pie_ApplyLabelContent cht
 End Sub
 
-' Paleta: cores das fatias (Style_ApplyPointColors) e, depois, a cor da fonte dos rotulos de dentro por contraste com a fatia nova.
+' Paleta: cores das fatias (Style_ApplyPointColors) e, depois, so a cor da fonte de cada rotulo (Pie_ApplyLabelColors: dentro, contraste com a
+' fatia nova; fora, cinza-escuro). O conteudo dos rotulos (valor ou participacao, nome fora, linhas de chamada) nao depende da paleta e fica como
+' esta: reaplica-lo (Pie_ApplyLabelContent, no nivel da serie) devolveria um rotulo arrastado a posicao padrao e recriaria um rotulo apagado.
 Public Sub Pie_ApplyColors(cht As Chart, paletteName As String)
     Style_ApplyPointColors cht, paletteName
-    Pie_ApplyLabelContent cht
+    Pie_ApplyLabelColors cht
 End Sub
 
 ' A legenda da pizza: (legend <> "none") And Not (pieout = "1" And labels <> "0"). Os rotulos fora trazem o nome da fatia, entao so eles
@@ -134,7 +136,7 @@ End Sub
 ' pizza), nome da categoria e linhas de chamada (fora), cor da fonte (fora: cinza-escuro; dentro: por contraste com a fatia). Sem rotulos
 ' ligados nao faz nada (o religar aplica). A rosca nunca recebe Position.
 Private Sub Pie_ApplyLabelContent(cht As Chart)
-    Dim s As Series, key As String, isPct As Boolean, outside As Boolean, isPie As Boolean, k As Long
+    Dim s As Series, key As String, isPct As Boolean, outside As Boolean, isPie As Boolean
     Set s = PieSeries(cht)
     If s Is Nothing Then Exit Sub
     If Not s.HasDataLabels Then Exit Sub
@@ -153,16 +155,26 @@ Private Sub Pie_ApplyLabelContent(cht As Chart)
         If isPie Then .Position = IIf(outside, xlLabelPositionOutsideEnd, xlLabelPositionInsideEnd)
     End With
     If isPie Then s.HasLeaderLines = outside
-    For k = 1 To s.Points.Count         ' (as atribuicoes acima, no nivel da serie, recriam os rotulos que o usuario tenha apagado)
-        With s.Points(k).DataLabel.Font
-            If outside Then
-                .Color = RGB(64, 64, 64)
-            Else
-                .Color = Style_ContrastFont(CLng(s.Points(k).Format.Fill.ForeColor.RGB))
-            End If
-        End With
-    Next
+    Pie_ApplyLabelColors cht            ' (as atribuicoes acima, no nivel da serie, recriam os rotulos que o usuario tenha apagado)
     If outside Then SyncZeroSliceNames cht, s
+End Sub
+
+' Cor da fonte de cada rotulo existente, ponto a ponto: fora (pieout = 1, so na pizza), cinza-escuro; dentro, contraste com a cor da fatia.
+' Nada no nivel da serie: posicao, conteudo e rotulos apagados pelo usuario ficam como estao.
+Private Sub Pie_ApplyLabelColors(cht As Chart)
+    Dim s As Series, outside As Boolean, k As Long
+    Set s = PieSeries(cht)
+    If s Is Nothing Then Exit Sub
+    outside = Kinds_Supports(Registry_ChartType(cht), "pieout") And (Registry_GetOption(cht, "pieout", "0") = "1")
+    For k = 1 To s.Points.Count
+        If s.Points(k).HasDataLabel Then
+            If outside Then
+                s.Points(k).DataLabel.Font.Color = RGB(64, 64, 64)
+            Else
+                s.Points(k).DataLabel.Font.Color = Style_ContrastFont(CLng(s.Points(k).Format.Fill.ForeColor.RGB))
+            End If
+        End If
+    Next
 End Sub
 
 ' Com rotulos fora, a fatia de valor 0 (zero, negativo, texto ou vazio na origem) fica sem o nome da categoria: o rotulo vira um texto vazio
