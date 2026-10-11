@@ -562,3 +562,33 @@ Public Sub Test_CalcSheet_LabelFormula_ObservedBehavior()
     AssertFalse s2.Points(2).HasDataLabel
     CloseTemp wb
 End Sub
+
+' Tarefa 15b: um rotulo de TEXTO LIVRE que apenas cita "_ThinQQ" (sem ser referencia) antes dos rotulos ligados nao encerra a varredura da serie:
+' os rotulos seguintes, ligados ao bloco, ainda contam como referencia e o bloco fica (antes o Exit For no texto livre apagava o bloco).
+Public Sub Test_CalcSheet_Cleanup_FreeTextMention_DoesNotStopLabelScan()
+    Dim wb As Workbook, ws As Worksheet, co As ChartObject, s As Series, blk As Range, n As Long, i As Long
+    Dim en As Long, es As String, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    Set blk = CalcSheet_AllocateBlock(wb, "keep", "stacked", "x", 4, 3)
+    blk.Cells(2, 2).Resize(4, 1).Formula = "=ROW()"
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    Set co = PlainChart(ws, 1, 4, True)
+    Set s = co.Chart.SeriesCollection(1)
+    s.Points(1).DataLabel.Text = "nota sobre " & CALC_SHEET & " (texto livre)"
+    For i = 2 To 4
+        s.Points(i).DataLabel.Formula = "='" & CALC_SHEET & "'!" & blk.Cells(1 + i, 2).Address(True, True)
+    Next
+    On Error GoTo Cleanup
+    n = CalcSheet_Cleanup(wb)
+    ResetCleanupHooks
+    AssertFalse CalcSheet_CleanupReadFailed()
+    AssertTrue Not CalcSheet_FindBlock(wb, "keep") Is Nothing, "bloco ligado pelos rotulos 2..4 fica (o texto livre do rotulo 1 nao encerra a varredura)"
+    AssertEqual 1, n, "so o orfao sai"
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    ResetCleanupHooks
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub

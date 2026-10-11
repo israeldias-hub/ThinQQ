@@ -182,7 +182,8 @@ End Function
 '  - só os primeiros labelCap pontos de cada série: Labels_LinkPoints liga os pontos 1..n a UM bloco, logo nenhum
 '    rótulo além da altura do maior bloco pode referenciar um bloco;
 '  - série cuja própria fórmula já cita a planilha interna: seus rótulos ligam ao mesmo bloco, nada a ler;
-'  - para no primeiro rótulo que cita a planilha interna (todos os rótulos de uma série ligam ao mesmo bloco);
+'  - para no primeiro rótulo LIGADO à planilha interna (todos os rótulos de uma série ligam ao mesmo bloco); um rótulo de
+'    texto livre que só cita "_ThinQQ" entra no texto (conservador) mas não encerra a série (IsCalcSheetLink);
 '  - orçamento de MAX_POINTS_PER_PASS pontos por passada: estourou, falha fechada (nada é removido).
 Private Function ChartReferences(ch As Object, labelCap As Long) As String
     Dim s As Object, i As Long, n As Long, acc As String, sf As String, lf As String, budget As Long
@@ -207,7 +208,8 @@ Private Function ChartReferences(ch As Object, labelCap As Long) As String
                 If mReadFailed Then GoTo Done
                 If InStr(1, lf, CALC_SHEET, vbTextCompare) > 0 Then
                     acc = acc & vbLf & lf
-                    Exit For
+                    ' so um rotulo LIGADO a planilha interna encerra a serie; texto livre que apenas cita "_ThinQQ" continua a varredura
+                    If IsCalcSheetLink(lf) Then Exit For
                 End If
             Next
         End If
@@ -253,6 +255,13 @@ Private Function LabelFormula(p As Object) As String
     Exit Function
 Fail:
     MarkFailed "rótulo: " & Err.Number & " " & Err.Description
+End Function
+
+' True quando o texto lido de DataLabel.Formula é uma ligação a uma célula da planilha interna ("=_ThinQQ!$B$2" ou "='_ThinQQ'!$B$2"):
+' começa por "=" (texto livre nunca começa por "=") e cita a planilha seguida de "!".
+Private Function IsCalcSheetLink(lf As String) As Boolean
+    If Left$(lf, 1) <> "=" Then Exit Function
+    IsCalcSheetLink = (InStr(1, lf, CALC_SHEET & "!", vbTextCompare) > 0 Or InStr(1, lf, CALC_SHEET & "'!", vbTextCompare) > 0)
 End Function
 
 Private Sub MarkFailed(detail As String)
