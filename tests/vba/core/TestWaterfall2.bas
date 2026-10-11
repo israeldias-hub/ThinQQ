@@ -1056,3 +1056,72 @@ Private Sub Teardown(wb As Workbook)
     Watchers_Stop
     CloseTemp wb
 End Sub
+
+' Tarefa 15b (deferred da T4): com varias series a linha e de total quando QUALQUER celula dela e um marcador (SUMPRODUCT/MATCH sobre a lista
+' WF_MARKERS): cada marcador (com maiusculas e espacos) numa coluna so, o marcador ao lado de um numero e de um erro, e os nao marcadores.
+Public Sub Test_WaterfallMulti_MarkerList_AnyCellOfTheRow()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, body As Range, m As Variant, i As Long, n As Long, want As Boolean
+    m = Array("e", "t", "=", "total", "subtotal", "E", "TOTAL", " Subtotal ", "x", "tt", "")
+    n = UBound(m) + 1
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Ponte"
+    ws.Range("A1:C1").Value = Array("Etapa", "Loja", "Online")
+    ws.Range("B2:C" & n + 3).NumberFormat = "@"
+    For i = 0 To n - 1
+        ws.Cells(i + 2, 1).Value = "L" & (i + 1)
+        If i Mod 2 = 0 Then ws.Cells(i + 2, 3).Value = CStr(m(i)) Else ws.Cells(i + 2, 2).Value = CStr(m(i))     ' o marcador ora na 1a, ora na 2a serie
+    Next
+    ws.Cells(n + 2, 1).Value = "Numero e marcador": ws.Cells(n + 2, 2).NumberFormat = "General": ws.Cells(n + 2, 2).Value = 10: ws.Cells(n + 2, 3).Value = "t"
+    ws.Cells(n + 3, 1).Value = "Erro e marcador": ws.Cells(n + 3, 2).NumberFormat = "General": ws.Cells(n + 3, 2).Formula = "=NA()": ws.Cells(n + 3, 3).Value = "e"
+    Set d = ChartData_FromRange(ws.Range("A1:C" & n + 3))
+    AssertEqual 2, d.SeriesCount
+    Set body = Block_Body(Waterfall_BuildBlock(wb, "wfmk01", d))
+    For i = 0 To n - 1
+        want = Waterfall_IsTotalMarker(CStr(m(i)))
+        AssertEqual want, CBool(body.Cells(i + 2, 3).Value), "linha " & (i + 1) & " marcador '" & m(i) & "'"
+    Next
+    AssertEqual True, CBool(body.Cells(n + 2, 3).Value), "numero na 1a serie e 't' na 2a: linha de total"
+    AssertEqual True, CBool(body.Cells(n + 3, 3).Value), "#N/D na 1a serie nao propaga e 'e' na 2a marca o total"
+    AssertFalse IsError(body.Cells(n + 3, WF_COL_END).Value), "sem erro no End da linha com #N/D"
+    CloseTemp wb
+End Sub
+
+' Tarefa 15b (deferred da T4): build-down ('e' na primeira linha e numero na ultima) com um subtotal 'e' no MEIO, com 1 e com 2 series: o
+' primeiro total e calculado para tras pelos deltas das linhas do meio (o subtotal tem delta 0), o subtotal mostra o acumulado e a ultima linha
+' vira total.
+Public Sub Test_Waterfall_BuildDown_WithSubtotalInTheMiddle()
+    Dim wb As Workbook, ws As Worksheet, body As Range
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Ponte"
+    ws.Range("A1:B1").Value = Array("Etapa", "Valor")
+    ws.Range("A2:B2").Value = Array("Receita", "e")
+    ws.Range("A3:B3").Value = Array("Custos", -700)
+    ws.Range("A4:B4").Value = Array("Subtotal", "e")
+    ws.Range("A5:B5").Value = Array("Despesas", -250)
+    ws.Range("A6:B6").Value = Array("Lucro", 250)
+    Set body = Block_Body(Waterfall_BuildBlock(wb, "wfbm01", ChartData_FromRange(ws.Range("A1:B6"))))
+    AssertEqual True, body.Cells(2, WF_COL_BD).Value, "build-down"
+    AssertEqual 1200, body.Cells(2, WF_COL_END).Value, "Receita = 250 - (-700 + 0 - 250)"
+    AssertEqual 1200, body.Cells(2, WF_COL_TOTAL).Value
+    AssertEqual 500, body.Cells(3, WF_COL_END).Value
+    AssertEqual True, body.Cells(4, 3).Value, "subtotal do meio": AssertEqual 0, body.Cells(4, 4).Value, "subtotal sem delta"
+    AssertEqual 500, body.Cells(4, WF_COL_END).Value: AssertEqual 500, body.Cells(4, WF_COL_TOTAL).Value: AssertEqual 500, body.Cells(4, WF_COL_LABELVAL).Value
+    AssertEqual 250, body.Cells(5, WF_COL_END).Value
+    AssertEqual True, body.Cells(6, 3).Value, "ultima linha vira total": AssertEqual 250, body.Cells(6, WF_COL_TOTAL).Value
+    ws.Range("B6").Value = 300
+    AssertEqual 1250, body.Cells(2, WF_COL_END).Value, "recalcula ao mudar o total final": AssertEqual 550, body.Cells(4, WF_COL_TOTAL).Value
+    ' duas series
+    ws.Range("D1:F1").Value = Array("Etapa", "Loja", "Online")
+    ws.Range("D2:E2").Value = Array("Receita", "e")
+    ws.Range("D3:F3").Value = Array("Custos", -700, -100)
+    ws.Range("D4:F4").Value = Array("Subtotal", "e", "e")
+    ws.Range("D5:F5").Value = Array("Despesas", -250, 0)
+    ws.Range("D6:F6").Value = Array("Lucro", 250, 50)
+    Set body = Block_Body(Waterfall_BuildBlock(wb, "wfbm02", ChartData_FromRange(ws.Range("D1:F6"))))
+    AssertEqual True, body.Cells(2, WF_COL_BD).Value
+    AssertEqual 1350, body.Cells(2, WF_COL_END).Value, "300 - (-700 - 100 + 0 - 250)"
+    AssertEqual 550, body.Cells(3, WF_COL_END).Value
+    AssertEqual True, body.Cells(4, 3).Value: AssertEqual 550, body.Cells(4, WF_COL_TOTAL).Value
+    AssertEqual 0, body.Cells(4, Waterfall_SeriesCol(1, "DN")).Value: AssertEqual 0, body.Cells(4, Waterfall_SeriesCol(2, "UP")).Value, "subtotal sem segmentos"
+    AssertEqual 300, body.Cells(5, WF_COL_END).Value
+    AssertEqual True, body.Cells(6, 3).Value: AssertEqual 300, body.Cells(6, WF_COL_TOTAL).Value
+    CloseTemp wb
+End Sub
