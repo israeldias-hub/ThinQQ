@@ -1,6 +1,7 @@
 Attribute VB_Name = "modLabels"
 Option Explicit
 Private mRefreshing As Boolean
+Private Const SIDE_LABEL_OFFSET As Double = 6   ' o rotulo "Left"/"Right" de um ponto XY comeca ~5,5 pt depois dele (medido nos totais XY)
 
 ' Liga o rótulo de cada ponto à célula correspondente (rótulo "vivo"). Posição: acima/abaixo conforme o sinal
 ' (fixedPos = 0) ou a posição fixa informada (ex.: xlLabelPositionCenter em segmentos empilhados). Com horizontal
@@ -76,8 +77,14 @@ End Function
 ' Maior largura estimada entre os rótulos da série auxiliar de totais (0 sem a série ou sem rótulo legível).
 ' Lê só o TEXTO de cada rótulo (não a geometria).
 Public Function Labels_MaxTotalWidth(cht As Chart) As Double
+    Labels_MaxTotalWidth = Labels_MaxLabelWidth(cht, "tqq_total")
+End Function
+
+' Maior largura estimada (Labels_EstimateWidth) entre os rótulos da série auxiliar seriesName (0 sem a série ou sem rótulo legível).
+' Lê só o TEXTO de cada rótulo (não a geometria).
+Public Function Labels_MaxLabelWidth(cht As Chart, seriesName As String) As Double
     Dim s As Series, i As Long, w As Double, best As Double, t As String
-    Set s = Chart_FindSeries(cht, "tqq_total")
+    Set s = Chart_FindSeries(cht, seriesName)
     If s Is Nothing Then Exit Function
     On Error Resume Next
     For i = 1 To s.Points.Count
@@ -89,7 +96,7 @@ Public Function Labels_MaxTotalWidth(cht As Chart) As Double
         End If
     Next
     On Error GoTo 0
-    Labels_MaxTotalWidth = best
+    Labels_MaxLabelWidth = best
 End Function
 
 ' Combinação: a série de LINHA mostra o formato da própria célula de origem (NumberFormatLinked), não o numfmt do gráfico.
@@ -222,9 +229,12 @@ End Function
 
 ' Reaplica a posição conforme o sinal atual das séries auxiliares de rótulo: acima/abaixo (verticais) ou
 ' direita/esquerda (horizontais). Cada ponto é isolado: um ponto não plotado (NA()) não interrompe os demais.
+' Cascata horizontal: um rótulo "à esquerda" (barra que desce, total negativo) cujo ponto fica perto do mínimo do eixo e que não cabe
+' até a borda esquerda da área interna (onde começam os nomes das categorias; largura pelo texto, Labels_EstimateWidth) passa para o
+' outro lado do ponto, sobre a própria barra, com fundo branco para ficar legível; com espaço volta à esquerda, sem o fundo.
 Public Sub Labels_RefreshPositions(cht As Chart)
     Dim blk As Range, body As Range, s As Series, col As Long, i As Long, n As Long, en As Long, ed As String, want As Long
-    Dim kind As String, horiz As Boolean
+    Dim kind As String, horiz As Boolean, sideCheck As Boolean, inside As Boolean
     If mRefreshing Then Exit Sub
     mRefreshing = True
     On Error GoTo Done
@@ -239,6 +249,7 @@ Public Sub Labels_RefreshPositions(cht As Chart)
     n = body.Rows.Count - 1
     If Kinds_Family(kind) = "waterfall" Then
         Set s = Chart_FindSeries(cht, "tqq_lbl"): col = WF_COL_LABELVAL
+        sideCheck = horiz
     Else
         Set s = Chart_FindSeries(cht, "tqq_total"): col = 3     ' acima/abaixo segue a posição plotada (TotalPos), não o líquido
     End If
@@ -246,13 +257,18 @@ Public Sub Labels_RefreshPositions(cht As Chart)
     If Not s.HasDataLabels Then GoTo Done
     For i = 1 To n
         If i <= s.Points.Count Then
+            inside = False
             If horiz Then
                 want = IIf(Util_ToDouble(body.Cells(i + 1, col).Value) < 0, xlLabelPositionLeft, xlLabelPositionRight)
+                If sideCheck And want = xlLabelPositionLeft Then
+                    If Not LeftLabelFits(cht, s.Points(i), Util_ToDouble(body.Cells(i + 1, WF_COL_LABELPOS).Value)) Then want = xlLabelPositionRight: inside = True
+                End If
             Else
                 want = IIf(Util_ToDouble(body.Cells(i + 1, col).Value) < 0, xlLabelPositionBelow, xlLabelPositionAbove)
             End If
             On Error Resume Next
             If s.Points(i).DataLabel.Position <> want Then s.Points(i).DataLabel.Position = want    ' só escreve se mudou (evita redesenho a cada cálculo)
+            If sideCheck Then SyncLabelBackground s.Points(i).DataLabel, inside
             Err.Clear
             On Error GoTo Done
         End If
@@ -261,6 +277,31 @@ Done:
     If Err.Number <> 0 Then en = Err.Number: ed = Err.Description
     mRefreshing = False
     If en <> 0 Then Errors_Log "Labels_RefreshPositions" & vbTab & en & vbTab & ed
+End Sub
+
+' True quando o rótulo "Left" do ponto (no valor xv do eixo horizontal) cabe entre o ponto e a borda esquerda da área interna; True em
+' qualquer dúvida (rótulo ilegível, sem texto): a posição pelo sinal fica.
+Private Function LeftLabelFits(cht As Chart, p As Point, xv As Double) As Boolean
+    Dim t As String
+    LeftLabelFits = True
+    On Error GoTo Done
+    t = p.DataLabel.Text
+    If Len(t) = 0 Then Exit Function
+    LeftLabelFits = (Geom_ChartValCoord(cht, xv) - SIDE_LABEL_OFFSET - Labels_EstimateWidth(t) >= cht.PlotArea.InsideLeft)
+Done:
+End Function
+
+' Fundo branco no rótulo que ficou sobre a própria barra (inside) e sem fundo nos demais; só escreve quando muda. Medido: o preenchimento
+' só passa a valer (Fill.Visible lido de volta True) depois de escrever a cor, mesmo que ela já seja o branco: as duas escritas vão juntas.
+Private Sub SyncLabelBackground(dl As DataLabel, inside As Boolean)
+    If inside Then
+        If dl.Format.Fill.Visible <> msoTrue Or dl.Format.Fill.ForeColor.RGB <> RGB(255, 255, 255) Then
+            dl.Format.Fill.Visible = msoTrue
+            dl.Format.Fill.ForeColor.RGB = RGB(255, 255, 255)
+        End If
+    ElseIf dl.Format.Fill.Visible = msoTrue Then
+        dl.Format.Fill.Visible = msoFalse
+    End If
 End Sub
 
 ' Número de colunas de participação (cabeçalho "Part1", "Part2", ...) seguidas a partir da coluna 4 do corpo do bloco.

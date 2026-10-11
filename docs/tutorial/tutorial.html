@@ -512,7 +512,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <h3>Rótulos, conectores e orientação</h3>
   <ul>
     <li>Os <span class="ui">Rótulos</span> ficam ligados às células: o de cada segmento mostra a variação, e o de cada total, o valor acumulado. Mudou um número? Tudo acompanha, inclusive os conectores.</li>
-    <li>Em <span class="ui">Cascata (barras)</span> os rótulos ficam à direita das barras de valor positivo e à esquerda das de valor negativo, e os conectores são verticais. Um rótulo à esquerda de uma barra que começa perto do mínimo do eixo pode encostar nos nomes das categorias.</li>
+    <li>Em <span class="ui">Cascata (barras)</span> os rótulos ficam à direita das barras de valor positivo e à esquerda das de valor negativo, e os conectores são verticais. Um rótulo à esquerda que não caberia antes dos nomes das categorias (barra que começa perto do mínimo do eixo) passa para dentro da própria barra, com fundo branco. A seta CAGR corre à direita dos rótulos das pontas.</li>
     <li><span class="ui">Seta CAGR</span> e <span class="ui">Seta diferença</span> usam o valor final de cada barra e ligam as pontas das barras, podendo passar sobre rótulos e barras do meio. <span class="ui">Espaço</span> e <span class="ui">Paleta</span> valem; <span class="ui">Totais</span> não.</li>
   </ul>
 </section>
@@ -1036,7 +1036,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <h3>Por tipo</h3>
   <ul>
     <li><strong>Colunas e barras:</strong> empilhadas com sinais misturados têm o rótulo do total líquido no topo da parte positiva; segmentos muito finos deixam os rótulos sobrepostos.</li>
-    <li><strong>Cascata:</strong> até 6 séries (a 6.ª repete a cor da 1.ª); segmentos finos têm o rótulo encostado nas bordas; um rótulo à esquerda de uma barra perto do mínimo do eixo pode encostar nos nomes das categorias; as setas ligam as pontas das barras e podem passar sobre rótulos do meio.</li>
+    <li><strong>Cascata:</strong> até 6 séries (a 6.ª repete a cor da 1.ª); segmentos finos têm o rótulo encostado nas bordas; nas colunas, um rótulo abaixo de uma barra perto do mínimo do eixo pode encostar nos nomes das categorias; as setas ligam as pontas das barras e podem passar sobre rótulos do meio.</li>
     <li><strong>Combinação:</strong> o rótulo da linha pode ficar sobre o total de uma coluna; a <span class="ui">Linha de valor (média)</span> e o rótulo "Média" podem cobrir o total da última coluna.</li>
     <li><strong>Área:</strong> valores negativos empilham algebricamente e as faixas se sobrepõem.</li>
     <li><strong>Mekko:</strong> sem setas; colunas estreitas e muitas categorias sobrepõem rótulos e nomes; valores negativos não têm tratamento no Mekko (%); nas unidades, texto, vazio, zero ou negativo na largura apagam a coluna; o eixo de valores fica oculto.</li>

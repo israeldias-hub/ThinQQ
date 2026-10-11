@@ -700,18 +700,22 @@ Public Sub Test_BarWaterfall_SegmentGeometry_RuleOfThree()
     CloseTemp wb
 End Sub
 
-' Setas em cascata horizontal: CAGR a direita das pontas (End + 10 pt, ponta na categoria 'to'), diferenca abaixo da ultima
-' barra com a linha de nivel vertical saindo do fim da barra inicial. Posicoes lidas dos pontos nativos das barras.
+' Setas em cascata horizontal: CAGR a direita das pontas (o mesmo afastamento do fim da barra nas duas pontas, depois dos rotulos de ponta:
+' Tarefa 15b), ponta na categoria 'to'; diferenca abaixo da ultima barra com a linha de nivel vertical saindo do fim da barra inicial.
+' Posicoes lidas dos pontos nativos das barras e dos rotulos renderizados.
 Public Sub Test_BarWaterfall_CagrAndDiff_Geometry()
     Dim wb As Workbook, d As clsChartData, cht As Chart, ln As Shape, lbl As Shape, lvl As Shape, bs As Series
-    Dim x1 As Double, x6 As Double, yBottom As Double
+    Dim x1 As Double, x6 As Double, yBottom As Double, tip As DataLabel
     Set wb = NewTempWorkbook(): Set d = SingleFixture(wb)
     Set cht = Waterfall_Insert(d.Source.Worksheet, d, "barwaterfall").Chart
     Set ln = Ann_AddCagr(cht, 1, 6)
     Set bs = Chart_FindSeries(cht, "tqq_base")
-    x1 = XOf(cht, 100) + 10: x6 = XOf(cht, 50) + 10           ' End = 100 e 50 (totais), ponta 10 pt depois do fim da barra
-    AssertAlmost x6, ln.Left, 1.5, "ponta (categoria 6) a 10 pt do fim da barra"
-    AssertAlmost x1 - x6, ln.Width, 1.5, "origem (categoria 1) a 10 pt do fim da barra"
+    ForceLayout cht
+    AssertAlmost XOf(cht, 100) - XOf(cht, 50), ln.Width, 1.5, "origem e ponta com o mesmo afastamento do fim da barra (End 100 e 50)"
+    AssertTrue ln.Left >= XOf(cht, 50) + 10 - 0.5, "ponta (categoria 6) a pelo menos 10 pt do fim da barra"
+    Set tip = Chart_FindSeries(cht, "tqq_lbl").Points(6).DataLabel
+    AssertTrue ln.Left >= tip.Left + tip.Width + 2, "ponta depois do rotulo da ponta da categoria 6 (" & ln.Left & " x " & (tip.Left + tip.Width) & ")"
+    x1 = ln.Left + ln.Width: x6 = ln.Left
     AssertAlmost YCenterOf(cht, 1), ln.Top, 1.5, "a seta parte do centro da faixa 1"
     AssertAlmost YCenterOf(cht, 6), ln.Top + ln.Height, 1.5, "e termina no centro da faixa 6"
     AssertTrue ln.HorizontalFlip = msoTrue And ln.VerticalFlip = msoFalse, "a ponta fica na categoria 6 (x menor, y maior)"
@@ -954,7 +958,7 @@ Public Sub Test_BarWaterfall_CoreToggles_SingleSeries()
     AssertEqual xlSecondary, lbl.AxisGroup
     AssertAlmost XOf(cht, 100), lbl.Points(1).Left, 1.5, "rotulo religado alinhado ao fim da barra"
     AssertAlmost XOf(cht, -50), lbl.Points(2).Left, 1.5
-    AssertEqual xlLabelPositionLeft, lbl.Points(2).DataLabel.Position
+    AssertEqual xlLabelPositionRight, lbl.Points(2).DataLabel.Position, "-150 com o ponto perto do minimo do eixo: do outro lado (Tarefa 15b)"
     Core_SetToggle "connectors", False
     AssertEqual 0, ConnectorCount(cht): AssertEqual "0", Core_GetOption("connectors")
     Core_SetToggle "connectors", True
@@ -963,7 +967,7 @@ Public Sub Test_BarWaterfall_CoreToggles_SingleSeries()
     Core_SetOption "numfmt", "dec1"
     AssertEqual "100" & sep & "0", lbl.Points(1).DataLabel.Text
     AssertEqual "-150" & sep & "0", lbl.Points(2).DataLabel.Text
-    AssertEqual xlLabelPositionLeft, lbl.Points(2).DataLabel.Position
+    AssertEqual xlLabelPositionRight, lbl.Points(2).DataLabel.Position, "rotulo mais largo, mesmo lado (Tarefa 15b)"
     Core_SetOption "palette", "cinza"
     pal = Style_Palette("cinza")
     AssertEqual CLng(pal(1)), Chart_FindSeries(cht, "tqq_uppos").Format.Fill.ForeColor.RGB
@@ -1017,8 +1021,12 @@ Public Sub Test_BarWaterfallMulti_Cagr_StaysLeftOfLegend()
     AssertTrue cht.Legend.Left > cht.ChartArea.Width / 2, "premissa: legenda a direita (esq=" & cht.Legend.Left & ")"
     AssertTrue lbl.Left + lbl.Width <= cht.Legend.Left + 0.5, "rotulo do CAGR antes da legenda (fim=" & (lbl.Left + lbl.Width) & ", legenda=" & cht.Legend.Left & ")"
     AssertTrue ln.Left + ln.Width <= cht.Legend.Left, "seta antes da legenda"
-    AssertAlmost XOf(cht, 150) + 10, ln.Left + ln.Width, 1.5, "origem a 10 pt do End 150"
-    AssertAlmost XOf(cht, 130) + 10, ln.Left, 1.5, "ponta a 10 pt do End 130"
+    AssertAlmost XOf(cht, 150) - XOf(cht, 130), ln.Width, 1.5, "origem (End 150) e ponta (End 130) com o mesmo afastamento"
+    AssertTrue ln.Left >= XOf(cht, 130) + 10 - 0.5, "ponta a pelo menos 10 pt do End 130"
+    ForceLayout cht
+    With Chart_FindSeries(cht, "tqq_lbl").Points(3).DataLabel
+        AssertTrue ln.Left >= .Left + .Width + 2, "ponta depois do rotulo do total 130 (Tarefa 15b): " & ln.Left & " x " & (.Left + .Width)
+    End With
     CloseTemp wb
 End Sub
 
@@ -1123,5 +1131,64 @@ Public Sub Test_Waterfall_BuildDown_WithSubtotalInTheMiddle()
     AssertEqual 0, body.Cells(4, Waterfall_SeriesCol(1, "DN")).Value: AssertEqual 0, body.Cells(4, Waterfall_SeriesCol(2, "UP")).Value, "subtotal sem segmentos"
     AssertEqual 300, body.Cells(5, WF_COL_END).Value
     AssertEqual True, body.Cells(6, 3).Value: AssertEqual 300, body.Cells(6, WF_COL_TOTAL).Value
+    CloseTemp wb
+End Sub
+
+' Tarefa 15b (A4): cascata horizontal. (1) Um rotulo "a esquerda" (barra que desce / total negativo) cujo ponto fica perto do minimo do eixo nao
+' cabe entre o ponto e a borda esquerda da area interna (onde comecam os nomes das categorias): ele passa para o outro lado do ponto (sobre a
+' propria barra, com fundo branco); os que cabem continuam a esquerda. (2) A seta de CAGR corre a direita dos rotulos de ponta (nao os cruza): a
+' folga a direita conta a largura do maior rotulo. (3) A seta de diferenca (abaixo da ultima barra) nao cruza nenhum rotulo. Geometria dos
+' rotulos medida depois de renderizar (ForceLayout), nunca pelas funcoes de producao.
+Public Sub Test_BarWaterfall_LeftLabelNearAxisMin_And_ArrowsClearTipLabels()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, lbl As Series, i As Long, dl As DataLabel, il As Double, ln As Shape, xa As Double, ya As Double
+    Dim y1 As Double, y6 As Double, x1 As Double, x6 As Double
+    Set wb = NewTempWorkbook(): Set ws = SingleFixture(wb).Source.Worksheet
+    ws.Range("A1:B7").Select
+    Core_Insert "barwaterfall"
+    Set cht = Core_ActiveChart()
+    Set lbl = Chart_FindSeries(cht, "tqq_lbl")
+    ForceLayout cht
+    il = cht.PlotArea.InsideLeft
+    For i = 1 To 6
+        Set dl = lbl.Points(i).DataLabel
+        AssertTrue dl.Left >= il - 0.5, "rotulo " & i & " (" & dl.Text & ") nao invade os nomes das categorias: " & dl.Left & " < " & il
+        AssertTrue dl.Left >= 0 And dl.Left + dl.Width <= cht.ChartArea.Width + 0.5, "rotulo " & i & " dentro do grafico"
+    Next
+    AssertEqual xlLabelPositionRight, lbl.Points(2).DataLabel.Position, "-150 (Lo = -50, perto do minimo): do outro lado do ponto"
+    AssertTrue lbl.Points(2).DataLabel.Left >= XOf(cht, -50) - 0.5, "rotulo 2 a direita do Lo"
+    AssertEqual msoTrue, lbl.Points(2).DataLabel.Format.Fill.Visible, "sobre a barra: fundo branco"
+    AssertEqual RGB(255, 255, 255), lbl.Points(2).DataLabel.Format.Fill.ForeColor.RGB
+    AssertEqual xlLabelPositionLeft, lbl.Points(4).DataLabel.Position, "-20 tem espaco: continua a esquerda"
+    AssertTrue lbl.Points(4).DataLabel.Format.Fill.Visible <> msoTrue, "a esquerda: sem fundo"
+    ' dados mudam e o ponto se afasta do minimo: o rotulo volta para a esquerda, sem o fundo
+    ws.Range("B2").Value = 400
+    Core_SafeRefresh cht
+    AssertEqual xlLabelPositionLeft, lbl.Points(2).DataLabel.Position, "com espaco o rotulo volta a esquerda"
+    AssertTrue lbl.Points(2).DataLabel.Format.Fill.Visible <> msoTrue, "e perde o fundo"
+    ws.Range("B2").Value = 100
+    Core_SafeRefresh cht
+    ' (2) CAGR 1 -> 6: a seta (das pontas, End 100 e 50) passa a direita do rotulo da ponta das categorias 1 e 6
+    Core_AddAnnotation "cagr", 1, 6
+    ForceLayout cht
+    Set ln = cht.Shapes("tqq_ann_cagr_1")
+    y1 = YCenterOf(cht, 1): y6 = YCenterOf(cht, 6)
+    If ln.HorizontalFlip = msoTrue Then x1 = ln.Left + ln.Width: x6 = ln.Left Else x1 = ln.Left: x6 = ln.Left + ln.Width
+    Set dl = lbl.Points(1).DataLabel
+    AssertTrue x1 >= dl.Left + dl.Width + 2, "origem da seta (" & x1 & ") depois do rotulo da categoria 1 (termina em " & (dl.Left + dl.Width) & ")"
+    Set dl = lbl.Points(6).DataLabel
+    AssertTrue x6 >= dl.Left + dl.Width + 2, "ponta da seta (" & x6 & ") depois do rotulo da categoria 6 (termina em " & (dl.Left + dl.Width) & ")"
+    AssertTrue cht.Shapes("tqq_ann_cagr_1_lbl").Left + cht.Shapes("tqq_ann_cagr_1_lbl").Width <= cht.ChartArea.Width + 0.5, "rotulo do CAGR dentro do grafico"
+    ' (3) diferenca 1 -> 6: a seta horizontal abaixo da ultima barra nao atravessa nenhum rotulo de ponta
+    Core_AddAnnotation "diff", 1, 6
+    ForceLayout cht
+    Set ln = cht.Shapes("tqq_ann_diff_1")
+    ya = ln.Top
+    For i = 1 To 6
+        Set dl = lbl.Points(i).DataLabel
+        If Len(dl.Text) > 0 Then
+            AssertFalse (ya > dl.Top And ya < dl.Top + dl.Height And ln.Left < dl.Left + dl.Width And ln.Left + ln.Width > dl.Left), "seta de diferenca cruza o rotulo " & i
+        End If
+    Next
+    Watchers_Stop
     CloseTemp wb
 End Sub

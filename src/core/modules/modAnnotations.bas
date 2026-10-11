@@ -208,9 +208,14 @@ End Sub
 ' total fica ~6 pt depois do fim da barra e ocupa a sua LARGURA (4 dígitos: ~27 pt; 7 dígitos: ~43 pt), e a ponta da
 ' seta fica a 10 + extra do fim da barra; para sobrar 4 pt de respiro depois do rótulo: 6 + largura + 4 = 10 + extra,
 ' ou seja, extra = max(18, largura estimada do maior rótulo de total: Labels_MaxTotalWidth). Com 2 e 3 dígitos vale o
-' mínimo de 18.
+' mínimo de 18. Cascata horizontal (sem totais; os rótulos de ponta tqq_lbl ficam à direita do fim das barras): com os
+' rótulos ligados, extra = largura estimada do maior rótulo de ponta (a seta passa depois deles, não por cima).
 Private Function Ann_TotalsExtra(cht As Chart) As Double
     Dim w As Double, ex As Double
+    If Kinds_Family(Registry_ChartType(cht)) = "waterfall" Then
+        If Geom_ChartIsHorizontal(cht) And Registry_GetOption(cht, "labels", "1") = "1" Then Ann_TotalsExtra = Labels_MaxLabelWidth(cht, "tqq_lbl")
+        Exit Function
+    End If
     If Registry_GetOption(cht, "totals", "0") <> "1" Then Exit Function
     ex = ANN_TOTALS_EXTRA
     If Geom_ChartIsHorizontal(cht) Then

@@ -37,6 +37,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - Escala automática só desfaz a escala fixa de Mesma escala: um eixo ou uma área de plotagem ajustados à mão ficam como estão, e um mínimo fixado à mão no eixo secundário da combinação não é mais trocado por zero.
 - Pizza: trocar a Paleta não devolve mais à posição padrão um rótulo arrastado nem recria um rótulo apagado (só a cor da fonte acompanha as fatias).
 - Gantt: muitos colchetes não esmagam mais a área do gráfico: o espaço deles vai até 40% da altura do gráfico e os colchetes ficam empilhados dentro desse limite.
+- Cascata (barras): um rótulo à esquerda perto do mínimo do eixo não invade mais os nomes das categorias (passa para dentro da barra, com fundo branco), e a seta CAGR passa à direita dos rótulos das pontas em vez de cruzá-los.
 - Faixa de opções: os itens da lista Espaço usavam ids que começavam por dígito, o que o Excel não aceita no `customUI14` (ele descarta a aba inteira, sem aviso); agora são `gap30` a `gap120`. Só afetava compilações internas anteriores a esta versão.
 
 ### Segurança
