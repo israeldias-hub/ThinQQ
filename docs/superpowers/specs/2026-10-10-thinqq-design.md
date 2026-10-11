@@ -81,8 +81,8 @@ Mekko, rótulos e eixos), página de produto, e material de terceiros para técn
 
 | Item | Valor |
 |---|---|
-| Excel | 16.0.19127 **x86 (32-bit)**, SKU ProPlus2019Retail |
-| Windows | 11 Pro 10.0.26200 |
+| Excel | Excel 2019 **32 bits (x86)** |
+| Windows | Windows 11 |
 | PowerShell | 7.6.6 (pwsh) e 5.1 (powershell) |
 | Git | presente |
 | Node.js | presente (usado só para servir fixtures de teste HTTP) |
