@@ -98,3 +98,47 @@ Public Function Util_Sha256File(path As String) As String
 Fail:
     Util_Sha256File = ""
 End Function
+
+' Quantidade de células da referência de categorias (2o argumento de SERIES) da série, lida na fórmula da série:
+' reflete linhas inseridas/removidas na origem mesmo quando Series.XValues não mostra a diferença.
+' Retorna -1 se o argumento não for uma referência simples a uma planilha da pasta wb.
+Public Function Util_SeriesCategoryRefCount(s As Series, wb As Workbook) As Long
+    Dim f As String, i As Long, ch As String, inQ As Boolean, inS As Boolean, depth As Long
+    Dim argN As Long, startPos As Long, arg As String, bang As Long, sh As String
+    On Error GoTo Fail
+    Util_SeriesCategoryRefCount = -1
+    f = s.Formula
+    argN = 1
+    startPos = InStr(f, "(") + 1
+    If startPos < 2 Then Exit Function
+    For i = startPos To Len(f)
+        ch = Mid$(f, i, 1)
+        If ch = """" And Not inS Then
+            inQ = Not inQ
+        ElseIf ch = "'" And Not inQ Then
+            inS = Not inS
+        ElseIf Not inQ And Not inS Then
+            If ch = "(" Or ch = "{" Then
+                depth = depth + 1
+            ElseIf ch = "}" Then
+                depth = depth - 1
+            ElseIf ch = ")" And depth > 0 Then
+                depth = depth - 1
+            ElseIf (ch = "," And depth = 0) Or (ch = ")" And depth = 0) Then
+                If argN = 2 Then arg = Mid$(f, startPos, i - startPos): Exit For
+                argN = argN + 1
+                startPos = i + 1
+            End If
+        End If
+    Next
+    If Len(arg) = 0 Then Exit Function
+    bang = InStrRev(arg, "!")
+    If bang < 2 Then Exit Function
+    sh = Left$(arg, bang - 1)
+    If InStr(sh, "[") > 0 Then Exit Function
+    If Left$(sh, 1) = "'" And Right$(sh, 1) = "'" Then sh = Replace(Mid$(sh, 2, Len(sh) - 2), "''", "'")
+    Util_SeriesCategoryRefCount = wb.Worksheets(sh).Range(Mid$(arg, bang + 1)).Cells.Count
+    Exit Function
+Fail:
+    Util_SeriesCategoryRefCount = -1
+End Function

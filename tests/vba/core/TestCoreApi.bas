@@ -733,3 +733,69 @@ Public Sub Test_Core_Cleanup_DeletedChart_StillRemovedWhenOtherChartsExist()
     AssertTrue SeriesSum(Chart_FindSeries(ws.ChartObjects(1).Chart, "tqq_uppos")) > 0
     Teardown wb
 End Sub
+
+' ---- I2: a nova fonte tem de estar na mesma pasta de trabalho do grafico ----
+
+Public Sub Test_Core_RebuildFromRange_RangeFromOtherWorkbook_Rejected()
+    Dim wb As Workbook, wb2 As Workbook, ws As Worksheet, ws2 As Worksheet, cht As Chart, nm As String
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    Set wb2 = NewTempWorkbook()
+    Set ws2 = wb2.Worksheets(1): ws2.Name = "Dados"          ' mesmo nome de planilha da pasta do grafico
+    ws2.Range("A1:B1").Value = Array("Ano", "Outro")
+    ws2.Range("A2:B2").Value = Array(2022, 999)
+    ws2.Range("A3:B3").Value = Array(2023, 888)
+    wb.Activate
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    nm = ws.ChartObjects(1).Name
+    Core_ClearLastNotice
+    AssertFalse Core_RebuildFromRange(cht, ws2.Range("A1:B3")), "intervalo de outra pasta deve ser recusado"
+    AssertEqual "Selecione uma tabela na mesma pasta de trabalho do gráfico.", Core_LastNotice()
+    AssertEqual 1, ws.ChartObjects.Count
+    AssertEqual nm, ws.ChartObjects(1).Name, "o grafico original continua intacto"
+    AssertEqual 1, TqqNameCount(wb)
+    AssertEqual 0, TqqNameCount(wb2), "nada criado na outra pasta"
+    wb2.Close SaveChanges:=False
+    Teardown wb
+End Sub
+
+' ---- I3: linhas inseridas/removidas na origem dessincronizam o bloco: detectar e avisar uma unica vez ----
+
+Private Sub CheckMismatch(kind As String)
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, msg As String
+    msg = "A tabela de origem mudou de tamanho. Use 'Alterar dados' para reconstruir o gráfico (ou reinsira o gráfico)."
+    Core_OnUnload
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert kind
+    Set cht = Core_ActiveChart()
+    AssertFalse Core_ChartSourceMismatch(cht), kind & ": sem mudanca nao ha divergencia"
+    Core_ClearLastNotice
+    Core_SafeRefresh cht
+    AssertEqual 0, Core_NoticeCount(), kind & ": sem aviso quando em sincronia"
+    ws.Rows(3).Insert                           ' (com observadores ativos o evento de calculo ja pode avisar aqui)
+    ws.Range("A3:C3").Value = Array(2022.5, 105, 55)
+    AssertTrue Core_ChartSourceMismatch(cht), kind & ": linha inserida deve ser detectada"
+    Core_SafeRefresh cht
+    AssertEqual msg, Core_LastNotice(), kind & ": aviso apos a mudanca"
+    Core_SafeRefresh cht
+    Core_Refresh
+    AssertEqual 1, Core_NoticeCount(), kind & ": avisa exatamente uma vez"
+    Core_OnUnload                               ' nova sessao: avisa de novo
+    Core_ClearLastNotice
+    Core_SafeRefresh cht
+    AssertEqual 1, Core_NoticeCount(), kind & ": reiniciado em Core_OnUnload"
+    ws.Rows(3).Delete
+    ws.Rows(3).Delete                           ' remove outra linha: agora a origem tem menos linhas que o bloco
+    AssertTrue Core_ChartSourceMismatch(cht), kind & ": linha removida tambem diverge"
+    Teardown wb
+End Sub
+
+Public Sub Test_Core_SourceMismatch_Waterfall_RowInserted_NoticedOnce()
+    CheckMismatch "waterfall"
+End Sub
+
+Public Sub Test_Core_SourceMismatch_Stacked_RowInserted_NoticedOnce()
+    CheckMismatch "stacked"
+End Sub

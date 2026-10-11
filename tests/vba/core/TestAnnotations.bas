@@ -365,3 +365,21 @@ Public Sub Test_Ann_Cagr_ClearsTotalLabels_WhenTotalsOn()
     AssertTrue ln.Top >= 0, "linha dentro do grafico"
     CloseTemp wb
 End Sub
+' I1: categorias de data com intervalos irregulares: eixo de texto (uma fatia por categoria), nunca eixo de tempo.
+Public Sub Test_Stacked_DateCategories_UseTextAxis_AndGeometryMatches()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, ln As Shape, expectEnd As Double
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Datas"
+    ws.Range("A1:B1").Value = Array("Data", "Valor")
+    ws.Range("A2").Value = DateSerial(2022, 1, 1): ws.Range("B2").Value = 100
+    ws.Range("A3").Value = DateSerial(2023, 1, 1): ws.Range("B3").Value = 120
+    ws.Range("A4").Value = DateSerial(2025, 1, 1): ws.Range("B4").Value = 200
+    ws.Range("A2:A4").NumberFormat = "dd/mm/yyyy"
+    Set d = ChartData_FromRange(ws.Range("A1:B4"))
+    Set cht = Stacked_Insert(ws, d, "stacked").Chart
+    AssertEqual xlCategoryScale, cht.Axes(xlCategory).CategoryType, "eixo de datas deve virar eixo de texto"
+    Set ln = Ann_AddCagr(cht, 1, 3)
+    ' regra de geometria independente: centro da 3a fatia de 3 = insideLeft + 2,5 * insideWidth / 3
+    expectEnd = cht.PlotArea.InsideLeft + 2.5 * cht.PlotArea.InsideWidth / 3
+    AssertAlmost expectEnd, ln.Left + ln.Width, 0.5, "fim da seta no centro da ultima categoria"
+    CloseTemp wb
+End Sub

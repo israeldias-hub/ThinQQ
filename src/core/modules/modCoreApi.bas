@@ -3,6 +3,23 @@ Option Explicit
 ' API pública chamada pelo loader via Application.Run. Nunca propaga erro.
 Private mLoaderPath As String
 Private mApplyBusy As Boolean      ' guarda de reentrada de Core_ApplyPendingLoader
+Private mLastNotice As String      ' última mensagem de Core_Notify (usada pelos testes)
+Private mNoticeCount As Long        ' chamadas a Core_Notify desde Core_ClearLastNotice (testes)
+Private mMismatchSeen As Collection ' ids de gráficos já avisados de tabela de origem com outro tamanho
+
+' Última mensagem enviada ao usuário por Core_Notify ("" se nenhuma). Gancho de teste (inofensivo em Release).
+Public Function Core_LastNotice() As String
+    Core_LastNotice = mLastNotice
+End Function
+
+Public Function Core_NoticeCount() As Long
+    Core_NoticeCount = mNoticeCount
+End Function
+
+Public Sub Core_ClearLastNotice()
+    mLastNotice = ""
+    mNoticeCount = 0
+End Sub
 
 Public Function Core_Ping() As String
     Core_Ping = "pong"
@@ -24,6 +41,7 @@ End Sub
 Public Sub Core_OnUnload()
     On Error Resume Next
     Watchers_Stop
+    Set mMismatchSeen = Nothing
 End Sub
 
 Public Sub Core_RegisterLoader(loaderName As String, loaderFullPath As String)
@@ -36,6 +54,8 @@ End Sub
 ' logIt=False quando o chamador já registrou a mensagem (Errors_Handle).
 Public Sub Core_Notify(msg As String, Optional style As VbMsgBoxStyle = vbInformation, Optional logIt As Boolean = True)
     On Error Resume Next
+    mLastNotice = msg
+    mNoticeCount = mNoticeCount + 1
     If logIt Then Errors_Log "notify" & vbTab & Replace(msg, vbLf, " | ")
     If BUILD_CONFIG = "Test" Then Exit Sub
     MsgBox msg, style, APP_NAME
@@ -244,10 +264,45 @@ Fail:
     Errors_Handle "Core_RemoveAnnotations"
 End Sub
 
+' True quando o bloco do gráfico (uma linha de fórmula por categoria) não tem o mesmo número de categorias
+' que o gráfico mostra agora: linhas inseridas/removidas na tabela de origem ajustam as referências diretas
+' das séries (e as categorias), mas não o bloco. Nunca propaga erro (False em dúvida).
+Public Function Core_ChartSourceMismatch(cht As Chart) As Boolean
+    Dim blk As Range, v As Variant, k As Long
+    On Error GoTo Fail
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Function
+    If cht.SeriesCollection.Count = 0 Then Exit Function
+    k = Util_SeriesCategoryRefCount(cht.SeriesCollection(1), Registry_Workbook(cht))
+    If k < 0 Then
+        v = cht.SeriesCollection(1).XValues
+        If IsArray(v) Then k = UBound(v) - LBound(v) + 1 Else k = 1
+    End If
+    Core_ChartSourceMismatch = (k <> blk.Rows.Count - 2)     ' bloco: meta + cabeçalho + 1 linha por categoria
+    Exit Function
+Fail:
+    Core_ChartSourceMismatch = False
+End Function
+
+' Avisa uma única vez por gráfico e por sessão (reiniciado em Core_OnUnload).
+Private Sub NotifySourceMismatchOnce(cht As Chart)
+    Dim id As String
+    On Error Resume Next
+    id = Registry_IdFromChart(cht)
+    If Len(id) = 0 Then Exit Sub
+    If Not Core_ChartSourceMismatch(cht) Then Exit Sub
+    If mMismatchSeen Is Nothing Then Set mMismatchSeen = New Collection
+    Err.Clear
+    mMismatchSeen.Add id, id
+    If Err.Number <> 0 Then Err.Clear: Exit Sub       ' chave repetida: já avisado
+    Core_Notify "A tabela de origem mudou de tamanho. Use 'Alterar dados' para reconstruir o gráfico (ou reinsira o gráfico).", vbExclamation
+End Sub
+
 ' Reposiciona rótulos e anotações. Chamado por eventos: nunca propaga erro (apenas registra).
 ' Gráficos de planilhas inativas são atualizados quando a planilha é ativada (Watchers_Rehook).
 Public Sub Core_SafeRefresh(cht As Chart)
     On Error Resume Next
+    NotifySourceMismatchOnce cht
     Labels_RefreshPositions cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Labels" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Ann_Refresh cht
@@ -306,11 +361,16 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     Dim kind As String, opts As String, ws As Worksheet, wb As Workbook, nc As Chart, prevSU As Boolean
     Dim l As Double, t As Double, w As Double, h As Double
     prevSU = Application.ScreenUpdating
+    Set oldCo = c.Parent
+    Set ws = oldCo.Parent: Set wb = ws.Parent
+    ' O endereço externo das fórmulas não leva o nome da pasta de trabalho: só vale para a pasta do gráfico.
+    If Not rng.Worksheet.Parent Is wb Then
+        Core_Notify "Selecione uma tabela na mesma pasta de trabalho do gráfico.", vbExclamation
+        Exit Function
+    End If
     Set data = ChartData_FromRange(rng)
     msg = data.Validate()
     If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Function
-    Set oldCo = c.Parent
-    Set ws = oldCo.Parent: Set wb = ws.Parent
     If ws.ProtectContents Then
         Core_Notify "A planilha está protegida. Desproteja a planilha para trocar a fonte de dados.", vbExclamation
         Exit Function

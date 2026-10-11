@@ -52,6 +52,11 @@ Public Sub Style_ApplyBase(cht As Chart)
             .TickLabelPosition = xlTickLabelPositionNone
             .Format.Line.Visible = msoFalse
         End With
+        ' Categorias de data: o Excel escolheria eixo de tempo (posições proporcionais às datas); a geometria das
+        ' anotações assume uma fatia por categoria, então força eixo de texto.
+        On Error Resume Next
+        .Axes(xlCategory).CategoryType = xlCategoryScale
+        On Error GoTo 0
         With .Axes(xlCategory)
             .MajorTickMark = xlTickMarkNone
             .MinorTickMark = xlTickMarkNone
