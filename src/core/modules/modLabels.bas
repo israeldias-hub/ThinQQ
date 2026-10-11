@@ -33,6 +33,46 @@ Public Sub Labels_LinkPoints(s As Series, valueCells As Range, numFmt As String,
     Next
 End Sub
 
+' Largura estimada (pt) de um rótulo de dados de 9 pt em negrito com o texto dado: 6 pt de margem interna do rótulo +
+' dígitos (5,0 cada) + separadores e espaço (2,6) + sinais e parênteses (3,2) + demais caracteres (6,0). Medido no Excel
+' (Calibri 9 negrito): dígito 4,56, separador 2,4, margem 6,0 ("1.500" = 26,6 pt; "1.234.567" = 42,7 pt); as constantes
+' superestimam um pouco de propósito (outras fontes de tema são mais largas). É uma ESTIMATIVA e não DataLabel.Width porque
+' ler a geometria de um rótulo fixa a posição lida até o próximo desenho do gráfico (o Excel invisível dos testes nunca
+' redesenha): leitura feita na criação deixaria Left/Top defasados depois de mudar dados ou tamanho.
+Public Function Labels_EstimateWidth(txt As String) As Double
+    Dim i As Long, ch As String, w As Double
+    w = 6
+    For i = 1 To Len(txt)
+        ch = Mid$(txt, i, 1)
+        Select Case ch
+            Case "0" To "9": w = w + 5
+            Case ".", ",", " ", ChrW(160): w = w + 2.6
+            Case "-", "+", "(", ")": w = w + 3.2
+            Case Else: w = w + 6
+        End Select
+    Next
+    Labels_EstimateWidth = w
+End Function
+
+' Maior largura estimada entre os rótulos da série auxiliar de totais (0 sem a série ou sem rótulo legível).
+' Lê só o TEXTO de cada rótulo (não a geometria).
+Public Function Labels_MaxTotalWidth(cht As Chart) As Double
+    Dim s As Series, i As Long, w As Double, best As Double, t As String
+    Set s = Chart_FindSeries(cht, "tqq_total")
+    If s Is Nothing Then Exit Function
+    On Error Resume Next
+    For i = 1 To s.Points.Count
+        t = vbNullString
+        t = s.Points(i).DataLabel.Text
+        If Len(t) > 0 Then
+            w = Labels_EstimateWidth(t)
+            If w > best Then best = w
+        End If
+    Next
+    On Error GoTo 0
+    Labels_MaxTotalWidth = best
+End Function
+
 ' Formato (código neutro de Style_NumberFormat) dos rótulos de segmento. Em 100% os segmentos mostram a
 ' PARTICIPAÇÃO (valor / total da linha): pct0 sempre, pct1 só quando o usuário escolhe pct1. Nos demais, numfmt.
 Public Function Labels_SegmentFormat(cht As Chart) As String
@@ -91,10 +131,19 @@ Done:
     If en <> 0 Then Errors_Log "Labels_RefreshPositions" & vbTab & en & vbTab & ed
 End Sub
 
+' Número de colunas de participação (cabeçalho "Part1", "Part2", ...) seguidas a partir da coluna 4 do corpo do bloco.
+Private Function PartColumnCount(body As Range) As Long
+    Dim j As Long
+    For j = 4 To body.Columns.Count
+        If Left$(CStr(body.Cells(1, j).Value), 4) <> "Part" Then Exit For
+        PartColumnCount = PartColumnCount + 1
+    Next
+End Function
+
 ' Rótulos ligados a células (Formula = célula da planilha _ThinQQ) exibem o TEXTO da célula, então o formato
 ' numérico precisa estar também na célula (gravado por NumberFormatLocal, como nos rótulos: o texto exibido segue os separadores do Excel).
 Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
-    Dim blk As Range, body As Range, col As Long, n As Long, kind As String
+    Dim blk As Range, body As Range, col As Long, n As Long, kind As String, nPart As Long
     On Error GoTo Fail
     Set blk = Registry_Block(cht)
     If blk Is Nothing Then Exit Sub
@@ -104,9 +153,12 @@ Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
     If n < 1 Then Exit Sub
     If Kinds_Family(kind) = "waterfall" Then col = WF_COL_LABELVAL Else col = 2
     body.Cells(2, col).Resize(n, 1).NumberFormatLocal = Style_LocalizeCode(fmt)
-    ' 100%: colunas de participação (4..) seguem o formato dos segmentos, não o dos totais
-    If Kinds_Family(kind) = "stacked" And Kinds_Is100(kind) And body.Columns.Count > 3 Then
-        body.Cells(2, 4).Resize(n, body.Columns.Count - 3).NumberFormatLocal = Style_LocalizeCode(Labels_SegmentFormat(cht))
+    ' 100%: as colunas de participação Part_j (a partir da 4) seguem o formato dos segmentos, não o dos totais. Depois
+    ' delas vêm Pos e VLine (que não são rótulos): em blocos com Pos/VLine são Columns.Count - 5 colunas; os cabeçalhos
+    ' "Part" decidem, o que também serve a blocos da Fase 1 (sem Pos/VLine).
+    If Kinds_Family(kind) = "stacked" And Kinds_Is100(kind) Then
+        nPart = PartColumnCount(body)
+        If nPart > 0 Then body.Cells(2, 4).Resize(n, nPart).NumberFormatLocal = Style_LocalizeCode(Labels_SegmentFormat(cht))
     End If
     Exit Sub
 Fail:

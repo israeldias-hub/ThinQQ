@@ -274,7 +274,7 @@ Public Sub Test_Core_Insert_UnknownKind_NoChart()
     Dim wb As Workbook, ws As Worksheet
     Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
     ws.Range("A1:C5").Select
-    Core_Insert "pizza"
+    Core_Insert "xyz"
     AssertEqual 0, ws.ChartObjects.Count
     Teardown wb
 End Sub
@@ -995,23 +995,82 @@ Public Sub Test_Errors_Log_TestBuildWritesToTempFolder()
     AssertTrue InStr(txt, marker) > 0, "a linha foi para o log de teste"
 End Sub
 
-' Temporario (as Tarefas 3 e 5 removem os tipos que passarem a existir): barras e cascata horizontal ainda nao tem Insert;
+' Temporario (a Tarefa 5 remove o teste ao implementar a cascata horizontal): barwaterfall ainda nao tem Insert;
 ' Kinds_Insert recusa com o aviso 7200 em vez de criar colunas gravadas como barras.
-Public Sub Test_Core_Insert_HorizontalKindsNotReady_NoMislabeledColumnChart()
+Public Sub Test_Core_Insert_BarWaterfallNotReady_NoMislabeledColumnChart()
+    Dim wb As Workbook, ws As Worksheet
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_ClearLastNotice
+    Core_Insert "barwaterfall"
+    AssertEqual 0, ws.ChartObjects.Count, "nenhum grafico criado"
+    AssertEqual 0, TqqNameCount(wb), "nenhum bloco criado"
+    AssertTrue InStr(Core_LastNotice(), "ainda não está disponível") > 0, Core_LastNotice()
+    Teardown wb
+End Sub
+
+' Permanente: tipo que nao existe e recusado com o aviso de tipo desconhecido (nada e criado), inclusive uma lista de
+' tipos separada por virgula (a matriz nao aceita uma lista como se fosse um tipo).
+Public Sub Test_Core_Insert_UnknownKind_NotifiesAndCreatesNothing()
     Dim wb As Workbook, ws As Worksheet, kind As Variant
     Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
     ws.Range("A1:C5").Select
-    For Each kind In Array("barstacked", "barclustered", "barstacked100", "barwaterfall")
+    For Each kind In Array("xyz", "stacked,clustered", "barstacked,")
         Core_ClearLastNotice
         Core_Insert CStr(kind)
         AssertEqual 0, ws.ChartObjects.Count, kind & ": nenhum grafico criado"
         AssertEqual 0, TqqNameCount(wb), kind & ": nenhum bloco criado"
-        AssertTrue InStr(Core_LastNotice(), "ainda não está disponível") > 0, kind & ": " & Core_LastNotice()
+        AssertTrue InStr(Core_LastNotice(), "Tipo de gráfico desconhecido: " & kind) > 0, kind & ": " & Core_LastNotice()
     Next
-    Core_ClearLastNotice
-    Core_Insert "pizza"
-    AssertTrue InStr(Core_LastNotice(), "Tipo de gráfico desconhecido: pizza") > 0, "tipo invalido continua recusado: " & Core_LastNotice()
     Teardown wb
+End Sub
+
+' Barras pela API: tipo, totais (liga/desliga/religa), formato e espacamento valem para o grafico horizontal.
+Public Sub Test_Core_Insert_Bars_ThroughApi()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "barstacked"
+    Set cht = Core_ActiveChart()
+    AssertEqual "barstacked", Registry_ChartType(cht)
+    AssertTrue Core_GetToggle("totals")
+    Core_SetToggle "totals", False
+    AssertTrue Chart_FindSeries(cht, "tqq_total") Is Nothing
+    Core_SetToggle "totals", True
+    AssertTrue Not Chart_FindSeries(cht, "tqq_total") Is Nothing
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "totais religados continuam fora da legenda"
+    Core_SetOption "numfmt", "dec1"
+    AssertEqual "150" & Application.International(xlDecimalSeparator) & "0", Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Text
+    Core_SetOption "gap", "120"
+    AssertEqual 120, cht.ChartGroups(1).GapWidth
+    Teardown wb
+End Sub
+
+' Barras agrupadas e 100% pela API e reconstruidas por Core_RebuildFromRange: mesmo tipo, totais XY e opcoes.
+Public Sub Test_Core_RebuildFromRange_Bars_KeepsKindAndTotalsXY()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, nc As Chart, kind As Variant
+    For Each kind In Array("barstacked", "barstacked100", "barclustered")
+        Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+        ws.Range("E1:G1").Value = Array("Ano", "Sul", "Norte")
+        ws.Range("E2:G2").Value = Array(2022, 10, 5): ws.Range("E3:G3").Value = Array(2023, 20, 6)
+        ws.Range("A1:C5").Select
+        Core_Insert CStr(kind)
+        Set cht = Core_ActiveChart()
+        Core_SetOption "numfmt", "dec1"
+        AssertTrue Core_RebuildFromRange(cht, ws.Range("E1:G3")), kind & ": reconstruiu"
+        Set nc = Core_ActiveChart()
+        AssertEqual CStr(kind), Registry_ChartType(nc)
+        AssertEqual "2", Registry_GetOption(nc, "n")
+        AssertFalse Core_ChartSourceMismatch(nc), kind & ": n acompanha a nova tabela"
+        If kind = "barclustered" Then
+            AssertTrue Chart_FindSeries(nc, "tqq_total") Is Nothing
+        Else
+            AssertTrue Not Chart_FindSeries(nc, "tqq_total") Is Nothing, kind & ": totais refeitos"
+            AssertEqual xlSecondary, Chart_FindSeries(nc, "tqq_total").AxisGroup
+            AssertEqual 2, nc.Legend.LegendEntries.Count, kind & ": legenda sem a auxiliar"
+        End If
+        Teardown wb
+    Next
 End Sub
 
 ' A opcao n (numero de categorias) vale para a cascata tambem; sem ela (grafico de versao antiga) a divergencia

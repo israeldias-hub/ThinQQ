@@ -4,13 +4,17 @@ Option Explicit
 ' A matriz e dado, nao logica: listas separadas por virgula consultadas com InStr (como WF_MARKERS).
 Private Const KINDS As String = ",stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,gantt,pie,doughnut,"
 
+' Os nomes sao procurados dentro de listas separadas por virgula: um nome com virgula ("stacked,clustered") casaria
+' com dois tipos vizinhos da lista e seria aceito como se fosse um tipo. Por isso uma virgula recusa o nome.
 Private Function InList(list As String, kind As String) As Boolean
     If Len(kind) = 0 Then Exit Function
+    If InStr(kind, ",") > 0 Then Exit Function
     InList = InStr("," & list & ",", "," & kind & ",") > 0
 End Function
 
 Public Function Kinds_IsValid(kind As String) As Boolean
     If Len(kind) = 0 Then Exit Function
+    If InStr(kind, ",") > 0 Then Exit Function
     Kinds_IsValid = InStr(KINDS, "," & kind & ",") > 0
 End Function
 
@@ -81,11 +85,6 @@ End Function
 Public Function Kinds_Insert(ws As Worksheet, data As clsChartData, kind As String) As ChartObject
     Select Case Kinds_Family(kind)
         Case "stacked"
-            ' Barras horizontais so existem a partir da Tarefa 3 (esta guarda sai la): sem ela o Stacked_Insert
-            ' criaria colunas com o tipo gravado como "barstacked".
-            If Kinds_IsHorizontal(kind) Then
-                Err.Raise vbObjectError + 7200, "Kinds_Insert", "Este tipo de gráfico ainda não está disponível nesta versão: " & kind
-            End If
             Set Kinds_Insert = Stacked_Insert(ws, data, kind)
         Case "waterfall"
             If kind <> "waterfall" Then

@@ -145,11 +145,11 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
     kind = Registry_ChartType(c)
     Select Case key
         Case "totals"
-            If kind <> "waterfall" Then Stacked_SetTotals c, value
+            If Kinds_Family(kind) <> "waterfall" Then Stacked_SetTotals c, value
         Case "labels"
-            If kind = "waterfall" Then Waterfall_SetLabels c, value Else Stacked_SetLabels c, value
+            If Kinds_Family(kind) = "waterfall" Then Waterfall_SetLabels c, value Else Stacked_SetLabels c, value
         Case "connectors"
-            If kind = "waterfall" Then Ann_SetWaterfallConnectors c, value Else Stacked_SetConnectors c, value
+            If Kinds_Family(kind) = "waterfall" Then Ann_SetWaterfallConnectors c, value Else Stacked_SetConnectors c, value
     End Select
 End Sub
 
@@ -187,7 +187,7 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
         Case "numfmt"
             Style_ApplyNumberFormat c, Style_NumberFormat(value)
         Case "palette"
-            If Registry_ChartType(c) = "waterfall" Then Waterfall_ApplyColors c, value Else Style_ApplySeriesColors c, value
+            If Kinds_Family(Registry_ChartType(c)) = "waterfall" Then Waterfall_ApplyColors c, value Else Style_ApplySeriesColors c, value
         Case "gap"
             c.ChartGroups(1).GapWidth = CLng(Val(value))
     End Select
@@ -331,6 +331,9 @@ Public Sub Core_SafeRefresh(cht As Chart)
     NotifySourceMismatchOnce cht
     Labels_RefreshPositions cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Labels" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    ' barras: a auxiliar XY usa o eixo X secundario (se o Excel o criou); mantem-no alinhado ao eixo de valores primario
+    If Kinds_IsHorizontal(Registry_ChartType(cht)) Then Chart_SyncSecondaryX cht
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/SyncX" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Ann_Refresh cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Ann" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
 End Sub

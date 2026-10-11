@@ -233,6 +233,46 @@ End Sub
 ' (ChartGroups, inclusive os do eixo secundario) e das series dentro de cada grupo, com a inversao descrita em
 ' LegendGroupReversed.
 Public Sub Chart_HideHelperLegendEntries(cht As Chart)
+    Dim lp As Long, lft As Double, tp As Double, wd As Double, ht As Double, en As Long, es As String, ed As String
+    If Not cht.HasLegend Then Exit Sub
+    lp = cht.Legend.Position
+    If lp = xlLegendPositionRight Or lp = xlLegendPositionLeft Or lp = xlLegendPositionTop Or lp = xlLegendPositionBottom Then
+        HideHelperEntries cht
+        Exit Sub
+    End If
+    ' Canto (xlLegendPositionCorner) ou posicao livre (legenda arrastada; Position = xlLegendPositionCustom): a posicao
+    ' nao diz se a lista esta na vertical (pilhas em colunas/areas listam invertidas) ou na horizontal (medido: a legenda
+    ' arrastada a partir da direita/esquerda e o canto listam como a direita; a arrastada de cima/baixo, como embaixo). Para o
+    ' mapeamento ser deterministico a legenda vai para a direita so durante o trabalho e volta ao lugar (canto: Position;
+    ' livre: Left/Top/Width/Height). Nada a fazer (e a legenda nao se mexe) se as entradas auxiliares ja foram removidas.
+    If Not HelperEntriesPending(cht) Then Exit Sub
+    lft = cht.Legend.Left: tp = cht.Legend.Top: wd = cht.Legend.Width: ht = cht.Legend.Height
+    cht.Legend.Position = xlLegendPositionRight
+    On Error Resume Next
+    HideHelperEntries cht
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Err.Clear
+    If lp = xlLegendPositionCorner Then
+        cht.Legend.Position = xlLegendPositionCorner
+    Else
+        cht.Legend.Left = lft: cht.Legend.Top = tp: cht.Legend.Width = wd: cht.Legend.Height = ht
+    End If
+    Err.Clear
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, es, ed
+End Sub
+
+' True quando ha entradas de serie auxiliar (tqq_*) ainda na legenda.
+Private Function HelperEntriesPending(cht As Chart) As Boolean
+    Dim s As Series, h As Long
+    For Each s In cht.SeriesCollection
+        If Style_IsHelperSeries(s) Then h = h + 1
+    Next
+    If h = 0 Then Exit Function
+    HelperEntriesPending = (cht.Legend.LegendEntries.Count <> cht.SeriesCollection.Count - h)
+End Function
+
+Private Sub HideHelperEntries(cht As Chart)
     Dim g As ChartGroup, s As Series, k As Long, m As Long, h As Long, total As Long, cnt As Long
     Dim idx As Long, nIdx As Long, i As Long, j As Long, t As Long, pos As Long, fsz As Double, hidden() As Long, rev As Boolean
     If Not cht.HasLegend Then Exit Sub

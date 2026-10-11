@@ -4,7 +4,7 @@ Option Explicit
 Private mRefreshing As Boolean
 Private mLastError As String
 Private Const ANN_ARROW_GAP As Double = 10      ' do fim da barra/topo da coluna ate a ponta da seta de CAGR
-Private Const ANN_TOTALS_EXTRA As Double = 18   ' afastamento extra da seta de CAGR com os totais ligados (o rotulo do total ocupa o fim da barra)
+Private Const ANN_TOTALS_EXTRA As Double = 18   ' afastamento extra (minimo) da seta de CAGR com os totais ligados; nas colunas, calibrado para a ALTURA do rotulo do total
 Private Const ANN_AUTO_SLACK As Double = 18     ' folga que o eixo com maximo automatico deixa depois da maior barra (~5% da escala, medida em graficos de ~460 pt)
 
 Public Function Ann_TryCagr(startVal As Double, endVal As Double, periods As Double, ByRef rate As Double) As Boolean
@@ -118,7 +118,7 @@ Private Sub Ann_EnsureRoom(cht As Chart)
         If Ann_CountPrefix(cht, ANN_PREFIX & "cagr_") > 0 Then
             need = Ann_RightRoomNeeded(cht)
             For k = 1 To 3     ' a largura interna nem sempre acompanha 1:1 a externa: confere e repete
-                delta = need - (Ann_RightEdge(cht) - (cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth))
+                delta = need - (Geom_ChartRightEdge(cht) - (cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth))
                 If delta <= 0.01 Then Exit For
                 cht.PlotArea.Width = cht.PlotArea.Width - delta
             Next
@@ -143,8 +143,20 @@ Private Sub Ann_EnsureRoom(cht As Chart)
 End Sub
 
 ' Afastamento extra da seta de CAGR quando os totais estão ligados (definição única: layout e folga usam a mesma).
+' Colunas: 18 pt fixos (calibrados para a ALTURA do rótulo do total, que fica acima da coluna). Barras: o rótulo do
+' total fica ~6 pt depois do fim da barra e ocupa a sua LARGURA (4 dígitos: ~27 pt; 7 dígitos: ~43 pt), e a ponta da
+' seta fica a 10 + extra do fim da barra; para sobrar 4 pt de respiro depois do rótulo: 6 + largura + 4 = 10 + extra,
+' ou seja, extra = max(18, largura estimada do maior rótulo de total: Labels_MaxTotalWidth). Com 2 e 3 dígitos vale o
+' mínimo de 18.
 Private Function Ann_TotalsExtra(cht As Chart) As Double
-    If Registry_GetOption(cht, "totals", "0") = "1" Then Ann_TotalsExtra = ANN_TOTALS_EXTRA
+    Dim w As Double, ex As Double
+    If Registry_GetOption(cht, "totals", "0") <> "1" Then Exit Function
+    ex = ANN_TOTALS_EXTRA
+    If Geom_ChartIsHorizontal(cht) Then
+        w = Labels_MaxTotalWidth(cht)
+        If w > ex Then ex = w
+    End If
+    Ann_TotalsExtra = ex
 End Function
 
 ' Folga (pt) entre a área interna e a borda livre para a seta de CAGR em barras e o rótulo: ponta a 10 pt (+ extra dos
@@ -188,21 +200,6 @@ Private Function Ann_MaxCagrLabelWidth(cht As Chart) As Double
         End If
     Next
     Ann_MaxCagrLabelWidth = best
-End Function
-
-' Borda direita livre para as formas em barras: a da área do gráfico ou, com legenda à direita, a borda esquerda dela.
-Private Function Ann_RightEdge(cht As Chart) As Double
-    Dim edge As Double, lft As Double
-    edge = cht.ChartArea.Width
-    On Error Resume Next
-    If cht.HasLegend Then
-        If cht.Legend.Position = xlLegendPositionRight Then
-            lft = cht.Legend.Left
-            If lft > edge / 2 And lft < edge Then edge = lft
-        End If
-    End If
-    On Error GoTo 0
-    Ann_RightEdge = edge
 End Function
 
 ' Borda inferior livre: a da área do gráfico ou, com legenda embaixo, o topo dela.
@@ -391,7 +388,7 @@ Private Sub Ann_LayoutCagr(cht As Chart, ln As Shape, fromIdx As Long, toIdx As 
         y1 = Geom_ChartCatCoord(cht, fromIdx): y2 = Geom_ChartCatCoord(cht, toIdx)
         x1 = Geom_ChartValCoord(cht, tops(fromIdx)) + ANN_ARROW_GAP + extra
         x2 = Geom_ChartValCoord(cht, tops(toIdx)) + ANN_ARROW_GAP + extra
-        xMax = Ann_RightEdge(cht) - 24
+        xMax = Geom_ChartRightEdge(cht) - 24
         If x1 > xMax Then x1 = xMax
         If x2 > xMax Then x2 = xMax
     Else
@@ -415,7 +412,7 @@ Private Sub Ann_LayoutCagr(cht As Chart, ln As Shape, fromIdx As Long, toIdx As 
     lbl.TextFrame2.TextRange.Text = txt
     If Geom_ChartIsHorizontal(cht) Then
         lbl.Left = IIf(x1 > x2, x1, x2) + 4
-        If lbl.Left + lbl.Width > Ann_RightEdge(cht) Then lbl.Left = Ann_RightEdge(cht) - lbl.Width     ' nunca sobre a legenda
+        If lbl.Left + lbl.Width > Geom_ChartRightEdge(cht) Then lbl.Left = Geom_ChartRightEdge(cht) - lbl.Width     ' nunca sobre a legenda
         lbl.Top = (y1 + y2) / 2 - lbl.Height / 2
     Else
         lbl.Left = (x1 + x2) / 2 - lbl.Width / 2

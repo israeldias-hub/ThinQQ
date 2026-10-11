@@ -14,6 +14,19 @@ Public Sub Test_Kinds_Valid_And_Family()
     AssertEqual "", Kinds_Family("x")
 End Sub
 
+' Uma lista separada por virgula nao e um tipo: a matriz consulta listas com InStr e nao pode aceitar nomes
+' vizinhos juntos ("stacked,clustered" casaria com a lista de tipos).
+Public Sub Test_Kinds_RejectCommaStrings()
+    AssertFalse Kinds_IsValid("stacked,clustered"), "dois tipos validos vizinhos"
+    AssertFalse Kinds_IsValid(","): AssertFalse Kinds_IsValid("stacked,"): AssertFalse Kinds_IsValid(",stacked")
+    AssertFalse Kinds_IsHorizontal("barstacked,barclustered"): AssertFalse Kinds_IsHorizontal("barstacked,gantt")
+    AssertFalse Kinds_Is100("stacked100,barstacked100")
+    AssertEqual "", Kinds_Family("stacked,clustered")
+    AssertFalse Kinds_Supports("stacked,clustered", "labels")
+    AssertFalse Kinds_Supports("stacked", "labels,totals")
+    AssertTrue Kinds_Supports("stacked", "labels")
+End Sub
+
 Public Sub Test_Kinds_Horizontal_100_And_Refs()
     AssertTrue Kinds_IsHorizontal("barstacked"): AssertTrue Kinds_IsHorizontal("gantt")
     AssertFalse Kinds_IsHorizontal("stacked"): AssertFalse Kinds_IsHorizontal("mekko")
@@ -120,6 +133,54 @@ Public Sub Test_Chart_HideHelperLegendEntries_SameGroupStack_ReversedAndNot()
         Chart_HideHelperLegendEntries cht
         AssertEqual 2, cht.Legend.LegendEntries.Count, "idempotente"
         co.Delete
+    Next
+    CloseTemp wb
+End Sub
+
+' Mesmo cenario com a legenda no canto ou arrastada (posicao livre): a Position nao diz a orientacao da lista (medido:
+' a arrastada a partir da direita e o canto listam invertido, a arrastada a partir de baixo lista normal); o mapeamento
+' forca a legenda a direita so durante o trabalho e a devolve ao lugar. Antes da correcao apagava S1/S2 e deixava as auxiliares.
+Public Sub Test_Chart_HideHelperLegendEntries_SameGroupStack_CornerAndCustomLegend()
+    Dim wb As Workbook, ws As Worksheet, co As ChartObject, cht As Chart, s As Series, j As Long, mode As Variant, k As Long, keys As String
+    Dim lft As Double, tp As Double, lp As Long, ct As Variant
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:E1").Value = Array("Cat", "S1", "tqq_a", "S2", "tqq_b")
+    ws.Range("A2:E2").Value = Array("A", 10, 1, 5, 2)
+    ws.Range("A3:E3").Value = Array("B", 20, 1, 6, 2)
+    For Each ct In Array(xlColumnStacked, xlColumnStacked100)
+        For Each mode In Array("corner", "custom-from-right", "custom-from-bottom")
+            Set co = ws.ChartObjects.Add(10, 10, 460, 280): Set cht = co.Chart
+            Do While cht.SeriesCollection.Count > 0: cht.SeriesCollection(1).Delete: Loop
+            For j = 1 To 4
+                Set s = cht.SeriesCollection.NewSeries
+                s.Name = "=Dados!" & ws.Cells(1, 1 + j).Address
+                s.Values = "=Dados!" & ws.Range(ws.Cells(2, 1 + j), ws.Cells(3, 1 + j)).Address
+                s.XValues = "=Dados!$A$2:$A$3"
+            Next
+            cht.ChartType = CLng(ct)
+            For j = 1 To 4: cht.SeriesCollection(j).Format.Fill.ForeColor.RGB = RGB(10 * j, 0, 0): Next
+            cht.HasLegend = True
+            Select Case mode
+                Case "corner": cht.Legend.Position = xlLegendPositionCorner
+                Case "custom-from-right": cht.Legend.Position = xlLegendPositionRight: cht.Legend.Left = cht.Legend.Left - 8: cht.Legend.Top = cht.Legend.Top - 20
+                Case Else: cht.Legend.Position = xlLegendPositionBottom: cht.Legend.Left = cht.Legend.Left - 8: cht.Legend.Top = cht.Legend.Top - 20
+            End Select
+            lp = cht.Legend.Position: lft = cht.Legend.Left: tp = cht.Legend.Top
+            Chart_HideHelperLegendEntries cht
+            AssertEqual 2, cht.Legend.LegendEntries.Count, mode & ": so S1 e S2"
+            keys = ";"
+            For k = 1 To 2: keys = keys & (cht.Legend.LegendEntries(k).LegendKey.Format.Fill.ForeColor.RGB Mod 256) & ";": Next
+            AssertTrue InStr(keys, ";10;") > 0 And InStr(keys, ";30;") > 0, mode & ": entradas restantes = S1 (10) e S2 (30); chaves " & keys
+            AssertEqual lp, cht.Legend.Position, mode & ": posicao da legenda restaurada"
+            If mode <> "corner" Then
+                AssertAlmost lft, cht.Legend.Left, 1.5, mode & ": Left restaurado"
+                AssertAlmost tp, cht.Legend.Top, 1.5, mode & ": Top restaurado"
+            End If
+            Chart_HideHelperLegendEntries cht
+            AssertEqual 2, cht.Legend.LegendEntries.Count, mode & ": idempotente"
+            AssertEqual lp, cht.Legend.Position, mode & ": idempotente nao mexe na legenda"
+            co.Delete
+        Next
     Next
     CloseTemp wb
 End Sub

@@ -129,6 +129,22 @@ Public Function Geom_ChartBarHalfWidth(cht As Chart) As Double
     End If
 End Function
 
+' Borda direita livre para formas e rotulos em graficos horizontais: a da area do grafico ou, com legenda a direita,
+' a borda esquerda dela (nada e desenhado por cima da legenda).
+Public Function Geom_ChartRightEdge(cht As Chart) As Double
+    Dim edge As Double, lft As Double
+    edge = cht.ChartArea.Width
+    On Error Resume Next
+    If cht.HasLegend Then
+        If cht.Legend.Position = xlLegendPositionRight Then
+            lft = cht.Legend.Left
+            If lft > edge / 2 And lft < edge Then edge = lft
+        End If
+    End If
+    On Error GoTo 0
+    Geom_ChartRightEdge = edge
+End Function
+
 ' True quando os pontos ficam no meio das fatias (padrão de colunas); False quando o eixo cruza nas categorias
 ' (linha com AxisBetweenCategories = False: primeiro ponto na borda esquerda, último na direita).
 Public Function Geom_ChartBetween(cht As Chart) As Boolean
