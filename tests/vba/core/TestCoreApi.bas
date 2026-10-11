@@ -680,7 +680,7 @@ End Function
 Public Sub Test_Core_Cleanup_DuplicatedChart_KeepsBlockAfterOriginalDeleted()
     Dim wb As Workbook, ws As Worksheet, dup As Object, cht As Chart
     Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
-    ws.Range("A1:C5").Select
+    ws.Range("A1:B5").Select   ' uma coluna de valores: cascata de uma serie (varias colunas = varias series, Tarefa 4)
     Core_Insert "waterfall"
     Set dup = ws.ChartObjects(1).Duplicate
     ws.ChartObjects(2).Name = "Gráfico 2"       ' como o Excel nomeia uma cópia colada (o Duplicate por código mantém o nome)
@@ -703,7 +703,7 @@ End Sub
 Public Sub Test_Core_Cleanup_ChartMovedToChartSheet_KeepsBlock()
     Dim wb As Workbook, ws As Worksheet, cht As Chart, ch2 As Chart
     Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
-    ws.Range("A1:C5").Select
+    ws.Range("A1:B5").Select   ' idem
     Core_Insert "waterfall"
     Set cht = ws.ChartObjects(1).Chart
     cht.Location Where:=xlLocationAsNewSheet, Name:="GrafSheet"
@@ -724,9 +724,9 @@ End Sub
 Public Sub Test_Core_Cleanup_DeletedChart_StillRemovedWhenOtherChartsExist()
     Dim wb As Workbook, ws As Worksheet
     Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
-    ws.Range("A1:C5").Select
+    ws.Range("A1:B5").Select   ' idem
     Core_Insert "waterfall"
-    ws.Range("A1:C5").Select
+    ws.Range("A1:B5").Select   ' idem
     Core_Insert "waterfall"
     AssertEqual 2, TqqNameCount(wb)
     ws.ChartObjects(1).Delete

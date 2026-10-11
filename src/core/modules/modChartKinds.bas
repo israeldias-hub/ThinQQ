@@ -47,8 +47,10 @@ Public Function Kinds_Family(kind As String) As String
     End If
 End Function
 
-' Matriz de capacidades (design da Fase 2, secao 7). False para tipo ou recurso desconhecido.
-Public Function Kinds_Supports(kind As String, feature As String) As Boolean
+' Matriz de capacidades (design da Fase 2, secao 7). False para tipo ou recurso desconhecido. A matriz e estatica por tipo;
+' a unica excecao e a legenda da cascata (waterfall/barwaterfall), que so existe com VARIAS series de dados: quem pergunta
+' informa o numero de series (seriesCount; omitido = desconhecido = sem legenda). Core_Supports le o numero no bloco.
+Public Function Kinds_Supports(kind As String, feature As String, Optional seriesCount As Long = 0) As Boolean
     Dim list As String, allKinds As String
     If Not Kinds_IsValid(kind) Then Exit Function
     allKinds = Mid$(KINDS, 2, Len(KINDS) - 2)
@@ -59,7 +61,7 @@ Public Function Kinds_Supports(kind As String, feature As String) As Boolean
         Case "numfmt":     list = Replace(allKinds, ",gantt", "")
         Case "palette":    list = allKinds
         Case "gap":        list = "stacked,clustered,stacked100,barstacked,barclustered,barstacked100,waterfall,barwaterfall,combo,gantt"
-        Case "legend":     list = Replace(allKinds, ",gantt", "")      ' em waterfall/barwaterfall so com varias series (a Tarefa 4 decide)
+        Case "legend":     list = Replace(allKinds, ",gantt", "")      ' waterfall/barwaterfall: so com varias series (abaixo)
         Case "ind100":     list = "stacked100,barstacked100,area100,mekko"
         Case "vline":      list = "stacked,clustered,line,barstacked,barclustered,area,combo,mekkounits"
         Case "secondary":  list = "combo"
@@ -71,6 +73,16 @@ Public Function Kinds_Supports(kind As String, feature As String) As Boolean
         Case Else: Exit Function
     End Select
     Kinds_Supports = InList(list, kind)
+    If Kinds_Supports And feature = "legend" And Kinds_Family(kind) = "waterfall" Then Kinds_Supports = (seriesCount > 1)
+End Function
+
+' O mesmo para um grafico concreto: le o tipo e, na cascata, o numero de series de dados do bloco. E a pergunta que a faixa
+' (Core_Supports) e os comandos de opcao devem fazer: Kinds_Supports(tipo, recurso) sozinho nega a legenda da cascata.
+Public Function Kinds_SupportsChart(cht As Chart, feature As String) As Boolean
+    Dim kind As String, nSeries As Long
+    kind = Registry_ChartType(cht)
+    If Kinds_Family(kind) = "waterfall" Then nSeries = Waterfall_SeriesCount(cht)
+    Kinds_SupportsChart = Kinds_Supports(kind, feature, nSeries)
 End Function
 
 ' Numero de referencias de categoria que a primeira serie do grafico deve ter (Core_ChartSourceMismatch):

@@ -190,15 +190,17 @@ Public Sub Test_Waterfall_Block_ZeroDelta()
     CloseTemp wb
 End Sub
 
-Public Sub Test_Waterfall_Block_TotalFirstRow()
-    Dim wb As Workbook, body As Range, c As Long
+Public Sub Test_Waterfall_Block_TotalFirstRow_IsBuildDown()
+    Dim wb As Workbook, body As Range
     Set wb = NewTempWorkbook()
     Set body = Block_Body(Waterfall_BuildBlock(wb, "wf0013", Simple(wb, Array("e", 5))))
-    AssertEqual 0, body.Cells(2, WF_COL_END).Value
-    For c = 9 To 16
-        AssertEqual 0, body.Cells(2, c).Value, "coluna " & c
-    Next
-    AssertEqual 5, body.Cells(3, WF_COL_END).Value
+    AssertEqual True, body.Cells(2, WF_COL_BD).Value
+    AssertEqual 5, body.Cells(2, WF_COL_END).Value, "primeiro total calculado para tras"
+    AssertEqual 5, body.Cells(2, WF_COL_TOTAL).Value
+    AssertEqual True, body.Cells(3, 3).Value: AssertEqual 5, body.Cells(3, WF_COL_END).Value
+    ' 'e' na primeira linha SEM numero na ultima: nada desenhado (como na Fase 1)
+    Set body = Block_Body(Waterfall_BuildBlock(wb, "wf0016", Simple(wb, Array("e", "e"))))
+    AssertEqual False, body.Cells(2, WF_COL_BD).Value: AssertEqual 0, body.Cells(2, WF_COL_END).Value
     CloseTemp wb
 End Sub
 

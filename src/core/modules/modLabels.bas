@@ -6,31 +6,50 @@ Private mRefreshing As Boolean
 ' (fixedPos = 0) ou a posição fixa informada (ex.: xlLabelPositionCenter em segmentos empilhados). Com horizontal
 ' (auxiliares XY de barras), a posição por sinal é à direita (>= 0) ou à esquerda (< 0) do ponto.
 ' fontColor >= 0 define a cor da fonte (contraste com o preenchimento do segmento).
+' Isolamento por ponto: quando o valor PLOTADO do ponto e #N/D (Series.Values devolve Empty para ele, medido no Excel 2019;
+' as auxiliares de total da cascata com varias series so plotam as linhas de total) e o Excel recusa o rotulo desse ponto, o
+' erro e registrado e os demais pontos continuam ligados. Em ponto plotado o erro propaga (o Insert desfaz tudo).
 Public Sub Labels_LinkPoints(s As Series, valueCells As Range, numFmt As String, Optional fixedPos As Long = 0, Optional fontColor As Long = -1, Optional horizontal As Boolean = False)
-    Dim i As Long, n As Long, sheetRef As String, v As Variant
+    Dim i As Long, n As Long, sheetRef As String, plotted As Variant, isNa As Boolean
     n = valueCells.Rows.Count
     s.HasDataLabels = True
     valueCells.NumberFormatLocal = Style_LocalizeCode(numFmt)
     sheetRef = "='" & Replace(valueCells.Worksheet.Name, "'", "''") & "'!"
+    On Error Resume Next
+    plotted = s.Values
+    If Err.Number <> 0 Then Err.Clear: plotted = Empty
+    On Error GoTo 0
     For i = 1 To n
-        With s.Points(i)
-            .HasDataLabel = True
-            .DataLabel.Formula = sheetRef & valueCells.Cells(i, 1).Address(True, True)
-            Style_AssignNumberFormat .DataLabel, numFmt
-            .DataLabel.Font.Size = 9
-            If fontColor >= 0 Then .DataLabel.Font.Color = fontColor Else .DataLabel.Font.Color = RGB(64, 64, 64)
-            If fixedPos <> 0 Then
-                .DataLabel.Position = fixedPos
-            Else
-                v = valueCells.Cells(i, 1).Value
-                If horizontal Then
-                    .DataLabel.Position = IIf(Util_ToDouble(v) < 0, xlLabelPositionLeft, xlLabelPositionRight)
-                Else
-                    .DataLabel.Position = IIf(Util_ToDouble(v) < 0, xlLabelPositionBelow, xlLabelPositionAbove)
-                End If
-            End If
-        End With
+        isNa = False
+        If IsArray(plotted) Then
+            If LBound(plotted) + i - 1 <= UBound(plotted) Then isNa = IsError(plotted(LBound(plotted) + i - 1)) Or IsEmpty(plotted(LBound(plotted) + i - 1))
+        End If
+        If isNa Then
+            On Error Resume Next
+            LinkOnePoint s, i, sheetRef & valueCells.Cells(i, 1).Address(True, True), valueCells.Cells(i, 1).Value, numFmt, fixedPos, fontColor, horizontal
+            If Err.Number <> 0 Then Errors_Log "Labels_LinkPoints" & vbTab & "ponto " & i & " (#N/D)" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+            On Error GoTo 0
+        Else
+            LinkOnePoint s, i, sheetRef & valueCells.Cells(i, 1).Address(True, True), valueCells.Cells(i, 1).Value, numFmt, fixedPos, fontColor, horizontal
+        End If
     Next
+End Sub
+
+Private Sub LinkOnePoint(s As Series, i As Long, cellRef As String, v As Variant, numFmt As String, fixedPos As Long, fontColor As Long, horizontal As Boolean)
+    With s.Points(i)
+        .HasDataLabel = True
+        .DataLabel.Formula = cellRef
+        Style_AssignNumberFormat .DataLabel, numFmt
+        .DataLabel.Font.Size = 9
+        If fontColor >= 0 Then .DataLabel.Font.Color = fontColor Else .DataLabel.Font.Color = RGB(64, 64, 64)
+        If fixedPos <> 0 Then
+            .DataLabel.Position = fixedPos
+        ElseIf horizontal Then
+            .DataLabel.Position = IIf(Util_ToDouble(v) < 0, xlLabelPositionLeft, xlLabelPositionRight)
+        Else
+            .DataLabel.Position = IIf(Util_ToDouble(v) < 0, xlLabelPositionBelow, xlLabelPositionAbove)
+        End If
+    End With
 End Sub
 
 ' Largura estimada (pt) de um rótulo de dados de 9 pt em negrito com o texto dado: 6 pt de margem interna do rótulo +
@@ -143,7 +162,7 @@ End Function
 ' Rótulos ligados a células (Formula = célula da planilha _ThinQQ) exibem o TEXTO da célula, então o formato
 ' numérico precisa estar também na célula (gravado por NumberFormatLocal, como nos rótulos: o texto exibido segue os separadores do Excel).
 Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
-    Dim blk As Range, body As Range, col As Long, n As Long, kind As String, nPart As Long
+    Dim blk As Range, body As Range, col As Long, n As Long, kind As String, nPart As Long, j As Long, nSeries As Long
     On Error GoTo Fail
     Set blk = Registry_Block(cht)
     If blk Is Nothing Then Exit Sub
@@ -153,6 +172,16 @@ Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
     If n < 1 Then Exit Sub
     If Kinds_Family(kind) = "waterfall" Then col = WF_COL_LABELVAL Else col = 2
     body.Cells(2, col).Resize(n, 1).NumberFormatLocal = Style_LocalizeCode(fmt)
+    ' cascata com varias series: os rotulos de segmento ligam a D_j e o rotulo de total a coluna Total (Waterfall_SetLabels)
+    If Kinds_Family(kind) = "waterfall" Then
+        nSeries = Waterfall_SeriesCount(cht)
+        If nSeries > 1 Then
+            body.Cells(2, WF_COL_TOTAL).Resize(n, 1).NumberFormatLocal = Style_LocalizeCode(fmt)
+            For j = 1 To nSeries
+                body.Cells(2, Waterfall_SeriesCol(j, "D")).Resize(n, 1).NumberFormatLocal = Style_LocalizeCode(fmt)
+            Next
+        End If
+    End If
     ' 100%: as colunas de participação Part_j (a partir da 4) seguem o formato dos segmentos, não o dos totais. Depois
     ' delas vêm Pos e VLine (que não são rótulos): em blocos com Pos/VLine são Columns.Count - 5 colunas; os cabeçalhos
     ' "Part" decidem, o que também serve a blocos da Fase 1 (sem Pos/VLine).

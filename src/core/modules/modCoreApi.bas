@@ -84,7 +84,7 @@ Public Function Core_Supports(feature As String) As Boolean
     If feature = "changesource" Then
         Core_Supports = True
     Else
-        Core_Supports = Kinds_Supports(Registry_ChartType(c), feature)
+        Core_Supports = Kinds_SupportsChart(c, feature)       ' inclui a regra da legenda da cascata (so com varias series)
     End If
     Exit Function
 Fail:
@@ -126,6 +126,10 @@ Fail:
     If en = vbObjectError + 7200 Then
         ' Tipo válido ainda sem implementação nesta versão: aviso ao usuário, não é falha (nada foi criado).
         Core_Notify ed, vbInformation
+    ElseIf en >= vbObjectError + 6007 And en <= vbObjectError + 6099 Then
+        ' Erro de VALIDACAO DOS DADOS de um tipo novo (6007 cascata, 6008 combinacao, 6009 Mekko, 6010 Gantt): aviso ao
+        ' usuario, nao e falha (nada foi criado). Os 6001..6006 sao falhas estruturais, tratadas por Errors_Handle.
+        Core_Notify ed, vbExclamation
     Else
         Errors_HandleErr "Core_Insert(" & kind & ")", en, ed
     End If
@@ -414,6 +418,11 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     On Error GoTo FailNew
     Registry_Block(nc).Cells(1, 4).Value = opts
     Registry_SetOption nc, "n", CStr(data.CategoryCount)     ' as opções antigas trazem o n da tabela anterior
+    ' Cascata: a legenda existe só com várias séries, e o número de séries pode ter mudado com a nova tabela: a opção
+    ' "legend" copiada do gráfico antigo é realinhada com a legenda que o novo gráfico realmente tem.
+    If Kinds_Family(kind) = "waterfall" Then
+        If nc.HasLegend <> (Registry_GetOption(nc, "legend", "") = "right") Then Registry_SetOption nc, "legend", IIf(nc.HasLegend, "right", "none")
+    End If
     ApplyOption nc, "numfmt", Registry_GetOption(nc, "numfmt", "int")
     ApplyOption nc, "palette", Registry_GetOption(nc, "palette", "padrao")
     If Len(Registry_GetOption(nc, "gap", "")) > 0 Then ApplyOption nc, "gap", Registry_GetOption(nc, "gap", "")

@@ -1,0 +1,519 @@
+Attribute VB_Name = "TestWaterfall2"
+Option Explicit
+' Fase 2: cascata com varias series, build-down ('e' na primeira linha) e cascata horizontal.
+
+Private Function MultiFixture(wb As Workbook) As clsChartData
+    Dim ws As Worksheet
+    Set ws = wb.Worksheets(1): ws.Name = "Ponte"
+    ws.Range("A1:C1").Value = Array("Etapa", "Loja", "Online")
+    ws.Range("A2:C2").Value = Array("Inicio", 100, 50)
+    ws.Range("A3:C3").Value = Array("Ajuste", -30, 10)
+    ws.Range("A4:C4").Value = Array("Subtotal", "e", "e")
+    ws.Range("A5:C5").Value = Array("Queda", -200, -20)
+    ws.Range("A6:B6").Value = Array("Fim", "e")
+    Set MultiFixture = ChartData_FromRange(ws.Range("A1:C6"))
+End Function
+
+' Review Focus 2: coluna com sinais misturados que cruza o zero (Queda: inicio 130, -200 e -20).
+Public Sub Test_WaterfallMulti_Block_MixedSignsCrossingZero()
+    Dim wb As Workbook, body As Range, blk As Range
+    Set wb = NewTempWorkbook()
+    Set blk = Waterfall_BuildBlock(wb, "wfm001", MultiFixture(wb)): Set body = Block_Body(blk)
+    AssertEqual 40, blk.Columns.Count, "20 + 10 por serie"
+    ' End: 150, 130, 130, -90, -90
+    AssertEqual 150, body.Cells(2, WF_COL_END).Value: AssertEqual 130, body.Cells(3, WF_COL_END).Value
+    AssertEqual 130, body.Cells(4, WF_COL_END).Value: AssertEqual -90, body.Cells(5, WF_COL_END).Value
+    AssertEqual -90, body.Cells(6, WF_COL_END).Value
+    ' Inicio: duas series positivas empilhadas a partir de 0
+    AssertEqual 100, body.Cells(2, Waterfall_SeriesCol(1, "UP")).Value: AssertEqual 50, body.Cells(2, Waterfall_SeriesCol(2, "UP")).Value
+    AssertEqual 50, body.Cells(2, Waterfall_SeriesCol(1, "M")).Value: AssertEqual 125, body.Cells(2, Waterfall_SeriesCol(2, "M")).Value
+    ' Ajuste: Loja desce 30 a partir de 150 (120..150), Online sobe 10 (150..160); Base = 120
+    AssertEqual 120, body.Cells(3, Waterfall_SeriesCol(1, "A")).Value: AssertEqual 150, body.Cells(3, Waterfall_SeriesCol(1, "B")).Value
+    AssertEqual 30, body.Cells(3, Waterfall_SeriesCol(1, "DN")).Value: AssertEqual 0, body.Cells(3, Waterfall_SeriesCol(1, "UP")).Value
+    AssertEqual 150, body.Cells(3, Waterfall_SeriesCol(2, "A")).Value: AssertEqual 160, body.Cells(3, Waterfall_SeriesCol(2, "B")).Value
+    AssertEqual 10, body.Cells(3, Waterfall_SeriesCol(2, "UP")).Value
+    AssertEqual 120, body.Cells(3, WF_COL_BASE).Value: AssertEqual 120, body.Cells(3, 7).Value: AssertEqual 160, body.Cells(3, 8).Value
+    ' Subtotal: total 130, sem segmentos
+    AssertEqual True, body.Cells(4, 3).Value: AssertEqual 130, body.Cells(4, WF_COL_TOTAL).Value
+    AssertEqual 0, body.Cells(4, Waterfall_SeriesCol(1, "DN")).Value: AssertEqual 130, body.Cells(4, WF_COL_LABELVAL).Value
+    ' Queda: Loja -200 cruza o zero (-70..130): DN 130 acima, DNN -70 abaixo; Online -20 (-90..-70): DNN -20
+    AssertEqual -70, body.Cells(5, Waterfall_SeriesCol(1, "A")).Value: AssertEqual 130, body.Cells(5, Waterfall_SeriesCol(1, "B")).Value
+    AssertEqual 130, body.Cells(5, Waterfall_SeriesCol(1, "DN")).Value: AssertEqual -70, body.Cells(5, Waterfall_SeriesCol(1, "DNN")).Value
+    AssertEqual -90, body.Cells(5, Waterfall_SeriesCol(2, "A")).Value: AssertEqual -70, body.Cells(5, Waterfall_SeriesCol(2, "B")).Value
+    AssertEqual 0, body.Cells(5, Waterfall_SeriesCol(2, "DN")).Value: AssertEqual -20, body.Cells(5, Waterfall_SeriesCol(2, "DNN")).Value
+    AssertEqual 0, body.Cells(5, WF_COL_BASE).Value: AssertEqual -90, body.Cells(5, 7).Value: AssertEqual 130, body.Cells(5, 8).Value
+    AssertEqual -220, body.Cells(5, 4).Value, "delta liquido"
+    AssertTrue IsError(body.Cells(5, WF_COL_LABELVAL).Value), "linha sem total: rotulo de total NA"
+    ' Fim: total -90, rotulo em Lo
+    AssertEqual True, body.Cells(6, 3).Value: AssertEqual -90, body.Cells(6, WF_COL_TOTAL).Value: AssertEqual -90, body.Cells(6, WF_COL_LABELPOS).Value
+    AssertEqual 4.5, body.Cells(2, WF_COL_POS).Value: AssertEqual False, body.Cells(2, WF_COL_BD).Value
+    CloseTemp wb
+End Sub
+
+Public Sub Test_WaterfallMulti_Insert_SeriesOrderColorsLegend()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, pal As Variant, names As String, s As Series
+    Set wb = NewTempWorkbook(): Set d = MultiFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d).Chart
+    AssertEqual "waterfall", Registry_ChartType(cht)
+    AssertEqual 2, Waterfall_SeriesCount(cht)
+    AssertEqual 13, cht.SeriesCollection.Count, "base + 4 por serie + total + 2 rotulos de serie + rotulo de total"
+    For Each s In cht.SeriesCollection: names = names & s.Name & ";": Next
+    AssertEqual "tqq_base;tqq_dn_2;tqq_dn_1;Loja;Online;tqq_upn_2;tqq_upn_1;tqq_dnn_1;tqq_dnn_2;tqq_total;tqq_lbl_1;tqq_lbl_2;tqq_lbl;", names
+    pal = Style_Palette("padrao")
+    AssertEqual CLng(pal(0)), Chart_FindSeries(cht, "Loja").Format.Fill.ForeColor.RGB
+    AssertEqual CLng(pal(0)), Chart_FindSeries(cht, "tqq_dnn_1").Format.Fill.ForeColor.RGB, "partes da serie 1 com a mesma cor"
+    AssertEqual CLng(pal(1)), Chart_FindSeries(cht, "tqq_dn_2").Format.Fill.ForeColor.RGB
+    AssertEqual CLng(pal(3)), Chart_FindSeries(cht, "tqq_total").Format.Fill.ForeColor.RGB, "totais em cinza"
+    AssertEqual msoFalse, Chart_FindSeries(cht, "tqq_base").Format.Fill.Visible
+    AssertTrue cht.HasLegend
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "legenda so com Loja e Online"
+    AssertEqual "right", Registry_GetOption(cht, "legend")
+    AssertEqual "5", Registry_GetOption(cht, "n")
+    CloseTemp wb
+End Sub
+
+Public Sub Test_WaterfallMulti_Labels_SegmentsAndTotals()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, l1 As Series, l2 As Series, lt As Series
+    Set wb = NewTempWorkbook(): Set d = MultiFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d).Chart
+    Set l1 = Chart_FindSeries(cht, "tqq_lbl_1"): Set l2 = Chart_FindSeries(cht, "tqq_lbl_2"): Set lt = Chart_FindSeries(cht, "tqq_lbl")
+    AssertEqual "100", l1.Points(1).DataLabel.Text
+    AssertEqual "-30", l1.Points(2).DataLabel.Text
+    AssertEqual "10", l2.Points(2).DataLabel.Text
+    AssertEqual xlLabelPositionCenter, l1.Points(2).DataLabel.Position
+    AssertEqual "-200", l1.Points(4).DataLabel.Text: AssertEqual "-20", l2.Points(4).DataLabel.Text
+    AssertEqual "130", lt.Points(3).DataLabel.Text: AssertEqual xlLabelPositionAbove, lt.Points(3).DataLabel.Position
+    AssertEqual "-90", lt.Points(5).DataLabel.Text: AssertEqual xlLabelPositionBelow, lt.Points(5).DataLabel.Position
+    Waterfall_SetLabels cht, False
+    AssertTrue Chart_FindSeries(cht, "tqq_lbl_1") Is Nothing And Chart_FindSeries(cht, "tqq_lbl") Is Nothing
+    AssertEqual 10, cht.SeriesCollection.Count
+    Waterfall_SetLabels cht, True
+    AssertEqual 13, cht.SeriesCollection.Count
+    ' auxiliares com pontos NA() entram na varredura da limpeza (Tarefa 0): o grafico novo nao pode bloquear nem falhar
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    AssertEqual 1, CalcSheet_Cleanup(wb), "limpeza com a cascata multi remove so o orfao"
+    AssertFalse CalcSheet_CleanupReadFailed(), "pontos NA dos rotulos nao sao falha de leitura"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_WaterfallMulti_Connectors_FollowNetEnd()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ax As Axis, it As Double, ih As Double
+    Set wb = NewTempWorkbook(): Set d = MultiFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d).Chart
+    it = cht.PlotArea.InsideTop: ih = cht.PlotArea.InsideHeight: Set ax = cht.Axes(xlValue)
+    AssertAlmost it + ih * (ax.MaximumScale - 150) / (ax.MaximumScale - ax.MinimumScale), cht.Shapes("tqq_ann_conn_1").Top, 1
+    AssertAlmost it + ih * (ax.MaximumScale - 130) / (ax.MaximumScale - ax.MinimumScale), cht.Shapes("tqq_ann_conn_2").Top, 1, "conector no liquido (-30+10)"
+    AssertAlmost it + ih * (ax.MaximumScale + 90) / (ax.MaximumScale - ax.MinimumScale), cht.Shapes("tqq_ann_conn_4").Top, 1
+    CloseTemp wb
+End Sub
+
+' 'e' na primeira linha + numero na ultima: o primeiro total e calculado para tras (think-cell), a ultima linha vira total.
+Public Sub Test_Waterfall_BuildDown_FirstRowE_LastRowNumber()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, body As Range, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:B1").Value = Array("Etapa", "Valor")
+    ws.Range("A2:B2").Value = Array("Receita", "e")
+    ws.Range("A3:B3").Value = Array("Custos", -700)
+    ws.Range("A4:B4").Value = Array("Despesas", -250)
+    ws.Range("A5:B5").Value = Array("Lucro", 250)
+    Set d = ChartData_FromRange(ws.Range("A1:B5"))
+    Set body = Block_Body(Waterfall_BuildBlock(wb, "wfbd01", d))
+    AssertEqual True, body.Cells(2, WF_COL_BD).Value
+    AssertEqual True, body.Cells(2, 3).Value: AssertEqual 1200, body.Cells(2, WF_COL_END).Value, "Receita = 250 - (-700 - 250)"
+    AssertEqual 1200, body.Cells(2, WF_COL_TOTAL).Value: AssertEqual 0, body.Cells(2, WF_COL_BASE).Value
+    AssertEqual 500, body.Cells(3, WF_COL_END).Value: AssertEqual 250, body.Cells(4, WF_COL_END).Value
+    AssertEqual True, body.Cells(5, 3).Value, "ultima linha vira total": AssertEqual 250, body.Cells(5, WF_COL_TOTAL).Value
+    AssertEqual 250, body.Cells(5, WF_COL_LABELVAL).Value
+    ws.Range("B5").Value = 300
+    AssertEqual 1250, body.Cells(2, WF_COL_END).Value, "recalcula ao mudar o total final"
+    Set cht = Waterfall_Insert(ws, d).Chart
+    AssertEqual "1" & Application.International(xlThousandsSeparator) & "250", Chart_FindSeries(cht, "tqq_lbl").Points(1).DataLabel.Text, "formato int com separador de milhar"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Waterfall_TooManySeries_Refused()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, en As Long, ed As String, nm As Name
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:H1").Value = Array("Etapa", "S1", "S2", "S3", "S4", "S5", "S6", "S7")
+    ws.Range("A2:H2").Value = Array("x", 1, 1, 1, 1, 1, 1, 1)
+    ws.Range("A3:H3").Value = Array("y", 1, 1, 1, 1, 1, 1, 1)
+    Set d = ChartData_FromRange(ws.Range("A1:H3"))
+    On Error Resume Next
+    Waterfall_Insert ws, d
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    AssertEqual vbObjectError + 6007, en
+    AssertEqual "A cascata aceita no máximo 6 séries.", ed
+    AssertEqual 0, ws.ChartObjects.Count
+    For Each nm In wb.Names
+        AssertTrue Left$(nm.Name, 4) <> "tqq_", "nenhum bloco alocado"
+    Next
+    ws.Range("A1:H3").Select
+    Core_ClearLastNotice
+    Core_Insert "waterfall"
+    AssertEqual "A cascata aceita no máximo 6 séries.", Core_LastNotice()
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+Public Sub Test_WaterfallMulti_Insert_RollsBackOnFailure()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, n As Long, nm As Name
+    Set wb = NewTempWorkbook(): Set d = MultiFixture(wb): Set ws = d.Source.Worksheet
+    Util_FailAfterBlockForTest = True
+    On Error Resume Next
+    Waterfall_Insert ws, d
+    n = Err.Number
+    On Error GoTo 0
+    Util_FailAfterBlockForTest = False
+    AssertEqual vbObjectError + 9999, n
+    AssertEqual 0, ws.ChartObjects.Count
+    For Each nm In wb.Names
+        AssertTrue Left$(nm.Name, 4) <> "tqq_", "nome orfao " & nm.Name
+    Next
+    CloseTemp wb
+End Sub
+
+' ---------- Tarefa 4: legenda, auxiliares, bloco ----------
+
+Private Function SingleFixture(wb As Workbook) As clsChartData
+    Dim ws As Worksheet
+    Set ws = wb.Worksheets(1): ws.Name = "Ponte"
+    ws.Range("A1:B1").Value = Array("Etapa", "Valor")
+    ws.Range("A2:B2").Value = Array("Inicio", 100)
+    ws.Range("A3:B3").Value = Array("A", -150)
+    ws.Range("A4:B4").Value = Array("B", 30)
+    ws.Range("A5:B5").Value = Array("Subtotal", "e")
+    ws.Range("A6:B6").Value = Array("C", 70)
+    ws.Range("A7:B7").Value = Array("Fim", "e")
+    Set SingleFixture = ChartData_FromRange(ws.Range("A1:B7"))
+End Function
+
+' Cores das chaves da legenda, na ordem em que a legenda lista as entradas.
+Private Function LegendKeys(cht As Chart) As String
+    Dim k As Long
+    For k = 1 To cht.Legend.LegendEntries.Count
+        LegendKeys = LegendKeys & cht.Legend.LegendEntries(k).LegendKey.Format.Fill.ForeColor.RGB & ";"
+    Next
+End Function
+
+' Numero de conectores da cascata desenhados no grafico (formas tqq_ann_conn_*).
+Private Function ConnectorCount(cht As Chart) As Long
+    Dim shp As Shape
+    For Each shp In cht.Shapes
+        If Left$(shp.Name, Len(ANN_PREFIX & "conn_")) = ANN_PREFIX & "conn_" Then ConnectorCount = ConnectorCount + 1
+    Next
+End Function
+
+' Regressao da Fase 1: com uma serie o bloco tem 20 colunas (as 18 da Fase 1 + Pos + BD), o grafico tem as 6 series e o
+' rotulo da Fase 1, sem legenda, e a meta registra o tipo.
+Public Sub Test_Waterfall_SingleSeries_BlockAndChartUnchanged()
+    Dim wb As Workbook, d As clsChartData, blk As Range, body As Range, cht As Chart, names As String, s As Series, i As Long
+    Set wb = NewTempWorkbook(): Set d = SingleFixture(wb)
+    Set blk = Waterfall_BuildBlock(wb, "wfs001", d): Set body = Block_Body(blk)
+    AssertEqual 20, blk.Columns.Count
+    AssertEqual "waterfall", CStr(Block_Meta(blk).Cells(1, 2).Value), "a meta registra o tipo"
+    AssertEqual "BD", CStr(body.Cells(1, WF_COL_BD).Value): AssertEqual "Pos", CStr(body.Cells(1, WF_COL_POS).Value)
+    For i = 1 To 6
+        AssertEqual 6.5 - i, body.Cells(i + 1, WF_COL_POS).Value, "Pos = n - i + 0,5 (linha " & i & ")"
+        AssertEqual False, body.Cells(i + 1, WF_COL_BD).Value, "BD falso (a primeira linha e numero)"
+    Next
+    AssertEqual 50, body.Cells(7, WF_COL_END).Value
+    wb.Names("tqq_wfs001").Delete
+    Set d = SingleFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d).Chart
+    AssertEqual 1, Waterfall_SeriesCount(cht)
+    For Each s In cht.SeriesCollection: names = names & s.Name & ";": Next
+    AssertEqual "tqq_base;tqq_uppos;tqq_upneg;tqq_downpos;tqq_downneg;tqq_total;tqq_lbl;", names
+    AssertFalse cht.HasLegend: AssertEqual "", Registry_GetOption(cht, "legend")
+    AssertEqual 20, Registry_Block(cht).Columns.Count
+    CloseTemp wb
+End Sub
+
+' O tipo gravado na meta do bloco vem do argumento (Tarefa 5: barwaterfall).
+Public Sub Test_Waterfall_BuildBlock_RecordsKind()
+    Dim wb As Workbook, blk As Range
+    Set wb = NewTempWorkbook()
+    Set blk = Waterfall_BuildBlock(wb, "wfk001", SingleFixture(wb), "barwaterfall")
+    AssertEqual "barwaterfall", CStr(Block_Meta(blk).Cells(1, 2).Value)
+    AssertEqual "barwaterfall", CStr(wb.Names("tqq_wfk001").RefersToRange.Cells(1, 2).Value)
+    CloseTemp wb
+End Sub
+
+' A legenda da cascata so existe com varias series (design secao 7): a matriz e estatica, entao a pergunta leva o numero de series.
+Public Sub Test_Waterfall_LegendSupport_FollowsSeriesCount()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    AssertFalse Kinds_Supports("waterfall", "legend"), "sem informar o numero de series: sem legenda"
+    AssertFalse Kinds_Supports("waterfall", "legend", 1): AssertTrue Kinds_Supports("waterfall", "legend", 2)
+    AssertFalse Kinds_Supports("barwaterfall", "legend", 1): AssertTrue Kinds_Supports("barwaterfall", "legend", 6)
+    AssertTrue Kinds_Supports("stacked", "legend"): AssertTrue Kinds_Supports("stacked", "legend", 1): AssertFalse Kinds_Supports("gantt", "legend", 3)
+    AssertTrue Kinds_Supports("waterfall", "connectors", 1), "o numero de series so afeta a legenda"
+    Set wb = NewTempWorkbook(): Set ws = MultiFixture(wb).Source.Worksheet
+    ws.Range("A1:B6").Select
+    Core_Insert "waterfall"
+    Set cht = Core_ActiveChart()
+    AssertEqual 1, Waterfall_SeriesCount(cht)
+    AssertFalse Core_Supports("legend"), "cascata de uma serie: sem legenda"
+    AssertFalse Kinds_SupportsChart(cht, "legend"), "a pergunta por grafico (comandos de opcao) responde igual"
+    AssertTrue Core_Supports("connectors"): AssertTrue Core_Supports("labels")
+    ws.Range("A1:C6").Select
+    Core_Insert "waterfall"
+    Set cht = Core_ActiveChart()
+    AssertEqual 2, Waterfall_SeriesCount(cht)
+    AssertTrue Core_Supports("legend"), "cascata de varias series: legenda"
+    AssertTrue Kinds_SupportsChart(cht, "legend")
+    ' "Alterar dados": de 2 series para 1 e de volta; a legenda e a opcao acompanham
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("A1:B6"))
+    Set cht = Core_ActiveChart()
+    AssertEqual 1, Waterfall_SeriesCount(cht)
+    AssertFalse Core_Supports("legend"): AssertFalse cht.HasLegend
+    AssertEqual "none", Registry_GetOption(cht, "legend"), "a opcao copiada do grafico de 2 series e realinhada"
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("A1:C6"))
+    Set cht = Core_ActiveChart()
+    AssertTrue Core_Supports("legend"): AssertTrue cht.HasLegend
+    AssertEqual "right", Registry_GetOption(cht, "legend")
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "legenda so com Loja e Online"
+    AssertFalse Core_ChartSourceMismatch(cht)
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' Auxiliares tqq_* ficam INTERCALADAS com as series de dados no mesmo grupo empilhado: a legenda volta a esconder so as
+' auxiliares depois de mudar a posicao, de religar a legenda e de religar os rotulos, e a ordem das entradas reais e a
+' que o Excel lista (verificada tambem por exportacao em PNG): pilha invertida com a legenda a direita/esquerda/canto,
+' ordem das series em cima/embaixo.
+Public Sub Test_WaterfallMulti_Legend_ReHidesAfterPositionChange()
+    Dim lp As Variant, wb As Workbook, d As clsChartData, cht As Chart, pal As Variant, fwd As String, rev As String, want As String
+    pal = Style_Palette("padrao")
+    fwd = CLng(pal(0)) & ";" & CLng(pal(1)) & ";"        ' Loja; Online (ordem das series)
+    rev = CLng(pal(1)) & ";" & CLng(pal(0)) & ";"        ' Online; Loja (pilha invertida)
+    For Each lp In Array(xlLegendPositionBottom, xlLegendPositionTop, xlLegendPositionLeft, xlLegendPositionCorner, xlLegendPositionRight)
+        want = IIf(lp = xlLegendPositionBottom Or lp = xlLegendPositionTop, fwd, rev)
+        Set wb = NewTempWorkbook(): Set d = MultiFixture(wb)
+        Set cht = Waterfall_Insert(d.Source.Worksheet, d).Chart
+        cht.Legend.Position = lp
+        AssertEqual 2, cht.Legend.LegendEntries.Count, "mudar a posicao mantem as auxiliares fora (" & lp & ")"
+        AssertEqual want, LegendKeys(cht), "ordem das entradas (" & lp & ")"
+        cht.HasLegend = False: cht.HasLegend = True: cht.Legend.Position = lp
+        AssertEqual 13, cht.Legend.LegendEntries.Count, "legenda religada volta com todas as entradas (" & lp & ")"
+        Waterfall_SetLabels cht, True                    ' reaplica o esconder
+        AssertEqual 2, cht.Legend.LegendEntries.Count, "reescondida (" & lp & ")"
+        AssertEqual want, LegendKeys(cht), "ordem apos reesconder (" & lp & ")"
+        Chart_HideHelperLegendEntries cht
+        AssertEqual 2, cht.Legend.LegendEntries.Count, "idempotente (" & lp & ")"
+        AssertEqual want, LegendKeys(cht), "ordem apos a segunda chamada (" & lp & ")"
+        CloseTemp wb
+    Next
+End Sub
+
+' Alternar rotulos e mudar paleta/formato pela API: a legenda continua so com as series de dados, sem rotulo "#N/D".
+Public Sub Test_WaterfallMulti_CoreToggles_LabelsConnectorsPaletteFormat()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, pal As Variant, l1 As Series, lt As Series, i As Variant, sep As String
+    Set wb = NewTempWorkbook(): Set ws = MultiFixture(wb).Source.Worksheet
+    ws.Range("A1:C6").Select
+    Core_Insert "waterfall"
+    Set cht = Core_ActiveChart()
+    Core_SetToggle "labels", False
+    AssertEqual 10, cht.SeriesCollection.Count: AssertEqual "0", Core_GetOption("labels")
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "rotulos desligados: legenda intacta"
+    Core_SetToggle "labels", True
+    AssertEqual 13, cht.SeriesCollection.Count: AssertEqual "1", Core_GetOption("labels")
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "rotulos religados: auxiliares novas fora da legenda"
+    Core_SetToggle "connectors", False
+    AssertEqual 0, ConnectorCount(cht)
+    Core_SetToggle "connectors", True
+    AssertEqual 4, ConnectorCount(cht)
+    ' formato dec1: segmentos e totais acompanham; linhas fora de total ficam sem texto (nunca "#N/D")
+    sep = Application.International(xlDecimalSeparator)
+    Core_SetOption "numfmt", "dec1"
+    Set l1 = Chart_FindSeries(cht, "tqq_lbl_1"): Set lt = Chart_FindSeries(cht, "tqq_lbl")
+    AssertEqual "100" & sep & "0", l1.Points(1).DataLabel.Text
+    AssertEqual "-30" & sep & "0", l1.Points(2).DataLabel.Text
+    AssertEqual "130" & sep & "0", lt.Points(3).DataLabel.Text
+    AssertEqual "-90" & sep & "0", lt.Points(5).DataLabel.Text
+    For Each i In Array(1, 2, 4)
+        AssertEqual "", lt.Points(CLng(i)).DataLabel.Text, "linha " & i & " nao e total: rotulo de total vazio"
+    Next
+    ' paleta
+    Core_SetOption "palette", "cinza"
+    pal = Style_Palette("cinza")
+    AssertEqual CLng(pal(0)), Chart_FindSeries(cht, "Loja").Format.Fill.ForeColor.RGB
+    AssertEqual CLng(pal(1)), Chart_FindSeries(cht, "Online").Format.Fill.ForeColor.RGB
+    AssertEqual CLng(pal(0)), Chart_FindSeries(cht, "tqq_dnn_1").Format.Fill.ForeColor.RGB
+    AssertEqual CLng(pal(3)), Chart_FindSeries(cht, "tqq_total").Format.Fill.ForeColor.RGB
+    AssertEqual 2, cht.Legend.LegendEntries.Count
+    ' a fonte dos rotulos de segmento acompanha a cor atual da serie (paleta do tema: as cores vem do documento)
+    Core_SetOption "palette", "tema"
+    AssertEqual Style_ContrastFont(CLng(Chart_FindSeries(cht, "Loja").Format.Fill.ForeColor.RGB)), CLng(Chart_FindSeries(cht, "tqq_lbl_1").Points(1).DataLabel.Font.Color)
+    AssertEqual Style_ContrastFont(CLng(Chart_FindSeries(cht, "Online").Format.Fill.ForeColor.RGB)), CLng(Chart_FindSeries(cht, "tqq_lbl_2").Points(1).DataLabel.Font.Color)
+    AssertEqual 2, cht.Legend.LegendEntries.Count
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' As auxiliares de total tem pontos NA() (linhas que nao sao total): ler e ligar rotulos neles nao falha, e o texto do
+' rotulo nesses pontos e vazio (a coluna Total vale 0 e o formato esconde o zero).
+Public Sub Test_WaterfallMulti_TotalHelper_NaPoints_ReadableAndBlank()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, lt As Series, i As Long, v As Variant
+    Set wb = NewTempWorkbook(): Set d = MultiFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d).Chart
+    Set lt = Chart_FindSeries(cht, "tqq_lbl")
+    v = lt.Values
+    ' Series.Values devolve Empty para um ponto #N/D (medido no Excel 2019)
+    AssertTrue IsEmpty(v(1)) And IsEmpty(v(2)) And IsEmpty(v(4)), "pontos de linhas sem total nao sao plotados (#N/D)"
+    AssertFalse IsEmpty(v(3)) Or IsEmpty(v(5))
+    For i = 1 To 5
+        AssertTrue lt.Points(i).HasDataLabel, "ler HasDataLabel num ponto NA nao falha (" & i & ")"
+        AssertTrue InStr(lt.Points(i).DataLabel.Formula, CALC_SHEET) > 0, "ler Formula num ponto NA nao falha (" & i & ")"
+    Next
+    AssertEqual "", lt.Points(1).DataLabel.Text: AssertEqual "", lt.Points(2).DataLabel.Text: AssertEqual "", lt.Points(4).DataLabel.Text
+    CloseTemp wb
+End Sub
+
+' Limpeza (Tarefa 0) com pontos #N/D: serie que NAO cita a planilha interna (so os rotulos ligados citam o bloco) e tem
+' pontos NA(): a leitura de HasDataLabel/DataLabel.Formula desses pontos nao e falha, o bloco citado pelos rotulos
+' sobrevive e so o orfao e removido.
+Public Sub Test_Cleanup_NaPointLabels_AreNotReadFailure()
+    Dim wb As Workbook, ws As Worksheet, co As ChartObject, s As Series, keep As Range, i As Long, nm As Name, alive As Boolean
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:A4").Value = Application.Transpose(Array("a", "b", "c", "d"))
+    ws.Range("B1").Value = 10: ws.Range("B2").Formula = "=NA()": ws.Range("B3").Value = 30: ws.Range("B4").Formula = "=NA()"
+    Set keep = CalcSheet_AllocateBlock(wb, "keep01", "stacked", "x", 4, 3)
+    CalcSheet_AllocateBlock wb, "orph01", "stacked", "x", 4, 3
+    For i = 1 To 4: keep.Cells(i + 1, 1).Value = i * 10: Next
+    Set co = ws.ChartObjects.Add(10, 10, 300, 200)
+    Do While co.Chart.SeriesCollection.Count > 0: co.Chart.SeriesCollection(1).Delete: Loop
+    Set s = co.Chart.SeriesCollection.NewSeries
+    s.Values = "=Dados!$B$1:$B$4": s.XValues = "=Dados!$A$1:$A$4"
+    co.Chart.ChartType = xlLine
+    s.HasDataLabels = True
+    For i = 1 To 4
+        s.Points(i).HasDataLabel = True
+        s.Points(i).DataLabel.Formula = "='" & CALC_SHEET & "'!" & keep.Cells(i + 1, 1).Address(True, True)
+    Next
+    AssertTrue InStr(s.Formula, CALC_SHEET) = 0, "premissa: a serie nao cita a planilha interna"
+    AssertEqual 1, CalcSheet_Cleanup(wb), "so o orfao e removido"
+    AssertFalse CalcSheet_CleanupReadFailed(), "pontos NA() com rotulo nao sao falha de leitura"
+    For Each nm In wb.Names
+        If nm.Name = "tqq_keep01" Then alive = True
+        AssertTrue nm.Name <> "tqq_orph01", "orfao removido"
+    Next
+    AssertTrue alive, "o bloco citado pelos rotulos ligados sobrevive"
+    CloseTemp wb
+End Sub
+
+' Alterar o dado: tudo acompanha (blocos, rotulos, posicao do rotulo de total e conectores no liquido).
+Public Sub Test_WaterfallMulti_DataChange_LabelsAndConnectorsFollow()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, ax As Axis, it As Double, ih As Double, v() As Double
+    Set wb = NewTempWorkbook(): Set d = MultiFixture(wb): Set ws = d.Source.Worksheet
+    Set cht = Waterfall_Insert(ws, d).Chart
+    ws.Range("B5").Value = -100             ' Queda: Loja -100, Online -20 => liquido -120 => 130 -> 10
+    Core_SafeRefresh cht
+    v = Waterfall_EndValues(cht)
+    AssertAlmost 10, v(4), 0.0001: AssertAlmost 10, v(5), 0.0001
+    AssertEqual "-100", Chart_FindSeries(cht, "tqq_lbl_1").Points(4).DataLabel.Text
+    AssertEqual "10", Chart_FindSeries(cht, "tqq_lbl").Points(5).DataLabel.Text
+    AssertEqual xlLabelPositionAbove, Chart_FindSeries(cht, "tqq_lbl").Points(5).DataLabel.Position, "o total agora e positivo"
+    it = cht.PlotArea.InsideTop: ih = cht.PlotArea.InsideHeight: Set ax = cht.Axes(xlValue)
+    AssertAlmost it + ih * (ax.MaximumScale - 10) / (ax.MaximumScale - ax.MinimumScale), cht.Shapes("tqq_ann_conn_4").Top, 1, "conector no novo liquido"
+    CloseTemp wb
+End Sub
+
+' Limite: 6 series (a paleta tem 6 cores) e a cor de cada serie e de suas partes.
+Public Sub Test_WaterfallMulti_SixSeries_Boundary()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, pal As Variant, j As Long, blk As Range, ends() As Double
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Seis"
+    ws.Range("A1:G1").Value = Array("Etapa", "S1", "S2", "S3", "S4", "S5", "S6")
+    ws.Range("A2:G2").Value = Array("x", 1, 2, 3, 4, 5, 6)
+    ws.Range("A3:G3").Value = Array("y", -1, 1, -1, 1, -1, 1)
+    ws.Range("A4:B4").Value = Array("z", "e")
+    Set d = ChartData_FromRange(ws.Range("A1:G4"))
+    Set cht = Waterfall_Insert(ws, d).Chart
+    Set blk = Registry_Block(cht)
+    AssertEqual 80, blk.Columns.Count: AssertEqual 6, Waterfall_SeriesCount(cht)
+    AssertEqual 33, cht.SeriesCollection.Count, "base + 24 partes + total + 6 rotulos de segmento + rotulo de total"
+    pal = Style_Palette("padrao")
+    For j = 1 To 6
+        AssertEqual CLng(pal(j - 1)), Chart_FindSeries(cht, "S" & j).Format.Fill.ForeColor.RGB, "serie " & j
+        AssertEqual CLng(pal(j - 1)), Chart_FindSeries(cht, "tqq_upn_" & j).Format.Fill.ForeColor.RGB
+        AssertEqual CLng(pal(j - 1)), Chart_FindSeries(cht, "tqq_dn_" & j).Format.Fill.ForeColor.RGB
+    Next
+    AssertEqual 6, cht.Legend.LegendEntries.Count
+    ' x soma 21; y soma 0 (liquido); z e total: 21
+    ends = Waterfall_EndValues(cht)
+    AssertAlmost 21, ends(1), 0.0001: AssertAlmost 21, ends(2), 0.0001: AssertAlmost 21, ends(3), 0.0001
+    CloseTemp wb
+End Sub
+
+' Build-down com varias series: o 'e' na primeira linha (em qualquer coluna) e numeros na ultima.
+Public Sub Test_WaterfallMulti_BuildDown()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, body As Range
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Ponte"
+    ws.Range("A1:C1").Value = Array("Etapa", "Loja", "Online")
+    ws.Range("A2:B2").Value = Array("Receita", "e")
+    ws.Range("A3:C3").Value = Array("Custos", -700, -100)
+    ws.Range("A4:C4").Value = Array("Despesas", -250, 0)
+    ws.Range("A5:C5").Value = Array("Lucro", 250, 50)
+    Set d = ChartData_FromRange(ws.Range("A1:C5"))
+    Set body = Block_Body(Waterfall_BuildBlock(wb, "wfmbd1", d))
+    AssertEqual True, body.Cells(2, WF_COL_BD).Value
+    AssertEqual 1350, body.Cells(2, WF_COL_END).Value, "300 - (-700 - 100 - 250)"
+    AssertEqual 1350, body.Cells(2, WF_COL_TOTAL).Value: AssertEqual 0, body.Cells(2, WF_COL_BASE).Value
+    AssertEqual 550, body.Cells(3, WF_COL_END).Value: AssertEqual 300, body.Cells(4, WF_COL_END).Value
+    AssertEqual 700, body.Cells(3, Waterfall_SeriesCol(1, "DN")).Value: AssertEqual 100, body.Cells(3, Waterfall_SeriesCol(2, "DN")).Value
+    AssertEqual 550, body.Cells(3, WF_COL_BASE).Value
+    AssertEqual True, body.Cells(5, 3).Value: AssertEqual 300, body.Cells(5, WF_COL_TOTAL).Value: AssertEqual 300, body.Cells(5, WF_COL_END).Value
+    AssertEqual 0, body.Cells(5, Waterfall_SeriesCol(1, "UP")).Value, "a ultima linha vira total: sem segmentos"
+    ws.Range("B5").Value = 400
+    AssertEqual 1500, body.Cells(2, WF_COL_END).Value, "recalcula ao mudar o total final"
+    ' 'e' na ultima linha tambem: nada de build-down (como na Fase 1)
+    ws.Range("B5").Value = "e": ws.Range("C5").ClearContents
+    AssertEqual False, body.Cells(2, WF_COL_BD).Value: AssertEqual 0, body.Cells(2, WF_COL_END).Value
+    ' erro na ultima linha: nao conta como numero
+    ws.Range("B5").Formula = "=NA()": ws.Range("C5").ClearContents
+    AssertEqual False, body.Cells(2, WF_COL_BD).Value
+    CloseTemp wb
+End Sub
+
+' Tabelas de 1 e de 2 categorias: sem referencia circular (BD usa as celulas de origem, nao IsTotal) e sem erro.
+Public Sub Test_Waterfall_TinyTables_NoErrorsNoCircularity()
+    Dim wb As Workbook, ws As Worksheet, body As Range, c As Long, d As clsChartData, k As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Mini"
+    ws.Range("A1:C1").Value = Array("Etapa", "Loja", "Online")
+    ws.Range("A2:C2").Value = Array("So", 5, 3)
+    For k = 1 To 2                                     ' 1 = so a Loja (S = 1), 2 = Loja e Online
+        Set d = ChartData_FromRange(ws.Range(ws.Cells(1, 1), ws.Cells(2, 1 + k)))
+        Set body = Block_Body(Waterfall_BuildBlock(wb, "wft0" & k, d))
+        For c = 1 To body.Columns.Count
+            If Not (k = 2 And (c = WF_COL_LABELVAL Or c = WF_COL_LABELPOS)) Then      ' com varias series, rotulo de total fora das linhas de total e NA() de proposito
+                AssertFalse IsError(body.Cells(2, c).Value), "n = 1, S = " & k & ", coluna " & c
+            End If
+        Next
+        AssertEqual False, body.Cells(2, WF_COL_BD).Value
+        AssertEqual 5 + IIf(k = 2, 3, 0), body.Cells(2, WF_COL_END).Value
+    Next
+    ws.Range("A2:C2").Value = Array("So", "e", "e")
+    AssertEqual True, body.Cells(2, 3).Value: AssertEqual 0, body.Cells(2, WF_COL_END).Value
+    AssertEqual False, body.Cells(2, WF_COL_BD).Value, "uma unica linha nunca e build-down"
+    ws.Range("A2:C2").Value = Array("Um", "e", "e")
+    ws.Range("A3:C3").Value = Array("Dois", 7, 2)
+    Set d = ChartData_FromRange(ws.Range("A1:C3"))
+    Set body = Block_Body(Waterfall_BuildBlock(wb, "wft03", d))
+    AssertEqual True, body.Cells(2, WF_COL_BD).Value
+    AssertEqual 9, body.Cells(2, WF_COL_END).Value, "n = 2: o total da primeira linha e o numero da ultima"
+    AssertEqual True, body.Cells(3, 3).Value: AssertEqual 9, body.Cells(3, WF_COL_END).Value: AssertEqual 9, body.Cells(3, WF_COL_TOTAL).Value
+    CloseTemp wb
+End Sub
+
+' Rotulos de segmento: fonte clara sobre cor escura e escura sobre cor clara (a 3.a cor da paleta padrao e azul claro).
+Public Sub Test_WaterfallMulti_SegmentLabelFont_ContrastsWithSeriesColor()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Tres"
+    ws.Range("A1:D1").Value = Array("Etapa", "A", "B", "C")
+    ws.Range("A2:D2").Value = Array("x", 10, 20, 30)
+    ws.Range("A3:D3").Value = Array("y", -1, -2, -3)
+    Set d = ChartData_FromRange(ws.Range("A1:D3"))
+    Set cht = Waterfall_Insert(ws, d).Chart
+    AssertEqual RGB(255, 255, 255), CLng(Chart_FindSeries(cht, "tqq_lbl_1").Points(1).DataLabel.Font.Color), "azul escuro: fonte branca"
+    AssertEqual RGB(64, 64, 64), CLng(Chart_FindSeries(cht, "tqq_lbl_3").Points(1).DataLabel.Font.Color), "azul claro: fonte cinza-escuro"
+    CloseTemp wb
+End Sub
