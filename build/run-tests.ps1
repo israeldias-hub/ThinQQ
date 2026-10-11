@@ -1,6 +1,7 @@
 param(
     [ValidateSet('loader','core','all')] [string]$Target = 'all',
     [switch]$NoBuild,
+    [switch]$LoaderSwap,     # tambem roda tests/ps/Test-LoaderSwap.ps1 (Excel real; monta Release em dist; ~30 s)
     [int]$TimeoutSec = 600   # watchdog da execução no Excel: mata o Excel iniciado aqui se não terminar (saída 2)
 )
 . "$PSScriptRoot\lib\Build-Common.ps1"
@@ -98,6 +99,13 @@ if (-not $timedOut -and $targets -contains 'loader') {
     Write-Host '=== ribbon-pacote ==='
     $global:LASTEXITCODE = 0
     & (Join-Path $RepoRoot 'tests\ps\Test-Ribbon.ps1') -RepoRoot $RepoRoot
+    if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
+}
+if (-not $timedOut -and $LoaderSwap) {
+    Write-Host '=== loader-swap ==='
+    $global:LASTEXITCODE = 0
+    & (Join-Path $PSScriptRoot 'build.ps1') -Target all -Configuration Release
+    if ($LASTEXITCODE -eq 0) { & (Join-Path $RepoRoot 'tests\ps\Test-LoaderSwap.ps1') -RepoRoot $RepoRoot }
     if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
 }
 $elapsed = '{0:N1}s' -f $swTotal.Elapsed.TotalSeconds

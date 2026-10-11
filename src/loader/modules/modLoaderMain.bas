@@ -3,6 +3,7 @@ Option Explicit
 Public Const APP_NAME As String = "ThinQQ"
 Private mRootOverride As String
 Private mStartupCheckAt As Date
+Private Const SWAP_FLAG_MAX_MINUTES As Double = 5
 Public Loader_LastMsg As String      ' ultima mensagem enviada por Loader_Msg (usada nos testes)
 
 Public Function Loader_Ping() As String
@@ -148,7 +149,14 @@ Public Function Loader_OpenCore(path As String) As Boolean
     Dim wb As Workbook, prevAlerts As Boolean
     Set wb = Loader_CoreWorkbook()
     If Not wb Is Nothing Then
-        If StrComp(wb.FullName, path, vbTextCompare) = 0 Then Loader_OpenCore = True: Exit Function
+        If StrComp(wb.FullName, path, vbTextCompare) = 0 Then
+            ' Core ja aberto neste caminho (ex.: apos a troca do loader): so reaponta o core para ESTE loader.
+            On Error Resume Next
+            Application.Run "'" & Loader_CoreFileName() & "'!Core_RegisterLoader", ThisWorkbook.Name, ThisWorkbook.FullName
+            On Error GoTo 0
+            Loader_OpenCore = True
+            Exit Function
+        End If
         Loader_CloseCore
     End If
     On Error GoTo Fail
@@ -233,11 +241,32 @@ Fail:
     Loader_Log "Loader_Startup: " & Err.Description
 End Sub
 
+' True enquanto o core esta trocando o arquivo do loader (flag recente, < 5 min). Flag velha e ignorada e limpa.
+Public Function Loader_SwapInProgress() As Boolean
+    Dim t As String, age As Double
+    On Error GoTo Fail
+    t = Settings_Get(KEY_SWAP_IN_PROGRESS)
+    If Len(t) = 0 Then Exit Function
+    If IsDate(t) Then
+        age = (Now - CDate(t)) * 1440
+        If age >= 0 And age < SWAP_FLAG_MAX_MINUTES Then Loader_SwapInProgress = True: Exit Function
+    End If
+    Settings_Delete KEY_SWAP_IN_PROGRESS      ' obsoleta ou invalida
+    Exit Function
+Fail:
+    Loader_SwapInProgress = False
+End Function
+
+' Decisao de fechar o core ao encerrar o loader: nao fecha durante a troca do loader (o core esta executando a troca).
+Public Function Loader_ShouldCloseCoreOnShutdown() As Boolean
+    Loader_ShouldCloseCoreOnShutdown = Not Loader_SwapInProgress()
+End Function
+
 Public Sub Loader_Shutdown()
     On Error Resume Next
     If mStartupCheckAt <> 0 Then
         Application.OnTime mStartupCheckAt, "'" & ThisWorkbook.Name & "'!Updater_StartupCheck", , False
         mStartupCheckAt = 0
     End If
-    Loader_CloseCore
+    If Loader_ShouldCloseCoreOnShutdown() Then Loader_CloseCore
 End Sub

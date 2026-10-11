@@ -135,6 +135,7 @@ Public Sub Updater_SchedulePendingLoader(delaySeconds As Long)
     p = Settings_Get(KEY_PENDING_LOADER)
     If Len(p) = 0 Then Exit Sub
     If Len(Dir(p)) = 0 Then Exit Sub
+    If Loader_SwapInProgress() Then Exit Sub        ' o core ja esta aplicando esta troca (novo loader acabou de subir)
     If Loader_CoreWorkbook() Is Nothing Then Loader_Log "Loader pendente aguardando core: " & p: Exit Sub
     If CompareVersions(Loader_CurrentCoreVersion(), MIN_CORE_FOR_PENDING) < 0 Then
         Loader_Log "Core sem Core_ApplyPendingLoader; loader pendente mantido: " & p
@@ -207,6 +208,13 @@ Public Function Updater_Apply(json As String, what As String, Optional quiet As 
         coreVer = JsonGetString(json, "coreVersion")
         If Not IsValidVersion(coreVer) Then Err.Raise vbObjectError + 2000, "Updater", "Manifesto sem coreVersion válida."
         If Len(Trim$(JsonGetString(json, "coreSha256"))) = 0 And Not allow Then Err.Raise vbObjectError + 2004, "Updater", NO_SHA_MSG
+        ' Nunca substitui o arquivo do core em uso: mesma versao ja carregada => recusa sem tocar em nada.
+        Set wb = Loader_CoreWorkbook()
+        If Not wb Is Nothing Then
+            If StrComp(Left$(wb.FullName, InStrRev(wb.FullName, "\") - 1), Loader_VersionsDir() & "\" & coreVer, vbTextCompare) = 0 Then
+                Err.Raise vbObjectError + 2005, "Updater", "Essa versão (" & coreVer & ") já está instalada e em uso."
+            End If
+        End If
     End If
     If doLoader Then
         If Len(Trim$(JsonGetString(json, "loaderSha256"))) = 0 And Not allow Then Err.Raise vbObjectError + 2004, "Updater", NO_SHA_MSG
@@ -238,7 +246,6 @@ Public Function Updater_Apply(json As String, what As String, Optional quiet As 
         FileCopy tmp, stage
         Kill tmp
         If Len(Dir(dest)) > 0 Then
-            If StrComp(dest, prevPath, vbTextCompare) = 0 Then Loader_CloseCore   ' reinstalacao da versao em uso
             Kill dest
         End If
         Name stage As dest

@@ -1,11 +1,11 @@
 Attribute VB_Name = "TestUpdater"
 Option Explicit
 
-Private mSaved(0 To 8) As String
+Private mSaved(0 To 9) As String
 Private mStdCore As String          ' core de teste padrao (dist), restaurado no Cleanup
 
 Private Function SettingKeys() As Variant
-    SettingKeys = Array(KEY_UPDATE_SOURCE, KEY_SKIPPED, KEY_LAST_CHECK, KEY_PENDING_LOADER, KEY_INTERVAL, KEY_LAST_NOTIFIED_CORE, KEY_PENDING_LOADER_SHA, KEY_LAST_FAILURE, KEY_ALLOW_UNVERIFIED)
+    SettingKeys = Array(KEY_UPDATE_SOURCE, KEY_SKIPPED, KEY_LAST_CHECK, KEY_PENDING_LOADER, KEY_INTERVAL, KEY_LAST_NOTIFIED_CORE, KEY_PENDING_LOADER_SHA, KEY_LAST_FAILURE, KEY_ALLOW_UNVERIFIED, KEY_SWAP_IN_PROGRESS)
 End Function
 
 ' Guarda as configuracoes do usuario e zera os ganchos do updater.
@@ -18,6 +18,7 @@ Private Sub Setup()
     Next
     Settings_Delete KEY_LAST_FAILURE
     Settings_Delete KEY_ALLOW_UNVERIFIED
+    Settings_Delete KEY_SWAP_IN_PROGRESS
     Updater_TestFormResult = ""
     Updater_FormShownCount = 0
     Updater_PendingScheduleCount = 0
@@ -533,6 +534,36 @@ Public Sub Test_Updater_VersionLine_And_SkipKey()
     AssertEqual "1.2.0|1.1.0", Updater_SkipKey(j)
 End Sub
 
+' Mesma versao do core em uso: recusa sem tocar no arquivo em execucao.
+Public Sub Test_Updater_Apply_SameVersionAsRunningCore_IsRefusedUntouched()
+    Dim root As String, vd As String, running As String, bad As String, f As Integer, lenBefore As Long, stampBefore As Date, ok As Boolean
+    On Error GoTo Fail
+    Setup
+    root = TempDir()
+    vd = root & "\versions\9.9.9"
+    MkDir root & "\versions": MkDir vd
+    running = vd & "\" & Loader_CoreFileName()
+    FileCopy CoreFixture(), running
+    Loader_SetRootOverride root
+    AssertTrue Loader_OpenCore(running)
+    lenBefore = FileLen(running)
+    stampBefore = FileDateTime(running)
+    bad = TempDir() & "\corrompido.xlam"
+    f = FreeFile: Open bad For Output As #f: Print #f, "corrompido": Close #f
+    ok = Updater_Apply(Manifest("9.9.9", bad, Transport_Sha256File(bad)), "core", False)
+    Loader_SetRootOverride ""
+    AssertFalse ok
+    AssertTrue InStr(Loader_LastMsg, "já está instalada") > 0, "mensagem amigável: " & Loader_LastMsg
+    AssertEqual running, Loader_CoreWorkbook().FullName
+    AssertEqual "pong", Loader_RunCore("Core_Ping")
+    AssertEqual lenBefore, FileLen(running), "arquivo do core em uso intacto"
+    AssertTrue stampBefore = FileDateTime(running), "arquivo do core em uso não foi regravado"
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
 Public Sub Test_Updater_Apply_NoSha_IsRefusedByDefault()
     Dim root As String, ok As Boolean, json As String
     On Error GoTo Fail
@@ -640,3 +671,70 @@ Public Sub Test_Loader_OpenBestCore_FallsBackWhenNewestIsCorrupt()
 Fail:
     FailCleanup
 End Sub
+
+Public Sub Test_Loader_Shutdown_KeepsCoreOpen_WhileSwapFlagIsFresh()
+    On Error GoTo Fail
+    Setup
+    AssertTrue Not Loader_CoreWorkbook() Is Nothing
+    Settings_Set KEY_SWAP_IN_PROGRESS, Format$(Now - 1 / 1440, "yyyy-mm-dd hh:nn:ss")
+    AssertTrue Loader_SwapInProgress()
+    AssertFalse Loader_ShouldCloseCoreOnShutdown(), "troca em andamento: não fecha o core"
+    Loader_Shutdown
+    AssertTrue Not Loader_CoreWorkbook() Is Nothing, "core continua aberto"
+    AssertEqual "pong", Loader_RunCore("Core_Ping")
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+Public Sub Test_Loader_SwapFlag_StaleOrInvalid_IsIgnoredAndCleared()
+    On Error GoTo Fail
+    Setup
+    AssertTrue Loader_ShouldCloseCoreOnShutdown(), "sem flag: fecha normalmente"
+    Settings_Set KEY_SWAP_IN_PROGRESS, Format$(Now - 10 / 1440, "yyyy-mm-dd hh:nn:ss")
+    AssertTrue Loader_ShouldCloseCoreOnShutdown(), "flag com 10 min é obsoleta"
+    AssertEqual "", Settings_Get(KEY_SWAP_IN_PROGRESS), "flag obsoleta é limpa"
+    Settings_Set KEY_SWAP_IN_PROGRESS, "lixo"
+    AssertTrue Loader_ShouldCloseCoreOnShutdown()
+    AssertEqual "", Settings_Get(KEY_SWAP_IN_PROGRESS)
+    Settings_Set KEY_SWAP_IN_PROGRESS, Format$(Now + 1, "yyyy-mm-dd hh:nn:ss")
+    AssertTrue Loader_ShouldCloseCoreOnShutdown(), "flag no futuro (relógio) não vale"
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+Public Sub Test_Loader_OpenCore_SamePath_ReregistersLoader()
+    On Error GoTo Fail
+    Setup
+    Loader_RunCore "Core_RegisterLoader", "Outro.xlam", "C:\outro\Outro.xlam"
+    AssertEqual "C:\outro\Outro.xlam", CStr(Loader_RunCore("Core_LoaderPath"))
+    AssertTrue Loader_OpenCore(Loader_CoreWorkbook().FullName), "mesmo caminho: sucesso sem reabrir"
+    AssertEqual ThisWorkbook.FullName, CStr(Loader_RunCore("Core_LoaderPath")), "core reapontado para este loader"
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+Public Sub Test_Updater_SchedulePendingLoader_SkippedWhileSwapInProgress()
+    Dim d As String, f As Integer
+    On Error GoTo Fail
+    Setup
+    d = TempDir()
+    f = FreeFile: Open d & "\p.xlam" For Output As #f: Print #f, "x": Close #f
+    Settings_Set KEY_PENDING_LOADER, d & "\p.xlam"
+    Settings_Set KEY_SWAP_IN_PROGRESS, Format$(Now, "yyyy-mm-dd hh:nn:ss")
+    Updater_SchedulePendingLoader 1
+    AssertEqual 0, Updater_PendingScheduleCount, "durante a troca não agenda uma segunda aplicação"
+    Settings_Delete KEY_SWAP_IN_PROGRESS
+    Updater_SchedulePendingLoader 1
+    AssertEqual 1, Updater_PendingScheduleCount
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+

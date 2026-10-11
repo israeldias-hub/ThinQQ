@@ -3,6 +3,8 @@ Option Explicit
 Private mSavedPending As String
 Private mSavedPendingSha As String
 Private mSavedLoaderPath As String
+Private mSavedSwap As String
+Private mSavedFailNotified As String
 
 Private Function Fixture(wb As Workbook) As Worksheet
     Dim ws As Worksheet
@@ -439,6 +441,10 @@ Private Sub PendingSetup()
     mSavedPending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
     mSavedPendingSha = GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", "")
     mSavedLoaderPath = Core_LoaderPath()
+    mSavedSwap = GetSetting("ThinQQ", "Updater", "SwapInProgress", "")
+    mSavedFailNotified = GetSetting("ThinQQ", "Updater", "PendingLoaderFailNotified", "")
+    PutSetting "SwapInProgress", ""
+    PutSetting "PendingLoaderFailNotified", ""
 End Sub
 
 Private Sub PutSetting(key As String, value As String)
@@ -456,6 +462,9 @@ Private Sub PendingRestore()
     Application.Workbooks("ThinQQ.xlam").Close SaveChanges:=False
     PutSetting "PendingLoaderPath", mSavedPending
     PutSetting "PendingLoaderSha256", mSavedPendingSha
+    PutSetting "SwapInProgress", mSavedSwap
+    PutSetting "PendingLoaderFailNotified", mSavedFailNotified
+    Core_TestSetApplyBusy False
     Core_RegisterLoader "", mSavedLoaderPath
 End Sub
 
@@ -504,6 +513,7 @@ Public Sub Test_Core_ApplyPendingLoader_ReplacesTargetAndClearsSetting()
     AssertEqual 0, Len(Dir(target & ".new")) + Len(Dir(target & ".bak")), "sem sobras .new/.bak"
     AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderPath", ""), "configuração deve ser limpa"
     AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", "")
+    AssertEqual "", GetSetting("ThinQQ", "Updater", "SwapInProgress", ""), "flag de troca limpa no sucesso"
     PendingRestore
     Exit Sub
 Fail:
@@ -556,6 +566,14 @@ Public Sub Test_Core_ApplyPendingLoader_ReloadFails_RestoresOldAndKeepsPending()
     AssertTrue Len(Dir(pend)) > 0, "pendente mantido"
     AssertEqual pend, GetSetting("ThinQQ", "Updater", "PendingLoaderPath", ""), "pendente continua registrado"
     AssertEqual 0, Len(Dir(target & ".new")) + Len(Dir(target & ".bak")), "sem sobras .new/.bak"
+    AssertEqual "", GetSetting("ThinQQ", "Updater", "SwapInProgress", ""), "flag de troca limpa na falha"
+    AssertTrue Len(GetSetting("ThinQQ", "Updater", "PendingLoaderFailNotified", "")) > 0, "falha registrada para o aviso 1x/24 h"
+    ' segunda falha em menos de 24 h: o carimbo do aviso nao muda
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderFailNotified", Format$(Now - 1 / 24, "yyyy-mm-dd hh:nn:ss")
+    Dim stamp As String
+    stamp = GetSetting("ThinQQ", "Updater", "PendingLoaderFailNotified", "")
+    Core_ApplyPendingLoader
+    AssertEqual stamp, GetSetting("ThinQQ", "Updater", "PendingLoaderFailNotified", ""), "aviso limitado a 1x por 24 h"
     PendingRestore
     Exit Sub
 Fail:
@@ -621,3 +639,28 @@ Private Function ReadText(path As String) As String
     Loop
     Close #f
 End Function
+
+Public Sub Test_Core_ApplyPendingLoader_BusyGuard_SkipsReentrantCall()
+    Dim d As String, pend As String, target As String
+    PendingSetup
+    On Error GoTo Fail
+    d = TempDir()
+    pend = d & "\pend.xlam": target = d & "\ThinQQ.xlam"
+    MakeAddinFile pend
+    WriteText target, "intacto"
+    Core_RegisterLoader "", target
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", Util_Sha256File(pend)
+    Core_TestSetApplyBusy True
+    Core_ApplyPendingLoader
+    AssertTrue Len(Dir(pend)) > 0, "chamada reentrante não faz nada"
+    AssertEqual pend, GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    AssertEqual "intacto", ReadText(target)
+    Core_TestSetApplyBusy False
+    Core_ApplyPendingLoader
+    AssertEqual 0, Len(Dir(pend)), "sem o flag, a troca acontece"
+    PendingRestore
+    Exit Sub
+Fail:
+    PendingFail
+End Sub

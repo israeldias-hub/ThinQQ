@@ -2,6 +2,7 @@ Attribute VB_Name = "modCoreApi"
 Option Explicit
 ' API pública chamada pelo loader via Application.Run. Nunca propaga erro.
 Private mLoaderPath As String
+Private mApplyBusy As Boolean      ' guarda de reentrada de Core_ApplyPendingLoader
 
 Public Function Core_Ping() As String
     Core_Ping = "pong"
@@ -364,11 +365,30 @@ End Function
 ' Substitui o arquivo do loader (registrado em PendingLoaderPath) e o recarrega.
 ' Executado via OnTime a partir do core, para que nenhum codigo do loader esteja na pilha.
 ' Seguranca: o caminho pendente vem do registro, entao o SHA-256 gravado pelo atualizador
-' (PendingLoaderSha256) e recalculado aqui (certutil, Util_Sha256File); divergencia => descarta o arquivo.
-' Atomicidade: copia para <alvo>.new e faz backup <alvo>.bak ANTES de fechar o loader; qualquer falha depois
-' restaura o backup, recarrega o loader antigo e deixa o pendente registrado. Nunca propaga erro e nunca usa
-' MsgBox direto (OnTime): so Errors_Log + Core_Notify.
+' (PendingLoaderSha256) e recalculado aqui (certutil, Util_Sha256File) sobre a copia <alvo>.new, ou seja, os bytes
+' verificados sao os bytes instalados; divergencia => descarta o arquivo.
+' Atomicidade: .new pronto e verificado ANTES de fechar o loader; depois de fechado, o alvo vira .bak (renomeacao:
+' um arquivo aberto no Excel nao pode ser copiado) e o .new vira o alvo. Qualquer falha restaura o .bak, recarrega o
+' loader antigo e deixa o pendente registrado.
+' Fechar o loader dispara o Workbook_BeforeClose dele (Loader_Shutdown), que fecharia ESTE core (quem executa a
+' troca). Por isso o registro recebe SwapInProgress (timestamp) antes de mexer no loader e o loader nao fecha o core
+' enquanto a flag estiver recente (< 5 min). A flag e limpa em toda saida.
+' Guarda de reentrada (o hash usa DoEvents; dois OnTime podem chegar). Nunca propaga erro e nunca usa MsgBox direto.
 Public Sub Core_ApplyPendingLoader()
+    If mApplyBusy Then Exit Sub
+    mApplyBusy = True
+    ApplyPendingLoaderImpl
+    On Error Resume Next
+    DeleteSetting "ThinQQ", "Updater", "SwapInProgress"
+    mApplyBusy = False
+End Sub
+
+' Gancho de teste da guarda de reentrada.
+Public Sub Core_TestSetApplyBusy(value As Boolean)
+    mApplyBusy = value
+End Sub
+
+Private Sub ApplyPendingLoaderImpl()
     Dim pending As String, target As String, expectSha As String, nw As String, bak As String
     Dim ai As AddIn, found As Boolean, started As Boolean, committed As Boolean, en As Long, ed As String, prevAlerts As Boolean
     On Error GoTo Fail
@@ -381,19 +401,20 @@ Public Sub Core_ApplyPendingLoader()
         Exit Sub
     End If
     expectSha = LCase$(GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", ""))
-    If Len(expectSha) = 0 Or Util_Sha256File(pending) <> expectSha Then
+    nw = target & ".new": bak = target & ".bak"
+    If Len(Dir(nw)) > 0 Then Kill nw
+    If Len(Dir(bak)) > 0 Then Kill bak
+    FileCopy pending, nw
+    If Len(expectSha) = 0 Or Util_Sha256File(nw) <> expectSha Then
         Errors_Log "Core_ApplyPendingLoader: SHA-256 do loader pendente nao confere; descartado: " & pending
+        Kill nw
         Kill pending
         SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
         SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", ""
         Core_Notify "A atualização do carregador do ThinQQ foi descartada: o arquivo não passou na verificação de integridade.", vbExclamation, False
         Exit Sub
     End If
-    nw = target & ".new": bak = target & ".bak"
-    If Len(Dir(nw)) > 0 Then Kill nw
-    If Len(Dir(bak)) > 0 Then Kill bak
-    FileCopy pending, nw
-    If Len(Dir(target)) > 0 Then FileCopy target, bak
+    SaveSetting "ThinQQ", "Updater", "SwapInProgress", Format$(Now, "yyyy-mm-dd hh:nn:ss")
     started = True
     prevAlerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
@@ -403,7 +424,9 @@ Public Sub Core_ApplyPendingLoader()
     On Error Resume Next
     Application.Workbooks(Util_FileName(target)).Close SaveChanges:=False
     On Error GoTo Fail
-    If Len(Dir(target)) > 0 Then Kill target
+    ' O arquivo do loader aberto no Excel fica travado (nem copia nem apaga): o backup e feito por renomeacao,
+    ' depois que o loader foi fechado.
+    If Len(Dir(target)) > 0 Then Name target As bak
     Name nw As target
     If found Then
         For Each ai In Application.AddIns
@@ -419,6 +442,7 @@ Public Sub Core_ApplyPendingLoader()
     Kill pending
     SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
     SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", ""
+    DeleteSetting "ThinQQ", "Updater", "PendingLoaderFailNotified"
     Errors_Log "loader substituído: " & target
     Exit Sub
 Fail:
@@ -427,6 +451,20 @@ Fail:
     ' de forma confiavel (um novo erro escapava para o chamador).
     If started And Not committed Then RestoreLoaderFiles target, nw, bak, found, prevAlerts
     Errors_Log "Core_ApplyPendingLoader" & vbTab & en & vbTab & ed & IIf(started And Not committed, " (loader antigo restaurado)", "")
+    NotifyPendingFailureThrottled
+End Sub
+
+' Aviso de falha da troca do loader no maximo 1x por 24 h (o pendente e tentado a cada abertura do Excel).
+Private Sub NotifyPendingFailureThrottled()
+    Dim last As String
+    On Error Resume Next
+    last = GetSetting("ThinQQ", "Updater", "PendingLoaderFailNotified", "")
+    If Len(last) > 0 Then
+        If IsDate(last) Then
+            If Now - CDate(last) >= 0 And Now - CDate(last) < 1 Then Exit Sub
+        End If
+    End If
+    SaveSetting "ThinQQ", "Updater", "PendingLoaderFailNotified", Format$(Now, "yyyy-mm-dd hh:nn:ss")
     Core_Notify "Não foi possível atualizar o carregador do ThinQQ. A versão anterior foi mantida.", vbExclamation, False
 End Sub
 
