@@ -70,6 +70,7 @@ Public Function Stacked_Insert(ws As Worksheet, data As clsChartData, kind As St
     cht.Legend.Font.Size = 9
     Registry_SetOption cht, "numfmt", "int"
     Registry_SetOption cht, "palette", "padrao"
+    Registry_SetOption cht, "n", CStr(data.CategoryCount)
     If kind <> "line" Then
         cht.ChartGroups(1).GapWidth = IIf(kind = "clustered", 80, 50)
         Registry_SetOption cht, "gap", IIf(kind = "clustered", "80", "50")
@@ -103,12 +104,7 @@ Public Sub Stacked_SetTotals(cht As Chart, turnOn As Boolean)
     Set body = Block_Body(Registry_Block(cht))
     n = body.Rows.Count - 1
     If s Is Nothing Then
-        Set s = cht.SeriesCollection.NewSeries
-        s.Name = "tqq_total"
-        s.Values = "='" & CALC_SHEET & "'!" & body.Cells(2, 3).Resize(n, 1).Address(True, True)
-        s.ChartType = xlLine
-        s.Format.Line.Visible = msoFalse
-        s.MarkerStyle = xlMarkerStyleNone
+        Set s = Chart_AddHelperSeries(cht, "tqq_total", body.Cells(2, 3).Resize(n, 1))
     End If
     Stacked_HideTotalLegendEntry cht
     fmt = Labels_TotalFormat(cht)
@@ -121,7 +117,7 @@ End Sub
 Public Sub Stacked_SetLabels(cht As Chart, turnOn As Boolean)
     Dim s As Series, fmt As String, j As Long, body As Range, n As Long, is100 As Boolean
     fmt = Labels_SegmentFormat(cht)
-    is100 = (Registry_ChartType(cht) = "stacked100")
+    is100 = Kinds_Is100(Registry_ChartType(cht))
     If is100 Then Set body = Block_Body(Registry_Block(cht)): n = body.Rows.Count - 1
     For Each s In cht.SeriesCollection
         If Not Style_IsHelperSeries(s) Then
@@ -172,23 +168,10 @@ Public Sub Stacked_SetConnectors(cht As Chart, turnOn As Boolean)
     Registry_SetOption cht, "connectors", IIf(turnOn And accepted, "1", "0")
 End Sub
 
-' Esconde da legenda a entrada da série auxiliar tqq_total. A posição da entrada é calculada pela ordem
-' dos grupos de gráfico (colunas antes de linhas) e das séries dentro do grupo. Idempotente: se há menos
-' entradas que séries, a entrada já foi removida e nada é feito.
+' Esconde da legenda as entradas das séries auxiliares (tqq_total e as demais tqq_*); idempotente. A lógica mora em
+' Chart_HideHelperLegendEntries (modChartUtil), que também cobre várias auxiliares e grupos secundários.
 Public Sub Stacked_HideTotalLegendEntry(cht As Chart)
-    Dim g As ChartGroup, k As Long, idx As Long
-    If Not cht.HasLegend Then Exit Sub
-    If Chart_FindSeries(cht, "tqq_total") Is Nothing Then Exit Sub
-    If cht.Legend.LegendEntries.Count < cht.SeriesCollection.Count Then Exit Sub
-    For Each g In cht.ChartGroups
-        For k = 1 To g.SeriesCollection.Count
-            idx = idx + 1
-            If g.SeriesCollection(k).Name = "tqq_total" Then
-                cht.Legend.LegendEntries(idx).Delete
-                Exit Sub
-            End If
-        Next
-    Next
+    Chart_HideHelperLegendEntries cht
 End Sub
 
 Private Function IsStackedColumnGroup(g As ChartGroup) As Boolean

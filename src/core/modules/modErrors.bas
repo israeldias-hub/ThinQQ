@@ -1,11 +1,21 @@
 Attribute VB_Name = "modErrors"
 Option Explicit
 
+' Pasta do log. No build Test os logs vão para %TEMP%\ThinQQ-test-logs (os testes de falha escreviam no log real do
+' usuário); nos demais builds, %LOCALAPPDATA%\ThinQQ\logs. A pasta de teste é pequena e reaproveitada (não é apagada).
+Public Function Errors_LogDir() As String
+    If BUILD_CONFIG = "Test" Then
+        Errors_LogDir = Environ$("TEMP") & "\ThinQQ-test-logs"
+    Else
+        Errors_LogDir = Environ$("LOCALAPPDATA") & "\ThinQQ\logs"
+    End If
+End Function
+
 ' Nunca propaga erro (roda dentro de handlers Fail:): todo o corpo é protegido, inclusive Open/Print/Close.
 Public Sub Errors_Log(msg As String)
     On Error Resume Next
     Dim f As Integer, dir_ As String
-    dir_ = Environ$("LOCALAPPDATA") & "\ThinQQ\logs"
+    dir_ = Errors_LogDir()
     Util_EnsureDir dir_
     f = FreeFile
     Open dir_ & "\thinqq.log" For Append As #f

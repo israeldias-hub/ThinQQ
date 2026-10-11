@@ -130,6 +130,11 @@ Public Function Block_Body(blk As Range) As Range
     Set Block_Body = blk.Offset(1, 0).Resize(blk.Rows.Count - 1, blk.Columns.Count)
 End Function
 
+' Referencia absoluta (para Series.Values/XValues) a celulas da planilha interna: ='_ThinQQ'!$C$5:$C$9
+Public Function Block_Ref(cells As Range) As String
+    Block_Ref = "='" & CALC_SHEET & "'!" & cells.Address(True, True)
+End Function
+
 ' Texto com as fórmulas de série (Series.Formula) E dos rótulos ligados a este livro (DataLabel.Formula) de TODOS os
 ' gráficos da pasta: gráficos embutidos de cada planilha (inclusive dentro de grupos de formas) e planilhas de
 ' gráfico. Uma cópia de gráfico ThinQQ, ou um gráfico movido para planilha de gráfico, não tem mais o nome

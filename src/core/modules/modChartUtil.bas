@@ -145,3 +145,160 @@ Public Function Util_SeriesCategoryRefCount(s As Series, wb As Workbook) As Long
 Fail:
     Util_SeriesCategoryRefCount = -1
 End Function
+
+' Serie auxiliar (prefixo tqq_) para rotulos/totais/marcadores, orientavel:
+'  - posCells Is Nothing (graficos verticais): linha invisivel (sem linha e sem marcador) no grupo primario, com
+'    Values = valueCells (um ponto por categoria).
+'  - posCells informado (barras horizontais): em barras o Excel nao combina com linha, so com dispersao (XY) no grupo
+'    SECUNDARIO. X = valueCells (posicao no eixo de valores das barras), Y = posCells (posicao da categoria, n - i + 0,5;
+'    o eixo Y secundario fixo em 0..n e oculto). Sem marcador e sem linha. Chama Chart_SetupSecondaryAxes.
+' Nao mexe na legenda: quem chama decide (Chart_HideHelperLegendEntries). Em falha desfaz a serie e repropaga.
+Public Function Chart_AddHelperSeries(cht As Chart, name As String, valueCells As Range, Optional posCells As Range = Nothing) As Series
+    Dim s As Series, en As Long, es As String, ed As String
+    On Error GoTo Fail
+    Set s = cht.SeriesCollection.NewSeries
+    s.Name = name
+    If posCells Is Nothing Then
+        s.Values = Block_Ref(valueCells)
+        s.ChartType = xlLine
+        s.Format.Line.Visible = msoFalse
+        s.MarkerStyle = xlMarkerStyleNone
+    Else
+        s.ChartType = xlXYScatter          ' antes de XValues: uma serie XY precisa existir como XY para aceitar X numerico
+        s.AxisGroup = xlSecondary
+        s.XValues = Block_Ref(valueCells)
+        s.Values = Block_Ref(posCells)
+        s.MarkerStyle = xlMarkerStyleNone
+        s.Format.Line.Visible = msoFalse
+        Chart_SetupSecondaryAxes cht, posCells.Rows.Count
+    End If
+    Set Chart_AddHelperSeries = s
+    Exit Function
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error Resume Next
+    If Not s Is Nothing Then s.Delete
+    On Error GoTo 0
+    Err.Raise en, es, ed
+End Function
+
+' Eixos secundarios das auxiliares XY de barras: eixo Y (posicao da categoria) fixo em 0..n, nao invertido,
+' totalmente oculto (sem marcas, rotulos, linha e grade). Se existir eixo X secundario, alinha-o ao primario.
+Public Sub Chart_SetupSecondaryAxes(cht As Chart, n As Long)
+    cht.HasAxis(xlValue, xlSecondary) = True
+    With cht.Axes(xlValue, xlSecondary)
+        .MinimumScale = 0
+        .MaximumScale = n
+        .ReversePlotOrder = False
+        .MajorTickMark = xlTickMarkNone
+        .MinorTickMark = xlTickMarkNone
+        .TickLabelPosition = xlTickLabelPositionNone
+        .Format.Line.Visible = msoFalse
+        .HasMajorGridlines = False
+        .HasMinorGridlines = False
+    End With
+    If cht.HasAxis(xlCategory, xlSecondary) Then Chart_SyncSecondaryX cht
+End Sub
+
+' Alinha o eixo X secundario (se existir) ao eixo de valores primario: copia minimo/maximo e o oculta.
+' Sem eixo X secundario nao faz nada (a serie XY usa o eixo horizontal primario). Nunca propaga erro.
+Public Sub Chart_SyncSecondaryX(cht As Chart)
+    Dim mn As Double, mx As Double
+    On Error Resume Next
+    If Not cht.HasAxis(xlCategory, xlSecondary) Then Exit Sub
+    mn = cht.Axes(xlValue, xlPrimary).MinimumScale
+    mx = cht.Axes(xlValue, xlPrimary).MaximumScale
+    If Err.Number = 0 Then
+        With cht.Axes(xlCategory, xlSecondary)
+            .MinimumScale = mn
+            .MaximumScale = mx
+        End With
+    End If
+    Err.Clear
+    With cht.Axes(xlCategory, xlSecondary)
+        .MajorTickMark = xlTickMarkNone
+        .MinorTickMark = xlTickMarkNone
+        .TickLabelPosition = xlTickLabelPositionNone
+        .Format.Line.Visible = msoFalse
+        .HasMajorGridlines = False
+        .HasMinorGridlines = False
+    End With
+    Err.Clear
+End Sub
+
+' Remove da legenda toda entrada de serie auxiliar (tqq_*). Idempotente e correta com varias auxiliares.
+' Legenda sem entrada removida OU parcialmente removida (uma auxiliar nova entrou numa legenda que ja tinha
+' outras removidas) e religada preservando posicao e fonte; depois cada entrada tqq_* e apagada do maior indice
+' para o menor (apagar renumera as seguintes). O indice de cada serie segue a ordem dos grupos do grafico
+' (ChartGroups, inclusive os do eixo secundario) e das series dentro de cada grupo, com a inversao descrita em
+' LegendGroupReversed.
+Public Sub Chart_HideHelperLegendEntries(cht As Chart)
+    Dim g As ChartGroup, s As Series, k As Long, m As Long, h As Long, total As Long, cnt As Long
+    Dim idx As Long, nIdx As Long, i As Long, j As Long, t As Long, pos As Long, fsz As Double, hidden() As Long, rev As Boolean
+    If Not cht.HasLegend Then Exit Sub
+    total = cht.SeriesCollection.Count
+    For Each s In cht.SeriesCollection
+        If Style_IsHelperSeries(s) Then h = h + 1
+    Next
+    If h = 0 Then Exit Sub
+    cnt = cht.Legend.LegendEntries.Count
+    If cnt = total - h Then Exit Sub                 ' ja esta feito
+    If cnt <> total Then                             ' estado parcial: recomeca com todas as entradas
+        pos = cht.Legend.Position
+        fsz = cht.Legend.Font.Size
+        cht.HasLegend = False
+        cht.HasLegend = True
+        cht.Legend.Position = pos
+        cht.Legend.Font.Size = fsz
+    End If
+    ReDim hidden(1 To h)
+    For Each g In cht.ChartGroups
+        m = g.SeriesCollection.Count
+        rev = LegendGroupReversed(cht, g)
+        For k = 1 To m
+            If Style_IsHelperSeries(g.SeriesCollection(k)) Then
+                nIdx = nIdx + 1
+                If nIdx <= h Then hidden(nIdx) = idx + IIf(rev, m - k + 1, k)
+            End If
+        Next
+        idx = idx + m
+    Next
+    If idx <> total Or nIdx <> h Then                ' os grupos nao cobrem todas as series: nao arrisca apagar entrada de dados
+        Errors_Log "Chart_HideHelperLegendEntries" & vbTab & "grupos x series" & vbTab & idx & "/" & total & " aux " & nIdx & "/" & h
+        Exit Sub
+    End If
+    For i = 2 To nIdx                                ' ordem decrescente (a inversao por grupo desordena a lista)
+        t = hidden(i)
+        j = i - 1
+        Do While j >= 1
+            If hidden(j) >= t Then Exit Do
+            hidden(j + 1) = hidden(j)
+            j = j - 1
+        Loop
+        hidden(j + 1) = t
+    Next
+    For i = 1 To nIdx
+        cht.Legend.LegendEntries(hidden(i)).Delete
+    Next
+End Sub
+
+' O Excel lista as entradas da legenda na ordem VISUAL das series (medido no Excel 2019): em pilhas verticais
+' (colunas e areas empilhadas, inclusive 100%) com a legenda a esquerda/direita a ultima serie aparece primeiro
+' (indice 1); barras agrupadas com o eixo de categorias nao invertido tambem aparecem invertidas (com o eixo
+' invertido, como o Style_ApplyBase deixa as barras, nao). Barras empilhadas, colunas agrupadas e linhas: ordem normal.
+Private Function LegendGroupReversed(cht As Chart, g As ChartGroup) As Boolean
+    Dim ct As Long, lp As Long
+    On Error GoTo Fail
+    If g.SeriesCollection.Count = 0 Then Exit Function
+    ct = g.SeriesCollection(1).ChartType
+    Select Case ct
+        Case xlColumnStacked, xlColumnStacked100, xlAreaStacked, xlAreaStacked100
+            lp = cht.Legend.Position
+            LegendGroupReversed = (lp = xlLegendPositionRight Or lp = xlLegendPositionLeft)
+        Case xlBarClustered
+            LegendGroupReversed = Not cht.Axes(xlCategory, xlPrimary).ReversePlotOrder
+    End Select
+    Exit Function
+Fail:
+    LegendGroupReversed = False
+End Function

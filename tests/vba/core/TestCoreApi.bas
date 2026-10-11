@@ -151,6 +151,8 @@ Public Sub Test_Core_RebuildFromRange_KeepsPositionOptionsToggles()
     AssertTrue nc.ChartGroups(1).HasSeriesLines
     AssertEqual 120, nc.ChartGroups(1).GapWidth
     AssertEqual 2, Geom_ChartCategoryCount(nc)
+    AssertEqual "2", Registry_GetOption(nc, "n", ""), "n acompanha a nova tabela (as opcoes antigas trazem o n da anterior)"
+    AssertFalse Core_ChartSourceMismatch(nc), "sem divergencia falsa depois de reconstruir com outro tamanho"
     AssertEqual 1, TqqNameCount(wb), "bloco antigo deve ser removido"
     Teardown wb
 End Sub
@@ -947,4 +949,89 @@ Cleanup:
     Util_FailChartReadSiteForTest = 0
     Teardown wb
     Err.Raise en, es, ed
+End Sub
+
+Public Sub Test_Core_Supports_FollowsActiveChart()
+    Dim wb As Workbook, ws As Worksheet
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    AssertTrue Core_Supports("totals"): AssertTrue Core_Supports("changesource")
+    AssertFalse Core_Supports("secondary"): AssertFalse Core_Supports("pieout")
+    AssertEqual "4", Core_GetOption("n"), "numero de categorias persistido"
+    ws.Range("A1").Select
+    AssertFalse Core_Supports("totals"): AssertFalse Core_Supports("changesource")
+    Teardown wb
+End Sub
+
+' Temporario: a Tarefa 10 o remove ao implementar o Gantt (o ultimo tipo a ficar pronto). Tipo valido ainda sem
+' implementacao avisa e nao deixa bloco.
+Public Sub Test_Core_Insert_KindNotReady_NotifiesWithoutChart()
+    Dim wb As Workbook, ws As Worksheet
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_ClearLastNotice
+    Core_Insert "gantt"
+    AssertEqual 0, ws.ChartObjects.Count
+    AssertEqual 0, TqqNameCount(wb)
+    AssertTrue InStr(Core_LastNotice(), "ainda não está disponível") > 0, Core_LastNotice()
+    Teardown wb
+End Sub
+
+' Build Test: o log vai para %TEMP%\ThinQQ-test-logs, nunca para o log real do usuario.
+Public Sub Test_Errors_Log_TestBuildWritesToTempFolder()
+    Dim marker As String, p As String, f As Integer, txt As String
+    AssertEqual Environ$("TEMP") & "\ThinQQ-test-logs", Errors_LogDir()
+    Randomize
+    marker = "tqq-log-probe-" & Format$(Now, "hhnnss") & "-" & CStr(Int(Rnd * 100000))
+    Errors_Log marker
+    p = Errors_LogDir() & "\thinqq.log"
+    AssertTrue Len(Dir(p)) > 0, "log de teste criado em " & p
+    f = FreeFile
+    Open p For Binary Access Read As #f
+    txt = Space$(LOF(f))
+    Get #f, , txt
+    Close #f
+    AssertTrue InStr(txt, marker) > 0, "a linha foi para o log de teste"
+End Sub
+
+' Temporario (as Tarefas 3 e 5 removem os tipos que passarem a existir): barras e cascata horizontal ainda nao tem Insert;
+' Kinds_Insert recusa com o aviso 7200 em vez de criar colunas gravadas como barras.
+Public Sub Test_Core_Insert_HorizontalKindsNotReady_NoMislabeledColumnChart()
+    Dim wb As Workbook, ws As Worksheet, kind As Variant
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    For Each kind In Array("barstacked", "barclustered", "barstacked100", "barwaterfall")
+        Core_ClearLastNotice
+        Core_Insert CStr(kind)
+        AssertEqual 0, ws.ChartObjects.Count, kind & ": nenhum grafico criado"
+        AssertEqual 0, TqqNameCount(wb), kind & ": nenhum bloco criado"
+        AssertTrue InStr(Core_LastNotice(), "ainda não está disponível") > 0, kind & ": " & Core_LastNotice()
+    Next
+    Core_ClearLastNotice
+    Core_Insert "pizza"
+    AssertTrue InStr(Core_LastNotice(), "Tipo de gráfico desconhecido: pizza") > 0, "tipo invalido continua recusado: " & Core_LastNotice()
+    Teardown wb
+End Sub
+
+' A opcao n (numero de categorias) vale para a cascata tambem; sem ela (grafico de versao antiga) a divergencia
+' continua sendo medida pelo tamanho do bloco.
+Public Sub Test_Core_Insert_Waterfall_PersistsN_And_LegacyChartWithoutN()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:B1").Value = Array("Etapa", "Valor")
+    ws.Range("A2:B2").Value = Array("Início", 100)
+    ws.Range("A3:B3").Value = Array("A", -30)
+    ws.Range("A4:B4").Value = Array("Fim", "e")
+    ws.Range("A1").Select
+    Core_Insert "waterfall"
+    Set cht = Core_ActiveChart()
+    AssertEqual "3", Core_GetOption("n")
+    AssertFalse Core_ChartSourceMismatch(cht)
+    Registry_Block(cht).Cells(1, 4).Value = "numfmt=int"          ' grafico antigo: sem a opcao n
+    AssertEqual "", Core_GetOption("n")
+    AssertFalse Core_ChartSourceMismatch(cht), "sem n: compara com o tamanho do bloco"
+    ws.Rows(3).Insert
+    AssertTrue Core_ChartSourceMismatch(cht), "sem n: linha inserida ainda e detectada"
+    Teardown wb
 End Sub

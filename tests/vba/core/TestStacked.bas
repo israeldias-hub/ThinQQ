@@ -262,3 +262,19 @@ Public Sub Test_Stacked_MixedSign_TotalLabelAtPositiveExtent()
     AssertEqual xlLabelPositionBelow, tot.Points(2).DataLabel.Position, "tudo negativo: abaixo"
     CloseTemp wb
 End Sub
+
+Public Sub Test_Style_ApplyBase_Bars_ReverseCategories_AndPieSafe()
+    Dim wb As Workbook, ws As Worksheet, co As ChartObject, s As Series
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:B3").Value = Application.Transpose(Array(Array("a", "b", "c"), Array(1, 2, 3)))
+    Set co = ws.ChartObjects.Add(10, 10, 300, 200)
+    Set s = co.Chart.SeriesCollection.NewSeries: s.Values = "=" & ws.Name & "!$B$1:$B$3"
+    co.Chart.ChartType = xlBarStacked
+    Style_ApplyBase co.Chart
+    AssertTrue co.Chart.Axes(xlCategory).ReversePlotOrder, "barras: primeira categoria no topo"
+    AssertEqual xlTickLabelPositionLow, co.Chart.Axes(xlCategory).TickLabelPosition
+    co.Chart.ChartType = xlPie
+    Style_ApplyBase co.Chart                                   ' nao pode levantar erro (sem eixos)
+    AssertFalse co.Chart.HasTitle
+    CloseTemp wb
+End Sub

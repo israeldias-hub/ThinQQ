@@ -34,7 +34,16 @@ Public Function Style_ContrastFont(rgbValue As Long) As Long
     If lum < 0.55 Then Style_ContrastFont = RGB(255, 255, 255) Else Style_ContrastFont = RGB(64, 64, 64)
 End Function
 
+' Gráficos de pizza/rosca não têm eixos: o bloco de eixos é pulado. Em barras (empilhadas, agrupadas, 100%) o eixo de categorias
+' fica invertido para a primeira categoria aparecer no topo (como no think-cell).
 Public Sub Style_ApplyBase(cht As Chart)
+    Dim ct As Long, isPie As Boolean, isBar As Boolean
+    On Error Resume Next
+    ct = cht.ChartType
+    If Err.Number <> 0 Then ct = 0: Err.Clear
+    On Error GoTo 0
+    isPie = (ct = xlPie Or ct = xlDoughnut Or ct = xlPieExploded Or ct = xlDoughnutExploded)
+    isBar = (ct = xlBarStacked Or ct = xlBarClustered Or ct = xlBarStacked100)
     With cht
         .HasTitle = True    ' liga e desliga: marca o título automático (gráfico de 1 série) como excluído
         .HasTitle = False
@@ -43,6 +52,7 @@ Public Sub Style_ApplyBase(cht As Chart)
         .ChartArea.Font.Size = 9
         .PlotArea.Format.Fill.Visible = msoFalse
         .PlotArea.Format.Line.Visible = msoFalse
+        If isPie Then Exit Sub
         .HasAxis(xlValue) = True
         With .Axes(xlValue)
             .HasMajorGridlines = False
@@ -61,6 +71,7 @@ Public Sub Style_ApplyBase(cht As Chart)
             .MajorTickMark = xlTickMarkNone
             .MinorTickMark = xlTickMarkNone
             .TickLabelPosition = xlTickLabelPositionLow   ' rótulos de categoria abaixo do gráfico mesmo com valores negativos
+            If isBar Then .ReversePlotOrder = True
             .Format.Line.ForeColor.RGB = RGB(166, 166, 166)
             .TickLabels.Font.Size = 9
             .TickLabels.Font.Color = RGB(64, 64, 64)
@@ -105,7 +116,7 @@ End Function
 Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
     Dim s As Series, i As Long, segFmt As String, totFmt As String, useFmt As String
     segFmt = fmt: totFmt = fmt
-    If Registry_ChartType(cht) = "stacked100" Then
+    If Kinds_Is100(Registry_ChartType(cht)) Then
         ' 100%: segmentos mostram participação (pct0/pct1); numfmt vale para os totais absolutos
         segFmt = Labels_SegmentFormat(cht): totFmt = Labels_TotalFormat(cht)
     End If

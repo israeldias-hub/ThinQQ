@@ -74,16 +74,32 @@ Public Function Core_HasChart() As Boolean
     Core_HasChart = Not Core_ActiveChart() Is Nothing
 End Function
 
+' True se o gráfico ThinQQ ativo suporta o recurso (matriz de capacidades Kinds_Supports). "changesource" vale para
+' qualquer gráfico ThinQQ. False sem gráfico ThinQQ ativo e em qualquer dúvida; nunca propaga erro.
+Public Function Core_Supports(feature As String) As Boolean
+    Dim c As Chart
+    On Error GoTo Fail
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Function
+    If feature = "changesource" Then
+        Core_Supports = True
+    Else
+        Core_Supports = Kinds_Supports(Registry_ChartType(c), feature)
+    End If
+    Exit Function
+Fail:
+    Core_Supports = False
+End Function
+
 Public Sub Core_Insert(kind As String)
     On Error GoTo Fail
     Dim data As clsChartData, msg As String, co As ChartObject, ws As Worksheet, prevSU As Boolean
+    Dim en As Long, ed As String
     prevSU = Application.ScreenUpdating
-    Select Case kind
-        Case "stacked", "stacked100", "clustered", "line", "waterfall"
-        Case Else
-            Core_Notify "Tipo de gráfico desconhecido: " & kind, vbExclamation
-            Exit Sub
-    End Select
+    If Not Kinds_IsValid(kind) Then
+        Core_Notify "Tipo de gráfico desconhecido: " & kind, vbExclamation
+        Exit Sub
+    End If
     If TypeName(Selection) <> "Range" Then
         Core_Notify "Selecione a tabela de dados (cabeçalho + categorias) antes de inserir o gráfico."
         Exit Sub
@@ -98,19 +114,21 @@ Public Sub Core_Insert(kind As String)
     End If
     Application.ScreenUpdating = False
     CalcSheet_Cleanup ws.Parent
-    If kind = "waterfall" Then
-        Set co = Waterfall_Insert(ws, data)
-    Else
-        Set co = Stacked_Insert(ws, data, kind)
-    End If
+    Set co = Kinds_Insert(ws, data, kind)
     Application.ScreenUpdating = prevSU
     Watchers_Rehook
     co.Select
     Core_SafeRefresh co.Chart
     Exit Sub
 Fail:
+    en = Err.Number: ed = Err.Description
     Application.ScreenUpdating = prevSU
-    Errors_Handle "Core_Insert(" & kind & ")"
+    If en = vbObjectError + 7200 Then
+        ' Tipo válido ainda sem implementação nesta versão: aviso ao usuário, não é falha (nada foi criado).
+        Core_Notify ed, vbInformation
+    Else
+        Errors_HandleErr "Core_Insert(" & kind & ")", en, ed
+    End If
 End Sub
 
 Public Function Core_GetToggle(key As String) As Boolean
@@ -268,7 +286,7 @@ End Sub
 ' que o gráfico mostra agora: linhas inseridas/removidas na tabela de origem ajustam as referências diretas
 ' das séries (e as categorias), mas não o bloco. Nunca propaga erro (False em dúvida).
 Public Function Core_ChartSourceMismatch(cht As Chart) As Boolean
-    Dim blk As Range, v As Variant, k As Long
+    Dim blk As Range, v As Variant, k As Long, nOpt As String, expected As Long
     On Error GoTo Fail
     Set blk = Registry_Block(cht)
     If blk Is Nothing Then Exit Function
@@ -278,7 +296,15 @@ Public Function Core_ChartSourceMismatch(cht As Chart) As Boolean
         v = cht.SeriesCollection(1).XValues
         If IsArray(v) Then k = UBound(v) - LBound(v) + 1 Else k = 1
     End If
-    Core_ChartSourceMismatch = (k <> blk.Rows.Count - 2)     ' bloco: meta + cabeçalho + 1 linha por categoria
+    ' Com a opção "n" (número de categorias, gravada pelos Insert), o esperado vem do tipo (Mekko: 5 pontos por
+    ' categoria); sem ela (gráfico de versão antiga), o bloco tem meta + cabeçalho + 1 linha por categoria.
+    nOpt = Registry_GetOption(cht, "n", "")
+    If Len(nOpt) > 0 Then
+        expected = Kinds_ExpectedCategoryRefs(Registry_ChartType(cht), CLng(Val(nOpt)))
+    Else
+        expected = blk.Rows.Count - 2
+    End If
+    Core_ChartSourceMismatch = (k <> expected)
     Exit Function
 Fail:
     Core_ChartSourceMismatch = False
@@ -380,10 +406,11 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     opts = CStr(Registry_Block(c).Cells(1, 4).Value)
     Application.ScreenUpdating = False
     ' O novo gráfico nasce na planilha do gráfico antigo (ws), não na da nova fonte.
-    If kind = "waterfall" Then Set co = Waterfall_Insert(ws, data) Else Set co = Stacked_Insert(ws, data, kind)
+    Set co = Kinds_Insert(ws, data, kind)
     Set nc = co.Chart
     On Error GoTo FailNew
     Registry_Block(nc).Cells(1, 4).Value = opts
+    Registry_SetOption nc, "n", CStr(data.CategoryCount)     ' as opções antigas trazem o n da tabela anterior
     ApplyOption nc, "numfmt", Registry_GetOption(nc, "numfmt", "int")
     ApplyOption nc, "palette", Registry_GetOption(nc, "palette", "padrao")
     If Len(Registry_GetOption(nc, "gap", "")) > 0 Then ApplyOption nc, "gap", Registry_GetOption(nc, "gap", "")

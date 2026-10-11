@@ -95,6 +95,7 @@ Public Function Waterfall_Insert(ws As Worksheet, data As clsChartData) As Chart
     Registry_SetOption cht, "palette", "padrao"
     Registry_SetOption cht, "gap", "50"
     Registry_SetOption cht, "totals", "0"
+    Registry_SetOption cht, "n", CStr(data.CategoryCount)
     Waterfall_SetLabels cht, True
     Ann_SetWaterfallConnectors cht, True
     Set Waterfall_Insert = co
@@ -127,7 +128,7 @@ Public Sub Waterfall_ApplyColors(cht As Chart, paletteName As String)
 End Sub
 
 Public Sub Waterfall_SetLabels(cht As Chart, turnOn As Boolean)
-    Dim s As Series, body As Range, n As Long, sh As String, fmt As String
+    Dim s As Series, body As Range, n As Long, fmt As String
     Set s = Chart_FindSeries(cht, "tqq_lbl")
     If Not turnOn Then
         If Not s Is Nothing Then s.Delete
@@ -136,14 +137,8 @@ Public Sub Waterfall_SetLabels(cht As Chart, turnOn As Boolean)
     End If
     Set body = Block_Body(Registry_Block(cht))
     n = body.Rows.Count - 1
-    sh = "='" & CALC_SHEET & "'!"
     If s Is Nothing Then
-        Set s = cht.SeriesCollection.NewSeries
-        s.Name = "tqq_lbl"
-        s.Values = sh & body.Cells(2, WF_COL_LABELPOS).Resize(n, 1).Address(True, True)
-        s.ChartType = xlLine
-        s.Format.Line.Visible = msoFalse
-        s.MarkerStyle = xlMarkerStyleNone
+        Set s = Chart_AddHelperSeries(cht, "tqq_lbl", body.Cells(2, WF_COL_LABELPOS).Resize(n, 1))
     End If
     fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
     Labels_LinkPoints s, body.Cells(2, WF_COL_LABELVAL).Resize(n, 1), fmt
