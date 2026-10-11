@@ -8,8 +8,10 @@ Private Const ANN_TOTALS_EXTRA As Double = 18   ' afastamento extra (minimo) da 
 Private Const ANN_IND100 As String = "tqq_ann_ind100"     ' nome da linha do indicador 100% (o rotulo e ANN_IND100 & "_lbl")
 Private Const ANN_AUTO_SLACK As Double = 18     ' folga que o eixo com maximo automatico deixa depois da maior barra (~5% da escala, medida em graficos de ~460 pt)
 Private Const ANN_BRACKET As String = "tqq_ann_bracket_"  ' prefixo dos colchetes do Gantt (linha nm; tiques nm_t1/nm_t2; rotulo nm_lbl)
-Private Const ANN_BRACKET_BASE As Double = 40   ' folga (pt) acima da area interna com um colchete: escala (~20) + colchete e rotulo
-Private Const ANN_BRACKET_STEP As Double = 14   ' cada colchete a mais sobe 14 pt
+Private Const ANN_BRACKET_Y0 As Double = 25     ' linha do 1o colchete: 25 pt acima da area interna; os tiques de 5 pt param 20 pt acima, livres
+                                                ' dos rotulos da escala (medido: de InsideTop - 18,3 a InsideTop - 5,5)
+Private Const ANN_BRACKET_STEP As Double = 20   ' cada colchete a mais sobe 20 pt: os tiques do de cima (5 pt) ficam acima do rotulo do de baixo (13,1 pt)
+Private Const ANN_BRACKET_ROOM As Double = 42   ' folga (pt) acima da area interna com um colchete: 25 + rotulo de 13,1 + respiro; +20 por colchete
 Public Const ANN_BRACKET_REFUSAL As String = "O colchete só está disponível em gráficos Gantt."
 
 Public Function Ann_TryCagr(startVal As Double, endVal As Double, periods As Double, ByRef rate As Double) As Boolean
@@ -130,10 +132,10 @@ End Function
 Private Sub Ann_EnsureRoom(cht As Chart)
     Dim need As Double, delta As Double, k As Long, nb As Long
     On Error Resume Next
-    ' colchetes (Gantt): acima da area interna, sobre a escala de datas; o k-esimo colchete fica 14 pt acima do anterior
+    ' colchetes (Gantt): acima da area interna, sobre a escala de datas; o k-esimo colchete fica 20 pt acima do anterior
     nb = Ann_BracketMaxOrdinal(cht)
     If nb > 0 Then
-        need = ANN_BRACKET_BASE + ANN_BRACKET_STEP * nb
+        need = ANN_BRACKET_ROOM + ANN_BRACKET_STEP * (nb - 1)
         For k = 1 To 3
             delta = need - cht.PlotArea.InsideTop
             If delta <= 0.01 Then Exit For
@@ -284,8 +286,8 @@ End Function
 
 ' Colchete do Gantt sobre as atividades fromIdx..toIdx (fromIdx = toIdx vale: uma atividade so): linha horizontal nm (kind=bracket;from=i;to=j)
 ' na area da escala, acima da area de plotagem, com dois tiques de 5 pt para baixo nas pontas (nm_t1, nm_t2: kind=tick;owner=nm) e o rotulo
-' nm_lbl com o periodo (dd/mm - dd/mm) acima da linha. Ann_Refresh posiciona (Ann_LayoutBracket); Ann_EnsureRoom abre a folga de cima (40 pt +
-' 14 pt por colchete). Recusa (7001) fora do Gantt.
+' nm_lbl com o periodo (dd/mm - dd/mm) acima da linha. Ann_Refresh posiciona (Ann_LayoutBracket); Ann_EnsureRoom abre a folga de cima (42 pt +
+' 20 pt por colchete a mais). Recusa (7001) fora do Gantt.
 Public Function Ann_AddBracket(cht As Chart, fromIdx As Long, toIdx As Long) As Shape
     Dim nm As String, ln As Shape, tk As Shape, lbl As Shape, sfx As Variant
     If Not Kinds_Supports(Registry_ChartType(cht), "bracket") Then Err.Raise vbObjectError + 7001, "Ann_AddBracket", ANN_BRACKET_REFUSAL
@@ -426,9 +428,11 @@ Public Sub Ann_Refresh(cht As Chart)
                 valid = (fromIdx >= 1 And toIdx <= n And fromIdx <= toIdx)
                 If valid Then valid = Kinds_Supports(chartKind, "bracket")
                 If valid Then
+                    valid = False                    ' falha no meio do layout: oculto, nunca na posicao antiga
                     On Error Resume Next
                     valid = Ann_LayoutBracket(cht, shp, fromIdx, toIdx)
                     If Err.Number <> 0 Then
+                        valid = False
                         mLastError = "Ann_Refresh " & nm & " " & Err.Number & " " & Err.Description
                         Errors_Log mLastError
                         Err.Clear
@@ -630,9 +634,9 @@ End Sub
 
 ' Colchete do Gantt: para cada atividade k em fromIdx..toIdx, ultimo dia le = fim (ou o inicio, num marco) e fim plotado pe = fim + 1 (a barra cobre
 ' o dia do fim) ou o proprio dia do marco; d1 = menor inicio, d2 = maior le (zeros, de celulas sem data, ignorados). A linha vai de x(d1) a x(maior pe)
-' na altura InsideTop - 20 - 14 * (ordinal - 1) (ordinal = sufixo numerico do nome: o segundo colchete fica acima do primeiro), os tiques descem 5 pt
-' nas pontas e o rotulo "dd/mm - dd/mm" (d1 - d2; so "dd/mm" quando d1 = d2, um marco) fica centrado acima da linha. False (nada movido) sem
-' nenhuma data no intervalo.
+' na altura InsideTop - 25 - 20 * (ordinal - 1) (ordinal = sufixo numerico do nome: o segundo colchete fica acima do primeiro), os tiques descem 5 pt
+' nas pontas e o rotulo "dd/mm - dd/mm" (d1 - d2; so "dd/mm" quando d1 = d2, um marco) fica centrado acima da linha. As datas sao numeros de serie da
+' pasta (sistema 1900 ou 1904): o texto passa por Gantt_SerialToDate. False (nada movido) sem nenhuma data no intervalo.
 Private Function Ann_LayoutBracket(cht As Chart, ln As Shape, fromIdx As Long, toIdx As Long) As Boolean
     Dim starts() As Double, ends() As Double, k As Long, d1 As Double, d2 As Double, le As Double, pe As Double, peMax As Double
     Dim x1 As Double, x2 As Double, y As Double, t As Shape, lbl As Shape
@@ -654,7 +658,7 @@ Private Function Ann_LayoutBracket(cht As Chart, ln As Shape, fromIdx As Long, t
     If d1 <= 0 Or d2 <= 0 Or peMax <= 0 Then Exit Function
     x1 = Geom_ChartValueToX(cht, d1)
     x2 = Geom_ChartValueToX(cht, peMax)
-    y = cht.PlotArea.InsideTop - 20 - ANN_BRACKET_STEP * (Ann_BracketOrdinal(ln.Name) - 1)
+    y = cht.PlotArea.InsideTop - ANN_BRACKET_Y0 - ANN_BRACKET_STEP * (Ann_BracketOrdinal(ln.Name) - 1)
     Ann_MoveLine ln, x1, y, x2, y
     Set t = Ann_Shape(cht, ln.Name & "_t1")
     If Not t Is Nothing Then Ann_MoveLine t, x1, y, x1, y + 5
@@ -663,9 +667,9 @@ Private Function Ann_LayoutBracket(cht As Chart, ln As Shape, fromIdx As Long, t
     Set lbl = Ann_Shape(cht, ln.Name & "_lbl")
     If Not lbl Is Nothing Then
         If d2 = d1 Then         ' um dia so (um marco): a data uma vez
-            lbl.TextFrame2.TextRange.Text = Format$(d1, "dd/mm")
+            lbl.TextFrame2.TextRange.Text = Format$(Gantt_SerialToDate(cht, d1), "dd/mm")
         Else
-            lbl.TextFrame2.TextRange.Text = Format$(d1, "dd/mm") & " - " & Format$(d2, "dd/mm")
+            lbl.TextFrame2.TextRange.Text = Format$(Gantt_SerialToDate(cht, d1), "dd/mm") & " - " & Format$(Gantt_SerialToDate(cht, d2), "dd/mm")
         End If
         lbl.Left = (x1 + x2) / 2 - lbl.Width / 2
         lbl.Top = y - lbl.Height

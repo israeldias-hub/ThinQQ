@@ -108,11 +108,14 @@ Public Function Gantt_BuildBlock(wb As Workbook, id As String, data As clsChartD
     am = body.Cells(2, GT_COL_AXMIN).Address(True, True)
     ax = body.Cells(2, GT_COL_AXMAX).Address(True, True)
     span = dmax & "-" & dmin
-    body.Cells(2, GT_COL_UNIT).Formula = "=IF(" & span & "<=98,""w"",IF(" & span & "<=1100,""m"",IF(" & span & "<=3700,""q"",""y"")))"
-    t = "=IF(" & u & "=""w""," & dmin & "-WEEKDAY(" & dmin & ",3),IF(" & u & "=""m"",DATE(YEAR(" & dmin & "),MONTH(" & dmin & "),1),"
+    ' trimestres ate 3500 dias: um intervalo de S dias toca no maximo 40 trimestres enquanto S < 3561 (39 trimestres seguidos somam >= 3560
+    ' dias); com o limite antigo de 3700 dias a escala chegava a 42 marcas e passava das GT_SCALE_SLOTS = 40. Meses ate 1100 dias: <= 38 marcas.
+    body.Cells(2, GT_COL_UNIT).Formula = "=IF(" & span & "<=98,""w"",IF(" & span & "<=1100,""m"",IF(" & span & "<=3500,""q"",""y"")))"
+    ' semana: segunda-feira do dia INTEIRO (uma data com hora nao desloca as marcas)
+    t = "=IF(" & u & "=""w"",INT(" & dmin & ")-WEEKDAY(" & dmin & ",3),IF(" & u & "=""m"",DATE(YEAR(" & dmin & "),MONTH(" & dmin & "),1),"
     t = t & "IF(" & u & "=""q"",DATE(YEAR(" & dmin & "),3*INT((MONTH(" & dmin & ")-1)/3)+1,1),DATE(YEAR(" & dmin & "),1,1))))"
     body.Cells(2, GT_COL_AXMIN).Formula = t
-    t = "=IF(" & u & "=""w""," & dmax & "-WEEKDAY(" & dmax & ",3)+7,IF(" & u & "=""m"",EDATE(DATE(YEAR(" & dmax & "),MONTH(" & dmax & "),1),1),"
+    t = "=IF(" & u & "=""w"",INT(" & dmax & ")-WEEKDAY(" & dmax & ",3)+7,IF(" & u & "=""m"",EDATE(DATE(YEAR(" & dmax & "),MONTH(" & dmax & "),1),1),"
     t = t & "IF(" & u & "=""q"",EDATE(DATE(YEAR(" & dmax & "),3*INT((MONTH(" & dmax & ")-1)/3)+1,1),3),DATE(YEAR(" & dmax & ")+1,1,1))))"
     body.Cells(2, GT_COL_AXMAX).Formula = t
     ' marcas k = 0..39 (linha 2 + k): Tick so antes do fim do eixo; TickY = n (topo do eixo Y secundario); TickLbl = a data (formato pela
@@ -218,6 +221,7 @@ Private Sub GanttSyncLabels(s As Series, posCells As Range, txtCells As Range, p
     For r = 1 To m
         want = Not IsError(posCells.Cells(r, 1).Value)
         If want Then want = ((r - 1) Mod stepK = 0)
+        has = False                                  ' leitura que falhar abaixo nao herda o valor do ponto anterior
         On Error Resume Next
         has = s.Points(r).HasDataLabel
         If want Then
@@ -334,9 +338,9 @@ Public Sub Gantt_RefreshScale(cht As Chart)
     If Kinds_Family(CStr(blk.Cells(1, 2).Value)) <> "gantt" Then Exit Sub
     Set body = Block_Body(blk)
     n = GanttCount(cht)
-    u = body.Cells(2, GT_COL_UNIT).Value
-    mn = body.Cells(2, GT_COL_AXMIN).Value
-    mx = body.Cells(2, GT_COL_AXMAX).Value
+    u = body.Cells(2, GT_COL_UNIT).Value2           ' Value2: numero de serie da pasta (Value devolveria Date se a celula tivesse formato de data)
+    mn = body.Cells(2, GT_COL_AXMIN).Value2
+    mx = body.Cells(2, GT_COL_AXMAX).Value2
     stepK = 1
     If IsError(u) Or IsError(mn) Or IsError(mx) Then
         Errors_Log "Gantt_RefreshScale" & vbTab & "escala sem datas validas (eixo mantido)"
@@ -385,12 +389,14 @@ End Sub
 ' GT_TOP_ROOM para os rotulos da escala (os colchetes pedem mais, em Ann_EnsureRoom); a direita, com os rotulos ligados, cada rotulo de barra
 ' (a direita de Fim + 1 ou do marco) cabe antes da borda do grafico: perto do fim do eixo o Excel empurraria o rotulo para cima da barra (medido).
 ' Largura do rotulo estimada pelo texto (Labels_EstimateWidth, que superestima o rotulo de 9 pt sem negrito), nunca lida do rotulo (ler a
-' geometria de um rotulo a congela ate o proximo desenho). Fora do Gantt nao faz nada. Chamada no Insert, a cada Gantt_RefreshScale e por
+' geometria de um rotulo a congela ate o proximo desenho). Comeca pela folga dos colchetes (Ann_EnsureRoomAfterChange). Fora do Gantt nao faz nada. Chamada no Insert, a cada Gantt_RefreshScale e por
 ' Chart_EnsureRoomAfterChange (o layout automatico da area de plotagem a perderia). Nunca propaga erro.
 Public Sub Gantt_EnsureRoom(cht As Chart)
     Dim k As Long, delta As Double, body As Range, n As Long, i As Long, x() As Double, w() As Double, v As Variant, d As Double, hasAny As Boolean
     On Error Resume Next
     If Kinds_Family(Registry_ChartType(cht)) <> "gantt" Then Exit Sub
+    Ann_EnsureRoomAfterChange cht                    ' colchetes: a folga deles (maior que a da escala) volta junto no refresh e no redimensionamento
+    If Err.Number <> 0 Then Errors_Log "Gantt_EnsureRoom/colchetes" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     For k = 1 To 3
         delta = GT_TOP_ROOM - cht.PlotArea.InsideTop
         If delta <= 0.01 Then Exit For
@@ -444,6 +450,16 @@ Public Sub Gantt_Dates(cht As Chart, ByRef starts() As Double, ByRef ends() As D
         ends(i) = CellDate(body.Cells(i + 1, GT_COL_END))
     Next
 End Sub
+
+' Numero de serie de data DA PASTA do grafico -> Date do VBA. Numa pasta com o sistema de datas 1904 (Workbook.Date1904) o serie 0 e 01/01/1904
+' e o VBA o leria como 1900: soma 1462 dias. Usada para escrever datas em texto (rotulo dos colchetes) a partir das celulas do bloco (Value2).
+Public Function Gantt_SerialToDate(cht As Chart, serial As Double) As Date
+    Dim off As Double
+    On Error Resume Next
+    If Registry_Workbook(cht).Date1904 Then off = 1462
+    On Error GoTo 0
+    Gantt_SerialToDate = CDate(serial + off)
+End Function
 
 Private Function CellDate(c As Range) As Double
     Dim v As Variant

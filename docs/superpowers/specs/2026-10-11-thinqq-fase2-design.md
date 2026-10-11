@@ -135,7 +135,7 @@ Alternativas: (a) **barras empilhadas** com série inicial invisível (`Start`) 
   **fim vazio = marco**). Marcos: XY `tqq_ms` (losango). Rótulos: XY `tqq_lbl` à direita (data do fim/marco em célula
   formatada `dd/mm`, ou o texto da 4.ª coluna da tabela, se existir).
 - **Escala de datas** sem depender de eixo de datas (o eixo de valores de barras é numérico): o bloco calcula por
-  fórmula a unidade (`w` semanas se o intervalo ≤ 98 dias; `m` meses ≤ 1100; `q` trimestres ≤ 3700; `y` anos), o
+  fórmula a unidade (`w` semanas se o intervalo ≤ 98 dias; `m` meses ≤ 1100; `q` trimestres ≤ 3500 — com 3700 a escala chegava a 42 marcas; `y` anos), o
   `AxisMin`/`AxisMax` alinhados à unidade e até **40 marcas** (`EDATE`/`+7`); uma série XY `tqq_scale` no topo mostra
   os rótulos (células com `NumberFormat` `dd/mm` ou `mmm/yy`; trimestre/ano como texto `T1/2026`, `2026`) e desenha os
   separadores verticais com **barras de erro** (`ErrorBar Direction:=xlY, Include:=xlErrorBarIncludeMinusValues,
@@ -262,9 +262,9 @@ BarStart = IF(IsMs, NA(), Inicio)            Dur = IF(IsMs, NA(), MAX(0, Fim - I
 MsX = IF(IsMs, Inicio, NA())                 Pos = n - i + 0.5        LblX = IF(IsMs, Inicio, Fim + 1)
 LblTxt = 4.ª coluna (texto) ou a data IF(IsMs, Inicio, Fim) em dd/mm   (a barra cobre o dia do fim: termina em Fim + 1)
 dmin = AGGREGATE(5,6,Inicio)   dmax = AGGREGATE(4,6,Inicio:Fim)   span = dmax - dmin
-Unit = IF(span<=98,"w",IF(span<=1100,"m",IF(span<=3700,"q","y")))
-AxisMin = w: dmin-WEEKDAY(dmin,3) | m: DATE(YEAR(dmin),MONTH(dmin),1) | q: DATE(YEAR(dmin),3*INT((MONTH(dmin)-1)/3)+1,1) | y: DATE(YEAR(dmin),1,1)
-AxisMax = w: dmax-WEEKDAY(dmax,3)+7 | m: EDATE(primeiro dia do mês de dmax,1) | q: EDATE(primeiro dia do trimestre,3) | y: DATE(YEAR(dmax)+1,1,1)
+Unit = IF(span<=98,"w",IF(span<=1100,"m",IF(span<=3500,"q","y")))      (3500: no máximo 40 trimestres; 1100: no máximo 38 meses)
+AxisMin = w: INT(dmin)-WEEKDAY(dmin,3) | m: DATE(YEAR(dmin),MONTH(dmin),1) | q: DATE(YEAR(dmin),3*INT((MONTH(dmin)-1)/3)+1,1) | y: DATE(YEAR(dmin),1,1)
+AxisMax = w: INT(dmax)-WEEKDAY(dmax,3)+7 | m: EDATE(primeiro dia do mês de dmax,1) | q: EDATE(primeiro dia do trimestre,3) | y: DATE(YEAR(dmax)+1,1,1)
 Tick_k (k=0..39) = IF(Unit="w", AxisMin+7k, EDATE(AxisMin, k*{m:1,q:3,y:12}));  = IF(Tick<AxisMax, Tick, NA())
 TickY = IF(ISNUMBER(Tick), n, NA())          TickLbl = IF(Unit="q","T"&(INT((MONTH(Tick)-1)/3)+1)&"/"&YEAR(Tick), IF(Unit="y", YEAR(Tick), Tick))
 ```

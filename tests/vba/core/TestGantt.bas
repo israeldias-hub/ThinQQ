@@ -255,6 +255,13 @@ Private Sub ForceLayout(cht As Chart)
     cht.Export TempDir() & "\layout.png"
 End Sub
 
+' Regra de tres sobre a area interna e a escala REAIS do grafico (independe das formulas do bloco): x de um numero de serie de data.
+Private Function XOf(cht As Chart, d As Double) As Double
+    Dim ax As Axis
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    XOf = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth * (d - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale)
+End Function
+
 ' Escala de trimestres na insercao: com mais marcas que espaco os rotulos que aparecem nao se sobrepoem (geometria real), so marcas com data tem
 ' rotulo e atividade sem inicio fica sem rotulo; marcador na cor da paleta. Trimestres (e anos) -> meses: o rotulo mostra o mes da localidade
 ' como a celula (medido: sem passar por um formato de data, de General para mmm/yy o rotulo ja ligado mostrava "Jan/26"/"Feb/26" com a celula
@@ -337,10 +344,10 @@ Public Sub Test_Gantt_RightRoom_LayoutReset_Refusals_RebuildAndRollback()
     AssertEqual msoTrue, cht.Shapes("tqq_ann_bracket_1").Visible, "colchete sobre um marco so (de = ate) visivel"
     AssertAlmost x, cht.Shapes("tqq_ann_bracket_1").Left, 1, "no dia do marco"
     AssertEqual Format$(DateSerial(2026, 4, 20), "dd/mm"), cht.Shapes("tqq_ann_bracket_1_lbl").TextFrame2.TextRange.Text, "um dia: a data uma vez"
-    AssertTrue cht.PlotArea.InsideTop >= 53.5, "folga do colchete"
+    AssertTrue cht.PlotArea.InsideTop >= 41.5, "folga do colchete"
     cht.PlotArea.Position = xlChartElementPositionAutomatic
     Chart_EnsureRoomAfterChange cht
-    AssertTrue cht.PlotArea.InsideTop >= 53.5, "folga do colchete e da escala refeita depois do layout automatico"
+    AssertTrue cht.PlotArea.InsideTop >= 41.5, "folga do colchete e da escala refeita depois do layout automatico"
     ForceLayout cht
     Set dl = Chart_FindSeries(cht, "tqq_lbl").Points(2).DataLabel
     x = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth
@@ -387,5 +394,99 @@ Public Sub Test_Gantt_RightRoom_LayoutReset_Refusals_RebuildAndRollback()
     Next
     AssertEqual 1, n, "so o bloco do grafico reconstruido"
     Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' Barras e marco no lugar das datas (regra de tres sobre o grafico desenhado, sem as formulas do bloco): cada barra comeca no inicio e termina em
+' Fim + 1 (cobre o dia do fim), na faixa da sua atividade; a parte invisivel termina no inicio; o losango fica no dia do marco, no meio da faixa 3.
+' Dois colchetes empilhados: a linha do 1o 25 pt acima da area interna e a do 2o 20 pt acima dela; os tiques do 1o acabam acima dos rotulos da
+' escala e os do 2o acima do rotulo do 1o; a folga dos dois volta no refresh depois do layout automatico.
+Public Sub Test_Gantt_Bars_OnDates_RuleOfThree_StackedBrackets()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, dur As Series, st As Series, ms As Series, i As Long, it As Double, ih As Double
+    Dim starts As Variant, ends As Variant, b1 As Shape, b2 As Shape, l1 As Shape, l2 As Shape, tk As Shape, sl As DataLabel, nmv As Variant
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Gantt_Insert(d.Source.Worksheet, d).Chart
+    ForceLayout cht
+    it = cht.PlotArea.InsideTop: ih = cht.PlotArea.InsideHeight
+    starts = Array(DateSerial(2026, 3, 2), DateSerial(2026, 3, 9))
+    ends = Array(DateSerial(2026, 3, 13), DateSerial(2026, 4, 17))
+    Set dur = Chart_FindSeries(cht, "tqq_dur"): Set st = Chart_FindSeries(cht, "tqq_start"): Set ms = Chart_FindSeries(cht, "tqq_ms")
+    For i = 1 To 2
+        AssertAlmost XOf(cht, CDbl(starts(i - 1))), dur.Points(i).Left, 1, "barra " & i & " comeca no inicio"
+        AssertAlmost XOf(cht, CDbl(ends(i - 1)) + 1), dur.Points(i).Left + dur.Points(i).Width, 1, "barra " & i & " termina em Fim + 1"
+        AssertAlmost it + (i - 0.5) * ih / 3, dur.Points(i).Top + dur.Points(i).Height / 2, 1, "barra " & i & " na faixa " & i
+    Next
+    AssertAlmost XOf(cht, CDbl(DateSerial(2026, 3, 9))), st.Points(2).Left + st.Points(2).Width, 1, "a parte invisivel termina no inicio"
+    AssertAlmost XOf(cht, CDbl(DateSerial(2026, 4, 20))), ms.Points(3).Left + ms.Points(3).Width / 2, 1.5, "losango no dia do marco"
+    AssertAlmost it + 2.5 * ih / 3, ms.Points(3).Top + ms.Points(3).Height / 2, 1.5, "losango na faixa 3"
+    Ann_AddBracket cht, 1, 2
+    Ann_AddBracket cht, 2, 3
+    ForceLayout cht
+    it = cht.PlotArea.InsideTop
+    AssertTrue it >= 61.5, "folga de dois colchetes: " & it
+    Set b1 = cht.Shapes("tqq_ann_bracket_1"): Set b2 = cht.Shapes("tqq_ann_bracket_2")
+    Set l1 = cht.Shapes("tqq_ann_bracket_1_lbl"): Set l2 = cht.Shapes("tqq_ann_bracket_2_lbl")
+    AssertAlmost it - 25, b1.Top, 0.5, "colchete 1: 25 pt acima da area interna"
+    AssertAlmost it - 45, b2.Top, 0.5, "colchete 2: 20 pt acima do 1"
+    Set sl = Chart_FindSeries(cht, "tqq_scale").Points(1).DataLabel
+    For Each nmv In Array("tqq_ann_bracket_1_t1", "tqq_ann_bracket_1_t2")
+        Set tk = cht.Shapes(CStr(nmv))
+        AssertTrue tk.Top + tk.Height <= sl.Top + 0.5, CStr(nmv) & " acima dos rotulos da escala: " & (tk.Top + tk.Height) & " vs " & sl.Top
+    Next
+    For Each nmv In Array("tqq_ann_bracket_2_t1", "tqq_ann_bracket_2_t2")
+        Set tk = cht.Shapes(CStr(nmv))
+        AssertTrue tk.Top + tk.Height <= l1.Top + 0.5, CStr(nmv) & " acima do rotulo do colchete 1: " & (tk.Top + tk.Height) & " vs " & l1.Top
+    Next
+    AssertTrue l1.Top + l1.Height <= b1.Top + 0.5 And l2.Top + l2.Height <= b2.Top + 0.5, "rotulos acima das linhas"
+    AssertTrue l2.Top >= 0, "rotulo de cima dentro do grafico"
+    cht.PlotArea.Position = xlChartElementPositionAutomatic
+    Core_SafeRefresh cht
+    AssertTrue cht.PlotArea.InsideTop >= 61.5, "folga dos colchetes refeita pelo refresh: " & cht.PlotArea.InsideTop
+    AssertAlmost cht.PlotArea.InsideTop - 45, b2.Top, 0.5, "colchete reposicionado"
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' Pasta no sistema de datas 1904 (Workbook.Date1904, ligado ANTES de escrever as datas): celulas e eixo usam numeros de serie 1462 dias menores; os
+' rotulos (texto das celulas) e o rotulo do colchete (escrito pelo VBA a partir das celulas) mostram as datas digitadas.
+Public Sub Test_Gantt_Date1904_BracketAndLabels()
+    Dim wb As Workbook, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook()
+    wb.Date1904 = True
+    Set d = Fixture(wb)
+    Set cht = Gantt_Insert(d.Source.Worksheet, d).Chart
+    AssertEqual CDbl(DateSerial(2026, 3, 2)) - 1462, cht.Axes(xlValue, xlPrimary).MinimumScale, "eixo no sistema 1904 (segunda-feira 02/03)"
+    AssertEqual Format$(DateSerial(2026, 3, 13), "dd/mm"), Chart_FindSeries(cht, "tqq_lbl").Points(1).DataLabel.Text
+    AssertEqual Format$(DateSerial(2026, 3, 2), "dd/mm"), Chart_FindSeries(cht, "tqq_scale").Points(1).DataLabel.Text
+    Ann_AddBracket cht, 1, 2
+    AssertEqual Format$(DateSerial(2026, 3, 2), "dd/mm") & " - " & Format$(DateSerial(2026, 4, 17), "dd/mm"), cht.Shapes("tqq_ann_bracket_1_lbl").TextFrame2.TextRange.Text
+    Ann_AddBracket cht, 3, 3
+    AssertEqual Format$(DateSerial(2026, 4, 20), "dd/mm"), cht.Shapes("tqq_ann_bracket_2_lbl").TextFrame2.TextRange.Text
+    AssertAlmost XOf(cht, CDbl(DateSerial(2026, 3, 2)) - 1462), cht.Shapes("tqq_ann_bracket_1").Left, 1, "colchete no inicio"
+    CloseTemp wb
+End Sub
+
+' Limite trimestre/ano: ate 3500 dias a escala de trimestres cabe nas 40 marcas (pior caso, comecando no ultimo dia de um trimestre: 40 trimestres);
+' 3501 dias ja e anos; 3690 dias (trimestres pelo limite antigo de 3700: 42 marcas) sao anos. Semana com hora no inicio: marcas no dia inteiro.
+Public Sub Test_Gantt_Block_QuarterScaleFitsSlots_WeekIgnoresTime()
+    Dim wb As Workbook, ws As Worksheet, body As Range, d0 As Date
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:C1").Value = Array("Atividade", "Início", "Fim")
+    d0 = DateSerial(2016, 3, 31)
+    ws.Range("A2").Value = "X": ws.Range("B2").Value = d0: ws.Range("C2").Value = d0 + 3500
+    Set body = Block_Body(Gantt_BuildBlock(wb, "gt0002", ChartData_FromRange(ws.Range("A1:C2"))))
+    AssertEqual "q", body.Cells(2, GT_COL_UNIT).Value, "3500 dias: trimestres"
+    AssertEqual 40, DateDiff("q", CDate(body.Cells(2, GT_COL_AXMIN).Value), CDate(body.Cells(2, GT_COL_AXMAX).Value)), "o eixo cobre 40 trimestres"
+    AssertEqual 40, ValidTicks(body), "uma marca por trimestre, nas 40 posicoes"
+    AssertEqual CDbl(DateSerial(2025, 10, 1)), body.Cells(GT_SCALE_SLOTS + 1, GT_COL_TICK).Value, "a ultima posicao e o ultimo trimestre"
+    ws.Range("C2").Value = d0 + 3501
+    AssertEqual "y", body.Cells(2, GT_COL_UNIT).Value, "3501 dias: anos"
+    ws.Range("C2").Value = d0 + 3690
+    AssertEqual "y", body.Cells(2, GT_COL_UNIT).Value, "3690 dias: 42 trimestres nao caberiam"
+    AssertEqual 11, ValidTicks(body), "2016 a 2026"
+    ws.Range("B2").Value = DateSerial(2026, 3, 4) + 0.75: ws.Range("C2").Value = DateSerial(2026, 3, 20)
+    AssertEqual "w", body.Cells(2, GT_COL_UNIT).Value
+    AssertEqual CDbl(DateSerial(2026, 3, 2)), body.Cells(2, GT_COL_AXMIN).Value, "segunda-feira a 0h, mesmo com hora no inicio"
+    AssertEqual CDbl(DateSerial(2026, 3, 9)), body.Cells(3, GT_COL_TICK).Value
     CloseTemp wb
 End Sub
