@@ -320,6 +320,11 @@ Public Function Ann_AddInd100(cht As Chart) As Shape
     Set Ann_AddInd100 = ln
 End Function
 
+' True se alguma das formas do indicador 100% existe (Deco_SetInd100 desligando: so ai ha folga a devolver).
+Public Function Ann_HasInd100(cht As Chart) As Boolean
+    Ann_HasInd100 = Not Ann_Shape(cht, ANN_IND100) Is Nothing Or Not Ann_Shape(cht, ANN_IND100 & "_lbl") Is Nothing
+End Function
+
 ' Apaga as duas formas do indicador 100% (nada a fazer se nao existem).
 Public Sub Ann_RemoveInd100(cht As Chart)
     Dim sfx As Variant, s As Shape

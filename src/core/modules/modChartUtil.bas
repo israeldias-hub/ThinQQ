@@ -25,9 +25,20 @@ Public Const READFAIL_FORMULA As Long = 7       ' ler DataLabel.Formula
 Public Util_LabelReadsForTest As Long
 Public Util_LabelBudgetForTest As Long
 
+' Gancho de teste (so com BUILD_CONFIG = "Test"): nome do ChartObject cuja leitura da escala automatica (Deco_SameScale) falha ("" = nenhum).
+Public Util_FailScaleReadChartForTest As String
+
 Public Sub Util_TestHookAfterBlock()
     If BUILD_CONFIG = "Test" Then
         If Util_FailAfterBlockForTest Then Err.Raise vbObjectError + 9999, "ThinQQ", "Falha simulada (teste)"
+    End If
+End Sub
+
+Public Sub Util_TestHookScaleRead(cht As Chart)
+    If BUILD_CONFIG = "Test" Then
+        If Len(Util_FailScaleReadChartForTest) > 0 Then
+            If cht.Parent.Name = Util_FailScaleReadChartForTest Then Err.Raise vbObjectError + 9997, "ThinQQ", "Falha simulada na leitura da escala (teste)"
+        End If
     End If
 End Sub
 

@@ -6,6 +6,7 @@ Private mApplyBusy As Boolean      ' guarda de reentrada de Core_ApplyPendingLoa
 Private mLastNotice As String      ' última mensagem de Core_Notify (usada pelos testes)
 Private mNoticeCount As Long        ' chamadas a Core_Notify desde Core_ClearLastNotice (testes)
 Private mMismatchSeen As Collection ' ids de gráficos já avisados de tabela de origem com outro tamanho
+Private mClipSeen As Collection     ' ids de gráficos já avisados de dados acima da escala fixa (Mesma escala)
 
 ' Última mensagem enviada ao usuário por Core_Notify ("" se nenhuma). Gancho de teste (inofensivo em Release).
 Public Function Core_LastNotice() As String
@@ -42,6 +43,7 @@ Public Sub Core_OnUnload()
     On Error Resume Next
     Watchers_Stop
     Set mMismatchSeen = Nothing
+    Set mClipSeen = Nothing
 End Sub
 
 Public Sub Core_RegisterLoader(loaderName As String, loaderFullPath As String)
@@ -472,6 +474,24 @@ Private Sub NotifySourceMismatchOnce(cht As Chart)
     Core_Notify "A tabela de origem mudou de tamanho. Use 'Alterar dados' para reconstruir o gráfico (ou reinsira o gráfico).", vbExclamation
 End Sub
 
+' Avisa uma única vez por gráfico e por sessão que os dados passaram do máximo da escala fixa (Mesma escala): a escala fixa é imposta
+' em silêncio e as barras ficam cortadas. Nunca propaga erro.
+Private Sub NotifyScaleClippedOnce(cht As Chart)
+    Dim id As String, seen As Variant
+    On Error Resume Next
+    id = Registry_IdFromChart(cht)
+    If Len(id) = 0 Or Len(Registry_GetOption(cht, "vmax", "")) = 0 Then Exit Sub
+    If Not mClipSeen Is Nothing Then
+        seen = mClipSeen.Item(id)
+        If Err.Number = 0 Then Exit Sub
+        Err.Clear
+    End If
+    If Not Deco_ScaleClipped(cht) Then Exit Sub
+    If mClipSeen Is Nothing Then Set mClipSeen = New Collection
+    mClipSeen.Add id, id
+    Core_Notify "Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'.", vbExclamation
+End Sub
+
 ' Reposiciona rótulos e anotações. Chamado por eventos: nunca propaga erro (apenas registra).
 ' Gráficos de planilhas inativas são atualizados quando a planilha é ativada (Watchers_Rehook).
 Public Sub Core_SafeRefresh(cht As Chart)
@@ -479,6 +499,7 @@ Public Sub Core_SafeRefresh(cht As Chart)
     NotifySourceMismatchOnce cht
     Deco_ApplyFixedScale cht                         ' mesma escala: os dados mudaram e o eixo automatico recalculou; reaplica a escala gravada
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Escala" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    NotifyScaleClippedOnce cht
     Labels_RefreshPositions cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Labels" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     ' barras: a auxiliar XY usa o eixo X secundario (se o Excel o criou); mantem-no alinhado ao eixo de valores primario

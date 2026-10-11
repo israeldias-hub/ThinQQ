@@ -279,9 +279,14 @@ Public Sub Test_Bars_Block_ColumnsAndLine_AlsoGetPosAndVLine()
         AssertEqual 5, blk.Columns.Count, CStr(kind)
         AssertEqual "Pos", body.Cells(1, Stacked_PosCol(blk)).Value: AssertEqual "VLine", body.Cells(1, Stacked_VLineCol(blk)).Value
         AssertEqual 2.5, body.Cells(2, 4).Value, kind & ": Pos da 1a categoria = n - 0,5"
-        AssertAlmost 36.666667, body.Cells(3, 5).Value, 0.0001, kind & ": media dos totais"
+        If kind = "stacked" Then
+            AssertAlmost 36.666667, body.Cells(3, 5).Value, 0.0001, kind & ": media dos totais (15, 35, 60... = 110 / 3)"
+            AssertTrue Left$(body.Cells(2, 5).Formula, 9) = "=AVERAGE(", kind & ": " & body.Cells(2, 5).Formula
+        Else
+            AssertAlmost 18.333333, body.Cells(3, 5).Value, 0.0001, kind & ": media de todos os valores plotados (110 / 6), nao a media das somas"
+            AssertTrue InStr(body.Cells(2, 5).Formula, "AGGREGATE(1,6,") > 0, kind & ": " & body.Cells(2, 5).Formula
+        End If
         AssertEqual "=2.5", body.Cells(2, 4).Formula, kind & ": Pos e formula em ingles"
-        AssertTrue Left$(body.Cells(2, 5).Formula, 9) = "=AVERAGE(", kind & ": " & body.Cells(2, 5).Formula
         AssertTrue InStr(body.Cells(2, 5).Formula, "$") > 0, kind & ": referencias absolutas"
         CloseTemp wb
     Next

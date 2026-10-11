@@ -64,9 +64,10 @@ Public Sub Test_VLine_Bars_IsScatterAcrossCategories()
     Set s = Chart_FindSeries(cht, "tqq_vline")
     AssertEqual xlSecondary, s.AxisGroup
     x = s.XValues: y = s.Values
-    AssertAlmost 45, CDbl(x(1)), 0.001: AssertAlmost 45, CDbl(x(4)), 0.001
+    ' agrupadas: a media de TODOS os valores plotados (10+12+15+18 + 20+22+25+30 + 5+6+8+9 = 180 / 12 = 15), nao a media das somas por linha (45)
+    AssertAlmost 15, CDbl(x(1)), 0.001: AssertAlmost 15, CDbl(x(4)), 0.001
     AssertAlmost 3.5, CDbl(y(1)): AssertAlmost 0.5, CDbl(y(4))
-    AssertEqual "Média 45", s.Points(4).DataLabel.Text
+    AssertEqual "Média 15", s.Points(4).DataLabel.Text
     AssertEqual msoTrue, s.Format.Line.Visible
     CloseTemp wb
 End Sub
@@ -640,4 +641,298 @@ Public Sub Test_Core_RebuildFromRange_ReappliesIndicatorVLineAndFixedScale()
     AssertFalse nc.Axes(xlValue).MaximumScaleIsAuto, "a escala fixa voltou ao eixo"
     AssertAlmost mx, nc.Axes(xlValue).MaximumScale, 0.000001
     Teardown wb
+End Sub
+
+' ---------------------------------------------------------------------------------------------------------------------
+' Rodada de correcao 1: semantica da media nas agrupadas, folga devolvida, SameScale e aviso de escala
+' ---------------------------------------------------------------------------------------------------------------------
+
+Private Function DateFixture(wb As Workbook) As clsChartData
+    Dim ws As Worksheet, dts As Variant, i As Long
+    Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:D1").Value = Array("Data", "Sul", "Sudeste", "Nordeste")
+    dts = Array(DateSerial(2022, 1, 1), DateSerial(2022, 2, 1), DateSerial(2022, 3, 1), DateSerial(2022, 12, 1))     ' irregulares: eixo de texto, fatias iguais
+    For i = 1 To 4
+        ws.Cells(i + 1, 1).Value = dts(i - 1)
+    Next
+    ws.Range("B2:D2").Value = Array(10, 20, 5): ws.Range("B3:D3").Value = Array(12, 22, 6)
+    ws.Range("B4:D4").Value = Array(15, 25, 8): ws.Range("B5:D5").Value = Array(18, 30, 9)
+    Set DateFixture = ChartData_FromRange(ws.Range("A1:D5"))
+End Function
+
+' Agrupadas e linha: cada valor plotado e uma "coluna" e a linha de valor e a media de TODOS eles (nao a media da soma por linha, que caia
+' acima de todas as barras e esticava o eixo). Com 2 e com 3 series; posicao por regra de tres; abaixo da barra mais alta; texto "Média N".
+Public Sub Test_VLine_Clustered_And_Line_MeanOfAllPlottedValues_NotAboveBars()
+    Dim kind As Variant, nSer As Variant, wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, s As Series, v As Variant
+    Dim ax As Axis, expected As Double, horiz As Boolean, bar As Point, tag As String
+    For Each kind In Array("clustered", "barclustered", "line")
+        For Each nSer In Array(2, 3)
+            Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+            If nSer = 2 Then
+                Set d = ChartData_FromRange(ws.Range("A1:C5")): expected = 19         ' (55 + 97) / 8
+            Else
+                expected = 15                                                         ' 180 / 12
+            End If
+            tag = kind & " " & nSer & " series: "
+            Set cht = Stacked_Insert(ws, d, CStr(kind)).Chart
+            Deco_SetValueLine cht, True
+            Set s = Chart_FindSeries(cht, "tqq_vline")
+            horiz = (kind = "barclustered")
+            If horiz Then v = s.XValues Else v = s.Values
+            AssertAlmost expected, CDbl(v(1)), 0.001, tag & "media de todos os valores"
+            AssertAlmost expected, CDbl(v(4)), 0.001, tag & "media (ultimo ponto)"
+            AssertEqual "Média " & expected, s.Points(4).DataLabel.Text, tag & "rotulo"
+            Set ax = cht.Axes(xlValue, xlPrimary)
+            AssertTrue ax.MaximumScale <= 40, tag & "a linha nao estica o eixo (max=" & ax.MaximumScale & ")"
+            Set bar = cht.SeriesCollection(2).Points(4)                                ' o maior valor plotado (30)
+            If horiz Then
+                AssertAlmost cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth * (expected - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale), s.Points(1).Left, 1.5, tag & "x por regra de tres"
+                AssertTrue s.Points(1).Left < bar.Left + bar.Width - 2, tag & "a linha fica antes do fim da barra mais longa"
+            Else
+                AssertAlmost cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight * (ax.MaximumScale - expected) / (ax.MaximumScale - ax.MinimumScale), s.Points(1).Top, 1.5, tag & "y por regra de tres"
+                AssertTrue s.Points(1).Top > bar.Top + 2, tag & "a linha fica abaixo do topo da barra mais alta"
+            End If
+            CloseTemp wb
+        Next
+    Next
+End Sub
+
+' A media das agrupadas ignora texto e erro (AGGREGATE) e uma tabela sem numeros nao vira erro.
+Public Sub Test_VLine_Clustered_IgnoresTextAndErrors_EmptyTableIsZero()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, blk As Range
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set d = ChartData_FromRange(ws.Range("A1:C5"))
+    Set cht = Stacked_Insert(ws, d, "clustered").Chart
+    ws.Range("B3").Value = "n/d": ws.Range("C2").Formula = "=NA()"        ' sobram 10, 15, 18 e 22, 25, 30 = 120 / 6
+    Set blk = Registry_Block(cht)
+    AssertAlmost 20, CDbl(Block_Body(blk).Cells(2, Stacked_VLineCol(blk)).Value), 0.0001, "texto e #N/D ignorados"
+    ws.Range("B2:C5").ClearContents
+    AssertFalse IsError(Block_Body(blk).Cells(2, Stacked_VLineCol(blk)).Value), "tabela vazia: sem erro"
+    AssertEqual 0, CDbl(Block_Body(blk).Cells(2, Stacked_VLineCol(blk)).Value)
+    CloseTemp wb
+End Sub
+
+' Linha de valor em area e combinacao com categorias de DATA (eixo forcado a texto: fatias iguais), por regra de tres.
+Public Sub Test_VLine_AreaAndCombo_DateCategories_EqualSlots()
+    Dim kind As Variant, wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, s As Series, v As Variant, ax As Axis, i As Long
+    Dim expected As Double, il As Double, iw As Double, it As Double, ih As Double
+    For Each kind In Array("area", "combo")
+        Set wb = NewTempWorkbook(): Set d = DateFixture(wb): Set ws = d.Source.Worksheet
+        If kind = "area" Then
+            Set cht = Area_Insert(ws, d, "area").Chart: expected = 45
+        Else
+            Set cht = Combo_Insert(ws, d).Chart: expected = 38
+        End If
+        Deco_SetValueLine cht, True
+        Set s = Chart_FindSeries(cht, "tqq_vline")
+        v = s.Values
+        AssertAlmost expected, CDbl(v(1)), 0.001, kind & ": media"
+        AssertEqual "Média " & expected, s.Points(4).DataLabel.Text, kind & ": rotulo"
+        AssertEqual xlCategoryScale, cht.Axes(xlCategory).CategoryType, kind & ": eixo de texto"
+        Set ax = cht.Axes(xlValue, xlPrimary)
+        il = cht.PlotArea.InsideLeft: iw = cht.PlotArea.InsideWidth: it = cht.PlotArea.InsideTop: ih = cht.PlotArea.InsideHeight
+        For i = 1 To 4
+            AssertAlmost il + iw * (i - 0.5) / 4, s.Points(i).Left, 1, kind & ": x do ponto " & i & " (fatias iguais apesar das datas irregulares)"
+            AssertAlmost it + ih * (ax.MaximumScale - expected) / (ax.MaximumScale - ax.MinimumScale), s.Points(i).Top, 1, kind & ": y do ponto " & i
+        Next
+        CloseTemp wb
+    Next
+End Sub
+
+' A folga do indicador 100% volta ao desliga-lo: a borda interna fica perto da de um grafico igual sem indicador (colunas: esquerda; barras: topo),
+' e ligar de novo reabre a folga.
+Public Sub Test_Ind100_Off_ReturnsRoom_ColumnsAndBars()
+    Dim wb As Workbook, d As clsChartData, ref As Chart, cht As Chart, kinds As Variant, k As Long
+    kinds = Array("stacked", "stacked100", "barstacked", "barstacked100")
+    For k = 0 To 2 Step 2
+        Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+        Set ref = Stacked_Insert(d.Source.Worksheet, d, CStr(kinds(k))).Chart                ' sem indicador: a margem "original"
+        Set cht = Stacked_Insert(d.Source.Worksheet, d, CStr(kinds(k + 1))).Chart
+        If k = 0 Then
+            AssertTrue cht.PlotArea.InsideLeft >= 46 - 0.5, "ligado: folga a esquerda"
+            Deco_SetInd100 cht, False
+            AssertAlmost ref.PlotArea.InsideLeft, cht.PlotArea.InsideLeft, 1.5, "colunas: a folga a esquerda voltou (ref=" & ref.PlotArea.InsideLeft & ")"
+            AssertAlmost ref.PlotArea.InsideWidth, cht.PlotArea.InsideWidth, 2, "colunas: a largura voltou"
+            Deco_SetInd100 cht, True
+            AssertTrue cht.PlotArea.InsideLeft >= 46 - 0.5, "religado: folga a esquerda de novo"
+        Else
+            AssertTrue cht.PlotArea.InsideTop >= 20 - 0.5, "ligado: folga em cima"
+            Deco_SetInd100 cht, False
+            AssertAlmost ref.PlotArea.InsideTop, cht.PlotArea.InsideTop, 1.5, "barras: a folga de cima voltou (ref=" & ref.PlotArea.InsideTop & ")"
+            AssertAlmost ref.PlotArea.InsideHeight, cht.PlotArea.InsideHeight, 2, "barras: a altura voltou"
+            Deco_SetInd100 cht, True
+            AssertTrue cht.PlotArea.InsideTop >= 20 - 0.5, "religado: folga em cima de novo"
+        End If
+        CloseTemp wb
+    Next
+End Sub
+
+' O mesmo para a linha de valor: o rotulo "Média N" pede folga a direita (muitas categorias, numeros grandes); desligar a linha devolve a largura.
+Public Sub Test_VLine_Off_ReturnsRoom()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, ref As Chart, cht As Chart, i As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Ano", "A", "B")
+    For i = 1 To 8
+        ws.Cells(i + 1, 1).Value = 2017 + i: ws.Cells(i + 1, 2).Value = 1000000 * i: ws.Cells(i + 1, 3).Value = 2000000 * i
+    Next
+    Set d = ChartData_FromRange(ws.Range("A1:C9"))
+    Set ref = Stacked_Insert(ws, d, "stacked").Chart
+    Set cht = Stacked_Insert(ws, d, "stacked").Chart
+    AssertAlmost ref.PlotArea.InsideWidth, cht.PlotArea.InsideWidth, 1.5, "partem iguais"
+    Deco_SetValueLine cht, True
+    AssertTrue cht.PlotArea.InsideWidth < ref.PlotArea.InsideWidth - 5, "a linha de valor consumiu folga a direita (" & cht.PlotArea.InsideWidth & " x " & ref.PlotArea.InsideWidth & ")"
+    Deco_SetValueLine cht, False
+    AssertAlmost ref.PlotArea.InsideWidth, cht.PlotArea.InsideWidth, 1.5, "desligar devolve a largura"
+    AssertAlmost ref.PlotArea.InsideLeft, cht.PlotArea.InsideLeft, 1.5
+    CloseTemp wb
+End Sub
+
+' Escala automatica devolve tambem a folga das setas: com o maximo fixo no maior total a seta de CAGR pede a folga cheia; ao voltar ao
+' automatico a area de plotagem volta perto do que era antes de fixar.
+Public Sub Test_ResetScale_ReturnsFixedMaximumRoom_Bars()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, right0 As Double, rightFixed As Double
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Stacked_Insert(d.Source.Worksheet, d, "barstacked").Chart
+    Ann_AddCagr cht, 1, 4
+    right0 = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth
+    Registry_SetOption cht, "vmin", "0": Registry_SetOption cht, "vmax", Deco_ScaleText(57)
+    Core_SafeRefresh cht
+    rightFixed = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth
+    AssertTrue rightFixed < right0 - 10, "o maximo fixo pediu mais folga (" & rightFixed & " x " & right0 & ")"
+    Deco_ResetScale cht
+    AssertTrue cht.Axes(xlValue, xlPrimary).MaximumScaleIsAuto
+    AssertAlmost right0, cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth, 1.5, "o eixo automatico devolveu a folga"
+    CloseTemp wb
+End Sub
+
+' Um unico grafico legivel nao recebe uma escala "igual a dele mesmo": a leitura da escala do outro falha (gancho de teste) e nada muda;
+' com um grafico invalido (apagado) na colecao tambem nada propaga.
+Public Sub Test_SameScale_OnlyOneReadableChart_ChangesNothing()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, c1 As Chart, c2 As Chart, c3 As Chart, coll As New Collection, skipped As Long, mx As Double
+    Dim en As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set c1 = Stacked_Insert(ws, d, "stacked").Chart
+    ws.Range("F1:I1").Value = Array("Ano", "A", "B", "C")
+    ws.Range("F2:I2").Value = Array(2022, 100, 200, 50): ws.Range("F3:I3").Value = Array(2023, 120, 220, 60)
+    Set c2 = Stacked_Insert(ws, ChartData_FromRange(ws.Range("F1:I3")), "stacked").Chart
+    coll.Add c1: coll.Add c2
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    mx = c1.Axes(xlValue).MaximumScale
+    AssertTrue mx >= 400
+    On Error GoTo Cleanup                                         ' o gancho global nunca pode vazar para os proximos testes
+    Util_FailScaleReadChartForTest = c2.Parent.Name               ' a leitura de c2 vai falhar
+    en = Deco_SameScale(coll, skipped)
+    Util_FailScaleReadChartForTest = ""
+    On Error GoTo 0
+    AssertEqual 0, en, "so c1 legivel: nada a igualar"
+    AssertEqual 0, skipped, "nao foi por tipo"
+    AssertAlmost mx, Val(Registry_GetOption(c1, "vmax", "")), 0.000001, "a escala gravada de c1 nao foi trocada pela propria"
+    AssertFalse c1.Axes(xlValue).MaximumScaleIsAuto, "e o eixo de c1 continua fixo"
+    AssertAlmost mx, c1.Axes(xlValue).MaximumScale, 0.000001
+    Set c3 = Stacked_Insert(ws, ChartData_FromRange(ws.Range("F1:I3")), "stacked").Chart
+    Set coll = New Collection: coll.Add c1: coll.Add c3
+    c3.Parent.Delete                                              ' grafico invalido na colecao: nao propaga e nao conta como tipo
+    AssertEqual 0, Deco_SameScale(coll, skipped), "grafico invalido: so um legivel"
+    AssertEqual 0, skipped
+    AssertAlmost mx, Val(Registry_GetOption(c1, "vmax", "")), 0.000001
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    Util_FailScaleReadChartForTest = ""
+    Err.Raise Err.Number, Err.Source, Err.Description
+End Sub
+
+' Uniao dos MINIMOS: um grafico com valores negativos (colunas e linha) puxa o minimo comum para baixo, em qualquer ordem da colecao.
+Public Sub Test_SameScale_UnionOfMinimums_NegativeData_AnyOrder()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, pos As Chart, neg As Chart, ln As Chart, coll As Collection, skipped As Long, mn As Double, ord As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set pos = Stacked_Insert(ws, d, "stacked").Chart
+    ws.Range("F1:I1").Value = Array("Ano", "A", "B", "C")
+    ws.Range("F2:I2").Value = Array(2022, 30, -80, 20): ws.Range("F3:I3").Value = Array(2023, 40, -90, 10): ws.Range("F4:I4").Value = Array(2024, 35, -60, 15)
+    Set neg = Stacked_Insert(ws, ChartData_FromRange(ws.Range("F1:I4")), "stacked").Chart
+    mn = neg.Axes(xlValue).MinimumScale
+    AssertTrue mn < 0, "o grafico com negativos tem minimo negativo (" & mn & ")"
+    AssertEqual 0, pos.Axes(xlValue).MinimumScale, "o de positivos comeca em 0"
+    For ord = 1 To 2
+        Set coll = New Collection
+        If ord = 1 Then
+            coll.Add pos: coll.Add neg
+        Else
+            coll.Add neg: coll.Add pos
+        End If
+        AssertEqual 2, Deco_SameScale(coll, skipped)
+        AssertAlmost mn, pos.Axes(xlValue).MinimumScale, 0.000001, "ordem " & ord & ": positivos ganham o menor minimo"
+        AssertAlmost mn, neg.Axes(xlValue).MinimumScale, 0.000001, "ordem " & ord & ": negativos mantem o menor minimo"
+        AssertEqual pos.Axes(xlValue).MaximumScale, neg.Axes(xlValue).MaximumScale, "ordem " & ord & ": mesmo maximo"
+        AssertAlmost mn, Val(Registry_GetOption(pos, "vmin", "")), 0.000001, "vmin gravado"
+        Deco_ResetScale pos: Deco_ResetScale neg
+    Next
+    ' grafico de linha com um valor negativo
+    ws.Range("K1:L1").Value = Array("Ano", "X")
+    ws.Range("K2:L2").Value = Array(2022, -40): ws.Range("K3:L3").Value = Array(2023, 10): ws.Range("K4:L4").Value = Array(2024, 25)
+    Set ln = Stacked_Insert(ws, ChartData_FromRange(ws.Range("K1:L4")), "line").Chart
+    mn = ln.Axes(xlValue).MinimumScale
+    AssertTrue mn < 0, "linha com valor negativo (" & mn & ")"
+    Set coll = New Collection: coll.Add pos: coll.Add ln
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    AssertAlmost mn, pos.Axes(xlValue).MinimumScale, 0.000001, "colunas + linha: o minimo da linha vale para as colunas"
+    AssertAlmost mn, ln.Axes(xlValue).MinimumScale, 0.000001
+    CloseTemp wb
+End Sub
+
+' Barras e colunas juntas: os dois eixos de valores (um horizontal, outro vertical) ficam IGUAIS (minimo e maximo), nao so gravados.
+Public Sub Test_SameScale_MixedBarsAndColumns_AxesEqual()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, bars As Chart, cols As Chart, coll As New Collection, skipped As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set bars = Stacked_Insert(ws, d, "barstacked").Chart
+    ws.Range("F1:I1").Value = Array("Ano", "A", "B", "C")
+    ws.Range("F2:I2").Value = Array(2022, 100, 200, 50): ws.Range("F3:I3").Value = Array(2023, 120, 220, 60)
+    Set cols = Stacked_Insert(ws, ChartData_FromRange(ws.Range("F1:I3")), "stacked").Chart
+    coll.Add bars: coll.Add cols
+    AssertTrue bars.Axes(xlValue, xlPrimary).MaximumScale < cols.Axes(xlValue, xlPrimary).MaximumScale, "escalas diferentes antes"
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    AssertEqual cols.Axes(xlValue, xlPrimary).MinimumScale, bars.Axes(xlValue, xlPrimary).MinimumScale, "minimos iguais"
+    AssertEqual cols.Axes(xlValue, xlPrimary).MaximumScale, bars.Axes(xlValue, xlPrimary).MaximumScale, "maximos iguais"
+    AssertFalse bars.Axes(xlValue, xlPrimary).MaximumScaleIsAuto
+    AssertFalse cols.Axes(xlValue, xlPrimary).MaximumScaleIsAuto
+    AssertAlmost bars.Axes(xlValue, xlPrimary).MaximumScale, Val(Registry_GetOption(bars, "vmax", "")), 0.000001
+    CloseTemp wb
+End Sub
+
+' A escala fixa e imposta em silencio: dados acima do maximo gravado cortariam as barras; um aviso unico por grafico e por sessao, em
+' empilhadas e em agrupadas, e nenhum aviso enquanto os dados cabem.
+Public Sub Test_SameScale_DataAboveFixedMaximum_NoticeOncePerChart()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, c1 As Chart, c2 As Chart, c3 As Chart, c4 As Chart, coll As Collection, skipped As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set c1 = Stacked_Insert(ws, d, "stacked").Chart
+    ws.Range("F1:I1").Value = Array("Ano", "A", "B", "C")
+    ws.Range("F2:I2").Value = Array(2022, 100, 200, 50): ws.Range("F3:I3").Value = Array(2023, 120, 220, 60)
+    Set c2 = Stacked_Insert(ws, ChartData_FromRange(ws.Range("F1:I3")), "stacked").Chart
+    Set coll = New Collection: coll.Add c1: coll.Add c2
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    Core_ClearLastNotice
+    Core_SafeRefresh c1
+    AssertEqual 0, Core_NoticeCount(), "os dados cabem: sem aviso"
+    ws.Range("B5").Value = 5000                                  ' total 5039 > maximo gravado
+    AssertTrue Deco_ScaleClipped(c1)
+    Core_SafeRefresh c1
+    AssertEqual 1, Core_NoticeCount(), "dados acima do maximo: aviso"
+    AssertTrue InStr(Core_LastNotice(), "máximo da escala fixa") > 0, Core_LastNotice()
+    Core_SafeRefresh c1
+    AssertEqual 1, Core_NoticeCount(), "uma vez so por grafico e sessao"
+    Core_SafeRefresh c2
+    AssertEqual 1, Core_NoticeCount(), "o outro grafico continua cabendo"
+    ' agrupadas: o maior valor de qualquer serie
+    Set c3 = Stacked_Insert(ws, ChartData_FromRange(ws.Range("A1:C5")), "clustered").Chart
+    Set c4 = Stacked_Insert(ws, ChartData_FromRange(ws.Range("F1:I3")), "clustered").Chart
+    Set coll = New Collection: coll.Add c3: coll.Add c4
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    AssertFalse Deco_ScaleClipped(c3)
+    Core_ClearLastNotice
+    ws.Range("C3").Value = 9999
+    Core_SafeRefresh c3
+    AssertEqual 1, Core_NoticeCount(), "agrupadas: aviso"
+    Deco_ResetScale c3
+    AssertFalse Deco_ScaleClipped(c3), "sem escala fixa nao ha o que cortar"
+    CloseTemp wb
 End Sub

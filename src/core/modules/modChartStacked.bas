@@ -11,12 +11,15 @@ Private Const TOTAL_LABEL_MARGIN As Double = 4      ' respiro entre o fim do rot
 ' o RÓTULO continua mostrando o total líquido da coluna 2; sem valores positivos, a extensão negativa); em 100% é 1.
 ' Participação = valor / total da linha (0 se o total é 0 ou a célula não é número).
 ' Pos = posição da categoria no eixo Y secundário das auxiliares XY das barras (n - i + 0,5: a primeira categoria no topo).
-' VLine = média da coluna Total (linha de valor; #N/D em 100%, onde não há linha).
+' VLine = linha de valor (a mesma fórmula em todas as linhas; #N/D em 100%, onde não há linha): empilhadas, combinação e área = média da
+' coluna Total (média dos totais das colunas); clustered, barclustered e line = média de TODOS os valores plotados da tabela (cada valor é
+' uma "coluna" e Total, a soma da linha, não é plotado: a média da soma ficaria acima de todas as barras); com uma série as duas coincidem.
 
 Public Function Stacked_BuildBlock(wb As Workbook, id As String, data As clsChartData, kind As String) As Range
     Dim blk As Range, body As Range, i As Long, j As Long, rowCells As Range, srcAddr As String, totAddr As String
-    Dim is100 As Boolean, n As Long, cols As Long, posCol As Long, vCol As Long, totRange As String, nCol As Long
+    Dim is100 As Boolean, n As Long, cols As Long, posCol As Long, vCol As Long, totRange As String, nCol As Long, allRange As String, isFlat As Boolean
     is100 = Kinds_Is100(kind)
+    isFlat = (kind = "clustered" Or kind = "barclustered" Or kind = "line")
     n = data.CategoryCount
     nCol = data.SeriesCount - IIf(kind = "combo", 1, 0)      ' combinação: a última coluna da tabela é a linha, fora dos totais
     cols = 3 + IIf(is100, data.SeriesCount, 0) + 2
@@ -29,6 +32,7 @@ Public Function Stacked_BuildBlock(wb As Workbook, id As String, data As clsChar
     End If
     body.Cells(1, posCol).Value = "Pos": body.Cells(1, vCol).Value = "VLine"
     totRange = body.Cells(2, 2).Resize(n, 1).Address(True, True)     ' mesma planilha: sem nome de planilha
+    If isFlat Then allRange = Mid$(ChartData_ExternalAddress(data.Source.Cells(2, 2).Resize(n, data.SeriesCount)), 2)     ' todos os valores da tabela
     For i = 1 To n
         body.Cells(i + 1, 1).Formula = ChartData_ExternalAddress(data.Source.Cells(i + 1, 1))
         Set rowCells = data.Source.Cells(i + 1, 2).Resize(1, nCol)
@@ -50,6 +54,8 @@ Public Function Stacked_BuildBlock(wb As Workbook, id As String, data As clsChar
         body.Cells(i + 1, posCol).Formula = "=" & (n - i) & ".5"           ' independe do separador decimal da localidade
         If is100 Then
             body.Cells(i + 1, vCol).Formula = "=NA()"
+        ElseIf isFlat Then
+            body.Cells(i + 1, vCol).Formula = "=IFERROR(AGGREGATE(1,6," & allRange & "),0)"      ' media dos valores plotados (erros e texto ignorados; tabela vazia = 0)
         Else
             body.Cells(i + 1, vCol).Formula = "=AVERAGE(" & totRange & ")"
         End If

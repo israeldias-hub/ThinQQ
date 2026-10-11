@@ -245,6 +245,7 @@ Public Sub Deco_SetValueLine(cht As Chart, turnOn As Boolean)
         Set s = Chart_FindSeries(cht, VLINE_NAME)
         If Not s Is Nothing Then s.Delete
         If Kinds_Supports(kind, "vline") Then Registry_SetOption cht, "vline", "0"
+        If Not s Is Nothing Then ReturnRoom cht                  ' a folga do rotulo (so reduz) volta: layout automatico e as demais folgas refeitas
         Exit Sub
     End If
     If Not Kinds_Supports(kind, "vline") Then Err.Raise vbObjectError + 7002, "Deco_SetValueLine", "A linha de valor não está disponível para este tipo de gráfico."
@@ -346,11 +347,13 @@ End Sub
 ' barras (formas tqq_ann_ind100*, posicionadas por Ann_Refresh). Ligado por padrao nos graficos 100% (os Insert chamam). Recusa (erro
 ' 7002) fora dos tipos 100% e Mekko (%). Ligar abre a folga fora da area de plotagem (Deco_EnsureIndicatorRoom). Ann_RemoveAll nao o remove.
 Public Sub Deco_SetInd100(cht As Chart, turnOn As Boolean)
-    Dim kind As String, en As Long, es As String, ed As String
+    Dim kind As String, en As Long, es As String, ed As String, had As Boolean
     kind = Registry_ChartType(cht)
     If Not turnOn Then
+        had = Ann_HasInd100(cht)
         Ann_RemoveInd100 cht
         If Kinds_Supports(kind, "ind100") Then Registry_SetOption cht, "ind100", "0"
+        If had Then ReturnRoom cht                               ' a folga do indicador (so reduz) volta: layout automatico e as demais folgas refeitas
         Exit Sub
     End If
     If Not Kinds_Supports(kind, "ind100") Then Err.Raise vbObjectError + 7002, "Deco_SetInd100", "O indicador 100% só existe em gráficos 100% e Mekko (%)."
@@ -366,6 +369,19 @@ Fail:
     Ann_RemoveInd100 cht
     On Error GoTo 0
     Err.Raise en, es, ed
+End Sub
+
+' As folgas (Chart_EnsureRoomAfterChange) so REDUZEM a area de plotagem: ao desligar uma decoracao (indicador 100%, linha de valor) ou voltar a
+' escala ao automatico, o espaco reservado nao voltaria sozinho. Como Deco_SetLegend: o layout da area de plotagem volta ao AUTOMATICO (descarta
+' um layout manual do usuario) e as folgas das decoracoes e opcoes que continuam ligadas sao refeitas por cima; as setas sao reposicionadas.
+' Nunca propaga erro.
+Private Sub ReturnRoom(cht As Chart)
+    On Error Resume Next
+    cht.PlotArea.Position = xlChartElementPositionAutomatic
+    If Err.Number <> 0 Then Errors_Log "Deco/ReturnRoom.Position" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Chart_EnsureRoomAfterChange cht
+    Ann_Refresh cht
+    If Err.Number <> 0 Then Errors_Log "Deco/ReturnRoom" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
 
 ' Folga para o indicador 100% fora da area interna: colunas e areas, a esquerda (o rotulo "100%" a 10 pt do tique: no minimo 46 pt
@@ -441,7 +457,10 @@ Public Function Deco_SameScale(charts As Collection, ByRef skipped As Long) As L
     Set ok = New Collection
     For Each c In charts
         Set cht = c
-        If Kinds_Supports(Registry_ChartType(cht), "samescale") Then ok.Add cht Else skipped = skipped + 1
+        Select Case FreeScaleKind(cht)
+            Case 1: ok.Add cht
+            Case 0: skipped = skipped + 1
+        End Select                                                ' -1 (grafico ilegivel, registrado): fica de fora sem contar como "tipo"
     Next
     If ok.Count < 2 Then Exit Function
     ReDim los(1 To ok.Count): ReDim his(1 To ok.Count)
@@ -454,7 +473,13 @@ Public Function Deco_SameScale(charts As Collection, ByRef skipped As Long) As L
             got.Add cht
         End If
     Next
-    If n = 0 Then Exit Function
+    If n < 2 Then                                                 ' so um grafico legivel: nao fixa a escala dele nela mesma
+        For Each c In got
+            Set cht = c
+            Deco_ApplyFixedScale cht                              ' a leitura o devolveu ao automatico: volta ao que estava gravado
+        Next
+        Exit Function
+    End If
     gLo = los(1): gHi = his(1)
     For i = 2 To n
         If los(i) < gLo Then gLo = los(i)
@@ -471,11 +496,22 @@ Public Function Deco_SameScale(charts As Collection, ByRef skipped As Long) As L
     Next
 End Function
 
+' 1 = o grafico tem escala livre (Kinds_Supports "samescale"), 0 = nao tem (tipo), -1 = nao foi possivel ler o tipo (grafico invalido; registrado).
+Private Function FreeScaleKind(cht As Chart) As Long
+    On Error GoTo Fail
+    FreeScaleKind = IIf(Kinds_Supports(Registry_ChartType(cht), "samescale"), 1, 0)
+    Exit Function
+Fail:
+    Errors_Log "Deco_SameScale/tipo" & vbTab & Err.Number & vbTab & Err.Description
+    FreeScaleKind = -1
+End Function
+
 ' Devolve o eixo de valores ao automatico e le a escala que o Excel escolheu (ler DEPOIS de ligar o automatico: o Excel recalcula
 ' a escala na leitura). False (registrado) se a leitura falha.
 Private Function ReadAutoScale(cht As Chart, ByRef lo As Double, ByRef hi As Double) As Boolean
     Dim ax As Axis
     On Error GoTo Fail
+    Util_TestHookScaleRead cht
     Set ax = cht.Axes(xlValue, xlPrimary)
     ax.MinimumScaleIsAuto = True
     ax.MaximumScaleIsAuto = True
@@ -529,6 +565,7 @@ Public Sub Deco_ResetScale(cht As Chart)
         Set ax = cht.Axes(xlValue, xlPrimary)
         ax.MinimumScaleIsAuto = True
         ax.MaximumScaleIsAuto = True
+        cht.PlotArea.Position = xlChartElementPositionAutomatic   ' a folga das setas com o maximo fixo (so reduz) volta; refeita para o eixo automatico abaixo
         Deco_AfterScaleChange cht
     End If
     If Err.Number <> 0 Then Errors_Log "Deco_ResetScale" & vbTab & Err.Number & vbTab & Err.Description
@@ -556,6 +593,34 @@ Public Sub Deco_ApplyFixedScale(cht As Chart)
 Fail:
     Errors_Log "Deco_ApplyFixedScale" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
+
+' True quando o grafico tem escala fixa (Mesma escala) e os dados passaram do maximo gravado (vmax): as barras ficariam cortadas. O maior valor
+' plotado e o topo da pilha (Ann_GetCategoryData: empilhadas, area, cascata) ou, em agrupadas e linha, o maior valor de qualquer serie. False em
+' qualquer duvida. Usada por Core_SafeRefresh para o aviso unico.
+Public Function Deco_ScaleClipped(cht As Chart) As Boolean
+    Dim sMax As String, kind As String, values() As Double, tops() As Double, i As Long, s As Series, v As Variant, mx As Double
+    On Error GoTo Fail
+    sMax = Registry_GetOption(cht, "vmax", "")
+    kind = Registry_ChartType(cht)
+    If Len(sMax) = 0 Or Not Kinds_Supports(kind, "samescale") Then Exit Function
+    If kind = "clustered" Or kind = "barclustered" Or kind = "line" Then
+        For Each s In cht.SeriesCollection
+            If Not Style_IsHelperSeries(s) Then
+                v = s.Values
+                For i = LBound(v) To UBound(v)
+                    If Util_ToDouble(v(i)) > mx Then mx = Util_ToDouble(v(i))
+                Next
+            End If
+        Next
+    Else
+        Ann_GetCategoryData cht, values, tops
+        For i = 1 To UBound(tops)
+            If tops(i) > mx Then mx = tops(i)
+        Next
+    End If
+    Deco_ScaleClipped = (mx > Val(sMax) + 0.000001)
+Fail:
+End Function
 
 Private Function IsLineSeries(s As Series) As Boolean
     If Style_IsHelperSeries(s) Then Exit Function
