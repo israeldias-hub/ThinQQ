@@ -742,7 +742,7 @@ Public Sub Test_Ann_Diff_Horizontal_BottomLegend_ArrowAndLabelAboveLegend()
 End Sub
 
 ' Cobertura da reconstrucao de conectores por familia (barwaterfall): o grafico de colunas serve so para contar formas;
-' a cascata horizontal real chega na Tarefa 5.
+' a cascata horizontal real e coberta em TestWaterfall2 (Test_BarWaterfall_RebuildFromRange_KeepsKindAndConnectors).
 Public Sub Test_Ann_Refresh_RebuildsConnectors_ForBarWaterfallFamily()
     Dim wb As Workbook, cht As Chart
     Set wb = NewTempWorkbook(): Set cht = WaterfallFixture(wb)

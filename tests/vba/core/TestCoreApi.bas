@@ -995,20 +995,6 @@ Public Sub Test_Errors_Log_TestBuildWritesToTempFolder()
     AssertTrue InStr(txt, marker) > 0, "a linha foi para o log de teste"
 End Sub
 
-' Temporario (a Tarefa 5 remove o teste ao implementar a cascata horizontal): barwaterfall ainda nao tem Insert;
-' Kinds_Insert recusa com o aviso 7200 em vez de criar colunas gravadas como barras.
-Public Sub Test_Core_Insert_BarWaterfallNotReady_NoMislabeledColumnChart()
-    Dim wb As Workbook, ws As Worksheet
-    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
-    ws.Range("A1:C5").Select
-    Core_ClearLastNotice
-    Core_Insert "barwaterfall"
-    AssertEqual 0, ws.ChartObjects.Count, "nenhum grafico criado"
-    AssertEqual 0, TqqNameCount(wb), "nenhum bloco criado"
-    AssertTrue InStr(Core_LastNotice(), "ainda não está disponível") > 0, Core_LastNotice()
-    Teardown wb
-End Sub
-
 ' Permanente: tipo que nao existe e recusado com o aviso de tipo desconhecido (nada e criado), inclusive uma lista de
 ' tipos separada por virgula (a matriz nao aceita uma lista como se fosse um tipo).
 Public Sub Test_Core_Insert_UnknownKind_NotifiesAndCreatesNothing()

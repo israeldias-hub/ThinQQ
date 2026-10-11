@@ -205,15 +205,20 @@ Private Function AddWfSeries(cht As Chart, name As String, valueCells As Range, 
     Set AddWfSeries = s
 End Function
 
-Public Function Waterfall_Insert(ws As Worksheet, data As clsChartData) As ChartObject
+' kind: "waterfall" (colunas empilhadas, o padrao) ou "barwaterfall" (barras empilhadas horizontais com as categorias
+' invertidas por Style_ApplyBase; rotulos em auxiliares XY no grupo secundario; conectores verticais). O tipo vai para a
+' meta do bloco (Registry_ChartType).
+Public Function Waterfall_Insert(ws As Worksheet, data As clsChartData, Optional kind As String = "waterfall") As ChartObject
     Dim id As String, body As Range, n As Long, co As ChartObject, cht As Chart, anchor As Range, ns As Long, j As Long
     Dim en As Long, es As String, ed As String
-    Dim names As Variant, cols As Variant, k As Long, cats As String
+    Dim names As Variant, cols As Variant, k As Long, cats As String, horiz As Boolean
+    If Kinds_Family(kind) <> "waterfall" Then Err.Raise 5, "Waterfall_Insert", "Tipo de cascata desconhecido: " & kind      ' antes de alocar o bloco
+    horiz = Kinds_IsHorizontal(kind)
     ns = data.SeriesCount
     If ns > WF_MAX_SERIES Then Err.Raise vbObjectError + 6007, "Waterfall_Insert", WF_ERR_TOO_MANY     ' antes de alocar o bloco
     On Error GoTo Fail
     id = Registry_NewId()
-    Set body = Block_Body(Waterfall_BuildBlock(ws.Parent, id, data))
+    Set body = Block_Body(Waterfall_BuildBlock(ws.Parent, id, data, kind))
     Util_TestHookAfterBlock
     n = data.CategoryCount
     cats = ChartData_ExternalAddress(data.CategoryCells())
@@ -248,7 +253,7 @@ Public Function Waterfall_Insert(ws As Worksheet, data As clsChartData) As Chart
         Next
         AddWfSeries cht, "tqq_total", body.Cells(2, WF_COL_TOTAL).Resize(n, 1), cats
     End If
-    cht.ChartType = xlColumnStacked
+    cht.ChartType = IIf(horiz, xlBarStacked, xlColumnStacked)
     cht.PlotVisibleOnly = False
     cht.DisplayBlanksAs = xlZero
     cht.ChartGroups(1).GapWidth = 50
@@ -343,9 +348,11 @@ End Function
 
 ' Rotulos: S = 1 como na Fase 1 (tqq_lbl em LabelPos, ligado a LabelVal). S > 1: um auxiliar tqq_lbl_j por serie
 ' (em M_j, o meio do segmento, rotulo ligado a D_j, posicao central, fonte por contraste com a cor da serie) e tqq_lbl
-' so para as linhas de total (LabelPos/LabelVal tem NA() nas demais).
+' so para as linhas de total (LabelPos/LabelVal tem NA() nas demais). Em barwaterfall os auxiliares sao series XY no grupo
+' secundario (Chart_AddHelperSeries com a coluna Pos como Y; a "posicao" vira o X) e os rotulos de total/delta saem a
+' direita (valor >= 0, em Hi) ou a esquerda (valor < 0, em Lo).
 Public Sub Waterfall_SetLabels(cht As Chart, turnOn As Boolean)
-    Dim s As Series, body As Range, n As Long, fmt As String, ns As Long, j As Long, i As Long
+    Dim s As Series, body As Range, n As Long, fmt As String, ns As Long, j As Long, i As Long, horiz As Boolean, posCol As Range
     ns = Waterfall_SeriesCount(cht)
     If Not turnOn Then
         For i = cht.SeriesCollection.Count To 1 Step -1
@@ -357,27 +364,29 @@ Public Sub Waterfall_SetLabels(cht As Chart, turnOn As Boolean)
     End If
     Set body = Block_Body(Registry_Block(cht))
     n = body.Rows.Count - 1
+    horiz = Kinds_IsHorizontal(Registry_ChartType(cht))
+    If horiz Then Set posCol = body.Cells(2, WF_COL_POS).Resize(n, 1)       ' Y das auxiliares XY: centro da faixa da categoria
     fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
     If ns > 1 Then
         For j = 1 To ns
             Set s = Chart_FindSeries(cht, "tqq_lbl_" & j)
-            If s Is Nothing Then Set s = Chart_AddHelperSeries(cht, "tqq_lbl_" & j, body.Cells(2, Waterfall_SeriesCol(j, "M")).Resize(n, 1))
-            Labels_LinkPoints s, body.Cells(2, Waterfall_SeriesCol(j, "D")).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(DataSeriesColor(cht, j))
+            If s Is Nothing Then Set s = Chart_AddHelperSeries(cht, "tqq_lbl_" & j, body.Cells(2, Waterfall_SeriesCol(j, "M")).Resize(n, 1), posCol)
+            Labels_LinkPoints s, body.Cells(2, Waterfall_SeriesCol(j, "D")).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(DataSeriesColor(cht, j)), horiz
         Next
     End If
     Set s = Chart_FindSeries(cht, "tqq_lbl")
     If s Is Nothing Then
-        Set s = Chart_AddHelperSeries(cht, "tqq_lbl", body.Cells(2, WF_COL_LABELPOS).Resize(n, 1))
+        Set s = Chart_AddHelperSeries(cht, "tqq_lbl", body.Cells(2, WF_COL_LABELPOS).Resize(n, 1), posCol)
     End If
     If ns > 1 Then
         ' O texto do rotulo ligado a uma celula e o da celula: LabelVal tem #N/D fora das linhas de total e o rotulo mostraria
         ' "#N/D" (medido no Excel 2019: no zero do eixo, por baixo das barras). A coluna Total vale 0 nessas linhas e o
         ' formato numerico (zero vazio) apaga o texto; nas linhas de total ela vale o mesmo que LabelVal. A posicao do
         ' ponto continua em LabelPos (NA() = ponto nao plotado).
-        Labels_LinkPoints s, body.Cells(2, WF_COL_TOTAL).Resize(n, 1), fmt
+        Labels_LinkPoints s, body.Cells(2, WF_COL_TOTAL).Resize(n, 1), fmt, , , horiz
         Chart_HideHelperLegendEntries cht
     Else
-        Labels_LinkPoints s, body.Cells(2, WF_COL_LABELVAL).Resize(n, 1), fmt
+        Labels_LinkPoints s, body.Cells(2, WF_COL_LABELVAL).Resize(n, 1), fmt, , , horiz
     End If
     Registry_SetOption cht, "labels", "1"
 End Sub

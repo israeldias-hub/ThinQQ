@@ -99,10 +99,7 @@ Public Function Kinds_Insert(ws As Worksheet, data As clsChartData, kind As Stri
         Case "stacked"
             Set Kinds_Insert = Stacked_Insert(ws, data, kind)
         Case "waterfall"
-            If kind <> "waterfall" Then
-                Err.Raise vbObjectError + 7200, "Kinds_Insert", "Este tipo de gráfico ainda não está disponível nesta versão: " & kind
-            End If
-            Set Kinds_Insert = Waterfall_Insert(ws, data)
+            Set Kinds_Insert = Waterfall_Insert(ws, data, kind)
         Case Else
             Err.Raise vbObjectError + 7200, "Kinds_Insert", "Este tipo de gráfico ainda não está disponível nesta versão: " & kind
     End Select

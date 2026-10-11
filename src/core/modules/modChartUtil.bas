@@ -325,7 +325,8 @@ End Sub
 ' O Excel lista as entradas da legenda na ordem VISUAL das series (medido no Excel 2019): em pilhas verticais
 ' (colunas e areas empilhadas, inclusive 100%) com a legenda a esquerda/direita a ultima serie aparece primeiro
 ' (indice 1); barras agrupadas com o eixo de categorias nao invertido tambem aparecem invertidas (com o eixo
-' invertido, como o Style_ApplyBase deixa as barras, nao). Barras empilhadas, colunas agrupadas e linhas: ordem normal.
+' invertido, como o Style_ApplyBase deixa as barras, nao). Barras empilhadas, colunas agrupadas e linhas: ordem normal (medido
+' tambem na cascata horizontal de varias series, com auxiliares intercaladas no grupo empilhado, nas 5 posicoes da legenda).
 Private Function LegendGroupReversed(cht As Chart, g As ChartGroup) As Boolean
     Dim ct As Long, lp As Long
     On Error GoTo Fail

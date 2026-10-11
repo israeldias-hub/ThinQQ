@@ -517,3 +517,472 @@ Public Sub Test_WaterfallMulti_SegmentLabelFont_ContrastsWithSeriesColor()
     AssertEqual RGB(64, 64, 64), CLng(Chart_FindSeries(cht, "tqq_lbl_3").Points(1).DataLabel.Font.Color), "azul claro: fonte cinza-escuro"
     CloseTemp wb
 End Sub
+
+' ---------- Tarefa 5: cascata horizontal (barwaterfall) ----------
+
+Public Sub Test_BarWaterfall_Insert_SeriesConnectorsAndLabels()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, lbl As Series, ax As Axis, il As Double, iw As Double, c As Shape
+    Set wb = NewTempWorkbook(): Set d = SingleFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d, "barwaterfall").Chart
+    AssertEqual "barwaterfall", Registry_ChartType(cht)
+    AssertEqual xlBarStacked, cht.SeriesCollection(1).ChartType
+    AssertTrue cht.Axes(xlCategory).ReversePlotOrder
+    Set lbl = Chart_FindSeries(cht, "tqq_lbl")
+    AssertEqual xlSecondary, lbl.AxisGroup
+    AssertEqual "100", lbl.Points(1).DataLabel.Text: AssertEqual xlLabelPositionRight, lbl.Points(1).DataLabel.Position
+    AssertEqual "-150", lbl.Points(2).DataLabel.Text: AssertEqual xlLabelPositionLeft, lbl.Points(2).DataLabel.Position
+    AssertEqual "-20", lbl.Points(4).DataLabel.Text, "subtotal"
+    ' conectores verticais em x = End_i (regra de tres independente): End = 100, -50, -20, -20, 50
+    il = cht.PlotArea.InsideLeft: iw = cht.PlotArea.InsideWidth: Set ax = cht.Axes(xlValue, xlPrimary)
+    Set c = cht.Shapes("tqq_ann_conn_1")
+    AssertAlmost 0, c.Width, 0.01, "conector vertical"
+    AssertAlmost il + iw * (100 - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale), c.Left, 1
+    AssertAlmost il + iw * (-50 - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale), cht.Shapes("tqq_ann_conn_2").Left, 1
+    AssertTrue c.Top > cht.PlotArea.InsideTop And c.Top + c.Height < cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight / 3, "entre as barras 1 e 2"
+    AssertEqual "1", Registry_GetOption(cht, "connectors")
+    CloseTemp wb
+End Sub
+
+Public Sub Test_BarWaterfall_LabelHelper_AlignedWithBarEnds()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, lbl As Series, ax As Axis, il As Double, it As Double, iw As Double, ih As Double
+    Dim x As Double, dl As DataLabel
+    Set wb = NewTempWorkbook(): Set d = SingleFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d, "barwaterfall").Chart
+    Set lbl = Chart_FindSeries(cht, "tqq_lbl")
+    il = cht.PlotArea.InsideLeft: it = cht.PlotArea.InsideTop: iw = cht.PlotArea.InsideWidth: ih = cht.PlotArea.InsideHeight
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    x = il + iw * (100 - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale)      ' Hi da barra 1
+    Set dl = lbl.Points(1).DataLabel
+    AssertTrue dl.Left >= x - 2 And dl.Left <= x + 14, "rotulo 1 no fim da barra: " & dl.Left & " vs " & x
+    AssertTrue Abs((dl.Top + dl.Height / 2) - (it + ih / 12)) <= ih / 12, "rotulo 1 na primeira faixa (6 categorias)"
+    x = il + iw * (-50 - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale)      ' Lo da barra 2 (rotulo a esquerda)
+    Set dl = lbl.Points(2).DataLabel
+    AssertTrue dl.Left + dl.Width <= x + 2 And dl.Left + dl.Width >= x - 14, "rotulo 2 a esquerda do Lo: " & (dl.Left + dl.Width) & " vs " & x
+    CloseTemp wb
+End Sub
+
+Public Sub Test_BarWaterfall_Multi_And_Core()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set d = MultiFixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("A1:C6").Select
+    Core_Insert "barwaterfall"
+    Set cht = Core_ActiveChart()
+    AssertEqual "barwaterfall", Registry_ChartType(cht)
+    AssertEqual 13, cht.SeriesCollection.Count
+    AssertEqual "-30", Chart_FindSeries(cht, "tqq_lbl_1").Points(2).DataLabel.Text
+    AssertTrue Core_GetToggle("connectors")
+    Core_SetToggle "connectors", False
+    AssertEqual 0, cht.Shapes.Count
+    Core_SetToggle "labels", False
+    AssertTrue Chart_FindSeries(cht, "tqq_lbl_1") Is Nothing
+    Core_SetOption "palette", "cinza"
+    AssertEqual RGB(64, 64, 64), Chart_FindSeries(cht, "Loja").Format.Fill.ForeColor.RGB
+    Core_AddAnnotation "diff", 1, 5
+    AssertEqual "-240 (-160%)", cht.Shapes("tqq_ann_diff_1_lbl").TextFrame2.TextRange.Text
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' x (pt) de um valor no eixo horizontal: regra de tres sobre a area interna e a escala reais (independente de Geom_*).
+Private Function XOf(cht As Chart, v As Double) As Double
+    Dim ax As Axis
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    XOf = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth * (v - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale)
+End Function
+
+' Centro vertical da faixa i, lido da barra (tqq_base) e nao calculado: Point.Top/Height sao sempre frescos.
+Private Function YCenterOf(cht As Chart, i As Long) As Double
+    With Chart_FindSeries(cht, "tqq_base").Points(i)
+        YCenterOf = .Top + .Height / 2
+    End With
+End Function
+
+' Barra horizontal: os conectores sao verticais em x = End_i, da borda inferior da barra i ao topo da barra i + 1 (geometria
+' lida dos pontos nativos das barras, nao das funcoes de producao).
+Public Sub Test_BarWaterfall_Connectors_FollowBarEdges()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ends As Variant, i As Long, c As Shape, bs As Series
+    Set wb = NewTempWorkbook(): Set d = SingleFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d, "barwaterfall").Chart
+    ends = Array(100, -50, -20, -20, 50)
+    Set bs = Chart_FindSeries(cht, "tqq_base")
+    For i = 1 To 5
+        Set c = cht.Shapes("tqq_ann_conn_" & i)
+        AssertAlmost 0, c.Width, 0.01, "conector " & i & " vertical"
+        AssertAlmost XOf(cht, CDbl(ends(i - 1))), c.Left, 1, "conector " & i & " em x = End"
+        AssertAlmost bs.Points(i).Top + bs.Points(i).Height, c.Top, 1.5, "conector " & i & " parte da borda inferior da barra " & i
+        AssertAlmost bs.Points(i + 1).Top, c.Top + c.Height, 1.5, "conector " & i & " termina no topo da barra " & (i + 1)
+    Next
+    AssertEqual 5, ConnectorCount(cht)
+    CloseTemp wb
+End Sub
+
+' Rotulos (auxiliar XY): o ponto i coincide com o fim da barra (Hi, direita; ou Lo, esquerda) na faixa i, e o rotulo sai do
+' lado do sinal. Posicoes esperadas escritas a mao: LabelPos = 100, -50, -20, -20, 50, 50; sinais + - + - + +.
+Public Sub Test_BarWaterfall_LabelHelper_PointGeometryAndSides()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, lbl As Series, i As Long, xs As Variant, ps As Variant, txt As Variant
+    Set wb = NewTempWorkbook(): Set d = SingleFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d, "barwaterfall").Chart
+    Set lbl = Chart_FindSeries(cht, "tqq_lbl")
+    xs = Array(100, -50, -20, -20, 50, 50)
+    ps = Array(xlLabelPositionRight, xlLabelPositionLeft, xlLabelPositionRight, xlLabelPositionLeft, xlLabelPositionRight, xlLabelPositionRight)
+    txt = Array("100", "-150", "30", "-20", "70", "50")
+    AssertEqual 6, lbl.Points.Count
+    For i = 1 To 6
+        AssertAlmost XOf(cht, CDbl(xs(i - 1))), lbl.Points(i).Left, 1.5, "ponto " & i & " no fim da barra (x)"
+        AssertAlmost YCenterOf(cht, i), lbl.Points(i).Top, 1.5, "ponto " & i & " no centro da faixa (y)"
+        AssertEqual CLng(ps(i - 1)), lbl.Points(i).DataLabel.Position, "lado do rotulo " & i
+        AssertEqual CStr(txt(i - 1)), lbl.Points(i).DataLabel.Text, "texto do rotulo " & i
+    Next
+    CloseTemp wb
+End Sub
+
+' Segmentos visiveis lidos dos pontos nativos das barras x regra de tres sobre os valores esperados a mao:
+' Inicio sobe 0..100; A desce 100 -> -50 (parte positiva 0..100, negativa -50..0); B sobe -50..-20; Fim e total 0..50.
+Public Sub Test_BarWaterfall_SegmentGeometry_RuleOfThree()
+    Dim wb As Workbook, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook(): Set d = SingleFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d, "barwaterfall").Chart
+    With Chart_FindSeries(cht, "tqq_uppos").Points(1)
+        AssertAlmost XOf(cht, 0), .Left, 1: AssertAlmost XOf(cht, 100) - XOf(cht, 0), .Width, 1, "Inicio 0..100"
+    End With
+    With Chart_FindSeries(cht, "tqq_downpos").Points(2)
+        AssertAlmost XOf(cht, 0), .Left, 1: AssertAlmost XOf(cht, 100) - XOf(cht, 0), .Width, 1, "A: parte positiva 0..100"
+    End With
+    With Chart_FindSeries(cht, "tqq_downneg").Points(2)
+        AssertAlmost XOf(cht, -50), .Left, 1: AssertAlmost XOf(cht, 0) - XOf(cht, -50), .Width, 1, "A: parte negativa -50..0"
+    End With
+    With Chart_FindSeries(cht, "tqq_upneg").Points(3)
+        AssertAlmost XOf(cht, -50), .Left, 1: AssertAlmost XOf(cht, -20) - XOf(cht, -50), .Width, 1, "B: -50..-20"
+    End With
+    With Chart_FindSeries(cht, "tqq_total").Points(6)
+        AssertAlmost XOf(cht, 0), .Left, 1: AssertAlmost XOf(cht, 50) - XOf(cht, 0), .Width, 1, "Fim: total 0..50"
+    End With
+    With Chart_FindSeries(cht, "tqq_total").Points(4)
+        AssertAlmost XOf(cht, -20), .Left, 1: AssertAlmost XOf(cht, 0) - XOf(cht, -20), .Width, 1, "Subtotal: -20..0"
+    End With
+    ' a primeira categoria no topo (eixo invertido): a barra 1 acima da barra 6
+    AssertTrue Chart_FindSeries(cht, "tqq_base").Points(1).Top < Chart_FindSeries(cht, "tqq_base").Points(6).Top, "categoria 1 no topo"
+    CloseTemp wb
+End Sub
+
+' Setas em cascata horizontal: CAGR a direita das pontas (End + 10 pt, ponta na categoria 'to'), diferenca abaixo da ultima
+' barra com a linha de nivel vertical saindo do fim da barra inicial. Posicoes lidas dos pontos nativos das barras.
+Public Sub Test_BarWaterfall_CagrAndDiff_Geometry()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ln As Shape, lbl As Shape, lvl As Shape, bs As Series
+    Dim x1 As Double, x6 As Double, yBottom As Double
+    Set wb = NewTempWorkbook(): Set d = SingleFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d, "barwaterfall").Chart
+    Set ln = Ann_AddCagr(cht, 1, 6)
+    Set bs = Chart_FindSeries(cht, "tqq_base")
+    x1 = XOf(cht, 100) + 10: x6 = XOf(cht, 50) + 10           ' End = 100 e 50 (totais), ponta 10 pt depois do fim da barra
+    AssertAlmost x6, ln.Left, 1.5, "ponta (categoria 6) a 10 pt do fim da barra"
+    AssertAlmost x1 - x6, ln.Width, 1.5, "origem (categoria 1) a 10 pt do fim da barra"
+    AssertAlmost YCenterOf(cht, 1), ln.Top, 1.5, "a seta parte do centro da faixa 1"
+    AssertAlmost YCenterOf(cht, 6), ln.Top + ln.Height, 1.5, "e termina no centro da faixa 6"
+    AssertTrue ln.HorizontalFlip = msoTrue And ln.VerticalFlip = msoFalse, "a ponta fica na categoria 6 (x menor, y maior)"
+    Set lbl = cht.Shapes(ln.Name & "_lbl")
+    AssertEqual "CAGR " & Format$((50 / 100) ^ (1 / 5) - 1, "+0.0%;-0.0%;0.0%"), lbl.TextFrame2.TextRange.Text
+    AssertTrue lbl.Left >= x1, "rotulo do CAGR a direita da seta"
+    AssertTrue lbl.Left + lbl.Width <= cht.ChartArea.Width + 0.5, "rotulo dentro do grafico"
+    Set ln = Ann_AddDifference(cht, 1, 6)
+    Set bs = Chart_FindSeries(cht, "tqq_base")
+    x1 = XOf(cht, 100): x6 = XOf(cht, 50)
+    yBottom = bs.Points(6).Top + bs.Points(6).Height
+    AssertAlmost 0, ln.Height, 0.01, "seta de diferenca horizontal"
+    AssertAlmost yBottom + 10, ln.Top, 1.5, "10 pt abaixo da ultima barra"
+    AssertAlmost x6, ln.Left, 1.5: AssertAlmost x1 - x6, ln.Width, 1.5, "de End 1 a End 6"
+    Set lvl = cht.Shapes(ln.Name & "_lvl")
+    AssertAlmost 0, lvl.Width, 0.01, "linha de nivel vertical"
+    AssertAlmost x1, lvl.Left, 1.5, "no fim da barra inicial"
+    AssertAlmost bs.Points(1).Top + bs.Points(1).Height, lvl.Top, 1.5, "saindo da borda inferior da barra 1"
+    AssertAlmost ln.Top + 4, lvl.Top + lvl.Height, 1.5, "ate um pouco abaixo da seta"
+    Set lbl = cht.Shapes(ln.Name & "_lbl")
+    AssertEqual Format$(-50, "+#,##0;-#,##0;0") & " (" & Format$(-0.5, "+0%;-0%;0%") & ")", lbl.TextFrame2.TextRange.Text
+    AssertTrue lbl.Top >= ln.Top And lbl.Top + lbl.Height <= cht.ChartArea.Height + 0.5, "rotulo abaixo da seta e dentro do grafico"
+    ' a area de plotagem cedeu espaco: a seta de CAGR nao saiu do grafico
+    AssertTrue cht.Shapes("tqq_ann_cagr_1").Left + cht.Shapes("tqq_ann_cagr_1").Width < cht.ChartArea.Width, "seta de CAGR dentro do grafico"
+    CloseTemp wb
+End Sub
+
+' Mudar dados e tamanho: o ponto XY, o lado do rotulo e os conectores acompanham (leitura dos pontos nativos, sempre frescos).
+' A passa de -150 a +40 (rotulo de Left para Right); C passa de 70 a -300 (End: -130; o total Fim vira negativo: Right -> Left).
+Public Sub Test_BarWaterfall_DataChangeAndResize_LabelsAndConnectorsFollow()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, co As ChartObject, cht As Chart, lbl As Series, i As Long
+    Dim xs As Variant, ps As Variant, ends As Variant
+    Set wb = NewTempWorkbook(): Set d = SingleFixture(wb): Set ws = d.Source.Worksheet
+    Set co = Waterfall_Insert(ws, d, "barwaterfall"): Set cht = co.Chart
+    ws.Range("B3").Value = 40: ws.Range("B6").Value = -300
+    co.Width = 640: co.Height = 360
+    Core_SafeRefresh cht
+    Set lbl = Chart_FindSeries(cht, "tqq_lbl")
+    xs = Array(100, 140, 170, 170, -130, -130)          ' LabelPos: Hi (>= 0) ou Lo (< 0) de cada barra
+    ps = Array(xlLabelPositionRight, xlLabelPositionRight, xlLabelPositionRight, xlLabelPositionRight, xlLabelPositionLeft, xlLabelPositionLeft)
+    ends = Array(100, 140, 170, 170, -130)
+    For i = 1 To 6
+        AssertAlmost XOf(cht, CDbl(xs(i - 1))), lbl.Points(i).Left, 1.5, "ponto " & i & " acompanha a nova escala"
+        AssertAlmost YCenterOf(cht, i), lbl.Points(i).Top, 1.5, "ponto " & i & " na faixa"
+        AssertEqual CLng(ps(i - 1)), lbl.Points(i).DataLabel.Position, "lado do rotulo " & i
+    Next
+    For i = 1 To 5
+        AssertAlmost XOf(cht, CDbl(ends(i - 1))), cht.Shapes("tqq_ann_conn_" & i).Left, 1.5, "conector " & i & " no novo End"
+    Next
+    AssertEqual "40", lbl.Points(2).DataLabel.Text: AssertEqual "-300", lbl.Points(5).DataLabel.Text: AssertEqual "-130", lbl.Points(6).DataLabel.Text
+    AssertAlmost 640, cht.ChartArea.Width, 6, "o grafico foi redimensionado"
+    CloseTemp wb
+End Sub
+
+' Varias series na horizontal: ordem das series (a mesma da vertical), auxiliares XY no grupo secundario, pontos do centro do
+' segmento coincidindo com o centro das barras nativas (inclusive o segmento que cruza o zero) e rotulos de total por sinal.
+Public Sub Test_BarWaterfallMulti_Structure_AndGeometry()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, names As String, s As Series, l1 As Series, l2 As Series, lt As Series
+    Dim lo As Double, hi As Double, v As Variant
+    Set wb = NewTempWorkbook(): Set d = MultiFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d, "barwaterfall").Chart
+    AssertEqual "barwaterfall", Registry_ChartType(cht)
+    AssertEqual 2, Waterfall_SeriesCount(cht)
+    For Each s In cht.SeriesCollection: names = names & s.Name & ";": Next
+    AssertEqual "tqq_base;tqq_dn_2;tqq_dn_1;Loja;Online;tqq_upn_2;tqq_upn_1;tqq_dnn_1;tqq_dnn_2;tqq_total;tqq_lbl_1;tqq_lbl_2;tqq_lbl;", names
+    AssertEqual xlBarStacked, Chart_FindSeries(cht, "Loja").ChartType
+    AssertTrue cht.Axes(xlCategory).ReversePlotOrder
+    Set l1 = Chart_FindSeries(cht, "tqq_lbl_1"): Set l2 = Chart_FindSeries(cht, "tqq_lbl_2"): Set lt = Chart_FindSeries(cht, "tqq_lbl")
+    For Each v In Array("tqq_lbl_1", "tqq_lbl_2", "tqq_lbl")
+        Set s = Chart_FindSeries(cht, CStr(v))
+        AssertEqual xlSecondary, s.AxisGroup, s.Name & " no grupo secundario"
+        AssertTrue IsScatterType(s.ChartType), s.Name & " e XY (tipo " & s.ChartType & ")"
+    Next
+    ' centro do segmento Loja da linha 1 (0..100) e Online (100..150): ponto XY = centro da barra nativa
+    With Chart_FindSeries(cht, "Loja").Points(1)
+        AssertAlmost XOf(cht, 0), .Left, 1: AssertAlmost XOf(cht, 100) - XOf(cht, 0), .Width, 1, "Loja Inicio 0..100"
+        AssertAlmost .Left + .Width / 2, l1.Points(1).Left, 1.5, "rotulo da Loja no centro do segmento"
+    End With
+    With Chart_FindSeries(cht, "Online").Points(1)
+        AssertAlmost XOf(cht, 100), .Left, 1: AssertAlmost XOf(cht, 150) - XOf(cht, 100), .Width, 1, "Online Inicio 100..150"
+        AssertAlmost .Left + .Width / 2, l2.Points(1).Left, 1.5, "rotulo do Online no centro do segmento"
+    End With
+    ' Queda: Loja -200 cruza o zero (de 130 a -70): partes dn_1 (0..130) e dnn_1 (-70..0); o rotulo fica no centro (30)
+    lo = Chart_FindSeries(cht, "tqq_dnn_1").Points(4).Left
+    hi = Chart_FindSeries(cht, "tqq_dn_1").Points(4).Left + Chart_FindSeries(cht, "tqq_dn_1").Points(4).Width
+    AssertAlmost XOf(cht, -70), lo, 1, "borda esquerda do segmento que cruza o zero"
+    AssertAlmost XOf(cht, 130), hi, 1, "borda direita do segmento que cruza o zero"
+    AssertAlmost (lo + hi) / 2, l1.Points(4).Left, 1.5, "rotulo no centro do segmento que cruza o zero"
+    AssertAlmost XOf(cht, 30), l1.Points(4).Left, 1.5
+    AssertAlmost YCenterOf(cht, 4), l1.Points(4).Top, 1.5, "na faixa 4"
+    AssertEqual "-200", l1.Points(4).DataLabel.Text: AssertEqual xlLabelPositionCenter, l1.Points(4).DataLabel.Position
+    ' totais: 130 (Subtotal, a direita) e -90 (Fim, a esquerda), no fim da barra de total
+    AssertEqual "130", lt.Points(3).DataLabel.Text: AssertEqual xlLabelPositionRight, lt.Points(3).DataLabel.Position
+    AssertAlmost XOf(cht, 130), lt.Points(3).Left, 1.5: AssertAlmost YCenterOf(cht, 3), lt.Points(3).Top, 1.5
+    AssertEqual "-90", lt.Points(5).DataLabel.Text: AssertEqual xlLabelPositionLeft, lt.Points(5).DataLabel.Position
+    AssertAlmost XOf(cht, -90), lt.Points(5).Left, 1.5
+    AssertEqual "", lt.Points(1).DataLabel.Text, "linha sem total: rotulo de total vazio"
+    ' conectores no liquido: End = 150, 130, 130, -90, -90
+    AssertAlmost XOf(cht, 150), cht.Shapes("tqq_ann_conn_1").Left, 1.5
+    AssertAlmost XOf(cht, 130), cht.Shapes("tqq_ann_conn_2").Left, 1.5, "liquido -30 + 10"
+    AssertAlmost XOf(cht, -90), cht.Shapes("tqq_ann_conn_4").Left, 1.5
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "legenda so com Loja e Online"
+    AssertEqual "right", Registry_GetOption(cht, "legend")
+    ' limpeza (Tarefa 0): pontos NA() nos X das auxiliares XY nao sao falha de leitura e o bloco citado sobrevive
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    AssertEqual 1, CalcSheet_Cleanup(wb), "so o orfao e removido"
+    AssertFalse CalcSheet_CleanupReadFailed()
+    AssertEqual "130", lt.Points(3).DataLabel.Text, "o bloco da cascata sobreviveu"
+    CloseTemp wb
+End Sub
+
+' Legenda das barras (carry-over d): medido no Excel (PNG e chaves das entradas) em 5 posicoes, a lista sai em ordem normal
+' (Loja, Online) em TODAS, diferente das pilhas de colunas (invertida a direita/esquerda/canto); religar a legenda e os
+' rotulos volta a esconder so as auxiliares, e a chamada repetida e idempotente.
+Public Sub Test_BarWaterfallMulti_Legend_OrderAtAllPositions()
+    Dim lp As Variant, wb As Workbook, d As clsChartData, cht As Chart, pal As Variant, want As String
+    pal = Style_Palette("padrao")
+    want = CLng(pal(0)) & ";" & CLng(pal(1)) & ";"        ' Loja; Online
+    For Each lp In Array(xlLegendPositionBottom, xlLegendPositionTop, xlLegendPositionLeft, xlLegendPositionCorner, xlLegendPositionRight)
+        Set wb = NewTempWorkbook(): Set d = MultiFixture(wb)
+        Set cht = Waterfall_Insert(d.Source.Worksheet, d, "barwaterfall").Chart
+        AssertEqual want, LegendKeys(cht), "ordem inicial"
+        cht.Legend.Position = lp
+        AssertEqual 2, cht.Legend.LegendEntries.Count, "mudar a posicao mantem as auxiliares fora (" & lp & ")"
+        AssertEqual want, LegendKeys(cht), "ordem das entradas (" & lp & ")"
+        cht.HasLegend = False: cht.HasLegend = True: cht.Legend.Position = lp
+        AssertEqual 13, cht.Legend.LegendEntries.Count, "legenda religada volta com todas as entradas (" & lp & ")"
+        Waterfall_SetLabels cht, True
+        AssertEqual 2, cht.Legend.LegendEntries.Count, "reescondida (" & lp & ")"
+        AssertEqual want, LegendKeys(cht), "ordem apos reesconder (" & lp & ")"
+        Chart_HideHelperLegendEntries cht
+        AssertEqual 2, cht.Legend.LegendEntries.Count, "idempotente (" & lp & ")"
+        AssertEqual want, LegendKeys(cht), "ordem apos a segunda chamada (" & lp & ")"
+        CloseTemp wb
+    Next
+End Sub
+
+' "De cima para baixo" na horizontal: o primeiro total vem do numero da ultima linha, com 1 e com 2 series. Segmentos lidos
+' dos pontos nativos: Receita 0..1200 (1 serie); com 2 series Custos empilha Loja 650..1350 (mais perto do inicio) e Online
+' 550..650, e o total da ultima linha 0..300.
+Public Sub Test_BarWaterfall_BuildDown_Horizontal_SingleAndMulti()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Ponte"
+    ws.Range("A1:B1").Value = Array("Etapa", "Valor")
+    ws.Range("A2:B2").Value = Array("Receita", "e")
+    ws.Range("A3:B3").Value = Array("Custos", -700)
+    ws.Range("A4:B4").Value = Array("Despesas", -250)
+    ws.Range("A5:B5").Value = Array("Lucro", 250)
+    Set d = ChartData_FromRange(ws.Range("A1:B5"))
+    Set cht = Waterfall_Insert(ws, d, "barwaterfall").Chart
+    With Chart_FindSeries(cht, "tqq_total").Points(1)
+        AssertAlmost XOf(cht, 0), .Left, 1: AssertAlmost XOf(cht, 1200) - XOf(cht, 0), .Width, 1, "Receita = 250 - (-700 - 250) = 1200"
+    End With
+    AssertEqual "1" & Application.International(xlThousandsSeparator) & "200", Chart_FindSeries(cht, "tqq_lbl").Points(1).DataLabel.Text
+    AssertEqual xlLabelPositionRight, Chart_FindSeries(cht, "tqq_lbl").Points(1).DataLabel.Position
+    AssertAlmost XOf(cht, 1200), Chart_FindSeries(cht, "tqq_lbl").Points(1).Left, 1.5
+    AssertAlmost XOf(cht, 250), Chart_FindSeries(cht, "tqq_lbl").Points(4).Left, 1.5, "a ultima linha vira total"
+    AssertAlmost XOf(cht, 1200), cht.Shapes("tqq_ann_conn_1").Left, 1.5: AssertAlmost XOf(cht, 500), cht.Shapes("tqq_ann_conn_2").Left, 1.5
+    CloseTemp wb
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Ponte"
+    ws.Range("A1:C1").Value = Array("Etapa", "Loja", "Online")
+    ws.Range("A2:B2").Value = Array("Receita", "e")
+    ws.Range("A3:C3").Value = Array("Custos", -700, -100)
+    ws.Range("A4:C4").Value = Array("Despesas", -250, 0)
+    ws.Range("A5:C5").Value = Array("Lucro", 250, 50)
+    Set d = ChartData_FromRange(ws.Range("A1:C5"))
+    Set cht = Waterfall_Insert(ws, d, "barwaterfall").Chart
+    With Chart_FindSeries(cht, "tqq_total").Points(1)
+        AssertAlmost XOf(cht, 0), .Left, 1: AssertAlmost XOf(cht, 1350) - XOf(cht, 0), .Width, 1, "Receita = 300 - (-700 - 100 - 250)"
+    End With
+    With Chart_FindSeries(cht, "tqq_dn_1").Points(2)
+        AssertAlmost XOf(cht, 650), .Left, 1: AssertAlmost XOf(cht, 1350) - XOf(cht, 650), .Width, 1, "Loja -700: 1350 -> 650"
+    End With
+    With Chart_FindSeries(cht, "tqq_dn_2").Points(2)
+        AssertAlmost XOf(cht, 550), .Left, 1: AssertAlmost XOf(cht, 650) - XOf(cht, 550), .Width, 1, "Online -100: 650 -> 550"
+    End With
+    With Chart_FindSeries(cht, "tqq_total").Points(4)
+        AssertAlmost XOf(cht, 0), .Left, 1: AssertAlmost XOf(cht, 300) - XOf(cht, 0), .Width, 1, "Lucro total 300"
+    End With
+    AssertEqual "-700", Chart_FindSeries(cht, "tqq_lbl_1").Points(2).DataLabel.Text
+    AssertAlmost (XOf(cht, 650) + XOf(cht, 1350)) / 2, Chart_FindSeries(cht, "tqq_lbl_1").Points(2).Left, 1.5, "rotulo no centro do segmento"
+    ' o numero da ultima linha muda: o total inicial acompanha
+    ws.Range("B5").Value = 400
+    Core_SafeRefresh cht
+    AssertAlmost XOf(cht, 1500), Chart_FindSeries(cht, "tqq_lbl").Points(1).Left, 1.5, "build-down recalculado (400 + 50 + 1050)"
+    CloseTemp wb
+End Sub
+
+' Rollback: falha depois de alocar o bloco desfaz grafico e bloco; tipo que nao e cascata e recusado antes de alocar.
+Public Sub Test_BarWaterfall_Insert_RollsBack_AndRefusesOtherKinds()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, n As Long, nm As Name, k As Variant
+    Set wb = NewTempWorkbook(): Set d = MultiFixture(wb): Set ws = d.Source.Worksheet
+    Util_FailAfterBlockForTest = True
+    On Error Resume Next
+    Waterfall_Insert ws, d, "barwaterfall"
+    n = Err.Number
+    On Error GoTo 0
+    Util_FailAfterBlockForTest = False
+    AssertEqual vbObjectError + 9999, n
+    AssertEqual 0, ws.ChartObjects.Count
+    For Each nm In wb.Names
+        AssertTrue Left$(nm.Name, 4) <> "tqq_", "nome orfao " & nm.Name
+    Next
+    For Each k In Array("stacked", "xyz", "")
+        n = 0
+        On Error Resume Next
+        Waterfall_Insert ws, d, CStr(k)
+        n = Err.Number
+        On Error GoTo 0
+        AssertEqual 5, n, "tipo '" & k & "' nao e cascata"
+        AssertEqual 0, ws.ChartObjects.Count
+    Next
+    For Each nm In wb.Names
+        AssertTrue Left$(nm.Name, 4) <> "tqq_", "nenhum bloco alocado " & nm.Name
+    Next
+    CloseTemp wb
+End Sub
+
+' API do core na cascata horizontal de uma serie: rotulos (a auxiliar XY some e volta alinhada), conectores, formato, paleta; o
+' toggle de totais nao se aplica a cascata; legenda inexistente.
+Public Sub Test_BarWaterfall_CoreToggles_SingleSeries()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, lbl As Series, sep As String, pal As Variant, n As Long
+    Set wb = NewTempWorkbook(): Set ws = SingleFixture(wb).Source.Worksheet
+    ws.Range("A1:B7").Select
+    Core_Insert "barwaterfall"
+    Set cht = Core_ActiveChart()
+    AssertEqual "barwaterfall", Registry_ChartType(cht)
+    AssertEqual 7, cht.SeriesCollection.Count, "6 series da cascata + rotulo"
+    AssertFalse cht.HasLegend: AssertFalse Core_Supports("legend")
+    AssertTrue Core_Supports("connectors") And Core_Supports("labels")
+    n = cht.SeriesCollection.Count
+    Core_SetToggle "totals", True
+    AssertEqual n, cht.SeriesCollection.Count, "totais nao se aplicam a cascata"
+    Core_SetToggle "labels", False
+    AssertEqual 6, cht.SeriesCollection.Count: AssertEqual "0", Core_GetOption("labels")
+    AssertTrue Chart_FindSeries(cht, "tqq_lbl") Is Nothing
+    Core_SetToggle "labels", True
+    Set lbl = Chart_FindSeries(cht, "tqq_lbl")
+    AssertEqual 7, cht.SeriesCollection.Count: AssertEqual "1", Core_GetOption("labels")
+    AssertEqual xlSecondary, lbl.AxisGroup
+    AssertAlmost XOf(cht, 100), lbl.Points(1).Left, 1.5, "rotulo religado alinhado ao fim da barra"
+    AssertAlmost XOf(cht, -50), lbl.Points(2).Left, 1.5
+    AssertEqual xlLabelPositionLeft, lbl.Points(2).DataLabel.Position
+    Core_SetToggle "connectors", False
+    AssertEqual 0, ConnectorCount(cht): AssertEqual "0", Core_GetOption("connectors")
+    Core_SetToggle "connectors", True
+    AssertEqual 5, ConnectorCount(cht)
+    sep = Application.International(xlDecimalSeparator)
+    Core_SetOption "numfmt", "dec1"
+    AssertEqual "100" & sep & "0", lbl.Points(1).DataLabel.Text
+    AssertEqual "-150" & sep & "0", lbl.Points(2).DataLabel.Text
+    AssertEqual xlLabelPositionLeft, lbl.Points(2).DataLabel.Position
+    Core_SetOption "palette", "cinza"
+    pal = Style_Palette("cinza")
+    AssertEqual CLng(pal(1)), Chart_FindSeries(cht, "tqq_uppos").Format.Fill.ForeColor.RGB
+    AssertEqual CLng(pal(2)), Chart_FindSeries(cht, "tqq_downpos").Format.Fill.ForeColor.RGB
+    AssertEqual CLng(pal(0)), Chart_FindSeries(cht, "tqq_total").Format.Fill.ForeColor.RGB
+    Core_SetOption "gap", "20"
+    AssertEqual 20, cht.ChartGroups(1).GapWidth
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' "Alterar dados" na cascata horizontal: o tipo e as opcoes se mantem, o grafico novo nasce horizontal (nao de colunas), com os
+' conectores e os rotulos do novo numero de categorias; Ann_Refresh refaz os conectores que faltam (familia da cascata).
+Public Sub Test_BarWaterfall_RebuildFromRange_KeepsKindAndConnectors()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = SingleFixture(wb).Source.Worksheet
+    ws.Range("A1:B7").Select
+    Core_Insert "barwaterfall"
+    Set cht = Core_ActiveChart()
+    Core_SetOption "numfmt", "dec1"
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("A1:B6"))
+    Set cht = Core_ActiveChart()
+    AssertEqual "barwaterfall", Registry_ChartType(cht)
+    AssertEqual xlBarStacked, cht.SeriesCollection(1).ChartType, "grafico novo em barras"
+    AssertEqual "dec1", Registry_GetOption(cht, "numfmt")
+    AssertEqual "5", Registry_GetOption(cht, "n")
+    AssertEqual 4, ConnectorCount(cht), "5 categorias: 4 conectores"
+    AssertEqual 5, Chart_FindSeries(cht, "tqq_lbl").Points.Count
+    AssertAlmost XOf(cht, 100), Chart_FindSeries(cht, "tqq_lbl").Points(1).Left, 1.5
+    AssertFalse Core_ChartSourceMismatch(cht)
+    cht.Shapes("tqq_ann_conn_2").Delete
+    Ann_Refresh cht
+    AssertEqual 4, ConnectorCount(cht), "a familia da cascata refaz os conectores"
+    AssertAlmost XOf(cht, -50), cht.Shapes("tqq_ann_conn_2").Left, 1.5, "conector refeito no lugar certo (End 2 = -50)"
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+Private Function IsScatterType(ct As Long) As Boolean
+    IsScatterType = (ct = xlXYScatter Or ct = xlXYScatterLines Or ct = xlXYScatterLinesNoMarkers Or ct = xlXYScatterSmooth Or ct = xlXYScatterSmoothNoMarkers)
+End Function
+
+' Setas na cascata horizontal de varias series com a legenda a direita: a area de plotagem cede espaco e o rotulo do CAGR
+' fica antes da legenda (nada desenhado por cima dela).
+Public Sub Test_BarWaterfallMulti_Cagr_StaysLeftOfLegend()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ln As Shape, lbl As Shape
+    Set wb = NewTempWorkbook(): Set d = MultiFixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d, "barwaterfall").Chart
+    Set ln = Ann_AddCagr(cht, 1, 3)
+    Set lbl = cht.Shapes(ln.Name & "_lbl")
+    AssertTrue cht.Legend.Left > cht.ChartArea.Width / 2, "premissa: legenda a direita (esq=" & cht.Legend.Left & ")"
+    AssertTrue lbl.Left + lbl.Width <= cht.Legend.Left + 0.5, "rotulo do CAGR antes da legenda (fim=" & (lbl.Left + lbl.Width) & ", legenda=" & cht.Legend.Left & ")"
+    AssertTrue ln.Left + ln.Width <= cht.Legend.Left, "seta antes da legenda"
+    AssertAlmost XOf(cht, 150) + 10, ln.Left + ln.Width, 1.5, "origem a 10 pt do End 150"
+    AssertAlmost XOf(cht, 130) + 10, ln.Left, 1.5, "ponta a 10 pt do End 130"
+    CloseTemp wb
+End Sub
