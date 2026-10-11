@@ -666,7 +666,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li>Na janela, escolha a primeira atividade (<em>Da categoria</em>) e a última (<em>Até a categoria</em>). Pode ser a mesma atividade nas duas pontas.</li>
     <li>O colchete aparece acima da escala, cobrindo do primeiro início ao último fim dessas atividades, com o período escrito, como <code>02/03 - 17/04</code> (um marco ou um só dia mostra uma data só).</li>
   </ol>
-  <p>Vários colchetes se empilham acima da escala, sem se cruzar, e o ThinQQ abre espaço para eles no alto do gráfico. <span class="ui">Remover setas</span> apaga os colchetes, mas <strong>o espaço aberto no alto não é devolvido</strong>. O colchete só existe no Gantt: nos outros tipos o item fica cinza e a recusa é "O colchete só está disponível em gráficos Gantt."</p>
+  <p>Vários colchetes se empilham acima da escala, sem se cruzar, e o ThinQQ abre espaço para eles no alto do gráfico, até 40% da altura do gráfico: com muitos colchetes (mais de quatro num gráfico do tamanho padrão) eles ficam mais juntos dentro desse limite e os rótulos podem se encostar. <span class="ui">Remover setas</span> apaga os colchetes, mas <strong>o espaço aberto no alto não é devolvido</strong>. O colchete só existe no Gantt: nos outros tipos o item fica cinza e a recusa é "O colchete só está disponível em gráficos Gantt."</p>
 
   <h3>Outros controles</h3>
   <ul>
@@ -1029,7 +1029,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li><strong>Mesma escala é fixa.</strong> Ela não acompanha os dados: depois de mudar muito os números, aplique-a de novo (ou use <span class="ui">Escala automática</span>). O ThinQQ a reaplica a cada cálculo e redimensionamento, então um ajuste manual do eixo desses gráficos é desfeito, e dados acima do máximo gravado ficam cortados (com um aviso por gráfico e por sessão).</li>
     <li>O espaço que o ThinQQ reserva para setas, totais, legenda, indicador e escala só é refeito pelos comandos dele (inserir, ligar totais, trocar <span class="ui">Legenda</span> ou <span class="ui">Formato</span>, <span class="ui">Mesma escala</span> e <span class="ui">Atualizar</span> no Gantt). Reduzir muito um gráfico à mão pode fazer setas, totais e rótulos se encostarem.</li>
     <li>Trocar a <span class="ui">Legenda</span>, desligar o <span class="ui">Indicador 100%</span> ou a <span class="ui">Linha de valor (média)</span> e usar <span class="ui">Escala automática</span> num gráfico com <span class="ui">Mesma escala</span> devolvem a área de plotagem ao layout automático e descartam um tamanho manual dado a ela.</li>
-    <li>Os colchetes do Gantt não devolvem o espaço aberto no alto quando são removidos.</li>
+    <li>Os colchetes do Gantt não devolvem o espaço aberto no alto quando são removidos; o espaço deles vai até 40% da altura do gráfico, e com muitos colchetes os rótulos podem se encostar.</li>
     <li>A <span class="ui">Linha de valor (média)</span> só existe na média dos valores, não em um valor qualquer. <span class="ui">Nome no fim da linha</span> só existe em linha e combinação.</li>
   </ul>
 

@@ -488,3 +488,118 @@ Public Sub Test_Gantt_Block_QuarterScaleFitsSlots_WeekIgnoresTime()
     AssertEqual CDbl(DateSerial(2026, 3, 9)), body.Cells(3, GT_COL_TICK).Value
     CloseTemp wb
 End Sub
+
+' --- Tarefa 15b ---
+
+' Gantt com MARCOS nas linhas 1 e 2 (fim vazio) seguidos de barras: no bloco so as linhas de marco tem MsX (as demais #N/D) e nenhuma barra; no
+' grafico os losangos 1 e 2 ficam no dia de cada marco e no centro da faixa da sua linha (regra de tres no eixo e na area interna REAIS), sem
+' parte visivel de barra nessas linhas, e os rotulos das linhas 1 e 2 mostram a data do marco.
+Private Function MsFixture(wb As Workbook) As clsChartData
+    Dim ws As Worksheet
+    Set ws = wb.Worksheets(1): ws.Name = "Plano"
+    ws.Range("A1:C1").Value = Array("Atividade", "Início", "Fim")
+    ws.Range("A2").Value = "Kickoff": ws.Range("B2").Value = DateSerial(2026, 3, 2)
+    ws.Range("A3").Value = "Aprovação": ws.Range("B3").Value = DateSerial(2026, 3, 11)
+    ws.Range("A4").Value = "Execução": ws.Range("B4").Value = DateSerial(2026, 3, 9): ws.Range("C4").Value = DateSerial(2026, 4, 17)
+    ws.Range("A5").Value = "Entrega": ws.Range("B5").Value = DateSerial(2026, 4, 20): ws.Range("C5").Value = DateSerial(2026, 4, 24)
+    ws.Range("B2:C5").NumberFormat = "dd/mm/yyyy"
+    Set MsFixture = ChartData_FromRange(ws.Range("A1:C5"))
+End Function
+
+Public Sub Test_Gantt_MilestonesInRows1And2_BlockAndGeometry()
+    Dim wb As Workbook, cht As Chart, body As Range, ms As Series, dur As Series, lbl As Series, i As Long, it As Double, ih As Double, d As Variant
+    Set wb = NewTempWorkbook()
+    Set cht = Gantt_Insert(wb.Worksheets(1), MsFixture(wb)).Chart
+    Set body = Block_Body(Registry_Block(cht))
+    d = Array(DateSerial(2026, 3, 2), DateSerial(2026, 3, 11))
+    For i = 1 To 2
+        AssertEqual True, body.Cells(i + 1, GT_COL_ISMS).Value, "linha " & i & " e marco"
+        AssertEqual CDbl(d(i - 1)), body.Cells(i + 1, GT_COL_MSX).Value, "MsX da linha " & i
+        AssertTrue IsError(body.Cells(i + 1, GT_COL_BARSTART).Value) And IsError(body.Cells(i + 1, GT_COL_DUR).Value), "linha " & i & " sem barra"
+    Next
+    For i = 3 To 4
+        AssertTrue IsError(body.Cells(i + 1, GT_COL_MSX).Value), "linha " & i & " (barra) sem marco"
+    Next
+    ForceLayout cht
+    it = cht.PlotArea.InsideTop: ih = cht.PlotArea.InsideHeight
+    Set ms = Chart_FindSeries(cht, "tqq_ms"): Set dur = Chart_FindSeries(cht, "tqq_dur"): Set lbl = Chart_FindSeries(cht, "tqq_lbl")
+    For i = 1 To 2
+        AssertAlmost XOf(cht, CDbl(d(i - 1))), ms.Points(i).Left + ms.Points(i).Width / 2, 1.5, "losango " & i & " no dia do marco"
+        AssertAlmost it + (i - 0.5) * ih / 4, ms.Points(i).Top + ms.Points(i).Height / 2, 1.5, "losango " & i & " na faixa " & i
+        AssertTrue dur.Points(i).Width < 0.5, "linha " & i & " sem barra visivel (largura " & dur.Points(i).Width & ")"
+        AssertEqual Format$(d(i - 1), "dd/mm"), lbl.Points(i).DataLabel.Text, "rotulo do marco " & i
+    Next
+    AssertAlmost XOf(cht, CDbl(DateSerial(2026, 3, 9))), dur.Points(3).Left, 1, "barra da linha 3 comeca no inicio"
+    AssertAlmost it + 2.5 * ih / 4, dur.Points(3).Top + dur.Points(3).Height / 2, 1, "barra da linha 3 na faixa 3"
+    CloseTemp wb
+End Sub
+
+' Atualizar duas vezes seguidas um Gantt com colchetes e marcos nao cria nem apaga formas e nao move nada (idempotente).
+Public Sub Test_Gantt_RefreshTwice_IsIdempotent_WithBracketsAndMilestones()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, snap1 As String, snap2 As String, n1 As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    MsFixture wb
+    ws.Range("A1:C5").Select
+    Core_Insert "gantt"
+    Set cht = Core_ActiveChart()
+    Core_AddAnnotation "bracket", 1, 2
+    Core_AddAnnotation "bracket", 3, 4
+    Core_AddAnnotation "bracket", 1, 4
+    Core_Refresh
+    ForceLayout cht
+    n1 = cht.Shapes.Count
+    snap1 = GanttSnapshot(cht)
+    Core_Refresh
+    Core_Refresh
+    ForceLayout cht
+    AssertEqual n1, cht.Shapes.Count, "mesmo numero de formas"
+    AssertEqual 12, n1, "3 colchetes x (linha, 2 tiques, rotulo)"
+    snap2 = GanttSnapshot(cht)
+    AssertEqual snap1, snap2, "mesma geometria depois de atualizar de novo"
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' Area interna, eixo, formas (L/T/W/H/visivel) e pontos dos losangos, arredondados a 0,1 pt.
+Private Function GanttSnapshot(cht As Chart) As String
+    Dim s As String, shp As Shape, ms As Series, i As Long
+    s = Format$(cht.PlotArea.InsideLeft, "0.0") & "|" & Format$(cht.PlotArea.InsideTop, "0.0") & "|" & Format$(cht.PlotArea.InsideWidth, "0.0") & "|" & Format$(cht.PlotArea.InsideHeight, "0.0")
+    s = s & "|" & cht.Axes(xlValue, xlPrimary).MinimumScale & "|" & cht.Axes(xlValue, xlPrimary).MaximumScale
+    For Each shp In cht.Shapes
+        s = s & ";" & shp.Name & "=" & Format$(shp.Left, "0.0") & "," & Format$(shp.Top, "0.0") & "," & Format$(shp.Width, "0.0") & "," & Format$(shp.Height, "0.0") & "," & shp.Visible
+    Next
+    Set ms = Chart_FindSeries(cht, "tqq_ms")
+    For i = 1 To ms.Points.Count
+        s = s & ";ms" & i & "=" & Format$(ms.Points(i).Left, "0.0") & "," & Format$(ms.Points(i).Top, "0.0")
+    Next
+    GanttSnapshot = s
+End Function
+
+' Teto da folga dos colchetes: com muitos colchetes a folga de cima nao passa de 40% da altura do grafico (a area de plotagem nao e esmagada) e
+' os colchetes extras ficam empilhados DENTRO do limite: cada um acima do anterior, todos (linhas e rotulos) dentro do grafico.
+Public Sub Test_Gantt_ManyBrackets_RoomCappedAt40Percent_AllStackedInside()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, k As Long, prevTop As Double, b As Shape, l As Shape, it As Double, h As Double
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    MsFixture wb
+    ws.Range("A1:C5").Select
+    Core_Insert "gantt"
+    Set cht = Core_ActiveChart()
+    For k = 1 To 7
+        Core_AddAnnotation "bracket", 1 + (k Mod 4), 4
+    Next
+    Core_Refresh
+    ForceLayout cht
+    it = cht.PlotArea.InsideTop: h = cht.ChartArea.Height
+    AssertTrue it <= 0.4 * h + 1, "folga de cima limitada a 40% da altura: InsideTop " & it & " de " & h
+    AssertTrue cht.PlotArea.InsideHeight >= 0.45 * h, "area de plotagem preservada: " & cht.PlotArea.InsideHeight
+    prevTop = it
+    For k = 1 To 7
+        Set b = cht.Shapes("tqq_ann_bracket_" & k): Set l = cht.Shapes("tqq_ann_bracket_" & k & "_lbl")
+        AssertTrue b.Visible, "colchete " & k & " visivel"
+        AssertTrue b.Top < prevTop - 1, "colchete " & k & " acima do anterior (" & b.Top & " x " & prevTop & ")"
+        AssertTrue b.Top >= 0 And l.Top >= -0.5, "colchete " & k & " e rotulo dentro do grafico (" & b.Top & ", " & l.Top & ")"
+        prevTop = b.Top
+    Next
+    Watchers_Stop
+    CloseTemp wb
+End Sub

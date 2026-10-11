@@ -12,6 +12,7 @@ Private Const ANN_BRACKET_Y0 As Double = 25     ' linha do 1o colchete: 25 pt ac
                                                 ' dos rotulos da escala (medido: de InsideTop - 18,3 a InsideTop - 5,5)
 Private Const ANN_BRACKET_STEP As Double = 20   ' cada colchete a mais sobe 20 pt: os tiques do de cima (5 pt) ficam acima do rotulo do de baixo (13,1 pt)
 Private Const ANN_BRACKET_ROOM As Double = 42   ' folga (pt) acima da area interna com um colchete: 25 + rotulo de 13,1 + respiro; +20 por colchete
+Private Const ANN_BRACKET_MAX_FRACTION As Double = 0.4  ' teto da folga dos colchetes: 40% da altura do grafico (com muitos colchetes o passo encolhe)
 Public Const ANN_BRACKET_REFUSAL As String = "O colchete só está disponível em gráficos Gantt."
 
 ' Texto da recusa (erro 7001) de uma anotação ("cagr", "diff" ou "bracket") pela matriz de tipos; "" quando o gráfico a suporta. Fonte única
@@ -157,7 +158,7 @@ Private Sub Ann_EnsureRoom(cht As Chart)
     ' colchetes (Gantt): acima da area interna, sobre a escala de datas; o k-esimo colchete fica 20 pt acima do anterior
     nb = Ann_BracketMaxOrdinal(cht)
     If nb > 0 Then
-        need = ANN_BRACKET_ROOM + ANN_BRACKET_STEP * (nb - 1)
+        need = Ann_BracketRoom(cht, nb)
         For k = 1 To 3
             delta = need - cht.PlotArea.InsideTop
             If delta <= 0.01 Then Exit For
@@ -303,7 +304,7 @@ End Function
 ' Colchete do Gantt sobre as atividades fromIdx..toIdx (fromIdx = toIdx vale: uma atividade so): linha horizontal nm (kind=bracket;from=i;to=j)
 ' na area da escala, acima da area de plotagem, com dois tiques de 5 pt para baixo nas pontas (nm_t1, nm_t2: kind=tick;owner=nm) e o rotulo
 ' nm_lbl com o periodo (dd/mm - dd/mm) acima da linha. Ann_Refresh posiciona (Ann_LayoutBracket); Ann_EnsureRoom abre a folga de cima (42 pt +
-' 20 pt por colchete a mais). Recusa (7001) fora do Gantt.
+' 20 pt por colchete a mais, ate 40% da altura do grafico: Ann_BracketRoom). Recusa (7001) fora do Gantt.
 Public Function Ann_AddBracket(cht As Chart, fromIdx As Long, toIdx As Long) As Shape
     Dim nm As String, ln As Shape, tk As Shape, lbl As Shape, sfx As Variant, refusal As String
     refusal = Ann_RefusalText(cht, "bracket")
@@ -651,7 +652,8 @@ End Sub
 
 ' Colchete do Gantt: para cada atividade k em fromIdx..toIdx, ultimo dia le = fim (ou o inicio, num marco) e fim plotado pe = fim + 1 (a barra cobre
 ' o dia do fim) ou o proprio dia do marco; d1 = menor inicio, d2 = maior le (zeros, de celulas sem data, ignorados). A linha vai de x(d1) a x(maior pe)
-' na altura InsideTop - 25 - 20 * (ordinal - 1) (ordinal = sufixo numerico do nome: o segundo colchete fica acima do primeiro), os tiques descem 5 pt
+' na altura InsideTop - 25 - passo * (ordinal - 1) (ordinal = sufixo numerico do nome: o segundo colchete fica acima do primeiro; passo = 20 pt ou
+' menos com muitos colchetes, Ann_BracketStep), os tiques descem 5 pt
 ' nas pontas e o rotulo "dd/mm - dd/mm" (d1 - d2; so "dd/mm" quando d1 = d2, um marco) fica centrado acima da linha. As datas sao numeros de serie da
 ' pasta (sistema 1900 ou 1904): o texto passa por Gantt_SerialToDate. False (nada movido) sem nenhuma data no intervalo.
 Private Function Ann_LayoutBracket(cht As Chart, ln As Shape, fromIdx As Long, toIdx As Long) As Boolean
@@ -675,7 +677,7 @@ Private Function Ann_LayoutBracket(cht As Chart, ln As Shape, fromIdx As Long, t
     If d1 <= 0 Or d2 <= 0 Or peMax <= 0 Then Exit Function
     x1 = Geom_ChartValueToX(cht, d1)
     x2 = Geom_ChartValueToX(cht, peMax)
-    y = cht.PlotArea.InsideTop - ANN_BRACKET_Y0 - ANN_BRACKET_STEP * (Ann_BracketOrdinal(ln.Name) - 1)
+    y = cht.PlotArea.InsideTop - ANN_BRACKET_Y0 - Ann_BracketStep(cht, Ann_BracketMaxOrdinal(cht)) * (Ann_BracketOrdinal(ln.Name) - 1)
     Ann_MoveLine ln, x1, y, x2, y
     Set t = Ann_Shape(cht, ln.Name & "_t1")
     If Not t Is Nothing Then Ann_MoveLine t, x1, y, x1, y + 5
@@ -693,6 +695,26 @@ Private Function Ann_LayoutBracket(cht As Chart, ln As Shape, fromIdx As Long, t
         Ann_ClampShape cht, lbl
     End If
     Ann_LayoutBracket = True
+End Function
+
+' Folga (pt) acima da area interna para nb colchetes empilhados: 42 + 20 por colchete a mais, com teto de ANN_BRACKET_MAX_FRACTION (40%) da
+' altura do grafico (nunca abaixo da folga de um colchete): muitos colchetes nao esmagam a area de plotagem.
+Private Function Ann_BracketRoom(cht As Chart, nb As Long) As Double
+    Dim need As Double, cap As Double
+    need = ANN_BRACKET_ROOM + ANN_BRACKET_STEP * (nb - 1)
+    cap = ANN_BRACKET_MAX_FRACTION * cht.ChartArea.Height
+    If cap < ANN_BRACKET_ROOM Then cap = ANN_BRACKET_ROOM
+    If need > cap Then need = cap
+    Ann_BracketRoom = need
+End Function
+
+' Passo vertical entre colchetes vizinhos com nb colchetes: ANN_BRACKET_STEP (20 pt) enquanto a folga cabe no teto; acima disso o passo encolhe
+' para os nb colchetes ficarem empilhados DENTRO da folga limitada (os rotulos podem se encostar: limite documentado).
+Private Function Ann_BracketStep(cht As Chart, nb As Long) As Double
+    Ann_BracketStep = ANN_BRACKET_STEP
+    If nb <= 1 Then Exit Function
+    Ann_BracketStep = (Ann_BracketRoom(cht, nb) - ANN_BRACKET_ROOM) / (nb - 1)
+    If Ann_BracketStep > ANN_BRACKET_STEP Then Ann_BracketStep = ANN_BRACKET_STEP
 End Function
 
 ' Ordinal do colchete: o sufixo numerico do nome (tqq_ann_bracket_2 -> 2); 1 se nao houver.
