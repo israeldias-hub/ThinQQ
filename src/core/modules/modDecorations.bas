@@ -181,8 +181,9 @@ End Sub
 ' Linha de valor (media dos totais)
 ' ---------------------------------------------------------------------------------------------------------------------
 
-' Celulas da coluna VLine (uma por categoria; no Mekko da Tarefa 9, uma por ponto auxiliar) e da coluna Pos do bloco do grafico,
-' por familia: stacked e combo -> Stacked_VLineCol/PosCol, area -> Area_VLineCol/PosCol. Valida o CABECALHO da coluna: um bloco da
+' Celulas da coluna VLine (uma por categoria; no Mekko, uma por ponto: 5 por categoria) e da coluna Pos do bloco do grafico, por
+' familia: stacked e combo -> Stacked_VLineCol/PosCol, area -> Area_VLineCol/PosCol, mekko -> Mekko_VLineCells (sem Pos: o Mekko e
+' vertical). Valida o CABECALHO da coluna: um bloco da
 ' Fase 1 (colunas; nunca publicado) nao tem Pos/VLine e "as ultimas colunas" cairiam em outra coluna (Part, TotalPos). Nothing para
 ' familia sem a coluna, bloco antigo ou leitura que falha. Nunca propaga erro.
 Public Function Deco_VLineCells(cht As Chart) As Range
@@ -203,6 +204,9 @@ Private Function BlockColumnCells(cht As Chart, header As String) As Range
             If header = "VLine" Then col = Stacked_VLineCol(blk) Else col = Stacked_PosCol(blk)
         Case "area"
             If header = "VLine" Then col = Area_VLineCol(blk) Else col = Area_PosCol(blk)
+        Case "mekko"
+            If header = "VLine" Then Set BlockColumnCells = Mekko_VLineCells(cht)      ' valida o cabecalho
+            Exit Function
         Case Else
             Exit Function
     End Select

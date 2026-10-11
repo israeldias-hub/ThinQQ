@@ -147,10 +147,16 @@ Public Function Geom_ChartRightEdge(cht As Chart) As Double
 End Function
 
 ' True quando os pontos ficam no meio das fatias (padrão de colunas); False quando o eixo cruza nas categorias
-' (linha com AxisBetweenCategories = False: primeiro ponto na borda esquerda, último na direita).
+' (linha com AxisBetweenCategories = False: primeiro ponto na borda esquerda, último na direita). Eixo de DATAS (só o Mekko; os
+' demais tipos forçam eixo de texto em Style_ApplyBase): False, os pontos ficam nas posições exatas da escala e o Excel lê
+' AxisBetweenCategories como True mesmo depois de receber False (medido na Tarefa 9).
 Public Function Geom_ChartBetween(cht As Chart) As Boolean
+    Dim ct As Long
     Geom_ChartBetween = True
+    ct = -1
     On Error Resume Next
     Geom_ChartBetween = cht.Axes(xlCategory).AxisBetweenCategories
+    ct = cht.Axes(xlCategory).CategoryType          ' lido antes do If: com Resume Next um erro NA condicao entraria no Then (pizza, sem eixo)
     On Error GoTo 0
+    If ct = xlTimeScale Then Geom_ChartBetween = False
 End Function

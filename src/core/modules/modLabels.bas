@@ -232,6 +232,7 @@ Public Sub Labels_RefreshPositions(cht As Chart)
     If blk Is Nothing Then GoTo Done
     kind = CStr(blk.Cells(1, 2).Value)
     If Kinds_Family(kind) = "pie" Then GoTo Done            ' rotulos nativos da pizza: sem auxiliar e sem posicao por sinal
+    If Kinds_Family(kind) = "mekko" Then GoTo Done          ' Mekko: posicoes fixas (centro, acima do topo, abaixo do zero); a coluna 3 e a largura
     horiz = Kinds_IsHorizontal(kind)
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
@@ -279,6 +280,10 @@ Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
     If blk Is Nothing Then Exit Sub
     kind = CStr(blk.Cells(1, 2).Value)
     If Kinds_Family(kind) = "pie" Then Exit Sub                 ' rotulos nativos da pizza (Pie_ApplyNumberFormat): nenhuma celula do bloco e rotulo
+    If Kinds_Family(kind) = "mekko" Then                        ' Mekko: LblVal_j e TotLbl (a coluna 2 e a Categoria, que nao recebe formato)
+        Mekko_ApplyCellFormat cht
+        Exit Sub
+    End If
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
     If n < 1 Then Exit Sub

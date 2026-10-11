@@ -105,6 +105,8 @@ Public Function Kinds_Insert(ws As Worksheet, data As clsChartData, kind As Stri
             Set Kinds_Insert = Area_Insert(ws, data, kind)
         Case "combo"
             Set Kinds_Insert = Combo_Insert(ws, data)
+        Case "mekko"
+            Set Kinds_Insert = Mekko_Insert(ws, data, kind)
         Case "pie"
             Set Kinds_Insert = Pie_Insert(ws, data, kind)
         Case Else

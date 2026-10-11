@@ -32,7 +32,7 @@ End Function
 ' Séries mais curtas que n contam como zero; com n = 0 devolve arrays 0..0.
 Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef tops() As Double)
     Dim kind As String, n As Long, i As Long, k As Long, s As Series, vals As Variant, v As Double, ends() As Double
-    Dim nSeries As Long, lastIdx As Long, cum() As Double
+    Dim nSeries As Long, lastIdx As Long, cum() As Double, algebraic As Boolean
     kind = Registry_ChartType(cht)
     n = Geom_ChartCategoryCount(cht)
     If n = 0 Then
@@ -52,8 +52,10 @@ Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef top
                 values(i) = v: tops(i) = v
             Next
         Case Else
-            ' soma das series (stacked, stacked100, barstacked, barstacked100, area, area100); na combinacao a
-            ' ultima serie nao auxiliar e a linha e fica de fora (so as colunas empilham)
+            ' soma das series (stacked, stacked100, barstacked, barstacked100, area, area100, mekko, mekkounits); na combinacao a
+            ' ultima serie nao auxiliar e a linha e fica de fora (so as colunas empilham). No Mekko n e o numero de PONTOS (5 por
+            ' categoria) e o topo de cada ponto e o maior acumulado, como na area (e uma area empilhada): e o que Deco_ScaleClipped le
+            ' nas unidades (Mesma escala); o Mekko nao tem setas (recusa 7001)
             If kind = "combo" Then
                 For k = 1 To cht.SeriesCollection.Count
                     If Not Style_IsHelperSeries(cht.SeriesCollection(k)) Then nSeries = nSeries + 1: lastIdx = k
@@ -61,6 +63,7 @@ Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef top
                 If nSeries < 2 Then lastIdx = 0
             End If
             ReDim cum(1 To n)
+            algebraic = (kind = "area" Or Kinds_Family(kind) = "mekko")
             For k = 1 To cht.SeriesCollection.Count
                 Set s = cht.SeriesCollection(k)
                 If Not Style_IsHelperSeries(s) And k <> lastIdx Then
@@ -68,7 +71,7 @@ Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef top
                     For i = 1 To n
                         v = Ann_ArrayValue(vals, i)
                         values(i) = values(i) + v
-                        If kind = "area" Then
+                        If algebraic Then
                             ' area: o Excel empilha algebricamente (cada faixa entre os acumulados) e o topo VISIVEL e o maior acumulado
                             ' (ver o comentario de Area_BuildBlock); colunas e barras separam positivos e negativos
                             cum(i) = cum(i) + v

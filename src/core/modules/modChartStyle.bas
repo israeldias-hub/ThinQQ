@@ -179,11 +179,18 @@ Public Function Style_NumberFormat(key As String) As String
 End Function
 
 ' fmt = CODIGO de formato (Style_NumberFormat). Pizza e rosca guardam a CHAVE (int, pct0, ...) e mostram participacao ou valor: sai por
-' Pie_ApplyNumberFormat com a chave do registro (ApplyOption grava numfmt antes de despachar, entao a chave lida ja e a nova).
+' Pie_ApplyNumberFormat com a chave do registro (ApplyOption grava numfmt antes de despachar, entao a chave lida ja e a nova). O Mekko
+' tambem le a chave do registro (Mekko_ApplyNumberFormat).
 Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
     Dim s As Series, i As Long, segFmt As String, totFmt As String, useFmt As String
     If Kinds_Family(Registry_ChartType(cht)) = "pie" Then
         Pie_ApplyNumberFormat cht, Registry_GetOption(cht, "numfmt", "int")
+        Exit Sub
+    End If
+    If Kinds_Family(Registry_ChartType(cht)) = "mekko" Then
+        ' Mekko: segmentos com o formato dos segmentos (pct0/pct1 no percentual), totais pct0 no percentual (largura) e numfmt nas
+        ' unidades; por ponto (as auxiliares tem pontos sem rotulo que a escrita no nivel da serie recriaria)
+        Mekko_ApplyNumberFormat cht
         Exit Sub
     End If
     segFmt = fmt: totFmt = fmt

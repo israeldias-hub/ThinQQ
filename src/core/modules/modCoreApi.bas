@@ -174,6 +174,8 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
         Case "totals"
             If fam = "area" Then
                 Area_SetTotals c, value
+            ElseIf fam = "mekko" Then
+                Mekko_SetTotals c, value
             ElseIf fam <> "waterfall" Then
                 Stacked_SetTotals c, value              ' inclui a combinacao (so os totais das colunas)
             End If
@@ -182,6 +184,8 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
                 Waterfall_SetLabels c, value
             ElseIf fam = "area" Then
                 Area_SetLabels c, value
+            ElseIf fam = "mekko" Then
+                Mekko_SetLabels c, value
             Else
                 Stacked_SetLabels c, value              ' inclui a combinacao
             End If
@@ -248,6 +252,7 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
                 Case "waterfall": Waterfall_ApplyColors c, value
                 Case "area": Area_ApplyColors c, value
                 Case "pie": Pie_ApplyColors c, value
+                Case "mekko": Mekko_ApplyColors c, value        ' separadores de 1,5 pt e contraste dos rotulos (por ponto)
                 Case Else: Style_ApplySeriesColors c, value
             End Select
         Case "gap"
@@ -478,6 +483,11 @@ Public Function Core_ChartSourceMismatch(cht As Chart) As Boolean
         expected = blk.Rows.Count - 2
     End If
     Core_ChartSourceMismatch = (k <> expected)
+    ' Mekko: as series apontam para o BLOCO (sempre 5n pontos) e nao mudam com a tabela; o tamanho dela vem das referencias das
+    ' categorias no bloco (linhas inseridas no meio da tabela, ou apagadas, mudam o numero de linhas entre a primeira e a ultima)
+    If Not Core_ChartSourceMismatch And Len(nOpt) > 0 Then
+        If Kinds_Family(Registry_ChartType(cht)) = "mekko" Then Core_ChartSourceMismatch = (Mekko_SourceRowsSpanned(cht) <> CLng(Val(nOpt)))
+    End If
     Exit Function
 Fail:
     Core_ChartSourceMismatch = False
