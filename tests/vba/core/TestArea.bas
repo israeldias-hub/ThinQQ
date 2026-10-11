@@ -302,10 +302,10 @@ Public Sub Test_Chart_HideHelperLegendEntries_AreaStacks_WithHelperTotals()
     Dim wb As Workbook, d As clsChartData, cht As Chart, kind As Variant, lp As Variant, pal As Variant, k As Long, keys As String, want As String
     pal = Style_Palette("padrao")
     For Each kind In Array("area", "area100")
-        For Each lp In Array(xlLegendPositionRight, xlLegendPositionLeft, xlLegendPositionBottom, xlLegendPositionTop)
-            Set wb = NewTempWorkbook(): Set d = Fixture(wb)
-            Set cht = Area_Insert(d.Source.Worksheet, d, CStr(kind)).Chart
-            AssertEqual 3, cht.Legend.LegendEntries.Count, kind & ": legenda ja nasce sem as auxiliares"
+        Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+        Set cht = Area_Insert(d.Source.Worksheet, d, CStr(kind)).Chart
+        AssertEqual 3, cht.Legend.LegendEntries.Count, kind & ": legenda ja nasce sem as auxiliares"
+        For Each lp In Array(xlLegendPositionRight, xlLegendPositionBottom)       ' esquerda e em cima: o teste do mesmo grupo (abaixo) cobre
             cht.Legend.Position = lp
             cht.HasLegend = False: cht.HasLegend = True: cht.Legend.Position = lp      ' religa: todas as 7 entradas voltam
             AssertEqual 7, cht.Legend.LegendEntries.Count, kind & ": premissa (" & lp & ")"
@@ -313,7 +313,7 @@ Public Sub Test_Chart_HideHelperLegendEntries_AreaStacks_WithHelperTotals()
             AssertEqual 3, cht.Legend.LegendEntries.Count, kind & ": so as 3 areas (" & lp & ")"
             keys = ""
             For k = 1 To 3: keys = keys & cht.Legend.LegendEntries(k).LegendKey.Format.Fill.ForeColor.RGB & ";": Next
-            If lp = xlLegendPositionRight Or lp = xlLegendPositionLeft Then
+            If lp = xlLegendPositionRight Then
                 want = CLng(pal(2)) & ";" & CLng(pal(1)) & ";" & CLng(pal(0)) & ";"
             Else
                 want = CLng(pal(0)) & ";" & CLng(pal(1)) & ";" & CLng(pal(2)) & ";"
@@ -321,8 +321,8 @@ Public Sub Test_Chart_HideHelperLegendEntries_AreaStacks_WithHelperTotals()
             AssertEqual want, keys, kind & ": entradas e ordem da legenda (" & lp & ")"
             Chart_HideHelperLegendEntries cht
             AssertEqual 3, cht.Legend.LegendEntries.Count, kind & ": idempotente (" & lp & ")"
-            CloseTemp wb
         Next
+        CloseTemp wb
     Next
 End Sub
 
@@ -409,7 +409,7 @@ Public Sub Test_Combo_Geometry_LineOnSecondaryScale_ColumnsOnPrimary()
     Set cht = Combo_Insert(d.Source.Worksheet, d).Chart
     Set ln = Combo_LineSeries(cht): Set tot = Chart_FindSeries(cht, "tqq_total")
     v = Array(0.42, 0.45, 0.47): sum = Array(160, 190, 230)
-    AssertTrue cht.Axes(xlValue, xlSecondary).MinimumScale >= 0.3 And cht.Axes(xlValue, xlSecondary).MaximumScale <= 0.6, "escala secundaria propria"
+    AssertTrue cht.Axes(xlValue, xlSecondary).MinimumScale = 0 And cht.Axes(xlValue, xlSecondary).MaximumScale >= 0.47 And cht.Axes(xlValue, xlSecondary).MaximumScale <= 0.6, "escala secundaria propria, de 0 ao maximo da linha"
     AssertTrue cht.Axes(xlValue, xlPrimary).MaximumScale >= 230, "escala primaria dos totais"
     For i = 1 To 3
         AssertAlmost ExpX(cht, i, 3), ln.Points(i).Left, 0.8, "x da linha " & i
@@ -457,15 +457,16 @@ End Sub
 
 ' A linha da combinacao mostra o formato da CELULA (o numfmt e um so para o grafico e valeria para as colunas e os totais): com o
 ' numfmt int o 0,42 apareceria como "0". Mudar o numfmt muda as colunas e os totais, nao a linha; mudar a celula muda a linha.
+' (Celula em Geral: formato de reserva, ver Test_Combo_LineLabelFormat_GeneralCellFallbackRule_AndFollowsCellAfterwards.)
 Public Sub Test_Combo_LineLabels_FollowSourceCellFormat_NumfmtKeepsColumnsAndTotals()
     Dim wb As Workbook, d As clsChartData, cht As Chart, ln As Series, dec As String
     dec = Application.International(xlDecimalSeparator)
     Set wb = NewTempWorkbook(): Set d = ComboFixture(wb)
     Set cht = Combo_Insert(d.Source.Worksheet, d).Chart
     Set ln = Combo_LineSeries(cht)
-    AssertEqual "0" & dec & "42", ln.Points(1).DataLabel.Text, "celula geral: 0,42"
+    AssertEqual "42" & dec & "0%", ln.Points(1).DataLabel.Text, "celula geral com |v| <= 1: formato de reserva pct1 (antes 0,42)"
     d.Source.Worksheet.Range("D2:D4").NumberFormat = "0%"
-    cht.Refresh
+    Core_SafeRefresh cht
     AssertEqual "42%", ln.Points(1).DataLabel.Text, "celula em percentual: 42%"
     cht.Parent.Select
     Core_SetOption "numfmt", "dec1"
@@ -655,18 +656,6 @@ Public Sub Test_Legend_LineEnd_LongSeriesName_LabelStaysInsideChart()
     CloseTemp wb
 End Sub
 
-' O rotulo do ultimo ponto (a direita dele, ~6 pt depois) cabe antes da borda do grafico: ponto + 6 + largura estimada do texto
-' + 4 <= largura do grafico. (A geometria do proprio DataLabel nao e lida: no Excel invisivel dos testes ela nao e atualizada.)
-Private Sub AssertLineEndLabelFits(cht As Chart, tag As String)
-    Dim s As Series, pt As Point, t As String
-    For Each s In cht.SeriesCollection
-        If Not Style_IsHelperSeries(s) Then
-            Set pt = s.Points(s.Points.Count)
-            t = pt.DataLabel.Text
-            AssertTrue pt.Left + 6 + Labels_EstimateWidth(t) + 4 <= cht.ChartArea.Width + 0.5, tag & ": rotulo '" & t & "' cabe (ponto=" & pt.Left & ", largura estimada=" & Labels_EstimateWidth(t) & ", grafico=" & cht.ChartArea.Width & ")"
-        End If
-    Next
-End Sub
 
 ' A opcao de legenda e uma ESCOLHA: "Alterar dados" a reaplica (nao a sobrescreve pelo estado real do grafico novo).
 Public Sub Test_Core_RebuildFromRange_ReappliesSavedLegendAndSecondaryChoices()
@@ -842,5 +831,443 @@ Public Sub Test_Legend_LineEnd_LabelsToggledOn_MakesRoomForValue()
     Stacked_SetLabels cht, True
     AssertEqual "Regiao Sudeste 1" & Application.International(xlThousandsSeparator) & "400" & Application.International(xlThousandsSeparator) & "000", cht.SeriesCollection(1).Points(3).DataLabel.Text, "com rotulos: nome e valor"
     AssertLineEndLabelFits cht, "nome e valor"
+    CloseTemp wb
+End Sub
+
+' ---------- Rodada de correcao 1: legenda devolve o espaco, categorias de data, rollback, formato da linha, areas negativas ----------
+
+' Largura (pt) de um rotulo de dados de 9 pt MEDIDA numa caixa de texto de ajuste automatico (margens de 3 pt, a margem interna do
+' rotulo) no proprio grafico: oraculo independente do estimador de producao (Labels_EstimateWidth, que superestima ~30%). Conferido
+' contra DataLabel.Width lido na primeira leitura de rotulos novos: "Sul 18" caixa 28,36 x rotulo 28,08; "Sudeste 30" 46,70 x 46,24;
+' "Nordeste 9" 46,97 x 46,52 (a caixa fica ~0,5 pt acima).
+Private Function MeasuredLabelWidth(cht As Chart, txt As String) As Double
+    Dim shp As Shape
+    Set shp = cht.Shapes.AddTextbox(msoTextOrientationHorizontal, 0, 0, 70, 16)
+    With shp.TextFrame2
+        .WordWrap = msoFalse
+        .AutoSize = msoAutoSizeShapeToFitText
+        .MarginLeft = 3: .MarginRight = 3: .MarginTop = 1: .MarginBottom = 1
+        .TextRange.Text = txt
+        .TextRange.Font.Size = 9
+    End With
+    MeasuredLabelWidth = shp.Width
+    shp.Delete
+End Function
+
+' O rotulo do ultimo ponto de cada linha (a direita dele, ~5,5 pt depois) cabe antes da borda do grafico, com a largura MEDIDA do
+' texto (MeasuredLabelWidth) limitada a 20% do grafico (o Excel quebra em linhas o rotulo mais largo: 455 pt, "Regiao Sudeste
+' 1.400.000,00" em 2 linhas; 295 pt, em 3). A geometria do proprio DataLabel nao e lida (no Excel invisivel dos testes ela nao e
+' atualizada). Nao usa o estimador nem as constantes de producao.
+Private Sub AssertLineEndLabelFits(cht As Chart, tag As String)
+    Dim s As Series, pt As Point, t As String, w As Double
+    For Each s In cht.SeriesCollection
+        If Not Style_IsHelperSeries(s) Then
+            Set pt = s.Points(s.Points.Count)
+            t = pt.DataLabel.Text
+            w = MeasuredLabelWidth(cht, t)
+            If w > 0.2 * cht.ChartArea.Width Then w = 0.2 * cht.ChartArea.Width
+            AssertTrue pt.Left + 5.5 + w <= cht.ChartArea.Width + 0.5, tag & ": rotulo '" & t & "' cabe (ponto=" & pt.Left & ", largura medida=" & w & ", grafico=" & cht.ChartArea.Width & ")"
+        End If
+    Next
+End Sub
+
+Private Function InsideRight(cht As Chart) As Double
+    InsideRight = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth
+End Function
+
+' (I1) Tirar a legenda devolve o espaco mesmo com a area de plotagem em layout manual (fixada pela folga dos totais, das setas ou
+' do fim da linha): o layout volta ao automatico e as folgas que so encolhem sao refeitas por cima. Posicoes reais da area interna.
+Public Sub Test_Legend_None_GivesRoomBack_WhenPlotLayoutIsManual()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, w0 As Double, tot As Series
+    ' barras 100% com totais: a folga dos totais fixou a area (layout manual)
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Stacked_Insert(d.Source.Worksheet, d, "barstacked100").Chart
+    AssertEqual xlChartElementPositionCustom, cht.PlotArea.Position, "premissa: layout manual"
+    w0 = cht.PlotArea.InsideWidth
+    Deco_SetLegend cht, "none"
+    cht.Refresh
+    AssertTrue InsideRight(cht) >= cht.ChartArea.Width - 40, "sem legenda a area interna chega perto da borda, restando so a folga dos totais (direita=" & InsideRight(cht) & ", grafico=" & cht.ChartArea.Width & ")"
+    AssertTrue cht.PlotArea.InsideWidth >= w0 + 40, "ganhou largura (antes " & w0 & ", agora " & cht.PlotArea.InsideWidth & ")"
+    Set tot = Chart_FindSeries(cht, "tqq_total")
+    AssertTrue tot.Points(1).Left + 5.5 + MeasuredNumberWidth(tot.Points(1).DataLabel.Text) <= cht.ChartArea.Width, "o rotulo do total continua cabendo"
+    CloseTemp wb
+    ' area com seta de CAGR e totais: a folga de cima continua, a da direita volta
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Area_Insert(d.Source.Worksheet, d, "area").Chart
+    Ann_AddCagr cht, 1, 4
+    AssertEqual xlChartElementPositionCustom, cht.PlotArea.Position, "premissa: layout manual"
+    Deco_SetLegend cht, "none"
+    cht.Refresh
+    AssertTrue InsideRight(cht) >= cht.ChartArea.Width - 15, "area: sem legenda a area interna chega a borda (direita=" & InsideRight(cht) & ")"
+    AssertTrue cht.PlotArea.InsideTop >= 51.5, "a folga de cima da seta de CAGR com totais continua (topo interno=" & cht.PlotArea.InsideTop & ")"
+    CloseTemp wb
+    ' linha com o fim da linha: sair dele (none) devolve a largura que o rotulo tinha tomado
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Stacked_Insert(d.Source.Worksheet, d, "line").Chart
+    Deco_SetLegend cht, "lineend"
+    AssertTrue InsideRight(cht) < cht.ChartArea.Width - 15, "premissa: o rotulo do fim da linha tomou largura"
+    Deco_SetLegend cht, "none"
+    cht.Refresh
+    AssertTrue InsideRight(cht) >= cht.ChartArea.Width - 15, "linha: de lineend para none a area interna volta a borda (direita=" & InsideRight(cht) & ")"
+    Deco_SetLegend cht, "lineend"
+    Deco_SetLegend cht, "right"
+    cht.Refresh
+    AssertTrue cht.PlotArea.Left + cht.PlotArea.Width <= cht.Legend.Left - 9, "de lineend para right a area de plotagem fica antes da legenda"
+    AssertTrue InsideRight(cht) >= cht.Legend.Left - 40, "e nao sobra um vazio grande (direita=" & InsideRight(cht) & ", legenda=" & cht.Legend.Left & ")"
+    CloseTemp wb
+End Sub
+
+' (I1) A mesma opcao de legenda duas vezes da o mesmo resultado (largura da area de plotagem estavel).
+Public Sub Test_Legend_SameOptionTwice_KeepsPlotWidthStable()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, w1 As Double, kind As Variant
+    For Each kind In Array("area", "line")
+        Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+        If kind = "area" Then Set cht = Area_Insert(d.Source.Worksheet, d, "area").Chart Else Set cht = Stacked_Insert(d.Source.Worksheet, d, "line").Chart
+        If kind = "area" Then Ann_AddCagr cht, 1, 4
+        Deco_SetLegend cht, IIf(kind = "area", "right", "lineend")
+        cht.Refresh
+        w1 = cht.PlotArea.InsideWidth
+        Deco_SetLegend cht, IIf(kind = "area", "right", "lineend")
+        cht.Refresh
+        AssertAlmost w1, cht.PlotArea.InsideWidth, 0.5, kind & ": largura estavel na segunda chamada"
+        Deco_SetLegend cht, IIf(kind = "area", "right", "lineend")
+        cht.Refresh
+        AssertAlmost w1, cht.PlotArea.InsideWidth, 0.5, kind & ": e na terceira"
+        CloseTemp wb
+    Next
+End Sub
+
+' (I1) Barras com setas de CAGR e de diferenca: depois de tirar e religar a legenda a folga das setas continua (ponta a 10 pt do fim
+' da maior barra, rotulo a direita da ponta e antes da borda livre: a do grafico sem legenda, a da legenda com ela).
+Public Sub Test_Legend_Bars_Arrows_RoomKeptAcrossLegendChanges()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ln As Shape, lbl As Shape, ax As Axis, xEnd As Double, mode As Variant, edge As Double
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Stacked_Insert(d.Source.Worksheet, d, "barstacked").Chart
+    Stacked_SetTotals cht, False
+    Set ln = Ann_AddCagr(cht, 1, 4)
+    Set lbl = cht.Shapes("tqq_ann_cagr_1_lbl")
+    Ann_AddDifference cht, 1, 4
+    For Each mode In Array("none", "right", "none", "right")
+        Deco_SetLegend cht, CStr(mode)
+        Core_SafeRefresh cht
+        cht.Refresh
+        Set ax = cht.Axes(xlValue)
+        xEnd = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth * (57 - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale)      ' 2025: 18 + 30 + 9
+        If mode = "right" Then edge = cht.Legend.Left Else edge = cht.ChartArea.Width
+        AssertAlmost xEnd + 10, ln.Left + ln.Width, 0.8, mode & ": ponta da seta a 10 pt do fim da barra"
+        AssertTrue lbl.Left >= ln.Left + ln.Width + 2, mode & ": rotulo a direita da ponta"
+        AssertTrue lbl.Left + lbl.Width <= edge + 0.5, mode & ": rotulo antes da borda livre (direita=" & (lbl.Left + lbl.Width) & ", borda=" & edge & ")"
+        AssertTrue cht.Shapes("tqq_ann_diff_1").Top + cht.Shapes("tqq_ann_diff_1").Height <= cht.ChartArea.Height, mode & ": seta de diferenca dentro do grafico"
+    Next
+    CloseTemp wb
+End Sub
+
+' (I2) Categorias que sao DATAS: o eixo e de texto (fatias iguais, mesmo com datas irregulares), o eixo "entre categorias" e fixado
+' (Verdadeiro) e Geom_ChartBetween le esse valor; as auxiliares alinham pela regra de tres independente, a seta de diferenca fica a 10 pt
+' do ponto da ultima categoria (area) ou da borda da coluna (combinacao).
+Public Sub Test_Area_And_Combo_DateCategories_TextAxisAndAlignment()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, kind As Variant, ln As Shape, xTo As Double, i As Long, slot As Double, ln2 As Series, tot As Series
+    Dim v As Variant, sm As Variant
+    For Each kind In Array("area", "area100")
+        Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+        ws.Range("A2").Value = DateSerial(2024, 1, 1): ws.Range("A3").Value = DateSerial(2024, 1, 2)
+        ws.Range("A4").Value = DateSerial(2024, 3, 1): ws.Range("A5").Value = DateSerial(2024, 12, 1)
+        ws.Range("A2:A5").NumberFormat = "dd/mm/yyyy"
+        Set cht = Area_Insert(ws, d, CStr(kind)).Chart
+        AssertEqual xlCategoryScale, cht.Axes(xlCategory).CategoryType, kind & ": eixo de texto (nao de tempo)"
+        AssertTrue cht.Axes(xlCategory).AxisBetweenCategories, kind & ": eixo entre categorias fixado"
+        AssertTrue Geom_ChartBetween(cht), kind & ": a geometria le o valor fixado"
+        AssertAreaHelpersAligned cht, ws, (kind = "area100"), kind & " datas"
+        If kind = "area" Then
+            Set ln = Ann_AddDifference(cht, 1, 4)
+            With cht.PlotArea
+                xTo = .InsideLeft + .InsideWidth * 3.5 / 4
+            End With
+            AssertAlmost xTo + 10, ln.Left, 0.8, "area com datas: seta de diferenca a 10 pt do ponto da ultima categoria"
+        End If
+        CloseTemp wb
+    Next
+    Set wb = NewTempWorkbook(): Set d = ComboFixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("A2").Value = DateSerial(2024, 1, 1): ws.Range("A3").Value = DateSerial(2024, 1, 2): ws.Range("A4").Value = DateSerial(2024, 12, 1)
+    ws.Range("A2:A4").NumberFormat = "dd/mm/yyyy"
+    Set cht = Combo_Insert(ws, d).Chart
+    AssertEqual xlCategoryScale, cht.Axes(xlCategory).CategoryType, "combo: eixo de texto"
+    AssertTrue cht.Axes(xlCategory).AxisBetweenCategories, "combo: eixo entre categorias fixado"
+    AssertTrue Geom_ChartBetween(cht)
+    Set ln2 = Combo_LineSeries(cht): Set tot = Chart_FindSeries(cht, "tqq_total")
+    v = Array(0.42, 0.45, 0.47): sm = Array(160, 190, 230)
+    For i = 1 To 3
+        AssertAlmost ExpX(cht, i, 3), ln2.Points(i).Left, 0.8, "combo com datas: x da linha " & i
+        AssertAlmost ExpX(cht, i, 3), tot.Points(i).Left, 0.8, "combo com datas: x do total " & i
+        AssertAlmost ExpY(cht, CDbl(sm(i - 1)), xlPrimary), tot.Points(i).Top, 0.8, "combo com datas: y do total " & i
+    Next
+    Set ln = Ann_AddDifference(cht, 1, 3)
+    slot = cht.PlotArea.InsideWidth / 3
+    AssertAlmost cht.PlotArea.InsideLeft + slot * 2.5 + slot / 1.5 / 2 + 10, ln.Left, 0.8, "combo com datas: seta de diferenca a 10 pt da borda da ultima coluna"
+    CloseTemp wb
+End Sub
+
+' (I3) Rollback da area: falha logo apos alocar o bloco E com o grafico ja criado (area e area100): nenhum grafico, nenhum nome
+' tqq_ e uma insercao posterior funciona.
+Public Sub Test_Area_Insert_RollsBack_BeforeAndAfterChartExists_AndLaterInsertWorks()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, kind As Variant, hook As Variant, en As Long, co As ChartObject
+    For Each kind In Array("area", "area100")
+        For Each hook In Array("block", "chart")
+            Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+            If hook = "block" Then Util_FailAfterBlockForTest = True Else Util_FailAfterChartForTest = True
+            On Error Resume Next
+            Area_Insert ws, d, CStr(kind)
+            en = Err.Number
+            On Error GoTo 0
+            Util_FailAfterBlockForTest = False: Util_FailAfterChartForTest = False
+            AssertEqual vbObjectError + IIf(hook = "block", 9999, 9998), en, kind & "/" & hook & ": erro simulado propagado"
+            AssertEqual 0, ws.ChartObjects.Count, kind & "/" & hook & ": nenhum grafico"
+            AssertEqual 0, CountTqqNames(wb), kind & "/" & hook & ": nenhum nome tqq_"
+            Set co = Area_Insert(ws, d, CStr(kind))
+            AssertEqual 1, ws.ChartObjects.Count, kind & "/" & hook & ": insercao posterior funciona"
+            AssertEqual 1, CountTqqNames(wb)
+            AssertTrue Not Chart_FindSeries(co.Chart, "tqq_total") Is Nothing
+            CloseTemp wb
+        Next
+    Next
+End Sub
+
+Private Function CountTqqNames(wb As Workbook) As Long
+    Dim nm As Name
+    For Each nm In wb.Names
+        If InStr(nm.Name, ID_PREFIX) > 0 Then CountTqqNames = CountTqqNames + 1
+    Next
+End Function
+
+' (I3) O Fail: do proprio Combo_Insert: o grafico ja existe (Stacked_Insert terminou) e o passo seguinte falha.
+Public Sub Test_Combo_Insert_RollsBack_WhenFailureComesAfterChartExists()
+    Dim wb As Workbook, d As clsChartData, en As Long, ws As Worksheet, co As ChartObject
+    Set wb = NewTempWorkbook(): Set d = ComboFixture(wb): Set ws = d.Source.Worksheet
+    Util_FailAfterChartForTest = True
+    On Error Resume Next
+    Combo_Insert ws, d
+    en = Err.Number
+    On Error GoTo 0
+    Util_FailAfterChartForTest = False
+    AssertEqual vbObjectError + 9998, en
+    AssertEqual 0, ws.ChartObjects.Count, "grafico desfeito pelo Fail: do Combo_Insert"
+    AssertEqual 0, CountTqqNames(wb), "bloco desfeito"
+    Set co = Combo_Insert(ws, d)
+    AssertEqual 1, ws.ChartObjects.Count, "insercao posterior funciona"
+    AssertEqual 1, CountTqqNames(wb)
+    AssertEqual xlSecondary, Combo_LineSeries(co.Chart).AxisGroup
+    CloseTemp wb
+End Sub
+
+' (a) O rotulo "nome valor" do fim da linha ocupa no maximo ~20% do grafico (o Excel o quebra em linhas), entao a folga reservada tem esse teto
+' (sem ele, um nome comprido tomaria ~35% da largura); e a area de plotagem nunca fica menor que 30% da largura do grafico nem <= 0.
+Public Sub Test_Legend_LineEnd_RoomCappedAtWrapWidth_AndPlotKeepsMinimum()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, co As ChartObject
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Ano", "Regiao Sudeste e Centro-Oeste do pais", "Norte")
+    ws.Range("A2:C2").Value = Array(2022, 100, 50): ws.Range("A3:C3").Value = Array(2023, 120, 60): ws.Range("A4:C4").Value = Array(2024, 140, 80)
+    Set d = ChartData_FromRange(ws.Range("A1:C4"))
+    Set co = Stacked_Insert(ws, d, "line"): Set cht = co.Chart
+    Deco_SetLegend cht, "lineend"
+    cht.Refresh
+    AssertTrue cht.PlotArea.InsideWidth >= 380, "reserva limitada a ~20% do grafico (largura interna=" & cht.PlotArea.InsideWidth & ", sem o teto ficaria ~290)"
+    AssertLineEndLabelFits cht, "455 pt"
+    co.Width = 120
+    Chart_EnsureRoomAfterChange cht
+    cht.Refresh
+    AssertTrue cht.PlotArea.Width >= 0.3 * cht.ChartArea.Width - 0.5, "grafico de 120 pt: a area de plotagem nao passa do minimo (largura=" & cht.PlotArea.Width & ", grafico=" & cht.ChartArea.Width & ")"
+    AssertTrue cht.PlotArea.InsideWidth > 0, "largura interna positiva"
+    CloseTemp wb
+End Sub
+
+' (f) "Alterar dados" para um grafico mais estreito com legenda a direita: a area de plotagem de tamanho manual (folga dos totais) nao
+' fica sob a legenda (Chart_EnsureRoomAfterChange, depois do redimensionamento, inclui o ajuste a legenda).
+Public Sub Test_Core_RebuildFromRange_NarrowerChart_PlotStaysLeftOfLegend()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, co As ChartObject
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set co = Stacked_Insert(ws, d, "barstacked100")
+    co.Width = 250
+    Set cht = co.Chart
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("A1:D5"))
+    Set cht = Core_ActiveChart()
+    cht.Refresh
+    AssertAlmost 250, cht.Parent.Width, 0.5, "premissa: o grafico novo tem a largura do antigo"
+    AssertTrue cht.HasLegend
+    AssertTrue cht.PlotArea.Left + cht.PlotArea.Width <= cht.Legend.Left - 9, "area de plotagem antes da legenda (direita=" & (cht.PlotArea.Left + cht.PlotArea.Width) & ", legenda=" & cht.Legend.Left & ")"
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' (g) A espessura da borda das areas e GRAVADA com ponto decimal em qualquer localidade (Str$ nunca usa a virgula; em pt-BR um
+' CStr(1.5) daria "1,5") e lida com ponto ou virgula: o Mekko grava 1,5 pt e a troca de paleta a preserva.
+Public Sub Test_Style_AreaBorder_WrittenWithDot_ReadWithEitherSeparator()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, en As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Area_Insert(d.Source.Worksheet, d, "area").Chart
+    Style_SetAreaBorder cht, 1.5
+    AssertEqual "1.5", Registry_GetOption(cht, "border"), "gravada com ponto"
+    AssertEqual 1.5, cht.SeriesCollection(2).Format.Line.Weight, "aplicada as areas existentes"
+    Style_ApplySeriesColors cht, "cinza"
+    AssertEqual 1.5, cht.SeriesCollection(3).Format.Line.Weight, "a troca de paleta preserva"
+    Registry_SetOption cht, "border", "2,5"                       ' escrito a mao com virgula: tambem e lido
+    Style_ApplySeriesColors cht, "padrao"
+    AssertEqual 2.5, cht.SeriesCollection(1).Format.Line.Weight, "valor com virgula"
+    Style_SetAreaBorder cht, 0.75
+    AssertEqual "0.75", Registry_GetOption(cht, "border")
+    On Error Resume Next
+    Style_SetAreaBorder cht, 0
+    en = Err.Number
+    On Error GoTo 0
+    AssertEqual 5, en, "espessura nao positiva e recusada"
+    AssertEqual "0.75", Registry_GetOption(cht, "border"), "recusa nao grava"
+    CloseTemp wb
+End Sub
+
+' (h) Area com segmento NEGATIVO: o Excel empilha algebricamente (medido pelos pixels do grafico exportado: com 10, -8 e 5 os acumulados
+' sao 10, 2 e 7; a faixa de -8 e o poligono entre 10 e 2 e a de 5, pintada depois, cobre 2..7; o que se ve acima de 7 e so a faixa de
+' -8 ate 10). O topo VISIVEL e o maior acumulado (10), nao o Total (7) nem a soma dos positivos (15): TotalPos e a ancora das setas
+' (Ann_GetCategoryData) seguem o topo visivel; o texto do rotulo do total continua sendo o Total (7); o Mid_j e o meio algebrico.
+Public Sub Test_Area_NegativeSegment_AlgebraicStacking_TopLabelsAndCagrAnchor()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, blk As Range, body As Range, ln As Shape, v() As Double, t() As Double, ex As Double
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:D1").Value = Array("Ano", "Sul", "Sudeste", "Nordeste")
+    ws.Range("A2:D2").Value = Array(2022, 10, -8, 5)
+    ws.Range("A3:D3").Value = Array(2023, 12, 4, 6)
+    ws.Range("A4:D4").Value = Array(2024, 15, 6, 8)
+    ws.Range("A5:D5").Value = Array(2025, 18, 7, 9)
+    Set d = ChartData_FromRange(ws.Range("A1:D5"))
+    Set cht = Area_Insert(ws, d, "area").Chart
+    Set blk = Registry_Block(cht): Set body = Block_Body(blk)
+    AssertEqual 7, body.Cells(2, 2).Value, "Total = soma algebrica"
+    AssertEqual 10, body.Cells(2, 3).Value, "TotalPos = maior acumulado (10, 2, 7)"
+    AssertEqual 22, body.Cells(3, 3).Value, "sem negativo o TotalPos e o proprio Total"
+    AssertEqual 5, body.Cells(2, Area_MidCol(blk, 1)).Value: AssertEqual 6, body.Cells(2, Area_MidCol(blk, 2)).Value, "meio algebrico de -8 entre 10 e 2"
+    AssertAlmost 4.5, body.Cells(2, Area_MidCol(blk, 3)).Value
+    AssertEqual "-8", Chart_FindSeries(cht, "tqq_lbl_2").Points(1).DataLabel.Text, "o rotulo da faixa mostra o valor negativo"
+    AssertEqual "7", Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Text, "o texto do total e o Total"
+    AssertAlmost ExpY(cht, 10), Chart_FindSeries(cht, "tqq_total").Points(1).Top, 0.8, "o rotulo do total ancora no topo visivel (10)"
+    AssertAlmost ExpY(cht, 5), Chart_FindSeries(cht, "tqq_lbl_1").Points(1).Top, 0.8
+    AssertAlmost ExpY(cht, 6), Chart_FindSeries(cht, "tqq_lbl_2").Points(1).Top, 0.8
+    AssertAlmost ExpY(cht, 4.5), Chart_FindSeries(cht, "tqq_lbl_3").Points(1).Top, 0.8
+    Ann_GetCategoryData cht, v, t
+    AssertAlmost 7, v(1), 0.001, "valor usado nos textos = Total": AssertAlmost 10, t(1), 0.001, "topo da seta = maior acumulado"
+    AssertAlmost 34, v(4), 0.001: AssertAlmost 34, t(4), 0.001
+    Set ln = Ann_AddCagr(cht, 1, 4)
+    ex = (34 / 7) ^ (1 / 3) - 1
+    AssertEqual "CAGR " & Format$(ex, "+0.0%;-0.0%;0.0%"), cht.Shapes("tqq_ann_cagr_1_lbl").TextFrame2.TextRange.Text, "CAGR do Total (7 -> 34)"
+    AssertAlmost ExpY(cht, 10) - 28, ln.Top + ln.Height, 0.8, "origem da seta a 10 pt + 18 pt (folga dos totais) acima do topo visivel (10), nao dos positivos (15)"
+    AssertAlmost ExpY(cht, 34) - 28, ln.Top, 0.8, "ponta acima do topo da ultima categoria"
+    CloseTemp wb
+End Sub
+
+' (h) #N/D numa celula de origem de area: o Excel plota 0 naquele ponto (a faixa some, nao interpola; medido nos pixels) e o bloco usa Val = 0:
+' o ponto auxiliar do rotulo fica no topo da faixa anterior, o texto some (formato de zero vazio) e o total ignora o erro.
+Public Sub Test_Area_NaSourceCell_ZeroThickness_HelperAtPreviousTop()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("C3").Formula = "=NA()"                                      ' Sudeste em 2023
+    Set cht = Area_Insert(ws, d, "area").Chart
+    AssertEqual "", Chart_FindSeries(cht, "tqq_lbl_2").Points(2).DataLabel.Text, "sem texto"
+    AssertAlmost ExpY(cht, 12), Chart_FindSeries(cht, "tqq_lbl_2").Points(2).Top, 0.8, "auxiliar no topo da faixa anterior (Sul = 12)"
+    AssertEqual "18", Chart_FindSeries(cht, "tqq_total").Points(2).DataLabel.Text, "total ignora o erro (12 + 6)"
+    AssertAlmost ExpY(cht, 18), Chart_FindSeries(cht, "tqq_total").Points(2).Top, 0.8
+    AssertAlmost ExpY(cht, 15), Chart_FindSeries(cht, "tqq_lbl_3").Points(2).Top, 0.8, "a faixa seguinte (6) parte do topo da anterior: meio em 12 + 3"
+    CloseTemp wb
+End Sub
+
+' (d) Eixo secundario da combinacao: minimo em 0 quando todos os valores da linha sao >= 0 (o automatico escolheria 0,39 para 0,42..0,47
+' e exageraria a inclinacao num eixo oculto), automatico com algum negativo; acompanha mudancas nos dados (Core_SafeRefresh).
+Public Sub Test_Combo_SecondaryScale_StartsAtZeroUnlessNegative()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ws As Worksheet, ax As Axis
+    Set wb = NewTempWorkbook(): Set d = ComboFixture(wb): Set ws = d.Source.Worksheet
+    Set cht = Combo_Insert(ws, d).Chart
+    Set ax = cht.Axes(xlValue, xlSecondary)
+    AssertEqual 0, ax.MinimumScale: AssertFalse ax.MinimumScaleIsAuto, "minimo fixado em 0"
+    AssertAlmost ExpY(cht, 0.45, xlSecondary), Combo_LineSeries(cht).Points(2).Top, 0.8, "a linha segue a escala 0..max"
+    AssertTrue ax.MaximumScale >= 0.47, "maximo cobre o maior valor"
+    ws.Range("D3").Value = -0.1                                          ' um valor negativo
+    Core_SafeRefresh cht
+    cht.Refresh
+    Set ax = cht.Axes(xlValue, xlSecondary)
+    AssertTrue ax.MinimumScaleIsAuto, "com negativo volta ao automatico"
+    AssertTrue ax.MinimumScale <= -0.1, "e cobre o negativo (minimo=" & ax.MinimumScale & ")"
+    ws.Range("D3").Value = 0.45
+    Core_SafeRefresh cht
+    cht.Refresh
+    Set ax = cht.Axes(xlValue, xlSecondary)
+    AssertEqual 0, ax.MinimumScale: AssertFalse ax.MinimumScaleIsAuto, "voltou a 0 com os dados positivos"
+    Combo_SetSecondary cht, False
+    Combo_SetSecondary cht, True
+    AssertEqual 0, cht.Axes(xlValue, xlSecondary).MinimumScale, "religar o eixo secundario tambem fixa o minimo"
+    CloseTemp wb
+End Sub
+
+' (c) Rotulos da linha da combinacao com a celula de origem em GERAL (que mostraria 0,423456789): regra de reserva sobre os valores da
+' linha (inteiros = "int"; todos com |v| <= 1 = pct1; demais = dec2); com formato na celula (percentual) o rotulo segue a celula; e o
+' formato acompanha mudancas feitas na celula depois (Core_SafeRefresh).
+Public Sub Test_Combo_LineLabelFormat_GeneralCellFallbackRule_AndFollowsCellAfterwards()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ws As Worksheet, ln As Series, dec As String
+    dec = Application.International(xlDecimalSeparator)
+    Set wb = NewTempWorkbook(): Set d = ComboFixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("D2:D4").Value = Application.Transpose(Array(0.423456789, 0.45, 0.47))
+    Set cht = Combo_Insert(ws, d).Chart
+    Set ln = Combo_LineSeries(cht)
+    AssertEqual "42" & dec & "3%", ln.Points(1).DataLabel.Text, "Geral com |v| <= 1: pct1 (nao 0,423456789)"
+    ws.Range("D2:D4").NumberFormat = "0.0%"
+    Core_SafeRefresh cht
+    AssertEqual "42" & dec & "3%", ln.Points(1).DataLabel.Text, "celula em 0,0%: segue a celula"
+    ws.Range("D2:D4").NumberFormat = "0%"
+    Core_SafeRefresh cht
+    AssertEqual "42%", ln.Points(1).DataLabel.Text, "mudou o formato da celula: o rotulo acompanha"
+    ws.Range("D2:D4").NumberFormat = "General"
+    Core_SafeRefresh cht
+    AssertEqual "42" & dec & "3%", ln.Points(1).DataLabel.Text, "de volta a Geral: reserva"
+    ws.Range("D2:D4").Value = Application.Transpose(Array(1234.5678, 2000.5, 99.1))
+    Core_SafeRefresh cht
+    AssertEqual "1" & Application.International(xlThousandsSeparator) & "234" & dec & "57", ln.Points(1).DataLabel.Text, "Geral com valores maiores que 1: dec2"
+    ws.Range("D2:D4").Value = Application.Transpose(Array(100, 120, 150))
+    Core_SafeRefresh cht
+    AssertEqual "100", ln.Points(1).DataLabel.Text, "Geral com inteiros: int"
+    CloseTemp wb
+End Sub
+
+' (f) A area de plotagem de tamanho manual (aqui fixada pela folga da seta de CAGR) acompanha o redimensionamento do grafico em escala,
+' mas a legenda nao: o grafico mais estreito deixa a area SOB a legenda; Chart_EnsureRoomAfterChange (que "Alterar dados" chama depois do
+' redimensionamento) inclui o ajuste a legenda. (No "Alterar dados" de barras a folga dos totais ja cobre; as setas nao sao preservadas.)
+Public Sub Test_Chart_EnsureRoomAfterChange_FitsManualPlotToLegend_AfterResize()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, co As ChartObject
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:D1").Value = Array("Ano", "Regiao Sudeste e Centro-Oeste", "Regiao Norte e Nordeste", "Regiao Sul do pais")
+    ws.Range("A2:D2").Value = Array(2022, 10, 20, 5): ws.Range("A3:D3").Value = Array(2023, 12, 22, 6)
+    ws.Range("A4:D4").Value = Array(2024, 15, 25, 8): ws.Range("A5:D5").Value = Array(2025, 18, 30, 9)
+    Set d = ChartData_FromRange(ws.Range("A1:D5"))
+    Set co = Area_Insert(ws, d, "area"): Set cht = co.Chart
+    Ann_AddCagr cht, 1, 4
+    AssertEqual xlChartElementPositionCustom, cht.PlotArea.Position, "premissa: layout manual"
+    co.Width = 250
+    cht.Refresh
+    AssertTrue cht.PlotArea.Left + cht.PlotArea.Width > cht.Legend.Left - 9.5, "premissa: o grafico mais estreito deixou a area de plotagem sob a legenda (direita=" & (cht.PlotArea.Left + cht.PlotArea.Width) & ", legenda=" & cht.Legend.Left & ")"
+    Chart_EnsureRoomAfterChange cht
+    cht.Refresh
+    AssertTrue cht.PlotArea.Left + cht.PlotArea.Width <= cht.Legend.Left - 9.5, "depois do ajuste a area de plotagem fica antes da legenda (direita=" & (cht.PlotArea.Left + cht.PlotArea.Width) & ", legenda=" & cht.Legend.Left & ")"
+    Chart_EnsureRoomAfterChange cht
+    cht.Refresh
+    AssertTrue cht.PlotArea.Left + cht.PlotArea.Width <= cht.Legend.Left - 9.5, "idempotente"
+    CloseTemp wb
+End Sub
+
+' O minimo da area de plotagem (rede de seguranca): encolher alem de 30% da largura do grafico para no minimo e diz que nao ha mais o que reduzir.
+Public Sub Test_Deco_ShrinkPlotWidth_StopsAtMinimumFraction()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, w0 As Double
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Area_Insert(d.Source.Worksheet, d, "area").Chart
+    w0 = cht.PlotArea.Width
+    AssertTrue Deco_ShrinkPlotWidth(cht, 10), "encolhe 10 pt"
+    AssertAlmost w0 - 10, cht.PlotArea.Width, 0.5
+    AssertTrue Deco_ShrinkPlotWidth(cht, 5000), "um pedido enorme encolhe ate o minimo"
+    AssertAlmost 0.3 * cht.ChartArea.Width, cht.PlotArea.Width, 0.5, "minimo = 30% da largura do grafico"
+    AssertFalse Deco_ShrinkPlotWidth(cht, 20), "ja no minimo: nada a reduzir"
+    AssertAlmost 0.3 * cht.ChartArea.Width, cht.PlotArea.Width, 0.5, "e a largura nao muda"
+    AssertTrue cht.PlotArea.InsideWidth > 0
     CloseTemp wb
 End Sub

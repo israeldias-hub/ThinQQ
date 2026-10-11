@@ -305,7 +305,7 @@ Public Sub Test_Waterfall_Rebuild_KeepsLegendNoneChoice_AcrossSingleSeriesAndBac
     ws.Range("A1:B6").Select
     Core_Insert "waterfall"
     Core_SetOption "legend", "right"
-    AssertTrue InStr(Core_LastNotice(), "não se aplica") > 0, "cascata de 1 serie: legenda recusada com aviso: " & Core_LastNotice()
+    AssertEqual "Legenda não se aplica a este tipo de gráfico.", Core_LastNotice(), "cascata de 1 serie: legenda recusada com o aviso do brief da Tarefa 11"
     AssertFalse Core_ActiveChart().HasLegend
     Watchers_Stop
     CloseTemp wb

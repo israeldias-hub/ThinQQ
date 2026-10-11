@@ -99,6 +99,7 @@ Public Function Stacked_Insert(ws As Worksheet, data As clsChartData, kind As St
     cht.PlotVisibleOnly = False
     cht.DisplayBlanksAs = xlZero
     Style_ApplyBase cht
+    If kind = "combo" Then cht.Axes(xlCategory).AxisBetweenCategories = True      ' colunas: sempre entre categorias (fixado: a geometria le o eixo)
     cht.HasLegend = True
     cht.Legend.Position = xlLegendPositionRight
     cht.Legend.Font.Size = 9
@@ -203,7 +204,7 @@ Public Sub Stacked_SetLabels(cht As Chart, turnOn As Boolean)
             If turnOn Then
                 With s.DataLabels
                     .ShowValue = True: .ShowSeriesName = False: .ShowCategoryName = False
-                    If Labels_IsSourceFormatSeries(cht, s) Then .NumberFormatLinked = True Else Style_AssignNumberFormat s.DataLabels, fmt
+                    If Labels_IsSourceFormatSeries(cht, s) Then Labels_ApplyLineSourceFormat s.DataLabels, cht Else Style_AssignNumberFormat s.DataLabels, fmt
                     .Font.Size = 9
                     If s.ChartType = xlLine Or s.ChartType = xlLineMarkers Then
                         .Position = xlLabelPositionAbove

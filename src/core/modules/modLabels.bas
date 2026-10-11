@@ -102,6 +102,106 @@ Public Function Labels_IsSourceFormatSeries(cht As Chart, s As Series) As Boolea
     Labels_IsSourceFormatSeries = (Registry_ChartType(cht) = "combo")
 End Function
 
+' Células de valores da coluna da linha da combinação (a última coluna da tabela de origem, sem o cabeçalho), lidas do endereço
+' da origem gravado na meta do bloco; Nothing se não for possível ler.
+Private Function ComboLineCells(cht As Chart) As Range
+    Dim blk As Range, a As String, bang As Long, sh As String, src As Range
+    On Error GoTo Fail
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Function
+    a = CStr(blk.Cells(1, 3).Value)
+    bang = InStrRev(a, "!")
+    If bang < 2 Then Exit Function
+    sh = Left$(a, bang - 1)
+    If Left$(sh, 1) = "'" And Right$(sh, 1) = "'" Then sh = Replace(Mid$(sh, 2, Len(sh) - 2), "''", "'")
+    Set src = Registry_Workbook(cht).Worksheets(sh).Range(Mid$(a, bang + 1))
+    If src.Rows.Count < 2 Or src.Columns.Count < 2 Then Exit Function
+    Set ComboLineCells = src.Cells(2, src.Columns.Count).Resize(src.Rows.Count - 1, 1)
+    Exit Function
+Fail:
+    Set ComboLineCells = Nothing
+End Function
+
+' Formato (código neutro de Style_NumberFormat) de reserva dos rótulos da linha da combinação, ou "" para seguir a célula.
+' Célula de origem COM formato (percentual, moeda, ...) ou formatos misturados: "" (o rótulo é vinculado ao formato da célula).
+' Célula em Geral: o rótulo mostraria os dígitos crus (0,423456789), então a regra de reserva olha os valores da linha:
+' todos inteiros (ou nenhum número) = "int"; todos com módulo <= 1 = "pct1" (razão/percentual: 0,42 vira 42,3%); os demais
+' = "dec2". Quem quiser outro formato muda o formato da célula.
+Public Function Labels_ComboLineFormat(cht As Chart) As String
+    Dim c As Range, f As Variant, v As Variant, one() As Variant, i As Long, d As Double, anyNum As Boolean, allInt As Boolean, allSmall As Boolean
+    On Error GoTo Fail
+    Set c = ComboLineCells(cht)
+    If c Is Nothing Then Exit Function
+    f = c.NumberFormat
+    If IsNull(f) Then Exit Function
+    If CStr(f) <> "General" Then Exit Function
+    allInt = True: allSmall = True
+    If c.Cells.Count = 1 Then
+        ReDim one(1 To 1, 1 To 1)
+        one(1, 1) = c.Value2
+        v = one
+    Else
+        v = c.Value2
+    End If
+    For i = 1 To c.Rows.Count
+        If IsNumeric(v(i, 1)) And Not IsEmpty(v(i, 1)) And VarType(v(i, 1)) <> vbString And Not IsError(v(i, 1)) Then
+            anyNum = True: d = CDbl(v(i, 1))
+            If d <> Int(d) Then allInt = False
+            If Abs(d) > 1 Then allSmall = False
+        End If
+    Next
+    If Not anyNum Or allInt Then
+        Labels_ComboLineFormat = Style_NumberFormat("int")
+    ElseIf allSmall Then
+        Labels_ComboLineFormat = Style_NumberFormat("pct1")
+    Else
+        Labels_ComboLineFormat = Style_NumberFormat("dec2")
+    End If
+    Exit Function
+Fail:
+    Labels_ComboLineFormat = ""
+End Function
+
+' Aplica a um DataLabels/DataLabel da linha da combinação o formato certo: vinculado à célula, ou o de reserva (Geral).
+Public Sub Labels_ApplyLineSourceFormat(target As Object, cht As Chart)
+    Dim fb As String
+    fb = Labels_ComboLineFormat(cht)
+    If Len(fb) = 0 Then target.NumberFormatLinked = True Else Style_AssignNumberFormat target, fb
+End Sub
+
+' Mantém o formato da linha da combinação em dia com a célula (o usuário muda o formato da célula depois de inserir o gráfico):
+' só escreve quando mudou. A série inteira e o último ponto (o rótulo do fim da linha tem formato próprio).
+' Nunca propaga erro (chamada por eventos).
+Public Sub Labels_RefreshComboLineFormat(cht As Chart)
+    Dim s As Series, want As String, n As Long
+    On Error GoTo Done
+    If Registry_ChartType(cht) <> "combo" Then Exit Sub
+    For Each s In cht.SeriesCollection
+        If Labels_IsSourceFormatSeries(cht, s) Then
+            want = Labels_ComboLineFormat(cht)
+            If s.HasDataLabels Then SyncFormat s.DataLabels, want
+            n = s.Points.Count
+            If n >= 1 Then
+                If s.Points(n).HasDataLabel Then SyncFormat s.Points(n).DataLabel, want
+            End If
+        End If
+    Next
+Done:
+    If Err.Number <> 0 Then Errors_Log "Labels_RefreshComboLineFormat" & vbTab & Err.Number & vbTab & Err.Description
+End Sub
+
+Private Sub SyncFormat(target As Object, want As String)
+    If Len(want) = 0 Then
+        If Not target.NumberFormatLinked Then target.NumberFormatLinked = True
+    Else
+        If target.NumberFormatLinked Then
+            Style_AssignNumberFormat target, want
+        ElseIf target.NumberFormatLocal <> Style_LocalizeCode(want) Then
+            Style_AssignNumberFormat target, want
+        End If
+    End If
+End Sub
+
 ' Formato (código neutro de Style_NumberFormat) dos rótulos de segmento. Em 100% os segmentos mostram a
 ' PARTICIPAÇÃO (valor / total da linha): pct0 sempre, pct1 só quando o usuário escolhe pct1. Nos demais, numfmt.
 Public Function Labels_SegmentFormat(cht As Chart) As String

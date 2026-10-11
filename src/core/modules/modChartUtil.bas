@@ -4,6 +4,9 @@ Option Explicit
 ' Gancho de teste: quando True (e BUILD_CONFIG = "Test"), os Insert falham logo apos alocar o bloco,
 ' para verificar o rollback. Nunca e usado fora dos testes.
 Public Util_FailAfterBlockForTest As Boolean
+' Gancho de teste (so com BUILD_CONFIG = "Test"): quando True, Area_Insert e Combo_Insert falham logo DEPOIS de o grafico existir
+' (o gancho acima falha antes de existir), para verificar que o rollback apaga o grafico e o bloco.
+Public Util_FailAfterChartForTest As Boolean
 
 ' Ganchos de teste da limpeza de blocos (CalcSheet_Cleanup); todos so tem efeito com BUILD_CONFIG = "Test".
 ' Util_FailChartReadForTest = True: a leitura de um grafico (no nivel do grafico) falha.
@@ -25,6 +28,12 @@ Public Util_LabelBudgetForTest As Long
 Public Sub Util_TestHookAfterBlock()
     If BUILD_CONFIG = "Test" Then
         If Util_FailAfterBlockForTest Then Err.Raise vbObjectError + 9999, "ThinQQ", "Falha simulada (teste)"
+    End If
+End Sub
+
+Public Sub Util_TestHookAfterChart()
+    If BUILD_CONFIG = "Test" Then
+        If Util_FailAfterChartForTest Then Err.Raise vbObjectError + 9998, "ThinQQ", "Falha simulada depois do grafico (teste)"
     End If
 End Sub
 
@@ -228,9 +237,12 @@ End Sub
 
 ' Depois de uma mudanca posterior a criacao (legenda ligada/desligada, formato numerico dos rotulos, redimensionamento do
 ' grafico), a folga que o Insert deu aos totais (barras), as setas e o rotulo "nome valor" do fim da linha so valia para o estado
-' do momento: reexecuta as tres contas. So reduz a area de plotagem; sem nada disso ligado nao faz nada. Nunca propaga erro (so registra).
+' do momento, e a area de plotagem de tamanho manual pode ter ficado sob a legenda: reexecuta as quatro contas (legenda, totais,
+' setas, fim da linha). So reduz a area de plotagem; sem nada disso ligado nao faz nada. Nunca propaga erro (so registra).
 Public Sub Chart_EnsureRoomAfterChange(cht As Chart)
     On Error Resume Next
+    Deco_FitPlotToLegend cht                      ' primeiro: as folgas abaixo contam a partir da borda livre (a legenda a direita)
+    If Err.Number <> 0 Then Errors_Log "Chart_EnsureRoomAfterChange/legenda" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Stacked_EnsureRoomAfterChange cht
     If Err.Number <> 0 Then Errors_Log "Chart_EnsureRoomAfterChange/totais" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Ann_EnsureRoomAfterChange cht

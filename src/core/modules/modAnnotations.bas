@@ -31,7 +31,7 @@ End Function
 ' Séries mais curtas que n contam como zero; com n = 0 devolve arrays 0..0.
 Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef tops() As Double)
     Dim kind As String, n As Long, i As Long, k As Long, s As Series, vals As Variant, v As Double, ends() As Double
-    Dim nSeries As Long, lastIdx As Long
+    Dim nSeries As Long, lastIdx As Long, cum() As Double
     kind = Registry_ChartType(cht)
     n = Geom_ChartCategoryCount(cht)
     If n = 0 Then
@@ -59,6 +59,7 @@ Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef top
                 Next
                 If nSeries < 2 Then lastIdx = 0
             End If
+            ReDim cum(1 To n)
             For k = 1 To cht.SeriesCollection.Count
                 Set s = cht.SeriesCollection(k)
                 If Not Style_IsHelperSeries(s) And k <> lastIdx Then
@@ -66,7 +67,14 @@ Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef top
                     For i = 1 To n
                         v = Ann_ArrayValue(vals, i)
                         values(i) = values(i) + v
-                        If v > 0 Then tops(i) = tops(i) + v
+                        If kind = "area" Then
+                            ' area: o Excel empilha algebricamente (cada faixa entre os acumulados) e o topo VISIVEL e o maior acumulado
+                            ' (ver o comentario de Area_BuildBlock); colunas e barras separam positivos e negativos
+                            cum(i) = cum(i) + v
+                            If cum(i) > tops(i) Then tops(i) = cum(i)
+                        ElseIf v > 0 Then
+                            tops(i) = tops(i) + v
+                        End If
                     Next
                 End If
             Next

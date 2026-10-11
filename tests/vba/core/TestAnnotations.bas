@@ -573,7 +573,12 @@ Public Sub Test_Ann_CategoryData_BarAreaComboKinds()
         Registry_Block(cht).Cells(1, 2).Value = k
         Ann_GetCategoryData cht, v, t
         AssertAlmost 16, v(1), 0.001, k & " soma 1": AssertAlmost 17, v(2), 0.001, k & " soma 2 (negativo entra)": AssertAlmost 63, v(3), 0.001, k & " soma 3"
-        AssertAlmost 16, t(1), 0.001, k & " topo 1": AssertAlmost 27, t(2), 0.001, k & " topo 2 (so positivos)": AssertAlmost 63, t(3), 0.001, k & " topo 3"
+        If k = "area" Then
+            ' Tarefa 6: a area empilha algebricamente (medido no Excel) e o topo visivel e o MAIOR ACUMULADO: linha 2 = 25, -10, 2 -> 25, 15, 17
+            AssertAlmost 16, t(1), 0.001, k & " topo 1": AssertAlmost 25, t(2), 0.001, k & " topo 2 (maior acumulado)": AssertAlmost 63, t(3), 0.001, k & " topo 3"
+        Else
+            AssertAlmost 16, t(1), 0.001, k & " topo 1": AssertAlmost 27, t(2), 0.001, k & " topo 2 (so positivos)": AssertAlmost 63, t(3), 0.001, k & " topo 3"
+        End If
     Next
     For Each k In Array("barstacked100", "area100")
         Registry_Block(cht).Cells(1, 2).Value = k

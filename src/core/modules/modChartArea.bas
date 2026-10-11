@@ -3,16 +3,24 @@ Option Explicit
 ' Area empilhada e area 100% (kinds area, area100).
 ' Bloco (corpo): linha 1 = cabecalhos; colunas (S = numero de series de dados):
 '  1 Categoria | 2 Total (=AGGREGATE(9,6,linha): ignora erros e texto) | 3 TotalPos (posicao plotada do rotulo do total:
-'  o proprio Total; 1 em area100) | 4..3+S Val_j (valor da serie j; area100: participacao = valor / Total, 0 se o Total e 0
+'  o topo VISIVEL da pilha = o maior dos acumulados SUM(Val_1..Val_j), que e o proprio Total quando nao ha valor negativo;
+'  se nenhum acumulado e positivo, o menor deles; 1 em area100) | 4..3+S Val_j (valor da serie j; area100: participacao = valor / Total, 0 se o Total e 0
 '  ou a celula nao e numero) | 4+S..3+2S Mid_j (meio da faixa j na pilha: SUM(Val_1..Val_j) - Val_j/2, onde fica o rotulo)
 '  | 4+2S Pos | 5+2S VLine (media do Total; #N/D em area100).
 ' Os rotulos de segmento sao series auxiliares de linha invisivel (tqq_lbl_j) em Mid_j com o rotulo ligado a Val_j; o total
-' e a auxiliar tqq_total do Stacked (mesmas colunas 1..3). A pilha de uma area soma algebricamente (diferente das colunas,
-' que separam positivos e negativos): o topo da pilha e o Total e o meio da faixa j e Mid_j mesmo com valores negativos.
+' e a auxiliar tqq_total do Stacked (mesmas colunas 1..3).
+' Como o Excel empilha AREAS com valor negativo (medido no Excel 2019 amostrando os pixels do grafico exportado): soma
+' algebricamente, sem separar positivos e negativos como as colunas. A faixa j e o poligono entre os acumulados c_(j-1) e c_j
+' e as series seguintes pintam POR CIMA das anteriores (com 10, -8 e 5 os acumulados sao 10, 2 e 7: a faixa de -8 fica entre
+' 2 e 10 e a de 5 entre 2 e 7 cobre a parte baixa dela; o que se ve acima de 7 e so a faixa de -8, ate 10). Logo o topo visivel
+' da pilha e o MAIOR acumulado (10), nao o Total (7): o rotulo do total e as setas ancoram nele (Ann_GetCategoryData), enquanto o
+' texto do rotulo continua sendo o Total. O Mid_j e o meio algebrico da faixa (c_(j-1) + c_j) / 2: com valor negativo ele pode cair
+' sobre uma faixa posterior (limite do proprio grafico empilhado do Excel). Celula com texto ou #N/D: o Excel desenha a faixa
+' com espessura 0 naquele ponto (nao interpola; medido) e o bloco usa Val = 0, igual.
 
 Public Function Area_BuildBlock(wb As Workbook, id As String, data As clsChartData, kind As String) As Range
     Dim blk As Range, body As Range, i As Long, j As Long, n As Long, ns As Long, is100 As Boolean
-    Dim rowCells As Range, srcAddr As String, totAddr As String, totRange As String, valAddr As String
+    Dim rowCells As Range, srcAddr As String, totAddr As String, totRange As String, valAddr As String, cumExpr As String
     is100 = (kind = "area100")
     n = data.CategoryCount
     ns = data.SeriesCount
@@ -30,7 +38,14 @@ Public Function Area_BuildBlock(wb As Workbook, id As String, data As clsChartDa
         Set rowCells = data.Source.Cells(i + 1, 2).Resize(1, ns)
         body.Cells(i + 1, 2).Formula = "=AGGREGATE(9,6," & Mid$(ChartData_ExternalAddress(rowCells), 2) & ")"
         totAddr = body.Cells(i + 1, 2).Address(False, False)
-        If is100 Then body.Cells(i + 1, 3).Formula = "=1" Else body.Cells(i + 1, 3).Formula = "=" & totAddr
+        If is100 Then
+            body.Cells(i + 1, 3).Formula = "=1"
+        Else
+            ' maior acumulado (se positivo) ou o menor: MAX/MIN sobre Mid_j + Val_j / 2 (= o acumulado c_j), em SUMPRODUCT para
+            ' avaliar a matriz sem Ctrl+Shift+Enter
+            cumExpr = body.Cells(i + 1, Area_MidCol(blk, 1)).Resize(1, ns).Address(False, False) & "+" & body.Cells(i + 1, Area_ValCol(blk, 1)).Resize(1, ns).Address(False, False) & "/2"
+            body.Cells(i + 1, 3).Formula = "=IF(SUMPRODUCT(MAX(" & cumExpr & "))>0,SUMPRODUCT(MAX(" & cumExpr & ")),SUMPRODUCT(MIN(" & cumExpr & ")))"
+        End If
         For j = 1 To ns
             srcAddr = Mid$(ChartData_ExternalAddress(data.Source.Cells(i + 1, 1 + j)), 2)
             If is100 Then
@@ -97,6 +112,11 @@ Public Function Area_Insert(ws As Worksheet, data As clsChartData, kind As Strin
     cht.PlotVisibleOnly = False
     cht.DisplayBlanksAs = xlZero
     Style_ApplyBase cht
+    Util_TestHookAfterChart
+    ' Fixa o eixo "entre categorias" (o padrao do Excel para area criada por codigo, mas o geometria das setas e dos rotulos
+    ' le o valor do eixo via Geom_ChartBetween): a faixa comeca a meia fatia da borda, o que da lugar aos rotulos das pontas e
+    ' a seta de diferenca, como nas colunas.
+    cht.Axes(xlCategory).AxisBetweenCategories = True
     cht.HasLegend = True
     cht.Legend.Position = xlLegendPositionRight
     cht.Legend.Font.Size = 9

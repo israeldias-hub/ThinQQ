@@ -93,7 +93,7 @@ Public Sub Style_ApplySeriesColors(cht As Chart, paletteName As String, Optional
     Dim pal As Variant, s As Series, k As Long, c As Variant, bw As Double
     pal = Style_Palette(paletteName)
     bw = borderWeight
-    If bw <= 0 Then bw = Val(Registry_GetOption(cht, "border", "1"))
+    If bw <= 0 Then bw = Val(Replace(Registry_GetOption(cht, "border", "1"), ",", "."))      ' Val so entende o ponto decimal
     If bw <= 0 Then bw = 1
     For Each s In cht.SeriesCollection
         If Not Style_IsHelperSeries(s) Then
@@ -115,6 +115,22 @@ Public Sub Style_ApplySeriesColors(cht As Chart, paletteName As String, Optional
                 If s.HasDataLabels Then If s.DataLabels.Position = xlLabelPositionCenter Then s.DataLabels.Font.Color = Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
             End If
             k = k + 1
+        End If
+    Next
+End Sub
+
+' Grava a espessura da borda das areas (pt) na opcao "border" e a aplica as areas existentes. O valor e GRAVADO com ponto
+' decimal em qualquer localidade (Str$ nunca usa a virgula), que e o que Style_ApplySeriesColors le. E o ponto de entrada para
+' quem quer outra espessura (o Mekko, 1,5 pt): a troca de paleta passa a preserva-la.
+Public Sub Style_SetAreaBorder(cht As Chart, weightPt As Double)
+    Dim s As Series, txt As String
+    If weightPt <= 0 Then Err.Raise 5, "Style_SetAreaBorder", "A espessura da borda deve ser maior que zero."
+    txt = Trim$(Str$(weightPt))
+    If Left$(txt, 1) = "." Then txt = "0" & txt                  ' Str$ omite o zero a esquerda (".75")
+    Registry_SetOption cht, "border", txt
+    For Each s In cht.SeriesCollection
+        If Not Style_IsHelperSeries(s) Then
+            If Style_IsAreaType(s.ChartType) Then s.Format.Line.Weight = weightPt
         End If
     Next
 End Sub

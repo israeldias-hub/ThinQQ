@@ -14,6 +14,7 @@ Public Function Combo_Insert(ws As Worksheet, data As clsChartData) As ChartObje
     End If
     On Error GoTo Fail
     Set co = Stacked_Insert(ws, data, "combo")      ' desfaz o que criou em caso de falha
+    Util_TestHookAfterChart                          ' (teste) falha com o grafico ja criado: o Fail: abaixo o desfaz
     Combo_SetSecondary co.Chart, Combo_DefaultSecondary(data)
     Set Combo_Insert = co
     Exit Function
@@ -65,6 +66,51 @@ Public Sub Combo_SetSecondary(cht As Chart, turnOn As Boolean)
     End If
     Chart_HideHelperLegendEntries cht
     Registry_SetOption cht, "secondary", IIf(turnOn, "1", "0")
+    Combo_SyncSecondaryScale cht
+End Sub
+
+' Escala do eixo secundario (oculto): com todos os valores da linha >= 0 o minimo fica em 0 (o automatico do Excel escolheria um
+' minimo perto do menor valor, ex.: 0,39 para 0,42..0,47, e exageraria a inclinacao de uma linha que o usuario nao ve medida);
+' com algum valor negativo volta ao automatico. Só escreve quando precisa. Sem eixo secundario nao faz nada.
+' Nunca propaga erro (chamada por eventos).
+Public Sub Combo_SyncSecondaryScale(cht As Chart)
+    Dim ln As Series, v As Variant, i As Long, nonNeg As Boolean, ax As Axis
+    On Error GoTo Done
+    If Registry_ChartType(cht) <> "combo" Then Exit Sub
+    If Registry_GetOption(cht, "secondary", "0") <> "1" Then Exit Sub
+    If Not cht.HasAxis(xlValue, xlSecondary) Then Exit Sub
+    Set ln = Combo_LineSeries(cht)
+    If ln Is Nothing Then Exit Sub
+    nonNeg = True
+    v = ln.Values
+    If IsArray(v) Then
+        For i = LBound(v) To UBound(v)
+            If Not IsError(v(i)) And Not IsEmpty(v(i)) Then
+                If VarType(v(i)) <> vbString Then
+                    If IsNumeric(v(i)) Then
+                        If CDbl(v(i)) < 0 Then nonNeg = False
+                    End If
+                End If
+            End If
+        Next
+    End If
+    Set ax = cht.Axes(xlValue, xlSecondary)
+    If nonNeg Then
+        If ax.MinimumScaleIsAuto Or ax.MinimumScale <> 0 Then ax.MinimumScale = 0
+    Else
+        If Not ax.MinimumScaleIsAuto Then ax.MinimumScaleIsAuto = True
+    End If
+Done:
+    If Err.Number <> 0 Then Errors_Log "Combo_SyncSecondaryScale" & vbTab & Err.Number & vbTab & Err.Description
+End Sub
+
+' O que numa combinacao depende dos DADOS e muda depois de inserir (Core_SafeRefresh): a escala do eixo secundario e o formato
+' dos rotulos da linha (que segue o formato da celula). Nunca propaga erro.
+Public Sub Combo_RefreshAfterDataChange(cht As Chart)
+    On Error Resume Next
+    If Registry_ChartType(cht) <> "combo" Then Exit Sub
+    Combo_SyncSecondaryScale cht
+    Labels_RefreshComboLineFormat cht
 End Sub
 
 ' A serie de linha da combinacao: a ultima serie nao auxiliar (Nothing se nao ha nenhuma).
