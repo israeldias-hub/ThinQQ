@@ -409,6 +409,7 @@ Public Sub Test_Ribbon_Enabled_FallsBackToHasChart_WhenCoreLacksSupports()
     On Error GoTo Cleanup
     Set wb = NewTempWorkbook(): Set ws = CapabilityFixture(wb)
     InsertAndSelect ws, "A1:B5", "pie"
+    Loader_InvalidateRibbon                ' o cache do ciclo pode vir de outro teste (o evento de selecao so zera se o core conhece o loader)
     AssertFalse Rx_IsEnabledFor("totals"), "pre-condicao: o core novo recusa Totais na pizza"
     Rx_TestSetSupportsProc "Core_SupportsNaoExiste"
     Loader_InvalidateRibbon
@@ -419,6 +420,35 @@ Public Sub Test_Ribbon_Enabled_FallsBackToHasChart_WhenCoreLacksSupports()
     Loader_InvalidateRibbon
     AssertFalse Rx_IsEnabledFor("totals"), "core antigo, sem grafico: desabilitado"
     AssertFalse Rx_IsEnabledFor("")
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    EnabledCleanup
+    On Error Resume Next
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+' Mapeamento reverso (opcao gravada no grafico -> item do dropdown) com um grafico REAL, nao so os padroes sem grafico: colunas agrupadas
+' nascem com Espaco 80 e legenda a direita, e o item de Espaco e "gap80"; escolher outro item (id -> valor do core, como Rx_OnDropdown faz)
+' volta como o mesmo id.
+Public Sub Test_Ribbon_SelectedId_ReverseMapping_WithRealChart()
+    Dim wb As Workbook, ws As Worksheet, en As Long, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set ws = CapabilityFixture(wb)
+    InsertAndSelect ws, "A1:B5", "clustered"
+    AssertEqual "gap80", Rx_SelectedIdFor("gap"), "colunas agrupadas nascem com Espaco 80: item gap80"
+    AssertEqual "right", Rx_SelectedIdFor("legend"), "legenda a direita"
+    AssertEqual "int", Rx_SelectedIdFor("numfmt")
+    AssertEqual "padrao", Rx_SelectedIdFor("palette")
+    Loader_RunCore "Core_SetOption", "gap", Rx_OptionValueFor("gap", "gap120")
+    AssertEqual "gap120", Rx_SelectedIdFor("gap"), "item escolhido volta como o mesmo id"
+    Loader_RunCore "Core_SetOption", "legend", "none"
+    AssertEqual "none", Rx_SelectedIdFor("legend")
+    Loader_RunCore "Core_SetOption", "numfmt", "pct0"
+    AssertEqual "pct0", Rx_SelectedIdFor("numfmt")
+    Loader_RunCore "Core_SetOption", "palette", "cinza"
+    AssertEqual "cinza", Rx_SelectedIdFor("palette")
 Cleanup:
     en = Err.Number: ed = Err.Description
     EnabledCleanup

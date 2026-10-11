@@ -60,7 +60,14 @@ Public Function Loader_LogDir() As String
     End If
 End Function
 
+' Cria as pastas do loader. Build Test SEM raiz de teste: so a pasta de log e a de downloads (ambas em %TEMP%); nunca a raiz real do usuario em
+' %LOCALAPPDATA%\ThinQQ (a mesma regra de Loader_Log / Loader_LogDir). Os demais casos criam tudo sob Loader_Root().
 Public Sub Loader_EnsureFolders()
+    If Len(mRootOverride) = 0 And BUILD_CONFIG = "Test" Then
+        EnsureDir Loader_TmpDir()
+        EnsureDir Loader_LogDir()
+        Exit Sub
+    End If
     EnsureDir Loader_Root()
     EnsureDir Loader_VersionsDir()
     EnsureDir Loader_TmpDir()
@@ -245,15 +252,15 @@ Public Sub Loader_Startup()
     Loader_EnsureFolders
     If Loader_FindNewestCoreVersion(Loader_VersionsDir()) = "" Then
         Loader_Log "core não encontrado em " & Loader_VersionsDir()
-        If MsgBox("O ThinQQ está instalado, mas o módulo principal (core) não foi encontrado." & vbLf & _
-                  "Deseja baixá-lo agora pela fonte de atualização?", vbYesNo + vbQuestion, APP_NAME) = vbYes Then
+        If Loader_Msg("O ThinQQ está instalado, mas o módulo principal (core) não foi encontrado." & vbLf & _
+                      "Deseja baixá-lo agora pela fonte de atualização?", vbYesNo + vbQuestion) = vbYes Then
             Application.OnTime Now + TimeSerial(0, 0, 1), "'" & ThisWorkbook.Name & "'!Updater_CheckInteractive"
         End If
         Exit Sub
     End If
     ver = Loader_OpenBestCore(Loader_VersionsDir())
     If ver = "" Then
-        MsgBox "Não foi possível carregar o ThinQQ core. Veja o log em " & Loader_LogDir() & ".", vbExclamation, APP_NAME
+        Loader_Msg "Não foi possível carregar o ThinQQ core. Veja o log em " & Loader_LogDir() & ".", vbExclamation
         Exit Sub
     End If
     Updater_SchedulePendingLoader 4
