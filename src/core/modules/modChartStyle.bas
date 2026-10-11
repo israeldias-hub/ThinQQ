@@ -36,6 +36,7 @@ End Function
 
 Public Sub Style_ApplyBase(cht As Chart)
     With cht
+        .HasTitle = True    ' liga e desliga: marca o título automático (gráfico de 1 série) como excluído
         .HasTitle = False
         .ChartArea.Format.Line.Visible = msoFalse
         .ChartArea.Format.Fill.ForeColor.RGB = RGB(255, 255, 255)
@@ -54,6 +55,7 @@ Public Sub Style_ApplyBase(cht As Chart)
         With .Axes(xlCategory)
             .MajorTickMark = xlTickMarkNone
             .MinorTickMark = xlTickMarkNone
+            .TickLabelPosition = xlTickLabelPositionLow   ' rótulos de categoria abaixo do gráfico mesmo com valores negativos
             .Format.Line.ForeColor.RGB = RGB(166, 166, 166)
             .TickLabels.Font.Size = 9
             .TickLabels.Font.Color = RGB(64, 64, 64)

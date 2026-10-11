@@ -486,3 +486,18 @@ Private Sub RestoreLoaderFiles(target As String, nw As String, bak As String, wa
     End If
     Application.DisplayAlerts = prevAlerts
 End Sub
+
+' Abre uma pasta nova com tabelas e gráficos de exemplo. Nunca propaga erro.
+Public Sub Core_InsertSamples()
+    Dim prevSU As Boolean
+    On Error GoTo Fail
+    prevSU = Application.ScreenUpdating
+    Application.ScreenUpdating = False
+    Samples_Create
+    Application.ScreenUpdating = prevSU
+    Watchers_Rehook
+    Exit Sub
+Fail:
+    Application.ScreenUpdating = prevSU
+    Errors_Handle "Core_InsertSamples"
+End Sub

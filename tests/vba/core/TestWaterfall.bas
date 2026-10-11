@@ -299,3 +299,12 @@ End Sub
 Public Sub Test_Stacked_Insert_RollsBackOnFailure()
     AssertRollback False
 End Sub
+
+' Cascata que cruza o zero: os nomes das categorias ficam na base do gráfico, não sobre as barras.
+Public Sub Test_Waterfall_CategoryLabels_AtBottomWhenCrossingZero()
+    Dim wb As Workbook, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Waterfall_Insert(d.Source.Worksheet, d).Chart
+    AssertEqual xlTickLabelPositionLow, cht.Axes(xlCategory).TickLabelPosition
+    CloseTemp wb
+End Sub
