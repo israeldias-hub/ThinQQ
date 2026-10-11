@@ -2,6 +2,20 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versões no formato x.y.z.
 
+## [Não lançado]
+
+### Corrigido
+- Copiar um gráfico ou movê-lo para uma planilha de gráfico não apaga mais os dados: a limpeza de blocos decide pela referência das séries.
+- Categorias de data usam eixo de texto (uma coluna por data), alinhado à geometria das setas.
+- Alterar dados recusa uma tabela de outra pasta de trabalho.
+- Aviso único quando linhas são inseridas ou removidas na tabela de origem (use Alterar dados).
+- Gráficos 100%: rótulos dos segmentos mostram a participação; o formato escolhido vale para os totais.
+- Rótulo do total em colunas empilhadas de sinais misturados no topo da parte positiva.
+
+### Segurança
+- SHA-256 em VBA puro: o ThinQQ não inicia mais o `certutil`.
+- Ganchos de teste inertes em Release; downloads em `%TEMP%\ThinQQ`, fora do local confiável.
+
 ## [1.0.0] - 2026-10-10
 
 ### Adicionado

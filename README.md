@@ -19,6 +19,37 @@ Repositório: <https://github.com/israeldias-hub/ThinQQ>
 - Instalação por usuário, sem administrador. Atualização dentro do Excel, por manifesto (HTTP ou pasta),
   com conferência SHA-256 e troca do núcleo sem reiniciar o Excel.
 
+## Antes de distribuir (checklist do responsável pela publicação)
+
+**Esta lista é de ações suas, fora do código** (o repositório ainda não foi publicado; o `push` falhou por falta de credenciais):
+
+- [ ] Publicar o conteúdo do repositório no GitHub (`israeldias-hub/ThinQQ`).
+- [ ] Gerar os arquivos com `build/release.ps1` e publicar a release **v1.0.0** com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`).
+- [ ] Fazer commit de `release/manifest.json` (com URLs reais) e de `version.json` na `main`.
+- [ ] Habilitar o GitHub Pages (Settings > Pages > branch `main`, pasta `/docs`) para o tutorial online.
+- [ ] Verificar a verificação de atualização a partir de um perfil limpo (usuário do Windows novo ou máquina sem o ThinQQ): instalar a versão anterior e conferir que o aviso de atualização aparece e atualiza.
+- [ ] Ativar autenticação em dois fatores na conta do GitHub (veja Segurança abaixo).
+- [ ] Rodar o roteiro manual no Excel real (seção "Verificações manuais no Excel real").
+
+## Segurança e confiança
+
+- **A assinatura de código (certificado no projeto VBA) é da Fase 3.** Até lá, a integridade das atualizações vem só da conferência SHA-256 contra o manifesto.
+- **Quem controla a branch `main` do repositório e os assets das releases controla o código que roda no Excel dos colegas** (o manifesto padrão vem de lá). Proteja a conta com autenticação em dois fatores e limite quem pode publicar; em empresas, use uma fonte de atualização interna.
+- O SHA-256 é calculado em VBA puro (módulo `modSha256`), sem iniciar processos externos (nada de `certutil`).
+- Downloads ficam em `%TEMP%\ThinQQ`, fora do local confiável; só depois de conferidos vão para `%LOCALAPPDATA%\ThinQQ`.
+
+### O que o instalador altera
+
+- Arquivos em `%LOCALAPPDATA%\ThinQQ` (loader na raiz, core e tutorial em `versions\<versão>`).
+- `HKCU\Software\Microsoft\Office\16.0\Excel\Options`: valor `OPEN` (ou `OPEN1`, `OPEN2`...) que registra o suplemento.
+- `HKCU\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\LocationThinQQ`: local confiável para `%LOCALAPPDATA%\ThinQQ\` **com subpastas**.
+- `HKCU\Software\VB and VBA Program Settings\ThinQQ`: configurações do atualizador.
+- Nada em `HKLM`. O `uninstall.ps1` desfaz tudo.
+
+### Frequência das verificações
+
+O valor `CheckIntervalHours` (horas; padrão 24) em `HKCU\Software\VB and VBA Program Settings\ThinQQ\Updater` controla o intervalo da verificação automática. Para praticamente desligá-la, grave um número muito grande (por exemplo `876000`); o botão de verificação manual continua funcionando sob demanda.
+
 ## Instalação (usuários)
 
 Requisitos: Excel do Office 16.0 (2016, 2019, 2021 ou Microsoft 365) para Windows. O código não faz chamadas à API do Windows (nenhuma instrução `Declare`), então é compatível com 32 e 64 bits por construção; os testes automatizados rodaram apenas em Excel 32 bits.
@@ -81,7 +112,7 @@ O botão ThinQQ > Tutorial abre o `tutorial.html` da versão instalada; se ele n
 <https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html>. Para essa página existir, habilite uma vez
 em Settings > Pages > "Deploy from a branch", branch `main`, pasta `/docs`.
 
-Atenção: o Pages publica a pasta `/docs` inteira, inclusive `docs/superpowers` (especificação e plano). Se isso não for desejado, mova o tutorial para uma pasta própria (por exemplo `site/`), aponte o Pages para ela e ajuste `TUTORIAL_URL` em `src/loader/modules/modRibbon.bas` e o caminho em `build/release.ps1`.
+Atenção: o Pages publica a pasta `/docs` inteira, inclusive `docs/superpowers` (especificação e plano). Se quiser uma superfície publicada menor, o tutorial pode ir para `docs/tutorial-site` (não movido ainda). Se isso não for desejado, mova o tutorial para uma pasta própria (por exemplo `site/`), aponte o Pages para ela e ajuste `TUTORIAL_URL` em `src/loader/modules/modRibbon.bas` e o caminho em `build/release.ps1`.
 
 ## Arquitetura
 
@@ -112,7 +143,25 @@ docs/        tutorial (tutorial.html), especificação e plano
 Especificação: `docs/superpowers/specs/2026-10-10-thinqq-design.md`. Plano da Fase 1:
 `docs/superpowers/plans/2026-10-10-thinqq-fase1.md`.
 
+## Verificações manuais no Excel real
+
+Os testes automáticos usam um Excel invisível; estas verificações precisam de uma sessão de Excel real (depois de `Instalar-ThinQQ.cmd` ou de `build.ps1 -Install`), com uma tabela 4x3 com cabeçalho:
+
+1. Células selecionadas: o grupo "Gráfico selecionado" fica desabilitado (só Atualizar habilita).
+2. Colunas empilhadas insere o gráfico à direita, selecionado; Totais e Rótulos pressionados; Totais e Conectores ligam e desligam.
+3. Formato, Paleta e Espaço (e a mensagem em gráfico de linha); gráfico 100% mostra participações nos segmentos.
+4. Seta CAGR abre o formulário e desenha o texto; mudar um valor atualiza; Seta diferença; Remover setas; redimensionar reposiciona.
+5. Cascata com `e`: barras, rótulos e conectores; clicar numa célula desabilita o grupo; Sobre, Tutorial, Configurações, Exemplos.
+6. Copiar um gráfico e apagar o original: a cópia mantém os dados; inserir linha na tabela de origem mostra o aviso uma vez.
+7. Verificar atualizações e um ciclo real de atualização (core e, depois, loader); conferir `Workbooks("ThinQQ.core.xlam")`.
+8. Instalar-ThinQQ.cmd e uninstall.ps1 no Excel real; conferir que nenhuma chave extra permanece.
+9. Os ícones da faixa não aparecem em branco.
+
 ## Limitações conhecidas
+
+- Adicionar ou remover linhas na tabela de origem exige o botão Alterar dados (o ThinQQ avisa uma vez quando detecta a mudança de tamanho).
+- Linhas filtradas ou ocultas continuam plotadas; a linha de totais de uma Tabela do Excel entra como categoria; formato `.xls` não é suportado (use `.xlsx`, `.xlsm` ou `.xlsb`); colunas empilhadas com sinais misturados têm rótulo de total líquido no topo da parte positiva.
+- Cópias de gráficos do ThinQQ e gráficos movidos para planilha de gráfico mantêm os dados, mas deixam de ser reconhecidos como gráficos do ThinQQ (sem botões nem setas automáticas).
 
 - Somente Excel para Windows, Office 16.0; sem Mac nem Excel na web. A compatibilidade com Excel 64 bits é por construção (sem `Declare`), ainda não verificada em teste.
 - Cascata vertical com uma série. Barras horizontais, Mekko, Gantt e pizza ficam para a Fase 2.

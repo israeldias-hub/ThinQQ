@@ -24,9 +24,29 @@ ATUALIZAÇÕES
 O ThinQQ verifica novas versões ao abrir o Excel (1x por dia) e avisa. Use ThinQQ > Verificar
 atualizações para forçar. A fonte pode ser alterada em ThinQQ > Configurações.
 
+FREQUÊNCIA DAS VERIFICAÇÕES (ADMINISTRADORES)
+O intervalo entre verificações automáticas é o valor CheckIntervalHours (horas; padrão 24) em
+HKCU\Software\VB and VBA Program Settings\ThinQQ\Updater. Para praticamente desligar a verificação automática,
+grave um número muito grande (ex.: 876000). "Verificar atualizações" continua funcionando sob demanda.
+Os arquivos baixados ficam em %TEMP%\ThinQQ (fora do local confiável) até serem conferidos (SHA-256).
+
+O QUE O INSTALADOR ALTERA
+- Copia os arquivos para %LOCALAPPDATA%\ThinQQ (loader na raiz; core e tutorial em versions\<versão>).
+- Registro do suplemento: valor OPEN (ou OPEN1, OPEN2...) em
+  HKCU\Software\Microsoft\Office\16.0\Excel\Options.
+- Local Confiável "LocationThinQQ" em HKCU\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations,
+  apontando para %LOCALAPPDATA%\ThinQQ\ com "subpastas também são confiáveis": macros dessa pasta rodam sem aviso.
+- Configurações do atualizador em HKCU\Software\VB and VBA Program Settings\ThinQQ.
+- Nada em HKLM e nada fora do perfil do usuário. O uninstall.ps1 desfaz tudo.
+
+SEGURANÇA
+A assinatura de código do projeto VBA é um item da Fase 3. Hoje a proteção é a conferência SHA-256 dos arquivos
+baixados contra o manifesto: quem controla a branch main do repositório e os arquivos da release controla o código
+que roda no Excel dos colegas. Proteja a conta do GitHub com autenticação em dois fatores.
+
 COMO MUDAR A FONTE DE ATUALIZAÇÃO
 - Pelo Excel: ThinQQ > Configurações > endereço do manifest.json (link https:// ou pasta/arquivo de rede).
-- Ao instalar: powershell -ExecutionPolicy Bypass -File install.ps1 -UpdateSource "\servidor\ThinQQ\manifest.json"
+- Ao instalar: powershell -ExecutionPolicy Bypass -File install.ps1 -UpdateSource "\\servidor\ThinQQ\manifest.json"
   Uma fonte já configurada é mantida ao reinstalar, a menos que você informe -UpdateSource.
 
 PROBLEMAS COMUNS

@@ -325,6 +325,12 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li><strong>Marcador <code>e</code> (só cascata):</strong> no lugar do valor, <code>e</code>, <code>t</code>, <code>total</code> ou <code>subtotal</code> (maiúsculas, minúsculas e espaços ao redor não importam) desenha uma barra de total calculada. O marcador <code>=</code> também vale, mas o Excel o toma por fórmula: digite <code>'=</code> com apóstrofo antes. Na dúvida, use <code>e</code>.</li>
     <li><strong>Várias áreas ou planilha protegida:</strong> selecione uma única região contígua. Em planilha protegida o ThinQQ pede que você a desproteja antes de inserir.</li>
     <li><strong>Nomes de planilha</strong> com espaços ou apóstrofos (como <code>Plano 'A' 2026</code>) funcionam normalmente.</li>
+    <li><strong>Inserir ou remover linhas na tabela de origem exige <span class="ui">Alterar dados</span>.</strong> O gráfico guarda uma linha de cálculo por categoria; se a tabela muda de tamanho depois, o ThinQQ avisa uma vez ("A tabela de origem mudou de tamanho...") e você refaz o gráfico com <span class="ui">Alterar dados</span> (ou reinsere o gráfico). Mudar valores nas células existentes não exige nada.</li>
+    <li><strong>Datas como categorias</strong> viram um eixo de texto: uma coluna por data, igualmente espaçadas, mesmo que os intervalos entre as datas sejam irregulares.</li>
+    <li><strong>Linhas filtradas ou ocultas continuam no gráfico</strong> (o gráfico plota também as células ocultas). Para excluir uma categoria, apague a linha da tabela e use <span class="ui">Alterar dados</span>.</li>
+    <li><strong>Tabelas do Excel (Ctrl+T):</strong> se a tabela tem linha de totais, ela entra como mais uma categoria; selecione só o corpo da tabela.</li>
+    <li><strong>Formato do arquivo:</strong> use <code>.xlsx</code>, <code>.xlsm</code> ou <code>.xlsb</code>. O formato antigo <code>.xls</code> não é suportado (os totais usam a função AGREGAR, do Excel 2010 em diante).</li>
+    <li><strong>Sinais misturados em empilhadas:</strong> o rótulo do total mostra o total líquido (por exemplo 6 para +10 e −4), mas é desenhado no topo da parte positiva da coluna. Colunas empilhadas com sinais misturados são de leitura mais difícil; prefira cascata para esse caso.</li>
   </ul>
 </section>
 
@@ -362,14 +368,14 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr><td><span class="ui">Totais</span></td><td>Mostra ou oculta o total em negrito acima de cada coluna. Vale para colunas empilhadas e 100%.</td></tr>
       <tr><td><span class="ui">Rótulos</span></td><td>Mostra ou oculta os valores nos segmentos, barras ou pontos. Os rótulos ficam ligados às células.</td></tr>
       <tr><td><span class="ui">Conectores</span></td><td>Linhas entre as colunas (empilhadas) ou entre as barras (cascata). Em agrupadas e linha não há conectores.</td></tr>
-      <tr><td><span class="ui">Formato</span></td><td>Formato dos números: <span class="ui">1.234</span>, <span class="ui">1.234,5</span>, <span class="ui">1.234,56</span>, <span class="ui">12%</span>, <span class="ui">12,3%</span>, <span class="ui">Milhares (1.234 → 1)</span> ou <span class="ui">Milhões (1,2)</span>. As duas últimas dividem por mil ou por um milhão só na exibição.</td></tr>
+      <tr><td><span class="ui">Formato</span></td><td>Formato dos números: <span class="ui">1.234</span>, <span class="ui">1.234,5</span>, <span class="ui">1.234,56</span>, <span class="ui">12%</span>, <span class="ui">12,3%</span>, <span class="ui">Milhares (1.234 → 1)</span> ou <span class="ui">Milhões (1,2)</span>. As duas últimas dividem por mil ou por um milhão só na exibição. <strong>Em gráficos 100%</strong> os rótulos dos segmentos mostram a <em>participação</em> de cada série no total da linha (por padrão <span class="ui">12%</span>; escolhendo <span class="ui">12,3%</span> ficam com uma casa decimal) e o formato escolhido vale para os <em>totais</em>, que continuam em valores absolutos (os formatos percentuais não se aplicam aos totais: eles ficam em inteiro).</td></tr>
       <tr><td><span class="ui">Paleta</span></td><td><span class="ui">Padrão ThinQQ</span> (azul-marinho, azul, azul-claro, cinza...), <span class="ui">Tons de cinza</span> ou <span class="ui">Cores do tema</span> (as cores do tema da pasta de trabalho).</td></tr>
       <tr><td><span class="ui">Espaço</span></td><td>Largura do vão entre as colunas: <span class="ui">Estreito (30%)</span>, <span class="ui">Normal (50%)</span>, <span class="ui">Largo (80%)</span> ou <span class="ui">Muito largo (120%)</span>. Não se aplica a gráficos de linha.</td></tr>
       <tr><td><span class="ui">Seta CAGR</span></td><td>Seta de crescimento anual composto entre duas categorias (veja a próxima seção).</td></tr>
       <tr><td><span class="ui">Seta diferença</span></td><td>Seta com a diferença absoluta e relativa entre dois totais.</td></tr>
       <tr><td><span class="ui">Remover setas</span></td><td>Apaga as setas de CAGR e de diferença do gráfico. Os conectores da cascata ficam.</td></tr>
       <tr><td><span class="ui">Atualizar</span></td><td>Reposiciona setas e rótulos e remove dados internos de gráficos que você apagou. Funciona também sem gráfico selecionado: atualiza todos os gráficos ThinQQ da planilha ativa.</td></tr>
-      <tr><td><span class="ui">Alterar dados</span></td><td>Pede uma nova tabela de origem e recria o gráfico no mesmo lugar, com as mesmas opções. As setas não são preservadas: coloque-as de novo.</td></tr>
+      <tr><td><span class="ui">Alterar dados</span></td><td>Pede uma nova tabela de origem e recria o gráfico no mesmo lugar, com as mesmas opções. A tabela precisa estar na mesma pasta de trabalho do gráfico. Use também depois de inserir ou remover linhas na origem. As setas não são preservadas: coloque-as de novo.</td></tr>
     </tbody>
   </table>
   </div>
@@ -412,6 +418,12 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <p><strong>Segurança:</strong> o ThinQQ só instala um arquivo se o código SHA-256 dele conferir com o do manifesto. O manifesto precisa trazer esses códigos; um manifesto sem eles é recusado, e se o arquivo baixado estiver diferente nada é instalado.</p>
   </div>
   <details>
+    <summary>Para administradores: frequência das verificações</summary>
+    <div>
+      <p>O intervalo entre verificações automáticas é o valor <code>CheckIntervalHours</code> (em horas; padrão 24) em <code>HKCU\Software\VB and VBA Program Settings\ThinQQ\Updater</code>. Para praticamente desligar a verificação automática, grave um número muito grande (por exemplo <code>876000</code>); <span class="ui">Verificar atualizações</span> continua funcionando quando o usuário pede. Os arquivos baixados ficam em <code>%TEMP%\ThinQQ</code>, fora do local confiável, até serem conferidos.</p>
+    </div>
+  </details>
+  <details>
     <summary>Para administradores: manifesto sem hashes</summary>
     <div>
       <p>Para fontes internas que não geram SHA-256, é possível aceitar manifestos sem hash gravando o valor <code>AllowUnverified</code> igual a <code>1</code> em <code>HKCU\Software\VB and VBA Program Settings\ThinQQ\Updater</code>. Isso desliga a verificação de integridade e não é recomendado; prefira gerar o manifesto com <code>build/release.ps1</code>, que já inclui os hashes.</p>
@@ -429,6 +441,14 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </ol>
   <p>Para <strong>desinstalar</strong>, feche o Excel e, na pasta onde descompactou o ZIP, execute <code>powershell -ExecutionPolicy Bypass -File uninstall.ps1</code>. Isso remove o suplemento, o local confiável, as configurações e a pasta <code>%LOCALAPPDATA%\ThinQQ</code>.</p>
   <p>Se o script for bloqueado pela política da empresa, use a instalação manual do <code>LEIA-ME.txt</code>.</p>
+  <h3>O que o instalador altera</h3>
+  <ul>
+    <li>Copia os arquivos para <code>%LOCALAPPDATA%\ThinQQ</code> (o carregador na raiz, o núcleo e o tutorial em <code>versions\&lt;versão&gt;</code>), sem precisar de administrador.</li>
+    <li>Registra o suplemento: um valor <code>OPEN</code> (ou <code>OPEN1</code>, <code>OPEN2</code>...) em <code>HKCU\Software\Microsoft\Office\16.0\Excel\Options</code>.</li>
+    <li>Cria o Local Confiável <code>LocationThinQQ</code> em <code>HKCU\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations</code> para <code>%LOCALAPPDATA%\ThinQQ\</code>, <strong>incluindo as subpastas</strong>: macros dessa pasta rodam sem aviso.</li>
+    <li>Grava as configurações do atualizador em <code>HKCU\Software\VB and VBA Program Settings\ThinQQ</code>.</li>
+    <li>Nada é gravado em <code>HKLM</code> nem fora do perfil do usuário. O desinstalador desfaz tudo isso.</li>
+  </ul>
 </section>
 
 <section id="problemas" aria-labelledby="h-problemas">
@@ -468,6 +488,14 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <div><p>Pode. Só lembre que <span class="ui">Paleta</span>, <span class="ui">Formato</span> e <span class="ui">Espaço</span> reaplicam o padrão quando você os usa.</p></div>
   </details>
   <details>
+    <summary>Copiei ou movi um gráfico do ThinQQ. O que acontece?</summary>
+    <div><p>Os dados continuam ligados: o gráfico copiado (ou movido para uma planilha de gráfico com <em>Mover Gráfico &gt; Nova planilha</em>) segue apontando para o mesmo bloco da planilha <code>_ThinQQ</code>, e o ThinQQ não o apaga enquanto algum gráfico o usar. Porém só o gráfico original, na planilha, é reconhecido como gráfico do ThinQQ: o botão <span class="ui">Totais</span> e os demais não se aplicam à cópia nem ao gráfico movido, e as setas não são reposicionadas nele. Para ter outro gráfico completo, use o botão de inserção de novo (ou <span class="ui">Alterar dados</span>).</p></div>
+  </details>
+  <details>
+    <summary>O ThinQQ tem assinatura digital? Posso confiar nas atualizações?</summary>
+    <div><p>Ainda não: a assinatura de código do projeto VBA é um item da Fase 3. Hoje a proteção é a conferência SHA-256 dos arquivos baixados contra o manifesto. Isso significa que <strong>quem controla a branch <code>main</code> do repositório e os arquivos de uma release controla o código que roda no Excel dos colegas</strong>. Proteja a conta do GitHub com autenticação em dois fatores e limite quem pode publicar. Em ambientes corporativos, prefira uma fonte de atualização interna (pasta de rede) sob controle da TI.</p></div>
+  </details>
+  <details>
     <summary>O ThinQQ envia meus dados para algum lugar?</summary>
     <div><p>Não. Os dados das suas planilhas nunca saem do computador. O ThinQQ só se conecta à internet (ou à pasta de rede configurada) em três situações: na consulta diária ao manifesto de atualização (um arquivo de texto com números de versão e endereços), ao baixar os arquivos quando você atualiza e, se não houver tutorial instalado, ao abrir o tutorial online no navegador.</p></div>
   </details>
@@ -479,7 +507,8 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li>Somente Excel para Windows, Office 16.0 (2016 ou mais novo), 32 e 64 bits. Não há versão para Mac nem para o Excel na web.</li>
     <li>Cascata com uma série, na vertical. Gráficos de barras horizontais, Mekko, Gantt e pizza ainda não existem.</li>
     <li>Os eventos que reposicionam as setas só rodam com o gráfico visível: se algo parecer fora do lugar, use <span class="ui">Atualizar</span>.</li>
-    <li>Macros precisam estar habilitadas para o ThinQQ funcionar; a política da sua empresa pode exigir um local confiável ou uma assinatura digital.</li>
+    <li>Macros precisam estar habilitadas para o ThinQQ funcionar; a política da sua empresa pode exigir um local confiável ou uma assinatura digital (a assinatura de código é da Fase 3).</li>
+    <li>Mudanças no tamanho da tabela de origem exigem <span class="ui">Alterar dados</span>; linhas filtradas ou ocultas continuam plotadas; <code>.xls</code> não é suportado.</li>
   </ul>
 </section>
 
