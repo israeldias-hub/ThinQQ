@@ -248,3 +248,44 @@ Public Sub Test_Registry_SetOption_Validation_And_Preserve()
     AssertEqual "a=1;lixo;x=p=q;c=4", Registry_Block(co.Chart).Cells(1, 4).Value
     CloseTemp wb
 End Sub
+
+' ---- Tarefa 0: falha fechada na limpeza ----
+
+' Falha fechada: se a leitura de qualquer grafico falhar, a limpeza nao remove nada (nem orfaos de verdade)
+Public Sub Test_CalcSheet_Cleanup_ReadFailure_DeletesNothing()
+    Dim wb As Workbook, ws As Worksheet, n As Long, en As Long, es As String, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    ws.ChartObjects.Add 10, 10, 100, 100                 ' um grafico qualquer: ha leitura a fazer
+    On Error GoTo Cleanup
+    Util_FailChartReadForTest = True
+    n = CalcSheet_Cleanup(wb)
+    Util_FailChartReadForTest = False
+    AssertEqual 0, n, "com leitura falha nada e removido"
+    AssertTrue CalcSheet_CleanupReadFailed(), "a falha fica registrada"
+    AssertTrue Not CalcSheet_FindBlock(wb, "orphan") Is Nothing
+    AssertEqual 1, CalcSheet_Cleanup(wb), "sem falha o orfao sai"
+    AssertFalse CalcSheet_CleanupReadFailed()
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailChartReadForTest = False
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub
+
+' Rotulo de texto comum (nao ligado) nao conta como referencia nem como falha de leitura
+Public Sub Test_CalcSheet_Cleanup_PlainLabels_DoNotBlockCleanup()
+    Dim wb As Workbook, ws As Worksheet, co As ChartObject, s As Series
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:B3").Value = Application.Transpose(Array(Array("a", "b", "c"), Array(1, 2, 3)))
+    Set co = ws.ChartObjects.Add(10, 10, 200, 150)
+    Set s = co.Chart.SeriesCollection.NewSeries: s.Values = "=" & ws.Name & "!$B$1:$B$3"
+    s.HasDataLabels = True
+    s.Points(1).DataLabel.Text = "texto livre"
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    AssertEqual 1, CalcSheet_Cleanup(wb), "orfao removido apesar de rotulos de texto em outro grafico"
+    AssertFalse CalcSheet_CleanupReadFailed()
+    CloseTemp wb
+End Sub

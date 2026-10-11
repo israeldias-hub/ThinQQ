@@ -870,3 +870,44 @@ Public Sub Test_Watchers_Rehook_RefreshesAnnotations()
     AssertEqual "CAGR +31,4%", cht.Shapes("tqq_ann_cagr_1_lbl").TextFrame2.TextRange.Text
     Teardown wb
 End Sub
+
+' ---- Tarefa 0: limpeza de blocos conta rotulos ligados ----
+
+' Tarefa 0: um 100% sem totais so referencia o bloco pelos rotulos ligados (DataLabel.Formula)
+Public Sub Test_Core_Cleanup_Stacked100NoTotals_CopyKeepsBlock()
+    Dim wb As Workbook, ws As Worksheet, dup As Object, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked100"
+    Core_SetToggle "totals", False
+    AssertTrue Chart_FindSeries(Core_ActiveChart(), "tqq_total") Is Nothing
+    Set dup = ws.ChartObjects(1).Duplicate
+    ws.ChartObjects(2).Name = "Gráfico 2"       ' como o Excel nomeia uma copia colada
+    ws.ChartObjects(1).Delete
+    AssertEqual 1, TqqNameCount(wb)
+    Core_Refresh
+    AssertEqual 1, TqqNameCount(wb), "bloco referenciado so por rotulos ligados nao pode ser apagado"
+    Set cht = ws.ChartObjects(1).Chart
+    AssertEqual "67%", cht.SeriesCollection(1).Points(1).DataLabel.Text, "a copia continua mostrando a participacao (100/150)"
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    AssertEqual 2, TqqNameCount(wb), "copia + novo grafico"
+    AssertEqual "67%", cht.SeriesCollection(1).Points(1).DataLabel.Text, "o novo bloco nao reaproveitou as celulas da copia"
+    Teardown wb
+End Sub
+
+' Grupo de formas: o grafico dentro do grupo continua referenciando o bloco (codigo da Fase 1 sem teste dedicado)
+Public Sub Test_Core_Cleanup_ChartInsideGroup_KeepsBlock()
+    Dim wb As Workbook, ws As Worksheet, dup As Object, rect As Shape
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "waterfall"
+    Set dup = ws.ChartObjects(1).Duplicate
+    ws.ChartObjects(2).Name = "Gráfico 2"
+    ws.ChartObjects(1).Delete
+    Set rect = ws.Shapes.AddShape(msoShapeRectangle, 10, 400, 50, 20)
+    ws.Shapes.Range(Array("Gráfico 2", rect.Name)).Group
+    Core_Refresh
+    AssertEqual 1, TqqNameCount(wb), "bloco de grafico dentro de grupo preservado"
+    Teardown wb
+End Sub

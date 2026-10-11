@@ -3,6 +3,11 @@ Option Explicit
 ' Planilha muito oculta "_ThinQQ". Cada gráfico tem um bloco: linha 1 = meta
 ' (A=id, B=tipo, C=endereço da fonte sem "=", D=opções "chave=valor;..."), demais linhas = corpo.
 ' O nome definido oculto "tqq_<id>" aponta para o bloco inteiro.
+' A vida do bloco é decidida por referência: tanto as fórmulas de série (Series.Formula) quanto os rótulos
+' ligados a células (DataLabel.Formula) de qualquer gráfico da pasta mantêm o bloco vivo. A limpeza falha
+' fechada: se a leitura de algum gráfico falhar, nada é removido (CalcSheet_CleanupReadFailed).
+
+Private mReadFailed As Boolean
 
 Public Function CalcSheet_Get(wb As Workbook, Optional createIfMissing As Boolean = True) As Worksheet
     Dim ws As Worksheet, active As Object, su As Boolean, en As Long, ed As String, created As Boolean
@@ -122,36 +127,83 @@ Public Function Block_Body(blk As Range) As Range
     Set Block_Body = blk.Offset(1, 0).Resize(blk.Rows.Count - 1, blk.Columns.Count)
 End Function
 
-' Fórmulas (Series.Formula) de TODOS os gráficos da pasta: gráficos embutidos de cada planilha (inclusive dentro de
-' grupos de formas) e planilhas de gráfico. Uma cópia de gráfico ThinQQ, ou um gráfico movido para planilha de
-' gráfico, não tem mais o nome "tqq_<id>", mas continua apontando para o bloco: a vida do bloco é decidida por referência.
-Private Function AllSeriesFormulas(wb As Workbook) As String
+' Texto com as fórmulas de série (Series.Formula) E dos rótulos ligados (DataLabel.Formula) de TODOS os gráficos da
+' pasta: gráficos embutidos de cada planilha (inclusive dentro de grupos de formas) e planilhas de gráfico. Uma cópia
+' de gráfico ThinQQ, ou um gráfico movido para planilha de gráfico, não tem mais o nome "tqq_<id>", mas continua
+' apontando para o bloco (por série ou, num 100% sem totais, só pelos rótulos ligados): a vida do bloco é decidida por
+' referência. Zera e preenche mReadFailed: qualquer falha de leitura (forma, grupo ou gráfico) o marca.
+Private Function AllChartReferences(wb As Workbook) As String
     Dim ws As Worksheet, sh As Object, gi As Object, co As Object, acc As String
-    On Error Resume Next
+    mReadFailed = False
+    On Error GoTo Fail
     For Each ws In wb.Worksheets
         For Each sh In ws.Shapes
             If sh.Type = 6 Then                         ' msoGroup
                 For Each gi In sh.GroupItems
-                    If gi.HasChart Then acc = acc & ChartFormulas(gi.Chart)
+                    If gi.HasChart Then acc = acc & ChartReferences(gi.Chart)
                 Next
             ElseIf sh.HasChart Then
-                acc = acc & ChartFormulas(sh.Chart)
+                acc = acc & ChartReferences(sh.Chart)
             End If
         Next
     Next
     For Each co In wb.Charts
-        acc = acc & ChartFormulas(co)
+        acc = acc & ChartReferences(co)
     Next
-    AllSeriesFormulas = acc
+    AllChartReferences = acc
+    Exit Function
+Fail:
+    mReadFailed = True
+    AllChartReferences = acc
 End Function
 
-Private Function ChartFormulas(ch As Object) As String
-    Dim s As Object, acc As String
-    On Error Resume Next
+' Texto com as fórmulas de séries E de rótulos ligados de um gráfico. Qualquer erro de leitura marca mReadFailed.
+Private Function ChartReferences(ch As Object) As String
+    Dim s As Object, i As Long, acc As String
+    On Error GoTo Fail
+    If BUILD_CONFIG = "Test" Then
+        If Util_FailChartReadForTest Then Err.Raise vbObjectError + 9998, "ThinQQ", "Falha simulada de leitura (teste)"
+    End If
     For Each s In ch.SeriesCollection
         acc = acc & vbLf & s.Formula
+        For i = 1 To s.Points.Count
+            acc = acc & vbLf & LabelFormula(s.Points(i))
+        Next
     Next
-    ChartFormulas = acc
+    ChartReferences = acc
+    Exit Function
+Fail:
+    mReadFailed = True
+End Function
+
+' Fórmula do rótulo ligado ("" se o ponto não tem rótulo ou se o rótulo é texto comum).
+' Só conta como falha quando nem .Formula nem .Text podem ser lidos (ou quando nem HasDataLabel pode ser lido).
+Private Function LabelFormula(p As Object) As String
+    Dim f As String, t As String, has As Boolean
+    On Error Resume Next
+    has = p.HasDataLabel
+    If Err.Number <> 0 Then
+        Err.Clear
+        mReadFailed = True
+        Exit Function
+    End If
+    If Not has Then Exit Function
+    f = p.DataLabel.Formula
+    If Err.Number <> 0 Then
+        Err.Clear
+        t = p.DataLabel.Text
+        If Err.Number <> 0 Then
+            Err.Clear
+            mReadFailed = True
+        End If
+        Exit Function
+    End If
+    LabelFormula = f
+End Function
+
+' O último CalcSheet_Cleanup não pôde ler algum gráfico e, por isso, não removeu nenhum bloco?
+Public Function CalcSheet_CleanupReadFailed() As Boolean
+    CalcSheet_CleanupReadFailed = mReadFailed
 End Function
 
 ' Faixas da planilha _ThinQQ citadas no texto de fórmulas (referências de outras pastas, "[x]_ThinQQ", são ignoradas).
@@ -188,11 +240,15 @@ End Function
 
 ' Remove blocos cujo gráfico não existe mais. Retorna quantos removeu.
 ' Só considera nomes "tqq_*" cujo destino é um bloco da planilha _ThinQQ (meta A = id).
-' Um bloco está vivo se existe um gráfico nomeado "tqq_<id>" OU se alguma série de qualquer gráfico da pasta
-' referencia uma célula do bloco (cópias e gráficos movidos para planilha de gráfico).
+' Um bloco está vivo se existe um gráfico nomeado "tqq_<id>" OU se alguma série (Series.Formula) ou algum
+' rótulo ligado (DataLabel.Formula) de qualquer gráfico da pasta referencia uma célula do bloco (cópias, gráficos
+' movidos para planilha de gráfico e 100% sem totais, que só referencia o bloco pelos rótulos ligados).
+' Falha fechada: se a leitura de qualquer gráfico falhar, não remove nada (devolve 0, registra em log e
+' CalcSheet_CleanupReadFailed passa a ser True até a próxima limpeza).
 Public Function CalcSheet_Cleanup(wb As Workbook) As Long
     Dim i As Long, nm As Name, id As String, removed As Long, rng As Range
     Dim refs As Collection, haveRefs As Boolean
+    mReadFailed = False
     For i = wb.Names.Count To 1 Step -1
         Set nm = wb.Names(i)
         If Left$(nm.Name, Len(ID_PREFIX)) = ID_PREFIX Then
@@ -206,7 +262,11 @@ Public Function CalcSheet_Cleanup(wb As Workbook) As Long
                     If CStr(rng.Cells(1, 1).Value) = id Then
                         If Registry_FindChartObject(wb, id) Is Nothing Then
                             If Not haveRefs Then
-                                Set refs = ReferencedCalcRanges(AllSeriesFormulas(wb), rng.Worksheet)
+                                Set refs = ReferencedCalcRanges(AllChartReferences(wb), rng.Worksheet)
+                                If mReadFailed Then
+                                    Errors_Log "CalcSheet_Cleanup: leitura de gráfico falhou; nenhum bloco removido"
+                                    Exit Function
+                                End If
                                 haveRefs = True
                             End If
                             If Not AnyIntersect(refs, rng) Then

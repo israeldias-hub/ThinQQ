@@ -5,6 +5,9 @@ Option Explicit
 ' para verificar o rollback. Nunca e usado fora dos testes.
 Public Util_FailAfterBlockForTest As Boolean
 
+' Gancho de teste: quando True (e BUILD_CONFIG = "Test"), a leitura de formulas de graficos no Cleanup falha.
+Public Util_FailChartReadForTest As Boolean
+
 Public Sub Util_TestHookAfterBlock()
     If BUILD_CONFIG = "Test" Then
         If Util_FailAfterBlockForTest Then Err.Raise vbObjectError + 9999, "ThinQQ", "Falha simulada (teste)"
