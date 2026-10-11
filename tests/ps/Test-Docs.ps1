@@ -95,6 +95,48 @@ if ($parsed) {
     $ids = @($xml.SelectNodes('//*[@id]') | ForEach-Object { $_.GetAttribute('id') })
     Check ($ids.Count -eq @($ids | Sort-Object -Unique).Count) 'ids únicos'
     Check ($xml.SelectNodes('//h1').Count -eq 1) 'um único h1'
+
+    # Uma seção por assunto, todas no índice ("Neste tutorial"): 17 tipos navegáveis sem rolar a página inteira
+    foreach ($id in 'tipos', 'barras', 'cascata', 'linha-area', 'mekko', 'gantt', 'pizza', 'decoracoes') {
+        Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='$id']")) "tutorial tem a seção #$id"
+        Check ($null -ne $xml.SelectSingleNode("//nav//a[@href='#$id']")) "o índice leva à seção #$id"
+    }
+    Check ($null -ne $xml.SelectSingleNode("//*[@id='matriz']")) 'tutorial tem a tabela "O que cada tipo aceita" (#matriz)'
+    $noToc = @($xml.SelectNodes("//*[local-name()='section'][@id]") | ForEach-Object { $_.GetAttribute('id') } | Where-Object { $null -eq $xml.SelectSingleNode("//nav//a[@href='#$_']") })
+    Check ($noToc.Count -eq 0) "toda seção do tutorial está no índice: $($noToc -join ', ')"
+
+    # A matriz de capacidades do tutorial não pode divergir do código: é lida de Kinds_Supports (modChartKinds.bas).
+    $kindsSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modChartKinds.bas')
+    $allKinds = @(([regex]::Match($kindsSrc, 'Private Const KINDS As String = "(?<k>[^"]+)"').Groups['k'].Value).Trim(',').Split(','))
+    $matrix = @{}
+    foreach ($m in [regex]::Matches($kindsSrc, '(?m)^\s*Case "(?<f>[a-z0-9]+)":\s*list = (?<v>"[^"]*"|allKinds|Replace\(allKinds,\s*"[^"]*",\s*""\))')) {
+        $v = $m.Groups['v'].Value
+        if ($v.StartsWith('"')) { $list = $v.Trim('"').Split(',') }
+        elseif ($v -eq 'allKinds') { $list = $allKinds }
+        else { $rep = [regex]::Match($v, '"(?<r>[^"]*)",').Groups['r'].Value; $list = ($allKinds -join ',').Replace($rep, '').Split(',') }
+        $matrix[$m.Groups['f'].Value] = $list
+    }
+    Check ($allKinds.Count -eq 17) "17 tipos de gráfico em modChartKinds.bas ($($allKinds.Count))"
+    Check ($matrix.Count -eq 16) "16 recursos na matriz de capacidades de modChartKinds.bas ($($matrix.Count))"
+    # A matriz pode ser dividida em tabelas (mesma linha de tipo em cada uma): cada tipo aparece com todos os recursos, cada um uma vez
+    $rows = @($xml.SelectNodes('//tr[@data-kind]'))
+    $kindsInDoc = @($rows | ForEach-Object { $_.GetAttribute('data-kind') } | Sort-Object -Unique)
+    Check ($kindsInDoc.Count -eq $allKinds.Count -and @($allKinds | Where-Object { $kindsInDoc -notcontains $_ }).Count -eq 0) "matriz do tutorial: uma linha por tipo ($($kindsInDoc.Count) de $($allKinds.Count))"
+    $badCells = @()
+    foreach ($k in $kindsInDoc) {
+        if ($allKinds -notcontains $k) { $badCells += "tipo desconhecido '$k'"; continue }
+        $kindRows = @($rows | Where-Object { $_.GetAttribute('data-kind') -eq $k })
+        foreach ($f in $matrix.Keys) {
+            $cells = @($kindRows | ForEach-Object { $_.SelectNodes("td[@data-f='$f']") } | Where-Object { $_ })
+            if ($cells.Count -ne 1) { $badCells += "$k/$f com $($cells.Count) célula(s)"; continue }
+            $txt = ($cells[0].InnerText -replace '\s+', ' ').Trim()
+            $want = ($matrix[$f] -contains $k)
+            if ($f -eq 'legend' -and $want -and ($k -eq 'waterfall' -or $k -eq 'barwaterfall')) { $ok = ($txt -like 'Várias*') }   # só com várias séries
+            elseif ($want) { $ok = ($txt -eq 'Sim') } else { $ok = ($txt -eq [string][char]0x2014) }
+            if (-not $ok) { $badCells += "$k/$f='$txt' (código: $want)" }
+        }
+    }
+    Check ($badCells.Count -eq 0) "matriz do tutorial confere com Kinds_Supports: $($badCells -join '; ')"
 }
 $cssExternal = [regex]::Matches($html, 'url\(\s*["'']?(https?:)?//|@import') | Measure-Object
 Check ($cssExternal.Count -eq 0) 'CSS sem url() externa nem @import'
@@ -129,6 +171,56 @@ foreach ($p in 'Version', 'BaseUrl', 'PublishTo') { Check ($rel -match "\`$$p" -
 $cl = Read-Utf8 $changelogPath
 $ver = ((Read-Utf8 (Join-Path $RepoRoot 'version.json')) | ConvertFrom-Json).core
 Check ($cl -match "(?m)^## \[$([regex]::Escape($ver))\] - \d{4}-\d{2}-\d{2}") "CHANGELOG tem a seção da versão $ver"
+Check ($cl -match '(?m)^## \[1\.1\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG tem a seção 1.1.0'
+Check ($cl -match '(?m)^## \[1\.0\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG mantém a seção 1.0.0'
+Check ($cl -match '(?m)^## \[Não lançado\]\s+## \[') 'CHANGELOG mantém a seção [Não lançado] vazia no topo'
+
+# ---- versões: a faixa em menus (Fase 2) exige o loader 1.1.0 ou mais novo; o tutorial, o README e o LEIA-ME seguem o version.json
+$vj = (Read-Utf8 (Join-Path $RepoRoot 'version.json')) | ConvertFrom-Json
+Check ($vj.loader -match '^\d+\.\d+\.\d+$' -and [version]$vj.loader -ge [version]'1.1.0') "loader 1.1.0 ou mais novo ($($vj.loader))"
+Check ($ver -match '^\d+\.\d+\.\d+$' -and [version]$ver -ge [version]'1.1.0') "core 1.1.0 ou mais novo ($ver)"
+Check ($html -match "ThinQQ $([regex]::Escape($ver))\.") "rodapé do tutorial mostra a versão $ver"
+Check ($readme -match "v$([regex]::Escape($ver))") "README cita a release v$ver"
+Check ($readme -notmatch 'v1\.0\.0') 'README não cita mais a release v1.0.0'
+Check ((Read-Utf8 $leiamePath) -match [regex]::Escape("versions\$ver\")) "LEIA-ME cita a pasta versions\$ver\ no exemplo"
+$notesLines = @((Read-Utf8 (Join-Path $RepoRoot 'release\notes.txt')) -split "\r?\n" | Where-Object { $_.Trim().Length -gt 0 })
+Check ($notesLines.Count -ge 6 -and $notesLines.Count -le 8) "release/notes.txt tem de 6 a 8 linhas ($($notesLines.Count))"
+Check (@($notesLines | Where-Object { -not $_.StartsWith([string][char]0x2022) }).Count -eq 0) 'release/notes.txt: toda linha começa com o marcador'
+
+# ---- exemplos: a contagem citada na documentação é a de Samples_Create
+$samplesSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modSamples.bas')
+$exNums = @([regex]::Matches($samplesSrc, 'WriteTitle ws, \d+, "(?<n>\d+)\)') | ForEach-Object { [int]$_.Groups['n'].Value })
+$nEx = ($exNums | Measure-Object -Maximum).Maximum
+Check ($nEx -ge 18) "Samples_Create tem os exemplos numerados até $nEx"
+Check ($html -match "$nEx exemplos" -and $readme -match "$nEx exemplos") "tutorial e README citam $nEx exemplos"
+Check ($html -notmatch 'seis tabelas' -and $html -notmatch 'ainda não existem') 'tutorial sem a contagem nem a limitação da Fase 1'
+Check ($readme -notmatch 'ficam para a Fase 2') 'README sem a limitação "ficam para a Fase 2"'
+
+# ---- mensagens que o tutorial cita: precisam existir no tutorial E no código do core (texto exato)
+$coreSrc = (Get-ChildItem (Join-Path $RepoRoot 'src\core') -Recurse -Include '*.bas', '*.vba' | ForEach-Object { Read-Utf8 $_.FullName }) -join "`n"
+$messages = @(
+    'A seta de diferença não está disponível para gráficos 100%',
+    'A seta de diferença não está disponível para este tipo de gráfico',
+    'A seta CAGR não está disponível para este tipo de gráfico',
+    'O colchete só está disponível em gráficos Gantt',
+    'A cascata aceita no máximo 6 séries',
+    'A combinação precisa de pelo menos 2 colunas de valores',
+    'Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas',
+    'Gantt: a tabela precisa de 3 colunas: atividade, início e fim (datas)',
+    'Gantt: a coluna de início não tem datas válidas',
+    'não se aplica a este tipo de gráfico',
+    'Rótulos no fim da linha só existem em gráficos de linha e combinação',
+    'Mesma escala: selecione dois ou mais gráficos do ThinQQ',
+    'Mesma escala: são necessários dois ou mais gráficos com escala livre',
+    'Os dados deste gráfico passaram do máximo da escala fixa',
+    'A tabela de origem mudou de tamanho',
+    'mostra só a primeira coluna de valores',
+    'O gráfico precisa de pelo menos 2 categorias'
+)
+foreach ($msg in $messages) {
+    Check ($html -match [regex]::Escape($msg)) "tutorial cita a mensagem '$msg'"
+    Check ($coreSrc -match [regex]::Escape($msg)) "o core emite a mensagem '$msg'"
+}
 
 if ($script:fail -gt 0) { Write-Host "FALHAS Test-Docs: $script:fail"; exit 1 }
 Write-Host 'Test-Docs: OK'

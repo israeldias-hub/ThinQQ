@@ -35,7 +35,7 @@
           <menu id="mnuLines" label="Linha e área" size="large" imageMso="ChartTypeLineInsertGallery"
                 screentip="Linha e área" supertip="Linha, áreas empilhadas ou 100% e a combinação de colunas com linha. Tabela: cabeçalho, categorias (texto ou datas) na 1ª coluna e uma coluna de valores por série.">
             <button id="btnLine" label="Linha" tag="line" onAction="Rx_OnInsert"
-                    screentip="Linha com rótulos" supertip="Uma linha por coluna de valores, com rótulos ligados às células."/>
+                    screentip="Linha com rótulos" supertip="Uma linha por coluna de valores, com o valor de cada ponto escrito acima dele."/>
             <button id="btnArea" label="Área empilhada" tag="area" onAction="Rx_OnInsert"
                     screentip="Área empilhada" supertip="Áreas empilhadas por categoria, com totais e rótulos. Mesma tabela das colunas empilhadas."/>
             <button id="btnArea100" label="Área 100%" tag="area100" onAction="Rx_OnInsert"
@@ -62,13 +62,15 @@
         <group id="grpChart" label="Gráfico selecionado">
           <toggleButton id="tglTotals" label="Totais" imageMso="AutoSum" tag="totals"
                         onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
-                        screentip="Totais acima das colunas"/>
+                        screentip="Totais de cada categoria"
+                        supertip="Mostra o total de cada coluna, barra ou área empilhada, da combinação e do Mekko (no Mekko (%), a largura da coluna). Agrupadas, linha, cascata, pizza e Gantt não têm totais."/>
           <toggleButton id="tglLabels" label="Rótulos" imageMso="TextBoxInsert" tag="labels"
                         onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
                         screentip="Rótulos de valor"/>
           <toggleButton id="tglConnectors" label="Conectores" imageMso="ShapeStraightConnector" tag="connectors"
                         onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
-                        screentip="Linhas conectando as colunas"/>
+                        screentip="Conectores"
+                        supertip="Linhas ligando os segmentos de colunas e barras empilhadas (e das colunas da combinação) e as barras da cascata. Agrupadas, linha, área, Mekko, pizza e Gantt não têm conectores."/>
           <separator id="sep1"/>
           <dropDown id="ddFormat" label="Formato" tag="numfmt" onAction="Rx_OnDropdown"
                     getSelectedItemID="Rx_GetSelectedId" getEnabled="Rx_GetEnabled" screentip="Formato dos números">
@@ -87,7 +89,8 @@
             <item id="tema"   label="Cores do tema"/>
           </dropDown>
           <dropDown id="ddGap" label="Espaço" tag="gap" onAction="Rx_OnDropdown"
-                    getSelectedItemID="Rx_GetSelectedId" getEnabled="Rx_GetEnabled" screentip="Espaço entre colunas">
+                    getSelectedItemID="Rx_GetSelectedId" getEnabled="Rx_GetEnabled" screentip="Espaço entre colunas ou barras"
+                    supertip="Largura do vão entre as colunas ou barras (no Gantt, entre as linhas). Linha, área, Mekko e pizza não têm vão.">
             <!-- ids "gap" + numero: um id de XML nao pode comecar por digito ("30" faz o Excel descartar a aba inteira, em silencio) -->
             <item id="gap30"  label="Estreito (30%)"/>
             <item id="gap50"  label="Normal (50%)"/>
@@ -107,7 +110,7 @@
                 screentip="Mais opções" supertip="Indicador 100%, linha de valor, eixo secundário, rótulos fora da pizza, Mesma escala e Escala automática.">
             <toggleButton id="tglInd100" label="Indicador 100%" imageMso="PercentStyle" tag="ind100"
                           onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
-                          screentip="Indicador 100%" supertip="Marca o total (100%) acima de cada coluna dos gráficos 100% e do Mekko (%)."/>
+                          screentip="Indicador 100%" supertip="Marca o nível de 100% (à esquerda nas colunas e no Mekko, no alto nas barras) dos gráficos 100% e do Mekko (%). Já nasce ligado nesses tipos."/>
             <toggleButton id="tglVline" label="Linha de valor (média)" imageMso="ShapeStraightConnector" tag="vline"
                           onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
                           screentip="Linha de valor (média)" supertip="Desenha uma linha horizontal (vertical nas barras) na média dos valores, com o seu rótulo."/>
@@ -116,7 +119,7 @@
                           screentip="Eixo secundário (linha)" supertip="Na combinação, plota a linha num eixo próprio (útil quando a linha é um percentual sobre colunas de milhares)."/>
             <toggleButton id="tglPieOut" label="Rótulos fora da pizza" imageMso="TextBoxInsert" tag="pieout"
                           onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
-                          screentip="Rótulos fora da pizza" supertip="Move os rótulos para fora das fatias, com o nome da categoria e linhas de chamada (a legenda sai)."/>
+                          screentip="Rótulos fora da pizza" supertip="Move os rótulos para fora das fatias, com o nome da categoria (a legenda sai enquanto os rótulos ficam ligados). O Excel só desenha as linhas de chamada depois que você arrasta um rótulo. A rosca não tem esta opção."/>
             <menuSeparator id="msepScale"/>
             <button id="btnSameScale" label="Mesma escala" imageMso="ChartFormatAxis" onAction="Rx_OnSameScale"
                     screentip="Mesma escala" supertip="Aplica a mesma escala do eixo de valores aos gráficos ThinQQ selecionados (sem nenhum selecionado, a todos os da planilha)."/>

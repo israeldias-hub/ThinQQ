@@ -1,1 +1,7 @@
-• Primeira versão: colunas empilhadas, agrupadas, 100% e linha; cascata com subtotais "e"; totais, rótulos vivos, conectores; setas de CAGR e diferença; paletas e formatos; exemplos e tutorial; atualização automática.
+• Barras horizontais (empilhadas, agrupadas e 100%) e cascata horizontal, com totais e rótulos ligados às células.
+• Cascata com várias séries (até 6) e "de cima para baixo" (e na primeira linha e um número na última).
+• Área (empilhada e 100%) e combinação de colunas com linha, com eixo secundário e nome da série no fim da linha.
+• Mekko (% e unidades), Gantt (escala de semanas a anos, marcos e colchetes), pizza e rosca.
+• Linha de valor na média, indicador 100% e Mesma escala / Escala automática entre gráficos.
+• Faixa de opções em menus por tipo; os controles ficam cinza quando o tipo de gráfico não os aceita.
+• 18 exemplos em duas planilhas e tutorial reescrito, com uma seção para cada tipo.

@@ -11,7 +11,7 @@
 ## Antes de distribuir (ações do responsável, fora do código)
 
 - [ ] Publicar o conteúdo do repositório no GitHub.
-- [ ] Gerar os arquivos com `release.ps1` e publicar a release `v1.0.0` com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`).
+- [ ] Gerar os arquivos com `release.ps1` e publicar a release `v1.1.0` (a primeira publicada: a 1.0.0 nunca saiu) com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`).
 - [ ] Fazer commit de `release/manifest.json` e de `version.json` na `main`.
 - [ ] Habilitar o GitHub Pages (Settings > Pages > `main` / `/docs`). Atenção: isso publica toda a pasta `/docs`; se preferir, mova o tutorial para `docs/tutorial-site`.
 - [ ] Verificar a atualização a partir de um perfil limpo.

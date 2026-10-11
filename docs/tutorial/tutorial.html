@@ -166,6 +166,28 @@ table.mini { width: auto; min-width: 60%; }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 td.e { font-weight: 700; color: var(--blue); }
 
+@media (max-width: 480px) { th, td { padding: 7px 8px; } }
+
+/* Ficha de cada tipo: o que selecionar, colunas e marcadores */
+dl.ficha { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 8px 16px; margin: 14px 0 18px; padding: 14px 18px; background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--blue); border-radius: 6px; }
+dl.ficha dt { font-weight: 600; color: var(--muted); }
+dl.ficha dd { margin: 0; min-width: 0; }
+@media (max-width: 560px) { dl.ficha { grid-template-columns: minmax(0, 1fr); gap: 2px; } dl.ficha dd { margin-bottom: 8px; } }
+
+h4 { font-size: 1rem; margin: 18px 0 4px; }
+
+/* Tabelas "O que cada tipo aceita" */
+table.mx { font-size: .82rem; }
+table.mx th, table.mx td { padding: 6px 8px; text-align: center; vertical-align: middle; }
+table.mx td { white-space: nowrap; }
+table.mx thead th { vertical-align: bottom; min-width: 4.6rem; }
+table.mx thead th:first-child, table.mx tbody th { text-align: left; position: sticky; left: 0; z-index: 1; background: var(--soft); min-width: 7.5rem; }
+table.mx tbody th { box-shadow: 1px 0 0 var(--line); }
+table.mx .ui { background: none; padding: 0; color: inherit; font-weight: 600; white-space: normal; }
+table.mx td.y { color: var(--ok-ink); background: var(--ok-bg); font-weight: 700; }
+table.mx td.w { color: var(--warn-ink); background: var(--warn-bg); font-weight: 600; white-space: normal; }
+table.mx td.no { color: var(--muted); }
+
 details { border: 1px solid var(--line); border-radius: 6px; background: var(--panel); margin: 10px 0; }
 summary { cursor: pointer; padding: 11px 16px; font-weight: 600; }
 details[open] > summary { border-bottom: 1px solid var(--line); }
@@ -196,7 +218,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   .toc, .skip { display: none; }
   .wrap { display: block; padding: 12px 0; }
   section { break-inside: auto; margin-bottom: 24px; }
-  h2, h3, .tw, details { break-inside: avoid; break-after: avoid; }
+  h2, h3, h4, .tw, details { break-inside: avoid; break-after: avoid; }
   .tw, .rb-body { overflow: visible; }
   ol.steps > li::before { background: #000; color: #fff; }
   details > div { display: block; }
@@ -205,6 +227,12 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 }
 @media print {
   details::details-content { content-visibility: visible; display: block; }
+}
+@media print {
+  table.mx { font-size: 7.5pt; }
+  table.mx th, table.mx td { padding: 2px 4px; }
+  table.mx thead th { min-width: 0; }
+  dl.ficha { break-inside: avoid; border-left-color: #000; }
 }</style>
 </head>
 <body>
@@ -213,7 +241,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 <header class="top">
   <div class="top-in">
     <h1>ThinQQ</h1>
-    <p>Gráficos de apresentação no Excel: colunas, barras, cascata, linha, área, Mekko, Gantt, pizza e setas de CAGR e de diferença, sem sair da planilha.</p>
+    <p>Gráficos de apresentação no Excel: colunas, barras, cascata, linha, área, combinação, Mekko, Gantt, pizza e rosca, com totais, rótulos e setas que acompanham os dados, sem sair da planilha.</p>
 
     <figure class="ribbon" role="group" aria-labelledby="rib-cap" style="margin:0">
       <div class="rb-tabs" aria-hidden="true">
@@ -278,13 +306,20 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <ol>
     <li><a href="#primeiro">Primeiro gráfico</a></li>
     <li><a href="#dados">Como preparar os dados</a></li>
-    <li><a href="#cascata">Cascata</a></li>
     <li><a href="#tipos">Tipos de gráfico</a></li>
+    <li><a href="#barras">Colunas e barras</a></li>
+    <li><a href="#cascata">Cascata</a></li>
+    <li><a href="#linha-area">Linha, área e combinação</a></li>
+    <li><a href="#mekko">Mekko</a></li>
+    <li><a href="#gantt">Gantt</a></li>
+    <li><a href="#pizza">Pizza e rosca</a></li>
+    <li><a href="#decoracoes">Linha de valor, 100% e escala</a></li>
+    <li><a href="#matriz">O que cada tipo aceita</a></li>
     <li><a href="#opcoes">Opções do gráfico</a></li>
     <li><a href="#setas">Setas de CAGR e diferença</a></li>
     <li><a href="#atualizar">Atualizações</a></li>
     <li><a href="#instalar">Instalar e desinstalar</a></li>
-    <li><a href="#problemas">Problemas comuns</a></li>
+    <li><a href="#problemas">Problemas e mensagens</a></li>
     <li><a href="#faq">Perguntas frequentes</a></li>
     <li><a href="#limites">Limitações</a></li>
     <li><a href="#como">Como funciona</a></li>
@@ -295,7 +330,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
 <section id="primeiro" aria-labelledby="h-primeiro">
   <h2 id="h-primeiro">Seu primeiro gráfico</h2>
-  <p>O ThinQQ cria gráficos do Excel já formatados, com totais, rótulos e setas que se atualizam quando os números mudam. Para ver tudo funcionando, clique em <span class="ui">Exemplos</span>: abre uma pasta de trabalho nova com seis tabelas e seus gráficos.</p>
+  <p>O ThinQQ cria gráficos do Excel já formatados, com totais, rótulos e setas que se atualizam quando os números mudam. Para ver tudo funcionando, clique em <span class="ui">Exemplos</span>: abre uma pasta de trabalho nova com 18 exemplos em duas planilhas, "Exemplos" e "Exemplos 2".</p>
   <p>Para criar o seu, siga estes passos com a tabela abaixo (ou a sua).</p>
   <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de exemplo">
   <table class="mini">
@@ -316,21 +351,22 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li>Troque um número na tabela: colunas, totais e rótulos acompanham.</li>
   </ol>
   <div class="note">
-    <p>Os cinco menus do grupo <span class="ui">Inserir gráfico</span> (<span class="ui">Colunas</span>, <span class="ui">Barras</span>, <span class="ui">Cascata</span>, <span class="ui">Linha e área</span> e <span class="ui">Mais tipos</span>) reúnem 17 tipos. Colunas, barras, linha e área usam o formato de tabela deste exemplo; cascata, Mekko, Gantt e pizza têm formato próprio. A seção <a href="#tipos">Tipos de gráfico</a> lista todos.</p>
+    <p>Os cinco menus do grupo <span class="ui">Inserir gráfico</span> (<span class="ui">Colunas</span>, <span class="ui">Barras</span>, <span class="ui">Cascata</span>, <span class="ui">Linha e área</span> e <span class="ui">Mais tipos</span>) reúnem 17 tipos. Colunas, barras, linha e área usam o formato de tabela deste exemplo; cascata, combinação, Mekko, Gantt, pizza e rosca têm formato próprio. A seção <a href="#tipos">Tipos de gráfico</a> lista todos, e cada tipo tem a sua seção com uma tabela de exemplo.</p>
   </div>
 </section>
 
 <section id="dados" aria-labelledby="h-dados">
   <h2 id="h-dados">Como preparar os dados</h2>
+  <p>Estas regras valem para todos os tipos. Cada tipo tem, na sua seção, a ficha do que selecionar e as exceções (por exemplo, a pizza também zera valores negativos, e o Gantt exige datas).</p>
   <ul>
-    <li><strong>Cabeçalho e categorias:</strong> a primeira linha traz os nomes das séries e a primeira coluna traz as categorias (anos, meses, etapas). A célula do canto superior esquerdo pode ficar vazia ou ter um título.</li>
+    <li><strong>Cabeçalho e categorias:</strong> a primeira linha traz os nomes das séries e a primeira coluna traz as categorias (anos, meses, etapas). A célula do canto superior esquerdo pode ficar vazia ou ter um título. A seleção precisa ter ao menos 2 linhas e 2 colunas.</li>
     <li><strong>Células vazias, com erro ou com texto contam como zero.</strong> Um <code>n/d</code> no meio dos valores não impede o gráfico: aquele ponto vale 0. Em empilhadas, um erro como <code>#N/D</code> é ignorado no total. Números guardados como texto (alinhados à esquerda, com triângulo verde) também valem 0: converta-os para número.</li>
-    <li><strong>Números negativos</strong> descem abaixo do eixo; o total negativo fica com o rótulo abaixo da coluna.</li>
-    <li><strong>Marcador <code>e</code> (só cascata):</strong> no lugar do valor, <code>e</code>, <code>t</code>, <code>total</code> ou <code>subtotal</code> (maiúsculas, minúsculas e espaços ao redor não importam) desenha uma barra de total calculada. O marcador <code>=</code> também vale, mas o Excel o toma por fórmula: digite <code>'=</code> com apóstrofo antes. Na dúvida, use <code>e</code>.</li>
+    <li><strong>Números negativos</strong> descem abaixo do eixo (ou vão para a esquerda, nas barras); o rótulo de um total negativo fica abaixo da coluna (à esquerda da barra, nas barras).</li>
+    <li><strong>Marcador <code>e</code> (só cascata):</strong> no lugar do valor, <code>e</code>, <code>t</code>, <code>total</code> ou <code>subtotal</code> (maiúsculas, minúsculas e espaços ao redor não importam) desenha uma barra de total calculada. O marcador <code>=</code> também vale, mas o Excel o toma por fórmula: digite <code>'=</code> com apóstrofo antes. Na dúvida, use <code>e</code>. Veja <a href="#cascata">Cascata</a>.</li>
     <li><strong>Várias áreas ou planilha protegida:</strong> selecione uma única região contígua. Em planilha protegida o ThinQQ pede que você a desproteja antes de inserir.</li>
     <li><strong>Nomes de planilha</strong> com espaços ou apóstrofos (como <code>Plano 'A' 2026</code>) funcionam normalmente.</li>
-    <li><strong>Inserir ou remover linhas na tabela de origem exige <span class="ui">Alterar dados</span>.</strong> O gráfico guarda uma linha de cálculo por categoria; se a tabela muda de tamanho depois, o ThinQQ avisa uma vez ("A tabela de origem mudou de tamanho...") e você refaz o gráfico com <span class="ui">Alterar dados</span> (ou reinsere o gráfico). Mudar valores nas células existentes não exige nada.</li>
-    <li><strong>Datas como categorias</strong> viram um eixo de texto: uma coluna por data, igualmente espaçadas, mesmo que os intervalos entre as datas sejam irregulares.</li>
+    <li><strong>Inserir ou remover linhas na tabela de origem exige <span class="ui">Alterar dados</span>.</strong> O gráfico guarda uma linha de cálculo por categoria; se a tabela muda de tamanho depois, o ThinQQ avisa uma vez por gráfico e por sessão ("A tabela de origem mudou de tamanho...") e você refaz o gráfico com <span class="ui">Alterar dados</span> (ou reinsere o gráfico). Mudar valores nas células existentes não exige nada.</li>
+    <li><strong>Datas como categorias</strong> viram um eixo de texto: uma coluna por data, igualmente espaçadas, mesmo que os intervalos entre as datas sejam irregulares. (O Gantt é a exceção: nele as datas são as próprias barras.)</li>
     <li><strong>Linhas filtradas ou ocultas continuam no gráfico</strong> (o gráfico plota também as células ocultas). Para excluir uma categoria, apague a linha da tabela e use <span class="ui">Alterar dados</span>.</li>
     <li><strong>Tabelas do Excel (Ctrl+T):</strong> se a tabela tem linha de totais, ela entra como mais uma categoria; selecione só o corpo da tabela.</li>
     <li><strong>Formato do arquivo:</strong> use <code>.xlsx</code>, <code>.xlsm</code> ou <code>.xlsb</code>. O formato antigo <code>.xls</code> não é suportado (os totais usam a função AGREGAR, do Excel 2010 em diante).</li>
@@ -338,9 +374,83 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </ul>
 </section>
 
+<section id="tipos" aria-labelledby="h-tipos">
+  <h2 id="h-tipos">Tipos de gráfico</h2>
+  <p>Selecione a tabela (ou clique numa célula dela) e escolha o item no menu. Em todos os tipos a primeira linha é o cabeçalho e a primeira coluna traz as categorias; a coluna <em>Formato da tabela</em> diz o que muda em cada tipo, e a seção do tipo traz uma tabela de exemplo.</p>
+  <div class="tw" tabindex="0" role="region" aria-label="Tipos de gráfico e o formato da tabela de cada um">
+  <table>
+    <thead><tr><th scope="col">Menu e item</th><th scope="col">O que faz</th><th scope="col">Formato da tabela</th></tr></thead>
+    <tbody>
+      <tr><td><span class="ui">Colunas</span> › <a href="#barras"><span class="ui">Colunas empilhadas</span></a></td><td>Segmentos empilhados por categoria, com o total acima de cada coluna.</td><td>Uma coluna de valores por série.</td></tr>
+      <tr><td><span class="ui">Colunas</span> › <a href="#barras"><span class="ui">Colunas agrupadas</span></a></td><td>Uma coluna por série, lado a lado.</td><td>O mesmo das colunas empilhadas.</td></tr>
+      <tr><td><span class="ui">Colunas</span> › <a href="#barras"><span class="ui">Colunas 100%</span></a></td><td>Cada coluna soma 100%; os rótulos mostram a participação de cada série.</td><td>O mesmo das colunas empilhadas.</td></tr>
+      <tr><td><span class="ui">Barras</span> › <a href="#barras"><span class="ui">Barras empilhadas</span></a></td><td>As colunas empilhadas na horizontal, com a primeira categoria no alto e o total no fim da barra.</td><td>O mesmo das colunas empilhadas.</td></tr>
+      <tr><td><span class="ui">Barras</span> › <a href="#barras"><span class="ui">Barras agrupadas</span></a></td><td>Uma barra por série, lado a lado.</td><td>O mesmo das colunas empilhadas.</td></tr>
+      <tr><td><span class="ui">Barras</span> › <a href="#barras"><span class="ui">Barras 100%</span></a></td><td>Cada barra soma 100%.</td><td>O mesmo das colunas empilhadas.</td></tr>
+      <tr><td><span class="ui">Cascata</span> › <a href="#cascata"><span class="ui">Cascata (colunas)</span></a></td><td>Ponte de valores: positivos sobem, negativos descem e um <code>e</code> no valor vira uma barra de total.</td><td>Etapa e valor. Com mais colunas de valores, cada uma vira uma série (até 6).</td></tr>
+      <tr><td><span class="ui">Cascata</span> › <a href="#cascata"><span class="ui">Cascata (barras)</span></a></td><td>A mesma ponte na horizontal.</td><td>O mesmo da cascata em colunas.</td></tr>
+      <tr><td><span class="ui">Linha e área</span> › <a href="#linha-area"><span class="ui">Linha</span></a></td><td>Uma linha por série, com o valor de cada ponto escrito acima dele.</td><td>Uma coluna de valores por série.</td></tr>
+      <tr><td><span class="ui">Linha e área</span> › <a href="#linha-area"><span class="ui">Área empilhada</span></a></td><td>Áreas empilhadas, com totais e rótulos.</td><td>O mesmo da linha; as categorias podem ser datas.</td></tr>
+      <tr><td><span class="ui">Linha e área</span> › <a href="#linha-area"><span class="ui">Área 100%</span></a></td><td>Áreas que somam 100% em cada categoria.</td><td>O mesmo da área empilhada.</td></tr>
+      <tr><td><span class="ui">Linha e área</span> › <a href="#linha-area"><span class="ui">Combinação (colunas + linha)</span></a></td><td>Colunas empilhadas com a última série desenhada como linha, com eixo secundário opcional.</td><td>Pelo menos duas colunas de valores: as primeiras viram colunas e a última, a linha.</td></tr>
+      <tr><td><span class="ui">Mais tipos</span> › <a href="#mekko"><span class="ui">Mekko (%)</span></a></td><td>Colunas de largura proporcional ao total de cada categoria; a altura mostra a participação de cada série.</td><td>Uma coluna de valores por série; a largura vem da soma da linha.</td></tr>
+      <tr><td><span class="ui">Mais tipos</span> › <a href="#mekko"><span class="ui">Mekko (unidades)</span></a></td><td>Como o Mekko (%), mas a largura vem de uma coluna da tabela e as alturas são valores em unidades.</td><td>Categorias, largura (2ª coluna) e uma coluna de valores por série: no mínimo 3 colunas.</td></tr>
+      <tr><td><span class="ui">Mais tipos</span> › <a href="#gantt"><span class="ui">Gantt</span></a></td><td>Barras de atividades sobre uma escala de datas; o marco aparece como losango.</td><td>Atividade, início e fim (datas, não texto). Fim vazio = marco. Uma 4ª coluna opcional vira o rótulo da barra.</td></tr>
+      <tr><td><span class="ui">Mais tipos</span> › <a href="#pizza"><span class="ui">Pizza</span></a></td><td>Fatias dos valores positivos, com rótulos de valor ou de participação.</td><td>Categorias e uma coluna de valores; as demais colunas são ignoradas.</td></tr>
+      <tr><td><span class="ui">Mais tipos</span> › <a href="#pizza"><span class="ui">Rosca</span></a></td><td>A pizza com furo; os rótulos ficam sobre o anel.</td><td>O mesmo da pizza.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>O que cada tipo aceita</h3>
+  <p>No grupo <span class="ui">Gráfico selecionado</span>, cada controle só fica ativo nos tipos que o aceitam; os demais ficam cinza. Na pizza, por exemplo, <span class="ui">Totais</span>, <span class="ui">Conectores</span> e <span class="ui">Espaço</span> ficam cinzas e <span class="ui">Rótulos fora da pizza</span> fica ativo. A tabela completa, tipo por tipo, está em <a href="#matriz">O que cada tipo aceita</a>, e cada controle é explicado em <a href="#opcoes">Opções do gráfico selecionado</a>.</p>
+
+  <h3>Sobre os exemplos</h3>
+  <p>As duas planilhas de <span class="ui">Exemplos</span> mostram 14 dos 17 tipos, a seta de diferença, o colchete, a linha de valor, o indicador 100% e a mesma escala. Não há exemplo pronto de Barras agrupadas, Barras 100% e Área 100%, da cascata de cima para baixo e de <span class="ui">Nome no fim da linha</span>: use as tabelas das seções de cada tipo. Os exemplos são gráficos comuns do ThinQQ: clique neles e experimente os controles.</p>
+</section>
+
+<section id="barras" aria-labelledby="h-barras">
+  <h2 id="h-barras">Colunas e barras</h2>
+  <p>Colunas e barras são o mesmo gráfico em duas orientações, e usam a tabela do <a href="#primeiro">primeiro gráfico</a>. Nas colunas as categorias ficam no eixo horizontal; nas barras ficam no vertical, com a <strong>primeira categoria no alto</strong>.</p>
+  <dl class="ficha">
+    <dt>Selecione</dt><dd>A tabela inteira (ou uma célula dentro dela), com o cabeçalho.</dd>
+    <dt>Menu</dt><dd><span class="ui">Colunas</span> ou <span class="ui">Barras</span>, e então <span class="ui">Colunas empilhadas</span>, <span class="ui">Colunas agrupadas</span> e <span class="ui">Colunas 100%</span> (nas barras: <span class="ui">Barras empilhadas</span>, <span class="ui">Barras agrupadas</span> e <span class="ui">Barras 100%</span>).</dd>
+    <dt>Cabeçalho</dt><dd>A primeira linha dá o nome de cada série (aparece na legenda). Células vazias ou com texto valem 0.</dd>
+    <dt>Marcadores</dt><dd>Nenhum: o <code>e</code> só vale na cascata.</dd>
+  </dl>
+  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de exemplo das barras">
+  <table class="mini">
+    <thead><tr><th>Região</th><th class="n">Loja</th><th class="n">Online</th></tr></thead>
+    <tbody>
+      <tr><td>Sul</td><td class="n">10</td><td class="n">5</td></tr>
+      <tr><td>Sudeste</td><td class="n">25</td><td class="n">10</td></tr>
+      <tr><td>Norte</td><td class="n">40</td><td class="n">20</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Com esta tabela, <span class="ui">Barras empilhadas</span> desenha três barras (totais 15, 35 e 60 no fim de cada uma) e é o exemplo 7 da planilha "Exemplos 2".</p>
+
+  <h3>As três variantes</h3>
+  <ul>
+    <li><strong>Empilhadas:</strong> os segmentos se somam e o total aparece acima da coluna (no fim da barra). Os <span class="ui">Conectores</span> ligam os segmentos de uma categoria à seguinte.</li>
+    <li><strong>Agrupadas:</strong> uma coluna ou barra por série, lado a lado, com o valor no fim. Não há totais nem conectores.</li>
+    <li><strong>100%:</strong> cada coluna ou barra soma 100% e os rótulos mostram a participação de cada série (<span class="ui">12%</span>, ou <span class="ui">12,3%</span> com uma casa decimal). O total, em valor absoluto, fica fora da coluna ou da barra. O <span class="ui">Indicador 100%</span> já nasce ligado e não há seta de diferença.</li>
+  </ul>
+  <p>Nas barras, o total fica no fim da barra: à direita se positivo e à esquerda se negativo. <span class="ui">Seta CAGR</span> e <span class="ui">Seta diferença</span> funcionam como nas colunas: a de CAGR corre à direita das pontas das barras e a de diferença fica abaixo da última barra. O <span class="ui">Espaço</span> muda a espessura das barras.</p>
+  <p><strong>Cascata (barras)</strong> é a ponte na horizontal, com a mesma tabela da cascata em colunas: veja <a href="#cascata">Cascata</a>.</p>
+</section>
+
 <section id="cascata" aria-labelledby="h-cascata">
   <h2 id="h-cascata">Cascata (ponte)</h2>
-  <p>A cascata usa uma tabela de duas colunas: etapa e valor. Valores positivos sobem, negativos descem, e o gráfico liga o fim de uma barra ao início da próxima com conectores. Só a primeira coluna de valores é usada.</p>
+  <p>A cascata mostra como se chega de um valor a outro: valores positivos sobem, negativos descem, e o gráfico liga o fim de uma barra ao início da próxima com conectores. A tabela tem a etapa na primeira coluna e uma ou mais colunas de valores.</p>
+  <dl class="ficha">
+    <dt>Selecione</dt><dd>A tabela inteira, com o cabeçalho. Uma coluna de valores dá uma série; de 2 a 6 colunas dão várias séries.</dd>
+    <dt>Menu</dt><dd><span class="ui">Cascata</span> › <span class="ui">Cascata (colunas)</span> ou <span class="ui">Cascata (barras)</span> (a mesma ponte na horizontal).</dd>
+    <dt>Cabeçalho</dt><dd>O nome de cada coluna de valores é o nome da série (e da entrada na legenda, quando há mais de uma).</dd>
+    <dt>Marcador</dt><dd><code>e</code> (ou <code>t</code>, <code>total</code>, <code>subtotal</code>) no lugar do valor: a linha vira uma barra de total calculada.</dd>
+  </dl>
+
+  <h3>Uma série</h3>
   <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de cascata">
   <table class="mini">
     <thead><tr><th>Etapa</th><th class="n">Valor</th></tr></thead>
@@ -354,85 +464,395 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     </tbody>
   </table>
   </div>
-  <p>Selecione a tabela, abra o menu <span class="ui">Cascata</span> e clique em <span class="ui">Cascata (colunas)</span> (ou <span class="ui">Cascata (barras)</span>, na horizontal). Cada <code>e</code> vira uma barra de total que soma tudo o que veio antes: aqui, EBITDA = 250 e Lucro = 170.</p>
+  <p>Cada <code>e</code> vira uma barra de total que soma tudo o que veio antes: aqui, EBITDA = 250 e Lucro = 170. É o exemplo 9 de "Exemplos 2" (em barras). Nas cores do Padrão ThinQQ, as subidas são azuis, as quedas azul-claras e os totais azul-marinho.</p>
   <ul>
     <li><strong>Cruzar o zero:</strong> a cascata trata barras que passam do positivo para o negativo (e o contrário) sem sobrepor segmentos, e os nomes das categorias ficam na base do gráfico. Veja o exemplo 6 em <span class="ui">Exemplos</span>.</li>
-    <li><strong>Não use <code>e</code> na primeira linha.</strong> O total começa de zero, então nada é desenhado ali.</li>
-    <li><span class="ui">Conectores</span> vêm ligados na cascata. <span class="ui">Totais</span> não se aplica a ela, porque os totais já são barras.</li>
+    <li><span class="ui">Conectores</span> vêm ligados. <span class="ui">Totais</span> não se aplica à cascata, porque os totais já são barras.</li>
+    <li>Um <code>e</code> na primeira linha só faz sentido no formato "de cima para baixo", descrito mais adiante: sem ele, o total começa de zero e nada é desenhado ali.</li>
+  </ul>
+
+  <h3 id="cascata-series">Várias séries</h3>
+  <p>Com mais de uma coluna de valores, cada coluna vira uma série dentro da mesma ponte: cada categoria empilha os segmentos das séries, e o conector acompanha o total líquido.</p>
+  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de cascata com duas séries">
+  <table class="mini">
+    <thead><tr><th>Etapa</th><th class="n">Loja</th><th class="n">Online</th></tr></thead>
+    <tbody>
+      <tr><td>Início</td><td class="n">100</td><td class="n">50</td></tr>
+      <tr><td>Ajuste</td><td class="n">-30</td><td class="n">10</td></tr>
+      <tr><td>Subtotal</td><td class="n e">e</td><td class="n e">e</td></tr>
+      <tr><td>Queda</td><td class="n">-200</td><td class="n">-20</td></tr>
+      <tr><td>Fim</td><td class="n e">e</td><td class="n"></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <ul>
+    <li><strong>O <code>e</code> vale para a linha toda:</strong> um <code>e</code> em qualquer célula da linha marca a linha como total, e os valores das outras células dessa linha são ignorados. Aqui, Subtotal = 130 (150 − 20) e Fim = −90. É o exemplo 8 de "Exemplos 2".</li>
+    <li><strong>Até 6 séries.</strong> Com 7 ou mais colunas de valores o ThinQQ avisa "A cascata aceita no máximo 6 séries." e não cria o gráfico.</li>
+    <li><strong>Segmentos:</strong> os positivos sobem a partir do nível acumulado e os negativos descem; cada segmento tem a extensão certa mesmo quando uma série cruza o zero (na linha Queda, o segmento da Loja desce de 130 até −70).</li>
+    <li><strong>Cores e legenda:</strong> cada série tem a sua cor, na ordem da paleta. As barras de total são sempre da quarta cor da paleta (cinza, no Padrão ThinQQ) e as séries pulam essa cor; com 6 séries, a 6.ª repete a cor da 1.ª. A <span class="ui">Legenda</span> lista as séries e só existe quando há mais de uma.</li>
+    <li><strong>Rótulos:</strong> cada segmento mostra o seu valor, com sinal, e cada total mostra o total da linha. Segmentos muito finos têm o rótulo encostado nas bordas.</li>
+  </ul>
+
+  <h3 id="cascata-baixo">De cima para baixo</h3>
+  <p>Quando você conhece o resultado final e quer mostrar de onde ele vem, ponha <code>e</code> na <strong>primeira</strong> linha e um <strong>número</strong> na última: o ThinQQ calcula o primeiro total para trás.</p>
+  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de cascata de cima para baixo">
+  <table class="mini">
+    <thead><tr><th>Etapa</th><th class="n">Valor</th></tr></thead>
+    <tbody>
+      <tr><td>Receita</td><td class="n e">e</td></tr>
+      <tr><td>Custos</td><td class="n">-700</td></tr>
+      <tr><td>Despesas</td><td class="n">-250</td></tr>
+      <tr><td>Lucro</td><td class="n">300</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>A última linha vira o total de chegada (Lucro = 300, mesmo sem <code>e</code>) e a primeira é calculada para trás: 300 − (−700 − 250) = 1.250. Sem um número na última linha, um <code>e</code> na primeira linha não desenha nada.</p>
+
+  <h3>Rótulos, conectores e orientação</h3>
+  <ul>
+    <li>Os <span class="ui">Rótulos</span> ficam ligados às células: o de cada segmento mostra a variação, e o de cada total, o valor acumulado. Mudou um número? Tudo acompanha, inclusive os conectores.</li>
+    <li>Em <span class="ui">Cascata (barras)</span> os rótulos ficam à direita das barras de valor positivo e à esquerda das de valor negativo, e os conectores são verticais. Um rótulo à esquerda de uma barra que começa perto do mínimo do eixo pode encostar nos nomes das categorias.</li>
+    <li><span class="ui">Seta CAGR</span> e <span class="ui">Seta diferença</span> usam o valor final de cada barra e ligam as pontas das barras, podendo passar sobre rótulos e barras do meio. <span class="ui">Espaço</span> e <span class="ui">Paleta</span> valem; <span class="ui">Totais</span> não.</li>
   </ul>
 </section>
 
-<section id="tipos" aria-labelledby="h-tipos">
-  <h2 id="h-tipos">Tipos de gráfico</h2>
-  <p>Selecione a tabela (ou clique numa célula dela) e escolha o item no menu. Em todos os tipos a primeira linha é o cabeçalho e a primeira coluna traz as categorias; a coluna <em>Formato da tabela</em> diz o que muda em cada tipo.</p>
-  <div class="tw" tabindex="0" role="region" aria-label="Tipos de gráfico e o formato da tabela de cada um">
-  <table>
-    <thead><tr><th scope="col">Menu e item</th><th scope="col">O que faz</th><th scope="col">Formato da tabela</th></tr></thead>
+<section id="linha-area" aria-labelledby="h-linha-area">
+  <h2 id="h-linha-area">Linha, área e combinação</h2>
+  <p>Estes quatro tipos, do menu <span class="ui">Linha e área</span>, usam a mesma tabela das colunas: cabeçalho na primeira linha, categorias (texto ou datas) na primeira coluna e uma coluna de valores por série.</p>
+  <dl class="ficha">
+    <dt>Selecione</dt><dd>A tabela inteira, com o cabeçalho. A combinação precisa de pelo menos 2 colunas de valores.</dd>
+    <dt>Menu</dt><dd><span class="ui">Linha e área</span> › <span class="ui">Linha</span>, <span class="ui">Área empilhada</span>, <span class="ui">Área 100%</span> ou <span class="ui">Combinação (colunas + linha)</span>.</dd>
+    <dt>Datas</dt><dd>Categorias de data viram um eixo de texto: uma coluna ou ponto por data, igualmente espaçados.</dd>
+    <dt>Marcadores</dt><dd>Nenhum.</dd>
+  </dl>
+
+  <h3>Linha</h3>
+  <p>Uma linha com marcadores por coluna de valores, com o valor de cada ponto escrito acima dele. A linha não tem <span class="ui">Totais</span>, <span class="ui">Conectores</span> nem <span class="ui">Espaço</span>.</p>
+
+  <h3>Área empilhada e Área 100%</h3>
+  <ul>
+    <li>As áreas se empilham por categoria; os <span class="ui">Rótulos</span> de cada série ficam no meio da sua faixa (nas categorias das pontas, dentro da faixa, para não sair do gráfico) e os <span class="ui">Totais</span> ficam acima da área.</li>
+    <li>Na <span class="ui">Área 100%</span> os rótulos mostram a participação de cada série (use <span class="ui">12%</span> ou <span class="ui">12,3%</span>), os totais continuam em valores absolutos e o <span class="ui">Indicador 100%</span> já nasce ligado.</li>
+    <li>Evite valores negativos: o Excel empilha as áreas algebricamente e as faixas se sobrepõem.</li>
+    <li>As áreas não têm <span class="ui">Espaço</span> nem <span class="ui">Conectores</span>. <span class="ui">Seta CAGR</span> e <span class="ui">Seta diferença</span> valem na área empilhada (na 100%, só a de CAGR).</li>
+  </ul>
+
+  <h3>Combinação (colunas + linha)</h3>
+  <p>As primeiras colunas de valores viram colunas empilhadas e a <strong>última coluna vira uma linha</strong>. É o exemplo 16 de "Exemplos 2".</p>
+  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de combinação">
+  <table class="mini">
+    <thead><tr><th>Ano</th><th class="n">Vendas</th><th class="n">Custo</th><th class="n">Margem</th></tr></thead>
     <tbody>
-      <tr><td><span class="ui">Colunas</span> › <span class="ui">Colunas empilhadas</span></td><td>Segmentos empilhados por categoria, com o total acima de cada coluna.</td><td>Uma coluna de valores por série.</td></tr>
-      <tr><td><span class="ui">Colunas</span> › <span class="ui">Colunas agrupadas</span></td><td>Uma coluna por série, lado a lado.</td><td>O mesmo das colunas empilhadas.</td></tr>
-      <tr><td><span class="ui">Colunas</span> › <span class="ui">Colunas 100%</span></td><td>Cada coluna soma 100%; os rótulos mostram a participação de cada série.</td><td>O mesmo das colunas empilhadas.</td></tr>
-      <tr><td><span class="ui">Barras</span> › <span class="ui">Barras empilhadas</span></td><td>As colunas empilhadas na horizontal, com a primeira categoria no alto e o total no fim da barra.</td><td>O mesmo das colunas empilhadas.</td></tr>
-      <tr><td><span class="ui">Barras</span> › <span class="ui">Barras agrupadas</span></td><td>Uma barra por série, lado a lado.</td><td>O mesmo das colunas empilhadas.</td></tr>
-      <tr><td><span class="ui">Barras</span> › <span class="ui">Barras 100%</span></td><td>Cada barra soma 100%.</td><td>O mesmo das colunas empilhadas.</td></tr>
-      <tr><td><span class="ui">Cascata</span> › <span class="ui">Cascata (colunas)</span></td><td>Ponte de valores: positivos sobem, negativos descem e um <code>e</code> no valor vira uma barra de total.</td><td>Etapa e valor. Com mais colunas de valores, cada uma vira uma série (até 6).</td></tr>
-      <tr><td><span class="ui">Cascata</span> › <span class="ui">Cascata (barras)</span></td><td>A mesma ponte na horizontal.</td><td>O mesmo da cascata em colunas.</td></tr>
-      <tr><td><span class="ui">Linha e área</span> › <span class="ui">Linha</span></td><td>Uma linha por série, com rótulos ligados às células.</td><td>Uma coluna de valores por série.</td></tr>
-      <tr><td><span class="ui">Linha e área</span> › <span class="ui">Área empilhada</span></td><td>Áreas empilhadas, com totais e rótulos.</td><td>O mesmo da linha; as categorias podem ser datas.</td></tr>
-      <tr><td><span class="ui">Linha e área</span> › <span class="ui">Área 100%</span></td><td>Áreas que somam 100% em cada categoria.</td><td>O mesmo da área empilhada.</td></tr>
-      <tr><td><span class="ui">Linha e área</span> › <span class="ui">Combinação (colunas + linha)</span></td><td>Colunas empilhadas com a última série desenhada como linha, com eixo secundário opcional.</td><td>Pelo menos duas colunas de valores: as primeiras viram colunas e a última, a linha.</td></tr>
-      <tr><td><span class="ui">Mais tipos</span> › <span class="ui">Mekko (%)</span></td><td>Colunas de largura proporcional ao total de cada categoria; a altura mostra a participação de cada série.</td><td>Uma coluna de valores por série; a largura vem da soma da linha.</td></tr>
-      <tr><td><span class="ui">Mais tipos</span> › <span class="ui">Mekko (unidades)</span></td><td>Como o Mekko (%), mas a largura vem de uma coluna da tabela e as alturas são valores em unidades.</td><td>Categorias, largura (2ª coluna) e uma coluna de valores por série: no mínimo 3 colunas.</td></tr>
-      <tr><td><span class="ui">Mais tipos</span> › <span class="ui">Gantt</span></td><td>Barras de atividades sobre uma escala de datas; o marco aparece como losango.</td><td>Atividade, início e fim (datas, não texto). Fim vazio = marco. Uma 4ª coluna opcional vira o rótulo da barra.</td></tr>
-      <tr><td><span class="ui">Mais tipos</span> › <span class="ui">Pizza</span></td><td>Fatias dos valores positivos, com rótulos de valor ou de participação.</td><td>Categorias e uma coluna de valores; as demais colunas são ignoradas.</td></tr>
-      <tr><td><span class="ui">Mais tipos</span> › <span class="ui">Rosca</span></td><td>A pizza com furo; os rótulos ficam sobre o anel.</td><td>O mesmo da pizza.</td></tr>
+      <tr><td>2022</td><td class="n">100</td><td class="n">60</td><td class="n">42%</td></tr>
+      <tr><td>2023</td><td class="n">120</td><td class="n">70</td><td class="n">45%</td></tr>
+      <tr><td>2024</td><td class="n">130</td><td class="n">70</td><td class="n">47%</td></tr>
     </tbody>
   </table>
+  </div>
+  <ul>
+    <li><strong>Eixo secundário:</strong> o <span class="ui">Eixo secundário (linha)</span> liga sozinho quando a grandeza da linha e a das colunas diferem mais de 5 vezes (aqui, 47% sobre colunas de 160 a 200); o item do menu <span class="ui">Mais opções</span> liga e desliga. O eixo da linha começa em zero quando não há valores negativos.</li>
+    <li><strong>Totais</strong> somam só as colunas; a linha não entra neles nem na linha de valor.</li>
+    <li><strong>Formato dos rótulos da linha:</strong> seguem o formato da célula de origem (formate a coluna como percentual, como na tabela acima); o menu <span class="ui">Formato</span> não os altera. Com a célula em Geral, o ThinQQ escolhe sozinho: inteiro, se todos os valores são inteiros; percentual com uma casa, se todos estão entre −1 e 1; senão, duas casas decimais.</li>
+    <li>Com menos de 2 colunas de valores o ThinQQ avisa "A combinação precisa de pelo menos 2 colunas de valores: as primeiras viram colunas empilhadas e a última vira linha." e não cria o gráfico.</li>
+    <li>O rótulo da linha pode ficar sobre o rótulo do total de uma coluna quando os dois eixos automáticos colocam os pontos na mesma altura; arraste o rótulo da linha ou aumente o gráfico.</li>
+  </ul>
+
+  <h3>Legenda</h3>
+  <p>O dropdown <span class="ui">Legenda</span> tem três opções:</p>
+  <ul>
+    <li><span class="ui">Direita</span>: a legenda comum, à direita do gráfico (só com as séries de dados).</li>
+    <li><span class="ui">Nenhuma</span>: sem legenda.</li>
+    <li><span class="ui">Nome no fim da linha</span>: sem legenda, com o nome de cada série no último ponto da sua linha, seguido do valor (se <span class="ui">Rótulos</span> estiver ligado). Só em <span class="ui">Linha</span> e <span class="ui">Combinação (colunas + linha)</span>; nos outros tipos o ThinQQ avisa "Rótulos no fim da linha só existem em gráficos de linha e combinação." e nada muda. Na combinação só a linha ganha o nome: as colunas ficam sem legenda; escolha <span class="ui">Direita</span> se precisar delas.</li>
+  </ul>
+  <p>Trocar a legenda devolve a área de plotagem ao layout automático: um tamanho manual dado à área de plotagem é descartado. A legenda existe em todos os tipos, menos no Gantt; na cascata, só com várias séries.</p>
+</section>
+
+<section id="mekko" aria-labelledby="h-mekko">
+  <h2 id="h-mekko">Mekko</h2>
+  <p>O Mekko é um gráfico de colunas com <strong>largura proporcional</strong>: a largura de cada coluna mostra o tamanho da categoria e a altura de cada segmento mostra a composição. As colunas ficam encostadas, separadas por uma borda branca. Há duas variantes, no menu <span class="ui">Mais tipos</span>.</p>
+  <dl class="ficha">
+    <dt>Selecione</dt><dd>A tabela inteira, com o cabeçalho.</dd>
+    <dt>Mekko (%)</dt><dd>Categorias na 1.ª coluna e uma coluna de valores por série. A largura da coluna é o total da linha.</dd>
+    <dt>Mekko (unidades)</dt><dd>Categorias, <strong>largura</strong> (2.ª coluna, com qualquer cabeçalho) e uma coluna de valores por série: no mínimo 3 colunas.</dd>
+    <dt>Marcadores</dt><dd>Nenhum.</dd>
+  </dl>
+
+  <h3>Mekko (%)</h3>
+  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela do Mekko percentual">
+  <table class="mini">
+    <thead><tr><th>Região</th><th class="n">Eletro</th><th class="n">Móveis</th></tr></thead>
+    <tbody>
+      <tr><td>Sul</td><td class="n">40</td><td class="n">10</td></tr>
+      <tr><td>Sudeste</td><td class="n">20</td><td class="n">10</td></tr>
+      <tr><td>Norte</td><td class="n">10</td><td class="n">10</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <ul>
+    <li>A <strong>largura</strong> de cada coluna é o total da linha dividido pela soma de todos os totais: aqui 50%, 30% e 20%. Mudou um número? As larguras se redistribuem na hora.</li>
+    <li>A <strong>altura</strong> de cada segmento é a participação da série no total da linha (Sul: Eletro 80% e Móveis 20%), e o eixo vai de 0 a 100%. O <span class="ui">Indicador 100%</span> já nasce ligado, à esquerda.</li>
+    <li>Os rótulos mostram a participação nos segmentos, a largura no topo (<span class="ui">Totais</span>) e o nome da categoria embaixo. Neste tipo o <span class="ui">Formato</span> só distingue <span class="ui">12%</span> de <span class="ui">12,3%</span>; qualquer outro formato mostra <span class="ui">12%</span>.</li>
+    <li>É o exemplo 10 de "Exemplos 2". Uma linha com total zero (ou negativo) não gera coluna, sem erro e sem rótulo solto.</li>
+  </ul>
+
+  <h3>Mekko (unidades)</h3>
+  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela do Mekko em unidades">
+  <table class="mini">
+    <thead><tr><th>Região</th><th class="n">Largura</th><th class="n">Eletro</th><th class="n">Móveis</th></tr></thead>
+    <tbody>
+      <tr><td>Sul</td><td class="n">50</td><td class="n">40</td><td class="n">10</td></tr>
+      <tr><td>Sudeste</td><td class="n">30</td><td class="n">20</td><td class="n">10</td></tr>
+      <tr><td>Norte</td><td class="n">20</td><td class="n">10</td><td class="n">10</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <ul>
+    <li>A largura vem da <strong>2.ª coluna</strong> (texto, vazio, zero ou negativo valem largura 0: a coluna some, sem rótulos soltos). As colunas seguintes são as séries, e as alturas são os valores absolutos, com o total no topo de cada coluna.</li>
+    <li>O eixo de valores se ajusta sozinho aos dados (como em todos os tipos, ele fica oculto: os números estão nos rótulos), e vale o <span class="ui">Formato</span> escolhido.</li>
+    <li>A <span class="ui">Linha de valor (média)</span> é a média <strong>ponderada pela largura</strong>: aqui (50×50 + 30×30 + 20×20) ÷ 100 = 38, rótulo "Média 38". <span class="ui">Mesma escala</span> também vale neste tipo. É o exemplo 11 de "Exemplos 2".</li>
+    <li>Com menos de 3 colunas o ThinQQ avisa "Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas." e não cria o gráfico.</li>
+  </ul>
+
+  <h3>O que não existe no Mekko</h3>
+  <ul>
+    <li>Sem setas: <span class="ui">Seta CAGR</span> e <span class="ui">Seta diferença</span> ficam cinza; a recusa é "A seta CAGR não está disponível para este tipo de gráfico." (e o aviso equivalente para a diferença). Sem <span class="ui">Espaço</span> (as colunas se encostam), <span class="ui">Conectores</span> e <span class="ui">Eixo secundário (linha)</span>. A <span class="ui">Linha de valor (média)</span> só existe nas unidades.</li>
+    <li><strong>Limites:</strong> colunas estreitas e tabelas com muitas categorias deixam os rótulos dos segmentos e os nomes embaixo sobrepostos (aumente o gráfico ou use menos categorias); valores negativos não têm tratamento especial no Mekko (%); o espaço reservado no topo (para as larguras e o indicador) e embaixo (para os nomes) só é refeito pelos comandos do ThinQQ, então um gráfico reduzido à mão pode cortá-los.</li>
+  </ul>
+</section>
+
+<section id="gantt" aria-labelledby="h-gantt">
+  <h2 id="h-gantt">Gantt</h2>
+  <p>O Gantt desenha uma barra por atividade sobre uma escala de datas, com marcos em losango e colchetes que rotulam um período.</p>
+  <dl class="ficha">
+    <dt>Selecione</dt><dd>A tabela inteira, com o cabeçalho, no menu <span class="ui">Mais tipos</span> › <span class="ui">Gantt</span>.</dd>
+    <dt>Colunas</dt><dd>1.ª: atividade. 2.ª: início. 3.ª: fim. 4.ª (opcional): texto que aparece à direita da barra, no lugar da data (por exemplo o responsável).</dd>
+    <dt>Datas</dt><dd>Início e fim precisam ser <strong>datas de verdade</strong> (células de data, não texto).</dd>
+    <dt>Marcador</dt><dd>Fim vazio = <strong>marco</strong> (um dia, losango na data do início). O fim é o <strong>último dia</strong> da atividade: uma atividade de 02/03 a 13/03 termina no fim do dia 13.</dd>
+  </dl>
+  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela do Gantt">
+  <table class="mini">
+    <thead><tr><th>Atividade</th><th>Início</th><th>Fim</th><th>Responsável</th></tr></thead>
+    <tbody>
+      <tr><td>Planejamento</td><td>02/03/2026</td><td>13/03/2026</td><td>Ana</td></tr>
+      <tr><td>Execução</td><td>09/03/2026</td><td>17/04/2026</td><td>Bruno</td></tr>
+      <tr><td>Entrega</td><td>20/04/2026</td><td></td><td>Carla</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Aqui "Entrega" é um marco. Sem a 4.ª coluna, o rótulo à direita é a data do fim (ou a data do marco). Sem pelo menos 3 colunas o ThinQQ avisa "Gantt: a tabela precisa de 3 colunas: atividade, início e fim (datas). Deixe o fim vazio para um marco."; sem nenhuma data na coluna de início, "Gantt: a coluna de início não tem datas válidas (use células de data, não texto)." O exemplo 12 de "Exemplos 2" traz um marco e um colchete.</p>
+
+  <h3>A escala de datas</h3>
+  <p>A escala no alto do gráfico é automática e depende da duração total, do primeiro início ao último fim:</p>
+  <div class="tw" tabindex="0" role="region" aria-label="Escala do Gantt por duração">
+  <table>
+    <thead><tr><th scope="col">Duração total</th><th scope="col">Unidade da escala</th><th scope="col">Rótulos</th></tr></thead>
+    <tbody>
+      <tr><td>até 98 dias (14 semanas)</td><td>semanas, começando numa segunda-feira</td><td>dia/mês, como <code>02/03</code></td></tr>
+      <tr><td>até 1.100 dias (cerca de 3 anos)</td><td>meses</td><td>mês e ano, como <code>mar/26</code> (o nome do mês segue o idioma do Excel)</td></tr>
+      <tr><td>até 3.500 dias (cerca de 9,5 anos)</td><td>trimestres</td><td><code>T1/2026</code></td></tr>
+      <tr><td>mais que isso</td><td>anos</td><td><code>2026</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>A escala tem no máximo 40 marcas, com separadores verticais tracejados; se o gráfico é pequeno e os rótulos não cabem, só alguns são escritos (todos os separadores ficam). Mudou uma data a ponto de trocar a unidade (de semanas para meses, por exemplo)? Clique em <span class="ui">Atualizar</span>.</p>
+  <div class="warn">
+    <p><strong>Sem o ThinQQ:</strong> as barras, os marcos e os rótulos seguem os dados em qualquer Excel, mas o intervalo visível do eixo só é recalculado pelo ThinQQ (botão <span class="ui">Atualizar</span> ou eventos de cálculo). Num arquivo aberto sem o ThinQQ, o eixo fica no último intervalo aplicado.</p>
   </div>
 
-  <h3>Controles que dependem do tipo</h3>
-  <p>No grupo <span class="ui">Gráfico selecionado</span>, cada controle só fica ativo nos tipos que o aceitam. Na pizza, por exemplo, <span class="ui">Totais</span>, <span class="ui">Conectores</span> e <span class="ui">Espaço</span> ficam cinzas e <span class="ui">Rótulos fora da pizza</span> fica ativo.</p>
-  <div class="tw" tabindex="0" role="region" aria-label="Controles novos da faixa">
-  <table>
-    <thead><tr><th scope="col">Controle</th><th scope="col">O que faz</th></tr></thead>
+  <h3>Colchete (Gantt)</h3>
+  <ol class="steps">
+    <li>Clique no gráfico, abra o menu <span class="ui">Setas</span> e clique em <span class="ui">Colchete (Gantt)</span>.</li>
+    <li>Na janela, escolha a primeira atividade (<em>Da categoria</em>) e a última (<em>Até a categoria</em>). Pode ser a mesma atividade nas duas pontas.</li>
+    <li>O colchete aparece acima da escala, cobrindo do primeiro início ao último fim dessas atividades, com o período escrito, como <code>02/03 - 17/04</code> (um marco ou um só dia mostra uma data só).</li>
+  </ol>
+  <p>Vários colchetes se empilham acima da escala, sem se cruzar, e o ThinQQ abre espaço para eles no alto do gráfico. <span class="ui">Remover setas</span> apaga os colchetes, mas <strong>o espaço aberto no alto não é devolvido</strong>. O colchete só existe no Gantt: nos outros tipos o item fica cinza e a recusa é "O colchete só está disponível em gráficos Gantt."</p>
+
+  <h3>Outros controles</h3>
+  <ul>
+    <li><span class="ui">Rótulos</span> liga e desliga os rótulos à direita das barras. <span class="ui">Paleta</span> recolore as barras e os marcos.</li>
+    <li><span class="ui">Espaço</span> muda o espaçamento entre as linhas (a espessura das barras). <span class="ui">Formato</span>, <span class="ui">Legenda</span>, <span class="ui">Totais</span> e <span class="ui">Conectores</span> não se aplicam e ficam cinza.</li>
+    <li>Pastas de trabalho com o sistema de datas 1904 funcionam: o rótulo do colchete já considera a diferença entre os dois sistemas.</li>
+  </ul>
+
+  <h3>Dados atípicos</h3>
+  <ul>
+    <li><strong>Fim antes do início:</strong> a barra tem largura zero e o rótulo do fim aparece à esquerda do início. Não há aviso.</li>
+    <li><strong>Texto no lugar do fim</strong> (ou qualquer valor que não seja data): a linha vira um marco, como se o fim estivesse vazio. Sem data de início, a linha não desenha nada.</li>
+    <li><strong>Linha só com o fim</strong> (início vazio): não desenha barra nem rótulo, mas o fim <strong>estende o intervalo da escala</strong>.</li>
+    <li><strong>Intervalos enormes:</strong> acima de uns 39 anos a escala de anos passa de 40 marcas e as que sobram ficam sem marca. A escala de trimestres vai só até 3.500 dias.</li>
+    <li>Os separadores da escala são desenhados <strong>sobre as barras</strong> (tracejado claro atravessando-as): o Excel mantém essas séries na frente.</li>
+  </ul>
+  <p>Não existem sombreamento de fins de semana, colunas de responsável e observação separadas, âncoras, setas de processo nem escala de dias.</p>
+</section>
+
+<section id="pizza" aria-labelledby="h-pizza">
+  <h2 id="h-pizza">Pizza e rosca</h2>
+  <p>A pizza e a rosca mostram a participação de cada categoria no total. A rosca é a pizza com um furo no meio. Os dois ficam no menu <span class="ui">Mais tipos</span>, e usam os rótulos nativos do Excel.</p>
+  <dl class="ficha">
+    <dt>Selecione</dt><dd>Categorias na 1.ª coluna e uma coluna de valores, com o cabeçalho.</dd>
+    <dt>Colunas</dt><dd>Só a <strong>primeira</strong> coluna de valores é usada.</dd>
+    <dt>Marcadores</dt><dd>Nenhum.</dd>
+  </dl>
+  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de pizza">
+  <table class="mini">
+    <thead><tr><th>Produto</th><th class="n">Vendas</th></tr></thead>
     <tbody>
-      <tr><td><span class="ui">Legenda</span></td><td><span class="ui">Direita</span>, <span class="ui">Nenhuma</span> ou <span class="ui">Nome no fim da linha</span> (só em linha e combinação). Na cascata a legenda só existe com várias séries; no Gantt não existe.</td></tr>
-      <tr><td><span class="ui">Mais opções</span></td><td>Menu com os recursos de cada tipo. Fica ativo mesmo sem gráfico selecionado, por causa de <span class="ui">Mesma escala</span> e <span class="ui">Escala automática</span>; os demais itens só ficam ativos nos tipos que os aceitam.</td></tr>
-      <tr><td><span class="ui">Indicador 100%</span></td><td>Marca os 100% no alto dos gráficos 100%, da área 100% e do Mekko (%).</td></tr>
-      <tr><td><span class="ui">Linha de valor (média)</span></td><td>Linha na média dos valores (dos totais, nos gráficos empilhados), com o rótulo <em>Média</em>.</td></tr>
-      <tr><td><span class="ui">Eixo secundário (linha)</span></td><td>Só na combinação: a linha usa um eixo próprio. Já nasce ligado quando as magnitudes diferem muito.</td></tr>
-      <tr><td><span class="ui">Rótulos fora da pizza</span></td><td>Só na pizza: rótulos fora das fatias, com o nome da categoria e linhas de chamada; a legenda sai (os nomes já estão nos rótulos).</td></tr>
-      <tr><td><span class="ui">Mesma escala</span></td><td>Aplica a mesma escala do eixo de valores a dois ou mais gráficos selecionados (sem nenhum selecionado, a todos os da planilha). Gráficos 100%, Mekko (%), pizza e Gantt não entram. A escala fica fixa até você usar <span class="ui">Escala automática</span>.</td></tr>
-      <tr><td><span class="ui">Escala automática</span></td><td>Devolve o eixo de valores ao automático nos gráficos selecionados (ou em todos os da planilha).</td></tr>
-      <tr><td><span class="ui">Setas</span></td><td>Menu com <span class="ui">Seta CAGR</span>, <span class="ui">Seta diferença</span>, <span class="ui">Colchete (Gantt)</span> e <span class="ui">Remover setas</span>. Cada seta só fica ativa nos tipos que a aceitam; a pizza não tem setas.</td></tr>
-      <tr><td><span class="ui">Colchete (Gantt)</span></td><td>Só no Gantt: colchete sobre uma ou mais atividades, com o período total. Escolha a primeira e a última atividade na janela que abre.</td></tr>
+      <tr><td>Eletro</td><td class="n">50</td></tr>
+      <tr><td>Móveis</td><td class="n">30</td></tr>
+      <tr><td>Tintas</td><td class="n">20</td></tr>
     </tbody>
   </table>
   </div>
+  <p>Os exemplos 13 (rosca) e 14 (pizza com rótulos fora) de "Exemplos 2" usam esta tabela.</p>
+  <ul>
+    <li><strong>Colunas a mais:</strong> se a tabela tem mais de uma coluna de valores, o gráfico usa a primeira e o ThinQQ avisa: "A pizza mostra só a primeira coluna de valores (Vendas). As outras 2 coluna(s) da tabela foram ignoradas." (na rosca, "A rosca mostra...").</li>
+    <li><strong>Só valores positivos viram fatia.</strong> Negativos, zero, texto, células vazias e erros valem 0: a fatia some (sem aviso, e a sua tabela não é alterada). A categoria continua na legenda, com a cor da fatia que não aparece.</li>
+    <li><strong>Cores:</strong> cada fatia recebe uma cor da <span class="ui">Paleta</span>, em ordem; a cada 6 fatias as cores se repetem, então com muitas fatias a 7.ª repete a cor da 1.ª. Para que a última fatia não fique ao lado de outra da mesma cor, com 7, 13, 19... fatias ela usa a quarta cor da paleta.</li>
+    <li><span class="ui">Formato</span>: <span class="ui">12%</span> e <span class="ui">12,3%</span> mostram a <strong>participação</strong> de cada fatia no total; os outros formatos mostram o valor. <span class="ui">Rótulos</span> liga e desliga os rótulos; <span class="ui">Legenda</span> aceita <span class="ui">Direita</span> e <span class="ui">Nenhuma</span>.</li>
+    <li>Não se aplicam à pizza e à rosca: <span class="ui">Totais</span>, <span class="ui">Conectores</span>, <span class="ui">Espaço</span> e as setas, que ficam cinza. Rótulos de fatias muito pequenas podem transbordar a fatia, um limite do Excel.</li>
+  </ul>
+
+  <h3>Rótulos fora da pizza</h3>
+  <p><span class="ui">Mais opções</span> › <span class="ui">Rótulos fora da pizza</span> leva os rótulos para fora das fatias, com o nome da categoria e o valor (ou a participação); a fatia de valor 0 fica sem nome.</p>
+  <ul>
+    <li><strong>A legenda sai</strong> enquanto os rótulos fora estiverem ligados, porque os nomes já estão nos rótulos. Por isso <span class="ui">Legenda</span> › <span class="ui">Direita</span> não tem efeito com os rótulos fora; para recuperar a legenda, desligue <span class="ui">Rótulos fora da pizza</span> (ou os <span class="ui">Rótulos</span>).</li>
+    <li><strong>Linhas de chamada:</strong> o Excel só desenha as linhas que ligam o rótulo à fatia depois que você arrasta um rótulo. Antes disso, os rótulos ficam junto à borda das fatias, sem linha.</li>
+    <li><strong>Só na pizza:</strong> a rosca mantém os rótulos sobre o anel (o Excel não aceita rótulos fora numa rosca) e o item fica cinza.</li>
+  </ul>
+</section>
+
+<section id="decoracoes" aria-labelledby="h-decoracoes">
+  <h2 id="h-decoracoes">Linha de valor, indicador 100% e mesma escala</h2>
+  <p>Três recursos do menu <span class="ui">Mais opções</span> que se aplicam a vários tipos. A tabela <a href="#matriz">O que cada tipo aceita</a>, no fim desta seção, diz onde cada um vale.</p>
+
+  <h3>Linha de valor (média)</h3>
+  <p><span class="ui">Mais opções</span> › <span class="ui">Linha de valor (média)</span> desenha uma linha tracejada cinza na média dos valores, com o rótulo "Média" e o número (por exemplo "Média 38"). A linha acompanha os dados: mudou um valor, a linha se move. É horizontal nas colunas, áreas, linha e Mekko (unidades) e <strong>vertical nas barras</strong>. Nas colunas, áreas e linha ela vai do centro da primeira categoria ao centro da última (a meia categoria das bordas fica de fora); nas barras e no Mekko atravessa o gráfico todo.</p>
+  <div class="tw" tabindex="0" role="region" aria-label="Como a média da linha de valor é calculada">
+  <table>
+    <thead><tr><th scope="col">Tipo</th><th scope="col">A média é calculada sobre</th></tr></thead>
+    <tbody>
+      <tr><td>Colunas e barras empilhadas, área</td><td>os totais de cada categoria</td></tr>
+      <tr><td>Colunas e barras agrupadas, linha</td><td>todos os valores plotados (cada valor é uma coluna ou um ponto)</td></tr>
+      <tr><td>Combinação</td><td>os totais das colunas (a linha não entra)</td></tr>
+      <tr><td>Mekko (unidades)</td><td>os totais das colunas, ponderados pela largura</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <ul>
+    <li>Não existe nos gráficos 100%, na cascata, no Mekko (%), na pizza e no Gantt.</li>
+    <li>O rótulo "Média" fica sobre a última coluna ou barra (com fundo branco) e pode cobrir o rótulo de um valor dela; a própria linha pode riscar o total de uma coluna.</li>
+    <li>Desligar a linha de valor devolve o espaço que ela tomava e, com isso, descarta um tamanho manual dado à área de plotagem.</li>
+  </ul>
+
+  <h3>Indicador 100%</h3>
+  <p><span class="ui">Mais opções</span> › <span class="ui">Indicador 100%</span> marca o nível de 100% com um tique e o rótulo "100%": à esquerda nas colunas, áreas e Mekko, e no alto nas barras. <strong>Já nasce ligado</strong> em <span class="ui">Colunas 100%</span>, <span class="ui">Barras 100%</span>, <span class="ui">Área 100%</span> e <span class="ui">Mekko (%)</span>, e só existe neles. É uma forma dentro do gráfico: o ThinQQ a reposiciona quando o gráfico muda de tamanho. Desligá-lo devolve o espaço reservado (e descarta um tamanho manual dado à área de plotagem).</p>
+
+  <h3>Mesma escala e Escala automática</h3>
+  <p>Para comparar gráficos lado a lado, eles precisam ter o mesmo eixo de valores.</p>
+  <ol class="steps">
+    <li>Deixe os gráficos no tamanho final (a escala automática do Excel depende da altura do gráfico).</li>
+    <li>Selecione dois ou mais gráficos do ThinQQ (Ctrl+clique), ou nenhum: sem seleção, o comando age em <strong>todos os gráficos ThinQQ da planilha</strong>.</li>
+    <li>Clique em <span class="ui">Mais opções</span> › <span class="ui">Mesma escala</span>. O ThinQQ aplica a todos o menor mínimo e o maior máximo entre eles e informa quantos receberam a escala ("Mesma escala aplicada a 2 gráfico(s).").</li>
+  </ol>
+  <ul>
+    <li><strong>Entram:</strong> colunas, barras, linha, área, cascata, combinação (só o eixo das colunas; o eixo secundário da linha segue independente) e Mekko (unidades). <strong>Não entram:</strong> gráficos 100%, Mekko (%), pizza e Gantt: ficam de fora e a mensagem diz quantos foram ignorados.</li>
+    <li><strong>A escala é fixa</strong>, não acompanha os dados. Depois de mudar muito os números, aplique <span class="ui">Mesma escala</span> de novo. Se os dados passarem do máximo gravado, as barras ficam cortadas e o ThinQQ avisa uma vez por gráfico e por sessão: "Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'."</li>
+    <li>O ThinQQ reaplica a escala a cada cálculo e a cada redimensionamento: <strong>um ajuste manual do eixo desses gráficos é desfeito</strong> no cálculo seguinte.</li>
+    <li>Com menos de dois gráficos de escala livre, o ThinQQ avisa "Mesma escala: selecione dois ou mais gráficos do ThinQQ (ou nenhum, para usar todos os gráficos da planilha)." ou "Mesma escala: são necessários dois ou mais gráficos com escala livre (100%, Mekko (%), pizza e Gantt não entram)."</li>
+    <li><span class="ui">Mais opções</span> › <span class="ui">Escala automática</span> devolve o eixo ao automático nos gráficos selecionados (ou em todos os da planilha) e informa quantos foram restaurados. Também descarta um tamanho manual dado à área de plotagem.</li>
+  </ul>
+
+  <h3 id="matriz">O que cada tipo aceita</h3>
+  <p>"Sim" quer dizer que o controle fica ativo para o tipo; "—" quer dizer que fica cinza. Na cascata, <span class="ui">Legenda</span> só existe com várias séries. Esta tabela é a mesma matriz que a faixa de opções consulta.</p>
+  <h4>Dados, rótulos e legenda</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Tabela do que cada tipo aceita: dados, rótulos e legenda (em telas estreitas, role para os lados)">
+  <table class="mx">
+    <thead><tr><th scope="col">Tipo</th><th scope="col"><span class="ui">Totais</span></th><th scope="col"><span class="ui">Rótulos</span></th><th scope="col"><span class="ui">Conectores</span></th><th scope="col"><span class="ui">Formato</span></th><th scope="col"><span class="ui">Paleta</span></th><th scope="col"><span class="ui">Espaço</span></th><th scope="col"><span class="ui">Legenda</span></th><th scope="col"><span class="ui">Nome no fim da linha</span></th></tr></thead>
+    <tbody>
+      <tr data-kind="stacked"><th scope="row"><span class="ui">Colunas empilhadas</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="clustered"><th scope="row"><span class="ui">Colunas agrupadas</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="stacked100"><th scope="row"><span class="ui">Colunas 100%</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="barstacked"><th scope="row"><span class="ui">Barras empilhadas</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="barclustered"><th scope="row"><span class="ui">Barras agrupadas</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="barstacked100"><th scope="row"><span class="ui">Barras 100%</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="waterfall"><th scope="row"><span class="ui">Cascata (colunas)</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="w">Várias séries</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="barwaterfall"><th scope="row"><span class="ui">Cascata (barras)</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="w">Várias séries</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="line"><th scope="row"><span class="ui">Linha</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="y">Sim</td></tr>
+      <tr data-kind="area"><th scope="row"><span class="ui">Área empilhada</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="area100"><th scope="row"><span class="ui">Área 100%</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="combo"><th scope="row"><span class="ui">Combinação (colunas + linha)</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="y">Sim</td></tr>
+      <tr data-kind="mekko"><th scope="row"><span class="ui">Mekko (%)</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="mekkounits"><th scope="row"><span class="ui">Mekko (unidades)</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="no">—</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="no">—</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h4>Decorações, setas e escala</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Tabela do que cada tipo aceita: decorações, setas e escala (em telas estreitas, role para os lados)">
+  <table class="mx">
+    <thead><tr><th scope="col">Tipo</th><th scope="col"><span class="ui">Indicador 100%</span></th><th scope="col"><span class="ui">Linha de valor (média)</span></th><th scope="col"><span class="ui">Eixo secundário (linha)</span></th><th scope="col"><span class="ui">Rótulos fora da pizza</span></th><th scope="col"><span class="ui">Seta CAGR</span></th><th scope="col"><span class="ui">Seta diferença</span></th><th scope="col"><span class="ui">Colchete (Gantt)</span></th><th scope="col"><span class="ui">Mesma escala</span></th></tr></thead>
+    <tbody>
+      <tr data-kind="stacked"><th scope="row"><span class="ui">Colunas empilhadas</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
+      <tr data-kind="clustered"><th scope="row"><span class="ui">Colunas agrupadas</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
+      <tr data-kind="stacked100"><th scope="row"><span class="ui">Colunas 100%</span></th><td data-f="ind100" class="y">Sim</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
+      <tr data-kind="barstacked"><th scope="row"><span class="ui">Barras empilhadas</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
+      <tr data-kind="barclustered"><th scope="row"><span class="ui">Barras agrupadas</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
+      <tr data-kind="barstacked100"><th scope="row"><span class="ui">Barras 100%</span></th><td data-f="ind100" class="y">Sim</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
+      <tr data-kind="waterfall"><th scope="row"><span class="ui">Cascata (colunas)</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
+      <tr data-kind="barwaterfall"><th scope="row"><span class="ui">Cascata (barras)</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
+      <tr data-kind="line"><th scope="row"><span class="ui">Linha</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
+      <tr data-kind="area"><th scope="row"><span class="ui">Área empilhada</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
+      <tr data-kind="area100"><th scope="row"><span class="ui">Área 100%</span></th><td data-f="ind100" class="y">Sim</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
+      <tr data-kind="combo"><th scope="row"><span class="ui">Combinação (colunas + linha)</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="y">Sim</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
+      <tr data-kind="mekko"><th scope="row"><span class="ui">Mekko (%)</span></th><td data-f="ind100" class="y">Sim</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="no">—</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
+      <tr data-kind="mekkounits"><th scope="row"><span class="ui">Mekko (unidades)</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="no">—</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
+      <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="no">—</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="y">Sim</td><td data-f="samescale" class="no">—</td></tr>
+      <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="y">Sim</td><td data-f="cagr" class="no">—</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
+      <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="no">—</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <ul>
+    <li>No Gantt, <span class="ui">Espaço</span> é o espaçamento entre as linhas. No Mekko (%), <span class="ui">Totais</span> mostra a largura de cada coluna; nas unidades, o total.</li>
+    <li><span class="ui">Rótulos</span> e <span class="ui">Paleta</span> valem em todos os tipos. <span class="ui">Formato</span> não altera os rótulos da linha da combinação (eles seguem o formato da célula).</li>
+    <li><span class="ui">Mais opções</span> e <span class="ui">Atualizar</span> ficam ativos mesmo sem gráfico selecionado; <span class="ui">Alterar dados</span> e <span class="ui">Remover setas</span> valem em qualquer gráfico do ThinQQ.</li>
+  </ul>
 </section>
 
 <section id="opcoes" aria-labelledby="h-opcoes">
   <h2 id="h-opcoes">Opções do gráfico selecionado</h2>
-  <p>Clique no gráfico. O grupo <span class="ui">Gráfico selecionado</span> mostra o estado atual dele; sem um gráfico do ThinQQ selecionado, os controles ficam cinzas (exceto <span class="ui">Atualizar</span> e o menu <span class="ui">Mais opções</span>, cujas escalas valem sem gráfico selecionado). Alguns também ficam cinzas conforme o tipo do gráfico (veja <a href="#tipos">Tipos de gráfico</a>).</p>
+  <p>Clique no gráfico. O grupo <span class="ui">Gráfico selecionado</span> mostra o estado atual dele; sem um gráfico do ThinQQ selecionado, os controles ficam cinzas (exceto <span class="ui">Atualizar</span> e o menu <span class="ui">Mais opções</span>, cujas escalas valem sem gráfico selecionado). Alguns também ficam cinzas conforme o tipo do gráfico: veja <a href="#matriz">O que cada tipo aceita</a>.</p>
   <div class="tw" tabindex="0" role="region" aria-label="Referência das opções">
   <table>
     <thead><tr><th scope="col">Controle</th><th scope="col">O que faz</th></tr></thead>
     <tbody>
-      <tr><td><span class="ui">Totais</span></td><td>Mostra ou oculta o total em negrito acima de cada coluna. Vale para colunas empilhadas e 100%.</td></tr>
-      <tr><td><span class="ui">Rótulos</span></td><td>Mostra ou oculta os valores nos segmentos, barras ou pontos. Os rótulos ficam ligados às células.</td></tr>
-      <tr><td><span class="ui">Conectores</span></td><td>Linhas entre as colunas (empilhadas) ou entre as barras (cascata). Em agrupadas e linha não há conectores.</td></tr>
-      <tr><td><span class="ui">Formato</span></td><td>Formato dos números: <span class="ui">1.234</span>, <span class="ui">1.234,5</span>, <span class="ui">1.234,56</span>, <span class="ui">12%</span>, <span class="ui">12,3%</span>, <span class="ui">Milhares (1.234 → 1)</span> ou <span class="ui">Milhões (1,2)</span>. As duas últimas dividem por mil ou por um milhão só na exibição. <strong>Em gráficos 100%</strong> os rótulos dos segmentos mostram a <em>participação</em> de cada série no total da linha (por padrão <span class="ui">12%</span>; escolhendo <span class="ui">12,3%</span> ficam com uma casa decimal) e o formato escolhido vale para os <em>totais</em>, que continuam em valores absolutos (os formatos percentuais não se aplicam aos totais: eles ficam em inteiro).</td></tr>
-      <tr><td><span class="ui">Paleta</span></td><td><span class="ui">Padrão ThinQQ</span> (azul-marinho, azul, azul-claro, cinza...), <span class="ui">Tons de cinza</span> ou <span class="ui">Cores do tema</span> (as cores do tema da pasta de trabalho).</td></tr>
-      <tr><td><span class="ui">Espaço</span></td><td>Largura do vão entre as colunas: <span class="ui">Estreito (30%)</span>, <span class="ui">Normal (50%)</span>, <span class="ui">Largo (80%)</span> ou <span class="ui">Muito largo (120%)</span>. Não se aplica a gráficos de linha.</td></tr>
-      <tr><td><span class="ui">Seta CAGR</span></td><td>No menu <span class="ui">Setas</span>: seta de crescimento anual composto entre duas categorias (veja a próxima seção).</td></tr>
-      <tr><td><span class="ui">Seta diferença</span></td><td>No menu <span class="ui">Setas</span>: seta com a diferença absoluta e relativa entre dois totais.</td></tr>
-      <tr><td><span class="ui">Remover setas</span></td><td>No menu <span class="ui">Setas</span>: apaga as setas e os colchetes do gráfico. Os conectores da cascata ficam.</td></tr>
-      <tr><td><span class="ui">Atualizar</span></td><td>Reposiciona setas e rótulos e remove dados internos de gráficos que você apagou. Funciona também sem gráfico selecionado: atualiza todos os gráficos ThinQQ da planilha ativa.</td></tr>
-      <tr><td><span class="ui">Alterar dados</span></td><td>Pede uma nova tabela de origem e recria o gráfico no mesmo lugar, com as mesmas opções. A tabela precisa estar na mesma pasta de trabalho do gráfico. Use também depois de inserir ou remover linhas na origem. As setas não são preservadas: coloque-as de novo.</td></tr>
+      <tr><td><span class="ui">Totais</span></td><td>Mostra ou oculta o total de cada categoria: em negrito acima da coluna ou da área, no fim da barra. Vale para empilhadas, 100%, áreas, combinação (só as colunas) e Mekko (a largura da coluna no Mekko (%); o total nas unidades). Não vale para agrupadas, linha, cascata, pizza e Gantt.</td></tr>
+      <tr><td><span class="ui">Rótulos</span></td><td>Mostra ou oculta os valores nos segmentos, barras, pontos, fatias e (no Gantt) as datas ou o texto à direita das barras. Os rótulos acompanham os dados.</td></tr>
+      <tr><td><span class="ui">Conectores</span></td><td>Linhas entre os segmentos de colunas e barras empilhadas (inclusive 100% e combinação) e entre as barras da cascata. Em agrupadas, linha, área, Mekko, pizza e Gantt não há conectores.</td></tr>
+      <tr><td><span class="ui">Formato</span></td><td>Formato dos números: <span class="ui">1.234</span>, <span class="ui">1.234,5</span>, <span class="ui">1.234,56</span>, <span class="ui">12%</span>, <span class="ui">12,3%</span>, <span class="ui">Milhares (1.234 → 1)</span> ou <span class="ui">Milhões (1,2)</span>. As duas últimas dividem por mil ou por um milhão só na exibição. <strong>Em gráficos 100%</strong> os rótulos dos segmentos mostram a <em>participação</em> de cada série no total da linha (por padrão <span class="ui">12%</span>; escolhendo <span class="ui">12,3%</span> ficam com uma casa decimal) e o formato escolhido vale para os <em>totais</em>, que continuam em valores absolutos (os formatos percentuais não se aplicam aos totais: eles ficam em inteiro). No Mekko (%) só <span class="ui">12%</span> e <span class="ui">12,3%</span> fazem diferença; na pizza e na rosca, <span class="ui">12%</span> e <span class="ui">12,3%</span> mostram a participação. Não vale no Gantt, e não altera os rótulos da linha da combinação (eles seguem o formato da célula).</td></tr>
+      <tr><td><span class="ui">Paleta</span></td><td><span class="ui">Padrão ThinQQ</span> (azul-marinho, azul, azul-claro, cinza, verde-azulado e âmbar), <span class="ui">Tons de cinza</span> ou <span class="ui">Cores do tema</span> (as cores do tema da pasta de trabalho). Vale em todos os tipos; na pizza, colore as fatias.</td></tr>
+      <tr><td><span class="ui">Espaço</span></td><td>Largura do vão entre as colunas ou barras: <span class="ui">Estreito (30%)</span>, <span class="ui">Normal (50%)</span>, <span class="ui">Largo (80%)</span> ou <span class="ui">Muito largo (120%)</span>. No Gantt, é o espaçamento entre as linhas. Não se aplica a linha, área, Mekko e pizza.</td></tr>
+      <tr><td><span class="ui">Legenda</span></td><td><span class="ui">Direita</span>, <span class="ui">Nenhuma</span> ou <span class="ui">Nome no fim da linha</span> (só em linha e combinação). Na cascata, só existe com várias séries; no Gantt, não existe. Veja <a href="#linha-area">Linha, área e combinação</a>.</td></tr>
+      <tr><td><span class="ui">Mais opções</span></td><td>Menu com <span class="ui">Indicador 100%</span>, <span class="ui">Linha de valor (média)</span>, <span class="ui">Eixo secundário (linha)</span>, <span class="ui">Rótulos fora da pizza</span>, <span class="ui">Mesma escala</span> e <span class="ui">Escala automática</span>. Fica ativo mesmo sem gráfico selecionado; os quatro primeiros itens só ficam ativos nos tipos que os aceitam.</td></tr>
+      <tr><td><span class="ui">Indicador 100%</span></td><td>Marca o nível de 100% nos gráficos 100% e no Mekko (%); já nasce ligado. Veja <a href="#decoracoes">Linha de valor, indicador 100% e mesma escala</a>.</td></tr>
+      <tr><td><span class="ui">Linha de valor (média)</span></td><td>Linha na média dos valores, com o rótulo "Média" e o número. Em colunas e barras empilhadas e agrupadas, linha, área empilhada, combinação e Mekko (unidades); não nos gráficos 100%, na cascata, no Mekko (%), na pizza e no Gantt.</td></tr>
+      <tr><td><span class="ui">Eixo secundário (linha)</span></td><td>Só na combinação: a linha usa um eixo próprio. Já nasce ligado quando as grandezas da linha e das colunas diferem mais de 5 vezes.</td></tr>
+      <tr><td><span class="ui">Rótulos fora da pizza</span></td><td>Só na pizza: rótulos fora das fatias, com o nome da categoria; a legenda sai enquanto eles estiverem ligados.</td></tr>
+      <tr><td><span class="ui">Mesma escala</span></td><td>Aplica a mesma escala do eixo de valores a dois ou mais gráficos selecionados (sem nenhum selecionado, a todos os da planilha). Gráficos 100%, Mekko (%), pizza e Gantt não entram. A escala fica fixa até você usar <span class="ui">Escala automática</span>.</td></tr>
+      <tr><td><span class="ui">Escala automática</span></td><td>Devolve o eixo de valores ao automático nos gráficos selecionados (ou em todos os da planilha).</td></tr>
+      <tr><td><span class="ui">Setas</span></td><td>Menu com <span class="ui">Seta CAGR</span>, <span class="ui">Seta diferença</span>, <span class="ui">Colchete (Gantt)</span> e <span class="ui">Remover setas</span>. Cada seta só fica ativa nos tipos que a aceitam; a pizza não tem setas.</td></tr>
+      <tr><td><span class="ui">Seta CAGR</span></td><td>No menu <span class="ui">Setas</span>: seta de crescimento anual composto entre duas categorias (veja a próxima seção). Não existe no Mekko, na pizza e no Gantt.</td></tr>
+      <tr><td><span class="ui">Seta diferença</span></td><td>No menu <span class="ui">Setas</span>: seta com a diferença absoluta e relativa entre dois totais. Não existe nos gráficos 100%, no Mekko, na pizza e no Gantt.</td></tr>
+      <tr><td><span class="ui">Colchete (Gantt)</span></td><td>No menu <span class="ui">Setas</span>: colchete sobre uma ou mais atividades do Gantt, com o período. Só existe no Gantt.</td></tr>
+      <tr><td><span class="ui">Remover setas</span></td><td>No menu <span class="ui">Setas</span>: apaga as setas e os colchetes do gráfico. Os conectores da cascata e o indicador 100% ficam.</td></tr>
+      <tr><td><span class="ui">Atualizar</span></td><td>Reposiciona setas e rótulos, recalcula a escala do Gantt e remove dados internos de gráficos que você apagou. Funciona também sem gráfico selecionado: atualiza todos os gráficos ThinQQ da planilha ativa.</td></tr>
+      <tr><td><span class="ui">Alterar dados</span></td><td>Pede uma nova tabela de origem e recria o gráfico no mesmo lugar, com o mesmo tipo e as mesmas opções. A tabela precisa estar na mesma pasta de trabalho do gráfico. Use também depois de inserir ou remover linhas na origem. As setas e os colchetes não são preservados: coloque-os de novo.</td></tr>
     </tbody>
   </table>
   </div>
-  <p>Os gráficos são gráficos comuns do Excel. Você pode mudar fontes, cores e tamanho manualmente; as opções acima voltam a aplicar o padrão quando você as usa.</p>
+  <p>Os gráficos são gráficos comuns do Excel. Você pode mudar fontes, cores e tamanho manualmente; as opções acima voltam a aplicar o padrão quando você as usa. Trocar a <span class="ui">Legenda</span>, desligar o <span class="ui">Indicador 100%</span> ou a <span class="ui">Linha de valor (média)</span> e usar <span class="ui">Escala automática</span> também devolvem a área de plotagem ao layout automático: um tamanho manual dado a ela se perde.</p>
 </section>
 
 <section id="setas" aria-labelledby="h-setas">
@@ -442,21 +862,22 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li>Na janela, escolha a categoria inicial (<em>Da categoria</em>) e a final (<em>Até a categoria</em>); por padrão, a primeira e a última.</li>
     <li>Clique em <span class="ui">OK</span>. A seta fica dentro do gráfico e acompanha os dados e o tamanho dele.</li>
   </ol>
+  <p>As setas existem em colunas, barras, linha, área, cascata e combinação. Nas barras, a de CAGR corre à direita das pontas das barras e a de diferença fica abaixo da última barra. <strong>Mekko, pizza e Gantt não têm setas</strong> (o Gantt tem o <a href="#gantt">colchete</a>): os itens ficam cinza, e a recusa é "A seta CAGR não está disponível para este tipo de gráfico." ou "A seta de diferença não está disponível para este tipo de gráfico."</p>
 
   <h3>Seta CAGR</h3>
   <p>Mostra a taxa composta anual entre os totais das duas categorias, por exemplo <code>CAGR +9,9%</code>.</p>
   <ul>
     <li><strong>Quantos períodos?</strong> Se as duas categorias forem anos (números entre 1900 e 2200) ou datas, o número de períodos é a diferença em anos entre elas (2022 até 2025 são 3 anos). Caso contrário, cada categoria conta como um período: de jan até jun são 5.</li>
-    <li><strong>Em que valores?</strong> Em empilhadas e 100%, na soma das séries; na cascata, no valor final de cada barra; em agrupadas e linha, na primeira série.</li>
+    <li><strong>Em que valores?</strong> Em empilhadas, 100% e áreas, na soma das séries; na combinação, na soma das colunas (sem a linha); na cascata, no valor final de cada barra; em agrupadas e linha, na primeira série.</li>
     <li>Aparece <code>CAGR n/d</code> quando não há taxa possível: valor inicial zero, valor final zero ou sinais diferentes entre início e fim.</li>
   </ul>
 
   <h3>Seta de diferença</h3>
-  <p>Uma seta vertical ao lado da coluna final, com uma linha tracejada no nível da inicial e o rótulo da diferença absoluta e relativa, por exemplo <code>+130 (+33%)</code>.</p>
+  <p>Uma seta vertical ao lado da coluna final (nas barras, horizontal, abaixo da última barra), com uma linha tracejada no nível da inicial e o rótulo da diferença absoluta e relativa, por exemplo <code>+130 (+33%)</code>.</p>
   <div class="warn">
     <p><strong>Gráficos 100% não aceitam a seta de diferença.</strong> Todas as colunas somam 100%, então não há diferença a mostrar; o ThinQQ avisa com a mensagem &quot;A seta de diferença não está disponível para gráficos 100%&quot;. A <span class="ui">Seta CAGR</span> funciona, calculada sobre os valores informados na tabela.</p>
   </div>
-  <p>O gráfico precisa ter pelo menos duas categorias. Se mover o gráfico para outra planilha ou algo parecer fora do lugar, clique em <span class="ui">Atualizar</span>.</p>
+  <p>O gráfico precisa ter pelo menos duas categorias: com menos, o aviso é "O gráfico precisa de pelo menos 2 categorias.". Se mover o gráfico para outra planilha ou algo parecer fora do lugar, clique em <span class="ui">Atualizar</span>. O espaço que o ThinQQ reserva para as setas é calculado quando você as insere (e quando muda <span class="ui">Legenda</span>, <span class="ui">Formato</span> ou <span class="ui">Mesma escala</span>); depois de reduzir muito o gráfico à mão, elas podem encostar nos rótulos.</p>
 </section>
 
 <section id="atualizar" aria-labelledby="h-atualizar">
@@ -505,18 +926,48 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 </section>
 
 <section id="problemas" aria-labelledby="h-problemas">
-  <h2 id="h-problemas">Problemas comuns</h2>
+  <h2 id="h-problemas">Problemas comuns e mensagens</h2>
   <div class="tw" tabindex="0" role="region" aria-label="Tabela de problemas e soluções">
   <table>
     <thead><tr><th scope="col">O que você vê</th><th scope="col">O que fazer</th></tr></thead>
     <tbody>
       <tr><td>&quot;As macros foram desabilitadas&quot; ou a aba <span class="ui">ThinQQ</span> não aparece</td><td>Feche o Excel e rode o <code>Instalar-ThinQQ.cmd</code> de novo: ele desbloqueia os arquivos e cria o local confiável. Na instalação manual, desbloqueie cada <code>.xlam</code> (Propriedades, Desbloquear) e adicione <code>%LOCALAPPDATA%\ThinQQ</code> como Local Confiável. Se a política da empresa bloquear macros em pastas do usuário, fale com a TI.</td></tr>
       <tr><td>A aba existe, mas os botões não fazem nada</td><td>O núcleo do ThinQQ não carregou. Use <span class="ui">Verificar atualizações</span> ou reinstale; confira a pasta <code>%LOCALAPPDATA%\ThinQQ\versions</code>.</td></tr>
-      <tr><td>Botões do grupo <span class="ui">Gráfico selecionado</span> em cinza</td><td>Eles só funcionam com um gráfico criado pelo ThinQQ selecionado. Clique no gráfico, não em uma célula. Com um gráfico selecionado, o que o tipo dele não aceita também fica cinza (veja <a href="#tipos">Tipos de gráfico</a>).</td></tr>
+      <tr><td>Botões do grupo <span class="ui">Gráfico selecionado</span> em cinza</td><td>Eles só funcionam com um gráfico criado pelo ThinQQ selecionado. Clique no gráfico, não em uma célula. Com um gráfico selecionado, o que o tipo dele não aceita também fica cinza: veja <a href="#matriz">O que cada tipo aceita</a>.</td></tr>
       <tr><td>Setas fora do lugar</td><td>Clique em <span class="ui">Atualizar</span>. As posições são recalculadas pelo tamanho atual do gráfico.</td></tr>
-      <tr><td>Um aviso diz que não é possível inserir</td><td>Veja a mensagem: planilha protegida, nenhuma tabela selecionada ou menos de duas categorias são os casos mais comuns.</td></tr>
+      <tr><td>A escala do Gantt não mudou depois de eu alterar as datas</td><td>Clique em <span class="ui">Atualizar</span>: o intervalo do eixo só é recalculado pelo ThinQQ (botão ou eventos de cálculo).</td></tr>
+      <tr><td>A pizza está sem legenda</td><td>Os <span class="ui">Rótulos fora da pizza</span> estão ligados e já mostram os nomes. Desligue-os (ou os <span class="ui">Rótulos</span>) para a legenda voltar.</td></tr>
+      <tr><td>Falta uma fatia na pizza, ou a coluna de um Mekko (unidades) sumiu</td><td>Valor negativo, zero, texto ou célula vazia (na largura, no caso do Mekko) conta como 0 e a fatia ou a coluna não aparece. Confira os números da tabela.</td></tr>
+      <tr><td>Um rótulo, uma seta ou a linha de valor cobre outro rótulo</td><td>Aumente o gráfico, arraste o rótulo ou ajuste a <span class="ui">Paleta</span> e o <span class="ui">Formato</span> para números mais curtos. Alguns casos são limites conhecidos: veja <a href="#limites">Limitações</a>.</td></tr>
+      <tr><td>Um aviso diz que não é possível inserir</td><td>Veja a mensagem: planilha protegida, nenhuma tabela selecionada ou menos de duas categorias são os casos mais comuns. As mensagens específicas de cada tipo estão na tabela abaixo.</td></tr>
       <tr><td>Erro ao atualizar</td><td>Confira a fonte em <span class="ui">Configurações</span> e o acesso à rede ou à pasta. Os detalhes ficam em <code>%LOCALAPPDATA%\ThinQQ\logs\thinqq.log</code>.</td></tr>
       <tr><td>O Excel abriu sem a aba logo após uma atualização do carregador</td><td>Feche o Excel, vá a <code>%LOCALAPPDATA%\ThinQQ</code>, apague (ou renomeie) <code>ThinQQ.xlam</code> e renomeie <code>ThinQQ.xlam.bak</code> para <code>ThinQQ.xlam</code>. Sem o <code>.bak</code>, reinstale.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 id="mensagens">Mensagens do ThinQQ</h3>
+  <p>Estas são as mensagens que o ThinQQ mostra ao recusar uma tabela ou um comando. Nenhuma delas indica uma falha: o gráfico simplesmente não é criado, ou o comando não muda nada.</p>
+  <div class="tw" tabindex="0" role="region" aria-label="Mensagens do ThinQQ e o que fazer">
+  <table>
+    <thead><tr><th scope="col">Mensagem</th><th scope="col">Quando aparece e o que fazer</th></tr></thead>
+    <tbody>
+      <tr><td>A cascata aceita no máximo 6 séries.</td><td>A tabela da cascata tem 7 ou mais colunas de valores. Use até 6.</td></tr>
+      <tr><td>A combinação precisa de pelo menos 2 colunas de valores: as primeiras viram colunas empilhadas e a última vira linha.</td><td>Falta uma coluna na tabela da combinação.</td></tr>
+      <tr><td>Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas.</td><td>Inclua a coluna de largura logo depois das categorias e ao menos uma série.</td></tr>
+      <tr><td>Gantt: a tabela precisa de 3 colunas: atividade, início e fim (datas). Deixe o fim vazio para um marco.</td><td>Selecione ao menos atividade, início e fim.</td></tr>
+      <tr><td>Gantt: a coluna de início não tem datas válidas (use células de data, não texto).</td><td>Converta o texto das datas em datas do Excel.</td></tr>
+      <tr><td>A pizza mostra só a primeira coluna de valores (...). As outras N coluna(s) da tabela foram ignoradas.</td><td>Aviso informativo, depois de criar o gráfico (na rosca, "A rosca mostra..."). Para mostrar outra coluna, selecione só ela.</td></tr>
+      <tr><td>A seta de diferença não está disponível para gráficos 100%.</td><td>Use a <span class="ui">Seta CAGR</span>, ou um gráfico que não seja 100%.</td></tr>
+      <tr><td>A seta de diferença não está disponível para este tipo de gráfico. / A seta CAGR não está disponível para este tipo de gráfico.</td><td>Mekko, pizza e Gantt não têm setas.</td></tr>
+      <tr><td>O colchete só está disponível em gráficos Gantt.</td><td>O <span class="ui">Colchete (Gantt)</span> é só do Gantt.</td></tr>
+      <tr><td>'Totais' não se aplica a este tipo de gráfico. (o nome do controle muda)</td><td>O tipo selecionado não tem aquele recurso: veja <a href="#matriz">O que cada tipo aceita</a>.</td></tr>
+      <tr><td>Rótulos no fim da linha só existem em gráficos de linha e combinação.</td><td>Escolha <span class="ui">Direita</span> ou <span class="ui">Nenhuma</span> em <span class="ui">Legenda</span>.</td></tr>
+      <tr><td>O gráfico precisa de pelo menos 2 categorias. / O gráfico precisa de pelo menos 1 atividade.</td><td>O gráfico tem poucas categorias para a seta (ou poucas atividades para o colchete).</td></tr>
+      <tr><td>Mesma escala: selecione dois ou mais gráficos do ThinQQ (ou nenhum, para usar todos os gráficos da planilha).</td><td>Há menos de dois gráficos do ThinQQ para igualar. Selecione dois ou mais (Ctrl+clique) ou, sem seleção, tenha ao menos dois na planilha ativa.</td></tr>
+      <tr><td>Mesma escala: são necessários dois ou mais gráficos com escala livre (100%, Mekko (%), pizza e Gantt não entram).</td><td>Menos de dois dos gráficos escolhidos têm escala livre. Inclua colunas, barras, linha, área, cascata, combinação ou Mekko (unidades).</td></tr>
+      <tr><td>Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'.</td><td>Os números cresceram além da escala gravada; aplique <span class="ui">Mesma escala</span> de novo ou <span class="ui">Escala automática</span>. Aparece uma vez por gráfico e por sessão.</td></tr>
+      <tr><td>A tabela de origem mudou de tamanho. Use 'Alterar dados' para reconstruir o gráfico (ou reinsira o gráfico).</td><td>Linhas foram inseridas ou removidas na origem. Aparece uma vez por gráfico e por sessão.</td></tr>
     </tbody>
   </table>
   </div>
@@ -526,7 +977,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <h2 id="h-faq">Perguntas frequentes</h2>
   <details>
     <summary>Quem recebe minha planilha precisa ter o ThinQQ?</summary>
-    <div><p>Não. Os gráficos são gráficos nativos do Excel, ligados por fórmulas a uma planilha interna oculta. Eles abrem, recalculam e podem ser formatados em qualquer Excel. O que o ThinQQ faz a mais é criar e reposicionar as setas; sem ele, as setas existentes ficam como estão.</p></div>
+    <div><p>Não. Os gráficos são gráficos nativos do Excel, ligados por fórmulas a uma planilha interna oculta. Eles abrem, recalculam e podem ser formatados em qualquer Excel: barras, totais, rótulos e linhas de valor seguem os dados. O que o ThinQQ faz a mais é criar e reposicionar as setas, os colchetes e o indicador 100%, recalcular o intervalo do eixo do Gantt e reaplicar a escala de <span class="ui">Mesma escala</span>; sem ele, essas peças ficam como estão.</p></div>
   </details>
   <details>
     <summary>Posso colar o gráfico no PowerPoint?</summary>
@@ -541,8 +992,12 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <div><p>Pode. Só lembre que <span class="ui">Paleta</span>, <span class="ui">Formato</span> e <span class="ui">Espaço</span> reaplicam o padrão quando você os usa.</p></div>
   </details>
   <details>
+    <summary>Posso trocar o tipo de um gráfico que já inseri?</summary>
+    <div><p>Não há um comando para isso. Insira o gráfico de novo pelo outro menu, com a mesma tabela (ou a tabela no formato do novo tipo), e apague o antigo: <span class="ui">Atualizar</span> remove o bloco interno que sobrar. <span class="ui">Alterar dados</span> troca a tabela, mas mantém o tipo.</p></div>
+  </details>
+  <details>
     <summary>Copiei ou movi um gráfico do ThinQQ. O que acontece?</summary>
-    <div><p>Os dados continuam ligados: o gráfico copiado (ou movido para uma planilha de gráfico com <em>Mover Gráfico &gt; Nova planilha</em>) segue apontando para o mesmo bloco da planilha <code>_ThinQQ</code>, e o ThinQQ não o apaga enquanto algum gráfico o usar. Porém só o gráfico original, na planilha, é reconhecido como gráfico do ThinQQ: o botão <span class="ui">Totais</span> e os demais não se aplicam à cópia nem ao gráfico movido, e as setas não são reposicionadas nele. Para ter outro gráfico completo, use o botão de inserção de novo (ou <span class="ui">Alterar dados</span>).</p></div>
+    <div><p>Os dados e os rótulos continuam ligados: o gráfico copiado (ou movido para uma planilha de gráfico com <em>Mover Gráfico &gt; Nova planilha</em>) segue apontando para o mesmo bloco da planilha <code>_ThinQQ</code>, e o ThinQQ não o apaga enquanto algum gráfico (ou rótulo) o usar. Isso vale até para gráficos 100% sem totais, cujo único vínculo com o bloco são os rótulos; se o ThinQQ não conseguir ler algum gráfico da pasta, ele não apaga nada. Porém só o gráfico original, na planilha, é reconhecido como gráfico do ThinQQ: o botão <span class="ui">Totais</span> e os demais não se aplicam à cópia nem ao gráfico movido, e as setas não são reposicionadas nele. Para ter outro gráfico completo, use o botão de inserção de novo (ou <span class="ui">Alterar dados</span>). Se algo parecer fora do lugar depois de copiar, clique em <span class="ui">Atualizar</span> no gráfico original.</p></div>
   </details>
   <details>
     <summary>O ThinQQ tem assinatura digital? Posso confiar nas atualizações?</summary>
@@ -556,18 +1011,47 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
 <section id="limites" aria-labelledby="h-limites">
   <h2 id="h-limites">Limitações</h2>
+  <p>O que o ThinQQ 1.1.0 não faz, ou faz com ressalvas. Os limites de cada tipo também aparecem na seção dele.</p>
+
+  <h3>Em geral</h3>
   <ul>
-    <li>Somente Excel para Windows, Office 16.0 (2016 ou mais novo), 32 e 64 bits. Não há versão para Mac nem para o Excel na web.</li>
-    <li>Cascata com uma série, na vertical. Gráficos de barras horizontais, Mekko, Gantt e pizza ainda não existem.</li>
+    <li>Somente Excel para Windows, Office 16.0 (2016 ou mais novo). Não há versão para Mac nem para o Excel na web. O código não usa chamadas ao Windows, então deve funcionar em 32 e 64 bits; os testes automáticos rodaram só em 32 bits.</li>
+    <li>Mudanças no tamanho da tabela de origem exigem <span class="ui">Alterar dados</span> (o aviso aparece uma vez por gráfico e por sessão); linhas filtradas ou ocultas continuam plotadas; <code>.xls</code> não é suportado.</li>
     <li>Os eventos que reposicionam as setas só rodam com o gráfico visível: se algo parecer fora do lugar, use <span class="ui">Atualizar</span>.</li>
     <li>Macros precisam estar habilitadas para o ThinQQ funcionar; a política da sua empresa pode exigir um local confiável ou uma assinatura digital (a assinatura de código é da Fase 3).</li>
-    <li>Mudanças no tamanho da tabela de origem exigem <span class="ui">Alterar dados</span>; linhas filtradas ou ocultas continuam plotadas; <code>.xls</code> não é suportado.</li>
+    <li>Gráficos copiados ou movidos para uma planilha de gráfico mantêm os dados, mas deixam de ser reconhecidos como gráficos do ThinQQ.</li>
+  </ul>
+
+  <h3>Escalas, espaço e layout</h3>
+  <ul>
+    <li><strong>Mesma escala é fixa.</strong> Ela não acompanha os dados: depois de mudar muito os números, aplique-a de novo (ou use <span class="ui">Escala automática</span>). O ThinQQ a reaplica a cada cálculo e redimensionamento, então um ajuste manual do eixo desses gráficos é desfeito, e dados acima do máximo gravado ficam cortados (com um aviso por gráfico e por sessão).</li>
+    <li>O espaço que o ThinQQ reserva para setas, totais, legenda, indicador e escala só é refeito pelos comandos dele (inserir, ligar totais, trocar <span class="ui">Legenda</span> ou <span class="ui">Formato</span>, <span class="ui">Mesma escala</span> e <span class="ui">Atualizar</span> no Gantt). Reduzir muito um gráfico à mão pode fazer setas, totais e rótulos se encostarem.</li>
+    <li>Trocar a <span class="ui">Legenda</span>, desligar o <span class="ui">Indicador 100%</span> ou a <span class="ui">Linha de valor (média)</span> e usar <span class="ui">Escala automática</span> devolvem a área de plotagem ao layout automático e descartam um tamanho manual dado a ela.</li>
+    <li>Os colchetes do Gantt não devolvem o espaço aberto no alto quando são removidos.</li>
+    <li>A <span class="ui">Linha de valor (média)</span> só existe na média dos valores, não em um valor qualquer. <span class="ui">Nome no fim da linha</span> só existe em linha e combinação.</li>
+  </ul>
+
+  <h3>Por tipo</h3>
+  <ul>
+    <li><strong>Colunas e barras:</strong> empilhadas com sinais misturados têm o rótulo do total líquido no topo da parte positiva; segmentos muito finos deixam os rótulos sobrepostos.</li>
+    <li><strong>Cascata:</strong> até 6 séries (a 6.ª repete a cor da 1.ª); segmentos finos têm o rótulo encostado nas bordas; um rótulo à esquerda de uma barra perto do mínimo do eixo pode encostar nos nomes das categorias; as setas ligam as pontas das barras e podem passar sobre rótulos do meio.</li>
+    <li><strong>Combinação:</strong> o rótulo da linha pode ficar sobre o total de uma coluna; a <span class="ui">Linha de valor (média)</span> e o rótulo "Média" podem cobrir o total da última coluna.</li>
+    <li><strong>Área:</strong> valores negativos empilham algebricamente e as faixas se sobrepõem.</li>
+    <li><strong>Mekko:</strong> sem setas; colunas estreitas e muitas categorias sobrepõem rótulos e nomes; valores negativos não têm tratamento no Mekko (%); nas unidades, texto, vazio, zero ou negativo na largura apagam a coluna; o eixo de valores fica oculto.</li>
+    <li><strong>Gantt:</strong> sem sombreamento de fins de semana, colunas de responsável e observação separadas, âncoras, setas de processo nem escala de dias; os separadores ficam sobre as barras; o intervalo do eixo só é recalculado pelo ThinQQ; fim antes do início dá barra de largura zero, texto no fim vira marco e linhas só com fim estendem o eixo; acima de uns 39 anos de intervalo a escala de anos passa de 40 marcas, e a de trimestres vai só até 3.500 dias.</li>
+    <li><strong>Pizza e rosca:</strong> só a primeira coluna de valores; valores negativos, zero, texto e erros viram fatias vazias; com muitas fatias as cores se repetem; a rosca não tem rótulos fora; as linhas de chamada da pizza só aparecem depois que você arrasta um rótulo (limite do Excel); rótulos de fatias pequenas podem transbordar.</li>
   </ul>
 </section>
 
 <section id="como" aria-labelledby="h-como">
   <h2 id="h-como">Como funciona</h2>
-  <p>O ThinQQ tem dois arquivos: o <em>carregador</em> (<code>ThinQQ.xlam</code>), que cuida da faixa de opções e das atualizações, e o <em>núcleo</em> (<code>ThinQQ.core.xlam</code>), que desenha os gráficos. O núcleo vive em <code>%LOCALAPPDATA%\ThinQQ\versions\&lt;versão&gt;\</code> e é trocado a quente quando você atualiza. Cada gráfico tem um bloco de fórmulas na planilha oculta <code>_ThinQQ</code> e as setas são formas dentro do gráfico.</p>
+  <p>O ThinQQ tem dois arquivos: o <em>carregador</em> (<code>ThinQQ.xlam</code>), que cuida da faixa de opções e das atualizações, e o <em>núcleo</em> (<code>ThinQQ.core.xlam</code>), que desenha os gráficos. O núcleo vive em <code>%LOCALAPPDATA%\ThinQQ\versions\&lt;versão&gt;\</code> e é trocado a quente quando você atualiza. Cada gráfico tem um bloco de fórmulas na planilha oculta <code>_ThinQQ</code>; as setas, o indicador 100% e os colchetes são formas dentro do gráfico.</p>
+  <ul>
+    <li><strong>Gráficos nativos:</strong> colunas, barras, linha, área, pizza e rosca são os tipos comuns do Excel. A combinação é uma série de linha sobre colunas empilhadas, e o Mekko é uma área empilhada sobre um eixo de datas, o que dá a largura variável. O Gantt é uma barra empilhada com uma série de início invisível, mais séries de dispersão (XY) para os marcos, a escala e os rótulos.</li>
+    <li><strong>Séries auxiliares:</strong> totais, rótulos, linhas de valor e a escala do Gantt são séries cujo nome começa com <code>tqq_</code>, escondidas da legenda. Nos gráficos horizontais (barras, cascata horizontal e Gantt), onde o Excel não combina barras com linhas, elas são séries XY no grupo secundário de eixos.</li>
+    <li><strong>O bloco em <code>_ThinQQ</code></strong> é maior nos tipos novos: o Mekko usa 5 linhas por categoria (as bordas e o centro de cada coluna) e o Gantt tem pelo menos 40 linhas de escala, calculada por fórmula (semanas, meses, trimestres ou anos). Só o intervalo do eixo do Gantt e a escala fixa de <span class="ui">Mesma escala</span> são aplicados por código.</li>
+    <li><strong>Capacidades por tipo:</strong> uma única matriz no núcleo diz o que cada tipo aceita; a faixa de opções, os comandos e <span class="ui">Alterar dados</span> consultam a mesma matriz (é a tabela de <a href="#matriz">O que cada tipo aceita</a>).</li>
+  </ul>
   <p>O código-fonte e o histórico de versões estão em <a href="https://github.com/israeldias-hub/ThinQQ">github.com/israeldias-hub/ThinQQ</a>.</p>
 </section>
 
@@ -575,7 +1059,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 </div>
 
 <footer>
-  <p>ThinQQ 1.0.0. Dúvidas e sugestões: abra uma <a href="https://github.com/israeldias-hub/ThinQQ/issues">issue no GitHub</a>.</p>
+  <p>ThinQQ 1.1.0. Dúvidas e sugestões: abra uma <a href="https://github.com/israeldias-hub/ThinQQ/issues">issue no GitHub</a>.</p>
 </footer>
 <script>
 (function () {
