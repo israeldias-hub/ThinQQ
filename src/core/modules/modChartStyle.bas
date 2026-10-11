@@ -119,6 +119,22 @@ Public Sub Style_ApplySeriesColors(cht As Chart, paletteName As String, Optional
     Next
 End Sub
 
+' Cores por PONTO da pizza e da rosca (uma serie so): VaryByCategories e a fatia k recebe pal((k - 1) Mod 6) (a 7a volta ao inicio da
+' paleta), com borda branca de 1 pt que separa as fatias. Nao mexe nos rotulos: quem chama (Pie_ApplyColors) refaz a cor da fonte.
+Public Sub Style_ApplyPointColors(cht As Chart, paletteName As String)
+    Dim pal As Variant, s As Series, k As Long
+    If cht.SeriesCollection.Count = 0 Then Exit Sub
+    pal = Style_Palette(paletteName)
+    Set s = cht.SeriesCollection(1)
+    cht.ChartGroups(1).VaryByCategories = True
+    For k = 1 To s.Points.Count
+        Style_SetColor s.Points(k).Format.Fill.ForeColor, pal((k - 1) Mod 6)
+    Next
+    s.Format.Line.Visible = msoTrue
+    s.Format.Line.ForeColor.RGB = RGB(255, 255, 255)
+    s.Format.Line.Weight = 1
+End Sub
+
 ' Grava a espessura da borda das areas (pt) na opcao "border" e a aplica as areas existentes. O valor e GRAVADO com ponto
 ' decimal em qualquer localidade (Str$ nunca usa a virgula), que e o que Style_ApplySeriesColors le. E o ponto de entrada para
 ' quem quer outra espessura (o Mekko, 1,5 pt): a troca de paleta passa a preserva-la.
@@ -162,8 +178,14 @@ Public Function Style_NumberFormat(key As String) As String
     End Select
 End Function
 
+' fmt = CODIGO de formato (Style_NumberFormat). Pizza e rosca guardam a CHAVE (int, pct0, ...) e mostram participacao ou valor: sai por
+' Pie_ApplyNumberFormat com a chave do registro (ApplyOption grava numfmt antes de despachar, entao a chave lida ja e a nova).
 Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
     Dim s As Series, i As Long, segFmt As String, totFmt As String, useFmt As String
+    If Kinds_Family(Registry_ChartType(cht)) = "pie" Then
+        Pie_ApplyNumberFormat cht, Registry_GetOption(cht, "numfmt", "int")
+        Exit Sub
+    End If
     segFmt = fmt: totFmt = fmt
     If Kinds_Is100(Registry_ChartType(cht)) Then
         ' 100%: segmentos mostram participação (pct0/pct1); numfmt vale para os totais absolutos

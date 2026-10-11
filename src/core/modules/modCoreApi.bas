@@ -121,6 +121,7 @@ Public Sub Core_Insert(kind As String)
     Watchers_Rehook
     co.Select
     Core_SafeRefresh co.Chart
+    NotifyPieIgnoredColumns kind, data
     Exit Sub
 Fail:
     en = Err.Number: ed = Err.Description
@@ -137,6 +138,15 @@ Fail:
     End If
 End Sub
 
+' Pizza e rosca mostram uma serie so: a primeira coluna de valores. Com mais colunas na tabela as demais sao ignoradas e o usuario e avisado
+' (informativo: o grafico ja foi criado). Nunca propaga erro.
+Private Sub NotifyPieIgnoredColumns(kind As String, data As clsChartData)
+    On Error Resume Next
+    If Kinds_Family(kind) <> "pie" Then Exit Sub
+    If data.SeriesCount < 2 Then Exit Sub
+    Core_Notify "A " & IIf(kind = "doughnut", "rosca", "pizza") & " mostra só a primeira coluna de valores (" & data.SeriesName(1) & "). As outras " & (data.SeriesCount - 1) & " coluna(s) da tabela foram ignoradas.", vbInformation
+End Sub
+
 Public Function Core_GetToggle(key As String) As Boolean
     Dim c As Chart
     On Error Resume Next
@@ -150,6 +160,16 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
     Dim kind As String, fam As String
     kind = Registry_ChartType(c)
     fam = Kinds_Family(kind)
+    If fam = "pie" Then
+        ' Pizza e rosca: so os rotulos (nativos) e os rotulos fora (a rosca recusa: 7002). Totais, conectores e eixo secundario nao existem
+        ' e nao gravam nada (Core_RebuildFromRange chama todos); linha de valor e indicador 100% seguem para a recusa propria (7002).
+        Select Case key
+            Case "labels": Pie_SetLabels c, value: Exit Sub
+            Case "pieout": Pie_SetOutside c, value: Exit Sub
+            Case "ind100", "vline"
+            Case Else: Exit Sub
+        End Select
+    End If
     Select Case key
         Case "totals"
             If fam = "area" Then
@@ -169,6 +189,8 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
             If fam = "waterfall" Then Ann_SetWaterfallConnectors c, value Else Stacked_SetConnectors c, value
         Case "secondary"
             Combo_SetSecondary c, value                 ' so a combinacao (nos demais tipos nao faz nada nem grava a opcao)
+        Case "pieout"
+            Pie_SetOutside c, value                     ' recusa (7002) fora da pizza (a pizza e a rosca saem acima): Core_SetToggle mostra o aviso
         Case "ind100"
             Deco_SetInd100 c, value                     ' recusa (7002) fora dos 100% e Mekko (%): Core_SetToggle mostra o aviso
         Case "vline"
@@ -225,6 +247,7 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
             Select Case Kinds_Family(Registry_ChartType(c))
                 Case "waterfall": Waterfall_ApplyColors c, value
                 Case "area": Area_ApplyColors c, value
+                Case "pie": Pie_ApplyColors c, value
                 Case Else: Style_ApplySeriesColors c, value
             End Select
         Case "gap"
@@ -507,6 +530,8 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/SyncX" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Combo_RefreshAfterDataChange cht                 ' combinacao: escala do eixo secundario e formato dos rotulos da linha
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Combo" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Pie_RefreshAfterDataChange cht                   ' pizza com rotulos fora: o nome acompanha a fatia que passou a ter (ou deixou de ter) valor
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Pie" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Ann_Refresh cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Ann" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
 End Sub
@@ -591,7 +616,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     ApplyOption nc, "palette", Registry_GetOption(nc, "palette", "padrao")
     If Len(Registry_GetOption(nc, "gap", "")) > 0 Then ApplyOption nc, "gap", Registry_GetOption(nc, "gap", "")
     ApplyToggle nc, "totals", Registry_GetOption(nc, "totals", "0") = "1"
-    ApplyToggle nc, "labels", Registry_GetOption(nc, "labels", "1") = "1"
+    ApplyToggle nc, "labels", Registry_GetOption(nc, "labels", "1") = "1"      ' pizza: aplica tambem os rotulos fora (pieout, copiado nas opcoes)
     ApplyToggle nc, "connectors", Registry_GetOption(nc, "connectors", "0") = "1"
     ApplyToggle nc, "secondary", Registry_GetOption(nc, "secondary", "0") = "1"      ' so a combinacao: a escolha do usuario, nao o padrao pelos dados novos
     ReapplySavedDecorations nc                  ' linha de valor, indicador 100% e mesma escala: a escolha salva do usuario, nao o padrao do Insert
@@ -610,6 +635,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     co.Select
     If Err.Number <> 0 Then Errors_Log "Core_RebuildFromRange/final" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Core_SafeRefresh nc
+    NotifyPieIgnoredColumns kind, data
     Core_RebuildFromRange = True
     Exit Function
 FailNew:

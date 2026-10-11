@@ -231,6 +231,7 @@ Public Sub Labels_RefreshPositions(cht As Chart)
     Set blk = Registry_Block(cht)
     If blk Is Nothing Then GoTo Done
     kind = CStr(blk.Cells(1, 2).Value)
+    If Kinds_Family(kind) = "pie" Then GoTo Done            ' rotulos nativos da pizza: sem auxiliar e sem posicao por sinal
     horiz = Kinds_IsHorizontal(kind)
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
@@ -277,6 +278,7 @@ Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
     Set blk = Registry_Block(cht)
     If blk Is Nothing Then Exit Sub
     kind = CStr(blk.Cells(1, 2).Value)
+    If Kinds_Family(kind) = "pie" Then Exit Sub                 ' rotulos nativos da pizza (Pie_ApplyNumberFormat): nenhuma celula do bloco e rotulo
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
     If n < 1 Then Exit Sub
