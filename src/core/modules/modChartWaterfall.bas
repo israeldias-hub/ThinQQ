@@ -336,14 +336,19 @@ Public Sub Waterfall_ApplyColors(cht As Chart, paletteName As String)
     If multi Then RefreshSegmentLabelColors cht
 End Sub
 
-' Cor da fonte dos rotulos de segmento (tqq_lbl_j) por contraste com a cor atual da serie j (a paleta pode ter mudado).
+' Cor da fonte dos rotulos de segmento (tqq_lbl_j) por contraste com a cor atual da serie j (a paleta pode ter mudado), ponto a ponto: os
+' rotulos de segmentos finos ficam ocultos (Labels_RefreshPositions) e uma escrita no nivel da serie os recriaria (e Series.HasDataLabels le
+' False com parte dos pontos sem rotulo).
 Private Sub RefreshSegmentLabelColors(cht As Chart)
-    Dim ns As Long, j As Long, ls As Series
+    Dim ns As Long, j As Long, ls As Series, i As Long, fc As Long
     ns = Waterfall_SeriesCount(cht)
     For j = 1 To ns
         Set ls = Chart_FindSeries(cht, "tqq_lbl_" & j)
         If Not ls Is Nothing Then
-            If ls.HasDataLabels Then ls.DataLabels.Font.Color = Style_ContrastFont(Style_DataSeriesColor(cht, j))
+            fc = Style_ContrastFont(Style_DataSeriesColor(cht, j))
+            For i = 1 To ls.Points.Count
+                If ls.Points(i).HasDataLabel Then ls.Points(i).DataLabel.Font.Color = fc
+            Next
         End If
     Next
 End Sub

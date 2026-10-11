@@ -1192,3 +1192,39 @@ Public Sub Test_BarWaterfall_LeftLabelNearAxisMin_And_ArrowsClearTipLabels()
     Watchers_Stop
     CloseTemp wb
 End Sub
+
+' Tarefa 15b (B3): cascata com varias series. O rotulo de um segmento mais fino que o texto (a altura do segmento, pela regra de tres no eixo e
+' na area interna REAIS, menor que ~12 pt nas colunas; nas barras, mais estreito que o texto) encostaria nas bordas: fica oculto; quando o
+' segmento passa a caber (dados mudaram) o rotulo volta, ligado a celula. Os demais segmentos continuam com rotulo.
+Public Sub Test_WaterfallMulti_ThinSegmentLabel_HiddenUntilItFits()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, ax As Axis, k As Double, l1 As Series, l2 As Series, kind As Variant, tag As String
+    For Each kind In Array("waterfall", "barwaterfall")
+        tag = CStr(kind) & ": "
+        Set wb = NewTempWorkbook(): Set ws = MultiFixture(wb).Source.Worksheet
+        ws.Range("A1:C6").Select
+        Core_Insert CStr(kind)
+        Set cht = Core_ActiveChart()
+        Set ax = cht.Axes(xlValue, xlPrimary)
+        If kind = "waterfall" Then k = cht.PlotArea.InsideHeight / (ax.MaximumScale - ax.MinimumScale) Else k = cht.PlotArea.InsideWidth / (ax.MaximumScale - ax.MinimumScale)
+        Set l1 = Chart_FindSeries(cht, "tqq_lbl_1"): Set l2 = Chart_FindSeries(cht, "tqq_lbl_2")
+        AssertTrue 10 * k < 12, tag & "pre-condicao: o segmento Online do Ajuste (10) tem " & (10 * k) & " pt"
+        AssertFalse l2.Points(2).HasDataLabel, tag & "segmento fino (Online, Ajuste = 10): sem rotulo"
+        AssertTrue l1.Points(2).HasDataLabel, tag & "segmento largo (Loja, Ajuste = -30) mantem o rotulo"
+        AssertEqual "-30", l1.Points(2).DataLabel.Text
+        AssertTrue l2.Points(1).HasDataLabel And l2.Points(4).HasDataLabel, tag & "os outros segmentos do Online mantem o rotulo"
+        ws.Range("C3").Value = 60                                   ' o segmento passa a caber
+        Core_SafeRefresh cht
+        AssertTrue l2.Points(2).HasDataLabel, tag & "segmento que passou a caber: rotulo de volta"
+        AssertEqual "60", l2.Points(2).DataLabel.Text, tag & "ligado a celula"
+        AssertEqual xlLabelPositionCenter, l2.Points(2).DataLabel.Position
+        ws.Range("C3").Value = 10
+        Core_SafeRefresh cht
+        AssertFalse l2.Points(2).HasDataLabel, tag & "fino de novo: oculto"
+        Core_SetToggle "labels", False
+        Core_SetToggle "labels", True
+        Set l2 = Chart_FindSeries(cht, "tqq_lbl_2")
+        AssertFalse l2.Points(2).HasDataLabel, tag & "religar os rotulos mantem o segmento fino sem rotulo"
+        Watchers_Stop
+        CloseTemp wb
+    Next
+End Sub

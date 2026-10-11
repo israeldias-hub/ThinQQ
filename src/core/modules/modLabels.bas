@@ -1,7 +1,9 @@
 Attribute VB_Name = "modLabels"
 Option Explicit
 Private mRefreshing As Boolean
+Private mLinking As Long        ' Labels_LinkPoints em andamento: um refresh reentrante (evento Calculate no meio da ligacao) nao esconde rotulos
 Private Const SIDE_LABEL_OFFSET As Double = 6   ' o rotulo "Left"/"Right" de um ponto XY comeca ~5,5 pt depois dele (medido nos totais XY)
+Private Const SEGMENT_TEXT_HEIGHT As Double = 12 ' altura (pt) do texto de um rotulo de 9 pt: segmento de cascata mais baixo que isso esconde o rotulo
 
 ' Liga o rótulo de cada ponto à célula correspondente (rótulo "vivo"). Posição: acima/abaixo conforme o sinal
 ' (fixedPos = 0) ou a posição fixa informada (ex.: xlLabelPositionCenter em segmentos empilhados). Com horizontal
@@ -10,16 +12,20 @@ Private Const SIDE_LABEL_OFFSET As Double = 6   ' o rotulo "Left"/"Right" de um 
 ' Isolamento por ponto: quando o valor PLOTADO do ponto e #N/D (Series.Values devolve Empty para ele, medido no Excel 2019;
 ' as auxiliares de total da cascata com varias series so plotam as linhas de total) e o Excel recusa o rotulo desse ponto, o
 ' erro e registrado e os demais pontos continuam ligados. Em ponto plotado o erro propaga (o Insert desfaz tudo).
+' Enquanto liga (mLinking), SyncThinSegmentLabels nao mexe em rotulo nenhum: cada escrita dispara o Calculate do grafico e o refresh do
+' observador, no meio de LinkOnePoint, apagaria o rotulo que esta sendo ligado.
 Public Sub Labels_LinkPoints(s As Series, valueCells As Range, numFmt As String, Optional fixedPos As Long = 0, Optional fontColor As Long = -1, Optional horizontal As Boolean = False)
-    Dim i As Long, n As Long, sheetRef As String, plotted As Variant, isNa As Boolean
+    Dim i As Long, n As Long, sheetRef As String, plotted As Variant, isNa As Boolean, en As Long, es As String, ed As String
     n = valueCells.Rows.Count
+    mLinking = mLinking + 1
+    On Error GoTo Fail
     s.HasDataLabels = True
     valueCells.NumberFormatLocal = Style_LocalizeCode(numFmt)
     sheetRef = "='" & Replace(valueCells.Worksheet.Name, "'", "''") & "'!"
     On Error Resume Next
     plotted = s.Values
     If Err.Number <> 0 Then Err.Clear: plotted = Empty
-    On Error GoTo 0
+    On Error GoTo Fail
     For i = 1 To n
         isNa = False
         If IsArray(plotted) Then
@@ -29,11 +35,17 @@ Public Sub Labels_LinkPoints(s As Series, valueCells As Range, numFmt As String,
             On Error Resume Next
             LinkOnePoint s, i, sheetRef & valueCells.Cells(i, 1).Address(True, True), valueCells.Cells(i, 1).Value, numFmt, fixedPos, fontColor, horizontal
             If Err.Number <> 0 Then Errors_Log "Labels_LinkPoints" & vbTab & "ponto " & i & " (#N/D)" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
-            On Error GoTo 0
+            On Error GoTo Fail
         Else
             LinkOnePoint s, i, sheetRef & valueCells.Cells(i, 1).Address(True, True), valueCells.Cells(i, 1).Value, numFmt, fixedPos, fontColor, horizontal
         End If
     Next
+    mLinking = mLinking - 1
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    mLinking = mLinking - 1
+    Err.Raise en, es, ed
 End Sub
 
 Private Sub LinkOnePoint(s As Series, i As Long, cellRef As String, v As Variant, numFmt As String, fixedPos As Long, fontColor As Long, horizontal As Boolean)
@@ -232,6 +244,7 @@ End Function
 ' Cascata horizontal: um rótulo "à esquerda" (barra que desce, total negativo) cujo ponto fica perto do mínimo do eixo e que não cabe
 ' até a borda esquerda da área interna (onde começam os nomes das categorias; largura pelo texto, Labels_EstimateWidth) passa para o
 ' outro lado do ponto, sobre a própria barra, com fundo branco para ficar legível; com espaço volta à esquerda, sem o fundo.
+' Cascata com várias séries: rótulos de segmento mais finos que o texto ficam ocultos (SyncThinSegmentLabels).
 Public Sub Labels_RefreshPositions(cht As Chart)
     Dim blk As Range, body As Range, s As Series, col As Long, i As Long, n As Long, en As Long, ed As String, want As Long
     Dim kind As String, horiz As Boolean, sideCheck As Boolean, inside As Boolean
@@ -248,6 +261,7 @@ Public Sub Labels_RefreshPositions(cht As Chart)
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
     If Kinds_Family(kind) = "waterfall" Then
+        SyncThinSegmentLabels cht, body, horiz          ' varias series: rotulos de segmento finos demais ficam ocultos (independe de tqq_lbl)
         Set s = Chart_FindSeries(cht, "tqq_lbl"): col = WF_COL_LABELVAL
         sideCheck = horiz
     Else
@@ -290,6 +304,52 @@ Private Function LeftLabelFits(cht As Chart, p As Point, xv As Double) As Boolea
     LeftLabelFits = (Geom_ChartValCoord(cht, xv) - SIDE_LABEL_OFFSET - Labels_EstimateWidth(t) >= cht.PlotArea.InsideLeft)
 Done:
 End Function
+
+' Cascata com várias séries: o rótulo de um segmento (tqq_lbl_j, centrado, ligado a D_j) mais fino que o texto encostaria nas bordas do
+' segmento e ficaria ilegível: fica oculto. "Fino" pela escala atual: nas colunas, altura do segmento < SEGMENT_TEXT_HEIGHT; nas barras,
+' largura < largura estimada do texto (Labels_EstimateWidth do valor no formato do gráfico). Quando o segmento volta a caber (dados ou tamanho
+' mudaram) o rótulo é religado como em Labels_LinkPoints. Rótulos de texto vazio (delta zero) ficam como estão. Só escreve quando muda; cada
+' ponto é isolado; nunca propaga erro.
+Private Sub SyncThinSegmentLabels(cht As Chart, body As Range, horiz As Boolean)
+    Dim ns As Long, j As Long, i As Long, n As Long, s As Series, mn As Double, mx As Double, k As Double, dcol As Long, c As Range
+    Dim txt As String, need As Double, want As Boolean, fmt As String, sheetRef As String, fc As Long, v As Double
+    On Error GoTo Done
+    If mLinking > 0 Then Exit Sub                   ' refresh reentrante no meio de Labels_LinkPoints: o refresh final refaz
+    ns = Waterfall_SeriesCount(cht)
+    If ns < 2 Then Exit Sub
+    mn = cht.Axes(xlValue, xlPrimary).MinimumScale: mx = cht.Axes(xlValue, xlPrimary).MaximumScale
+    If mx <= mn Then Exit Sub
+    If horiz Then k = cht.PlotArea.InsideWidth / (mx - mn) Else k = cht.PlotArea.InsideHeight / (mx - mn)
+    n = body.Rows.Count - 1
+    fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
+    sheetRef = "='" & Replace(body.Worksheet.Name, "'", "''") & "'!"
+    For j = 1 To ns
+        Set s = Chart_FindSeries(cht, "tqq_lbl_" & j)
+        If Not s Is Nothing Then
+            dcol = Waterfall_SeriesCol(j, "D")
+            fc = Style_ContrastFont(Style_DataSeriesColor(cht, j))
+            For i = 1 To n
+                If i <= s.Points.Count Then
+                    Set c = body.Cells(i + 1, dcol)
+                    v = Util_ToDouble(c.Value)
+                    txt = Format$(v, fmt)
+                    If Len(txt) > 0 Then
+                        If horiz Then need = Labels_EstimateWidth(txt) Else need = SEGMENT_TEXT_HEIGHT
+                        want = (Abs(v) * k >= need)
+                        On Error Resume Next
+                        If want <> s.Points(i).HasDataLabel Then
+                            If want Then LinkOnePoint s, i, sheetRef & c.Address(True, True), c.Value, fmt, xlLabelPositionCenter, fc, horiz Else s.Points(i).HasDataLabel = False
+                        End If
+                        If Err.Number <> 0 Then Errors_Log "Labels/segmento fino" & vbTab & s.Name & " ponto " & i & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+                        On Error GoTo Done
+                    End If
+                End If
+            Next
+        End If
+    Next
+Done:
+    If Err.Number <> 0 Then Errors_Log "Labels/segmentos finos" & vbTab & Err.Number & vbTab & Err.Description
+End Sub
 
 ' Fundo branco no rótulo que ficou sobre a própria barra (inside) e sem fundo nos demais; só escreve quando muda. Medido: o preenchimento
 ' só passa a valer (Fill.Visible lido de volta True) depois de escrever a cor, mesmo que ela já seja o branco: as duas escritas vão juntas.

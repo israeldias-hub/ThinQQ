@@ -39,6 +39,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - Gantt: muitos colchetes não esmagam mais a área do gráfico: o espaço deles vai até 40% da altura do gráfico e os colchetes ficam empilhados dentro desse limite.
 - Cascata (barras): um rótulo à esquerda perto do mínimo do eixo não invade mais os nomes das categorias (passa para dentro da barra, com fundo branco), e a seta CAGR passa à direita dos rótulos das pontas em vez de cruzá-los.
 - Mekko: um nome de categoria em branco aparece em branco (antes "0"); uma coluna estreita demais para a resolução do eixo não mostra mais nome nem rótulos soltos sobre as vizinhas; no Mekko (%) os valores negativos entram como zero (com aviso); inserir e religar os rótulos de um Mekko grande ficou cerca de 3 vezes mais rápido.
+- Cascata com várias séries: o rótulo de um segmento mais fino que o texto fica oculto (antes encostava nas bordas) e volta quando o segmento passa a caber.
 - Faixa de opções: os itens da lista Espaço usavam ids que começavam por dígito, o que o Excel não aceita no `customUI14` (ele descarta a aba inteira, sem aviso); agora são `gap30` a `gap120`. Só afetava compilações internas anteriores a esta versão.
 
 ### Segurança
