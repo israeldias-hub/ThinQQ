@@ -10,14 +10,16 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-11-thinqq-fase2-design.md` (adendo; argumenta cada decisão) sobre `docs/superpowers/specs/2026-10-10-thinqq-design.md` (Fase 1, autoridade da arquitetura). Ledger e relatórios da Fase 1: `.superpowers/sdd/2026-10-10-thinqq-fase1/` (progress.md, task-N-report.md, final-fix-report.md).
 
+**Estado de execução:** a Tarefa 0 está **concluída** (commits `b19615e` e `6b036c3` da `feat/fase2`; não reexecutar). As regras de ambiente para os implementadores ficam em `.superpowers/sdd/2026-10-11-thinqq-fase2/implementer-rules.md` (fora do repositório; o controlador as entrega junto com cada tarefa). O plano foi corrigido por uma varredura de coerência (pre-flight) antes da Tarefa 1.
+
 ## Global Constraints
 
 - **Ambiente:** Excel 2019 32-bit pt-BR (16.0.19127) no Windows 11; testes em Excel invisível próprio. O VBA compila sob demanda: o build roda o lint (`build/lib/Vba-Lint.ps1`) e uma compilação completa (`Compile VBAProject`); erro de compilação => saída 3; travamento morto pelo watchdog => saída 2. Fontes UTF-8 com **somente caracteres cp1252** nos arquivos VBA (o lint falha com `→`, `≥`, aspas tipográficas fora do cp1252, emojis; `–` e `…` existem no cp1252 mas evite-os em código), sem ` _` perdido (continuação seguida de texto ou de linha vazia), `Option Explicit`, declarações antes dos procedimentos, `Attribute VB_Name` na primeira linha de cada `.bas`.
 - **Testes:** `Public Sub Test_x()` sem parâmetros em `tests/vba/{core,loader}/Test*.bas`, executados por um despachante gerado (nunca `Application.Run`), via `pwsh build/run-tests.ps1` (suíte completa ~2–3 min; parâmetros `-Target core|loader|all`, `-NoBuild`, `-TimeoutSec`, `-Filter "Modulo.Teste|outro"` (pula as suítes PowerShell), `-LoaderSwap`). Erro de compilação em teste novo => saída 3 com `módulo:linha`. Asserts: `AssertTrue/False/Equal/Almost`, `NewTempWorkbook`, `CloseTemp`, `TempDir`, `RepoPath`.
-- **Instâncias do usuário:** os processos Excel PIDs **4856, 28284, 43616** nunca são tocados nem encerrados; um deles mantém `dist\ThinQQ.core.test.xlam` travado no repositório real. Por isso **builds e testes rodam numa CÓPIA**: `robocopy "C:\Users\143272\Desktop\Aplicações\ThinkQQ" C:\temp\tqq-f2 /MIR /XD .git .superpowers dist /NFL /NDL /NJH /NJS` (repetir antes de cada rodada; edite sempre o repositório real; commite a partir do repositório real; `cd` no comando só com caminho absoluto). Nunca `build.ps1 -Install`; nunca tocar em `%LOCALAPPDATA%\ThinQQ` nem no registro real do usuário além do que os testes existentes do atualizador já salvam/restauram. Disco C: com ~4 GB livres: apague as suas pastas temporárias (`C:\temp\tqq-f2`, `%TEMP%\thinqq_test_*` são limpas pelo runner) e **nunca apague nada fora das suas próprias pastas temporárias**.
+- **Instâncias do usuário:** os processos Excel PIDs **4856, 28284, 43616** nunca são tocados nem encerrados; um deles mantém `dist\ThinQQ.core.test.xlam` travado no repositório real. Por isso **builds e testes rodam numa CÓPIA**: `robocopy "C:\Users\143272\Desktop\Aplicações\ThinkQQ" C:\temp\tqq-f2 /MIR /XD .git .superpowers dist /NFL /NDL /NJH /NJS` (repetir antes de cada rodada; edite sempre o repositório real; commite a partir do repositório real; `cd` no comando só com caminho absoluto). Nunca `build.ps1 -Install`; nunca tocar em `%LOCALAPPDATA%\ThinQQ` nem no registro real do usuário além do que os testes existentes do atualizador já salvam/restauram. A partir da Tarefa 1, `Errors_Log` no build `Test` grava em `%TEMP%\ThinQQ-test-logs\thinqq.log` (antes, os testes de falha acrescentavam linhas ao log real do usuário). Disco C: com ~4 GB livres: apague as suas pastas temporárias (`C:\temp\tqq-f2`, `%TEMP%\thinqq_test_*` são limpas pelo runner) e **nunca apague nada fora das suas próprias pastas temporárias**.
 - **Código:** procedimentos `Core_*` nunca propagam erro (`Errors_Handle`/`Errors_HandleErr`); `MsgBox`/formulários só registram no build `Test` (`Core_Notify`, `RxMsg`, `Loader_Msg`; formulários não abrem quando `BUILD_CONFIG = "Test"`); fórmulas via `.Formula`/`.FormulaR1C1` em inglês; formatos de **rótulo** de gráfico via `Style_AssignNumberFormat`/`NumberFormatLocal` (códigos interpretados na localidade: nunca `DataLabel.NumberFormat` direto) e formatos de **célula** do bloco via `NumberFormatLocal` com `Style_LocalizeCode` para números e `Range.NumberFormat` em inglês para datas (`dd/mm`, `mmm/yy`); testes de texto renderizado via `DataLabel.Text` com expectativas derivadas de `Application.International(xlDecimalSeparator/xlThousandsSeparator)` ou `Format$`; textos de interface em pt-BR; identificadores em inglês com os prefixos existentes (`Core_`, `Stacked_`, `Waterfall_`, `Geom_`, `Ann_`, `Labels_`, `Style_`, `Chart_`, `Util_`, `Registry_`, `CalcSheet_`, `Samples_`, `Rx_`, `Loader_`) e os novos (`Kinds_`, `Area_`, `Combo_`, `Pie_`, `Mekko_`, `Gantt_`, `Deco_`).
 - **Todo tipo novo de gráfico entrega, obrigatoriamente:** `Insert` com rollback (bloco e `ChartObject` apagados em falha; `Util_TestHookAfterBlock` após alocar o bloco), opções persistidas por `Registry_SetOption` (incl. `n`), rótulos ligados a células (ou nativos, na pizza), matriz de anotações com recusa explícita (erro `vbObjectError + 7001` com mensagem por tipo, que `Core_AddAnnotation` mostra sem registrar falha), testes de geometria **independentes das fórmulas de produção** (regra de três sobre `PlotArea.Inside*` e `Axis.MinimumScale/MaximumScale` reais), um exemplo em `Samples_Create`, seção no tutorial, entrada na faixa validada por `Test-Ribbon`/`TestRibbon` e cobertura em `Test-Docs`.
-- **Commits:** pequenos, em português, prefixos `feat:`/`fix:`/`test:`/`docs:`/`build:`; trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`. Branch `feat/fase2` (já existe); **não** fazer push, **não** criar nem trocar de branch, não tocar em outras branches.
+- **Commits:** pequenos, em português, prefixos `feat:`/`fix:`/`test:`/`docs:`/`build:`; trailer `Co-Authored-By:` **indicado no prompt de cada implementador** (os implementadores usam `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`); "(+ trailer)" nos comandos de commit deste plano significa essa linha. Branch `feat/fase2` (já existe); **não** fazer push, **não** criar nem trocar de branch, não tocar em outras branches.
 - **Versões:** `version.json` passa a `{"loader":"1.1.0","core":"1.1.0"}` só na Tarefa 14; `APP_VERSION`/`BUILD_CONFIG`/`BUILD_SUFFIX` vêm de `modBuildInfo` gerado pelo build. O build importa automaticamente todo `.bas` de `src/<alvo>/modules`, `.cls` de `classes`, `.json`+`.vba` de `forms` e todo `Test*.bas` de `tests/vba/<alvo>` (nenhum registro manual de módulo é necessário).
 - **Processo:** cada tarefa é executada por um implementador novo que só vê o texto da tarefa; tudo o que ele precisa (interfaces, fórmulas, fixtures, mensagens exatas, comandos) está na própria tarefa. Cada tarefa termina com a suíte completa verde na cópia e um commit por tarefa (ou mais, se útil).
 
@@ -36,12 +38,13 @@
 ```
 src/core/modules/
 ├── modChartKinds.bas        NOVO  Kinds_IsValid/IsHorizontal/Is100/Family/Supports/ExpectedCategoryRefs/Insert (despacho)
-├── modChartUtil.bas         ALT   Chart_AddHelperSeries, Chart_SetupSecondaryAxes, Chart_SyncSecondaryX, Chart_HideHelperLegendEntries, Util_FailChartReadForTest
-├── modCalcSheet.bas         ALT   Cleanup conta rótulos ligados; falha de leitura => nada apagado; Block_Ref
+├── modChartUtil.bas         ALT   Chart_AddHelperSeries, Chart_SetupSecondaryAxes, Chart_SyncSecondaryX, Chart_HideHelperLegendEntries (ganchos Util_*ForTest da limpeza: Tarefa 0, feito)
+├── modCalcSheet.bas         ALT   Block_Ref (limpeza por rótulos ligados e falha fechada: Tarefa 0, feito)
+├── modErrors.bas            ALT   Errors_LogDir: log do build Test em %TEMP%\ThinQQ-test-logs (Tarefa 1)
 ├── modLabels.bas            ALT   Labels_LinkPoints(horizontal), Labels_RefreshPositions por orientação e isolado por ponto
 ├── modChartStyle.bas        ALT   Style_ApplyBase tolera pizza e inverte categorias em horizontais; Style_ApplyPointColors; Style_ApplyNumberFormat por família
 ├── modGeometry.bas          ALT   Geom_CategoryCenterY, Geom_ValueToX, Geom_ChartIsHorizontal, Geom_ChartCatCoord, Geom_ChartValCoord, Geom_ChartValueToX, Geom_ChartCategoryCenterY
-├── modAnnotations.bas       ALT   layouts por orientação; kinds ind100 e bracket; recusas por tipo; Ann_GetCategoryData para area/combo/barras
+├── modAnnotations.bas       ALT   layouts por orientação; kinds ind100 (Ann_AddInd100/Ann_RemoveInd100) e bracket; recusas por tipo; Ann_GetCategoryData para area/combo/barras
 ├── modChartStacked.bas      ALT   kinds barstacked/barclustered/barstacked100; colunas Pos/VLine; totais por auxiliar orientável
 ├── modChartWaterfall.bas    ALT   várias séries (cols 21+), build-down (col 20), barwaterfall
 ├── modChartArea.bas         NOVO  area, area100
@@ -53,7 +56,7 @@ src/core/modules/
 ├── modCoreApi.bas           ALT   Core_Supports, Core_SameScale, Core_ResetScale, despacho por família, colchete
 └── modSamples.bas           ALT   planilha "Exemplos 2"
 src/loader/ribbon/customUI14.xml  ALT  menus; src/loader/modules/modRibbon.bas ALT (Rx_GetEnabled por tag, Rx_OnSameScale, Rx_OnResetScale)
-tests/vba/core/  TestKinds.bas, TestBars.bas, TestWaterfallMulti.bas, TestArea.bas, TestPie.bas, TestMekko.bas, TestGantt.bas, TestDecorations.bas (NOVOS);
+tests/vba/core/  TestKinds.bas, TestBars.bas, TestWaterfall2.bas, TestArea.bas, TestPie.bas, TestMekko.bas, TestGantt.bas, TestDecorations.bas (NOVOS);
                  TestCalcSheet, TestCoreApi, TestGeometry, TestAnnotations, TestWaterfall, TestStacked, TestSamples (ALT)
 tests/vba/loader/TestRibbon.bas  ALT;   tests/ps/Test-Docs.ps1  ALT (menus)
 docs/tutorial/tutorial.html, README.md, CHANGELOG.md, version.json, release/notes.txt  ALT (Tarefa 14)
@@ -72,174 +75,30 @@ Fixtures: cada módulo de teste tem a sua `Private Function Fixture(wb)`; use `T
 
 ---
 
-### Tarefa 0: Limpeza de blocos conta rótulos ligados e falha fechada (carry-over da Fase 1)
+### Tarefa 0: Limpeza de blocos conta rótulos ligados e falha fechada (carry-over da Fase 1) — CONCLUÍDA
 
-**Files:**
-- Modify: `src/core/modules/modCalcSheet.bas` (substituir `AllSeriesFormulas`/`ChartFormulas`; `CalcSheet_Cleanup`)
-- Modify: `src/core/modules/modChartUtil.bas` (gancho `Util_FailChartReadForTest`)
-- Test: `tests/vba/core/TestCoreApi.bas`, `tests/vba/core/TestCalcSheet.bas`
+**Estado:** concluída e revisada nos commits `b19615e` e `6b036c3` da `feat/fase2` (relatório: `.superpowers/sdd/2026-10-11-thinqq-fase2/task-0-report.md`). **Não reexecutar:** os passos de teste, implementação e commit foram retirados deste plano; o texto abaixo só registra o que já existe e o comportamento do Excel observado, para as tarefas seguintes.
 
-**Interfaces:**
-- Consumes: `CalcSheet_Cleanup(wb) As Long`, `Registry_FindChartObject`, `Errors_Log`, `BUILD_CONFIG`.
-- Produces: `CalcSheet_Cleanup` passa a considerar referência ao bloco **qualquer** `Series.Formula` ou `DataLabel.Formula` (rótulo ligado) de qualquer gráfico da pasta (embutidos, em grupos de formas, planilhas de gráfico) e, se a leitura de qualquer gráfico falhar, **não remove nada** e registra em log; `Public Function CalcSheet_CleanupReadFailed() As Boolean` (resultado da última limpeza); `Public Util_FailChartReadForTest As Boolean` (só tem efeito com `BUILD_CONFIG = "Test"`).
+**O que existe no código:**
+- `src/core/modules/modCalcSheet.bas`: `CalcSheet_Cleanup(wb) As Long` considera referência ao bloco qualquer `Series.Formula` **e** qualquer `DataLabel.Formula` (rótulo ligado) de qualquer gráfico da pasta (embutidos, dentro de grupos de formas via `GroupItems`, planilhas de gráfico em `wb.Charts`), pelas privadas `AllChartReferences`/`ChartReferences`/`LabelFormula`. **Falha fechada:** qualquer erro de leitura (forma, item de grupo, planilha de gráfico, gráfico, `Series.Formula`, `Point.HasDataLabel`, `DataLabel.Formula`, ou uma citação `_ThinQQ!...` que não pode ser interpretada) interrompe a passada e a limpeza não remove nada: `Errors_Log "CalcSheet_Cleanup: leitura de gráfico falhou; nenhum bloco removido [detalhe]"` e devolve 0. `Public Function CalcSheet_CleanupReadFailed() As Boolean` devolve o resultado da última limpeza (zerado ao entrar).
+- Varredura de rótulos limitada: em cada série só os primeiros `MaxBlockRows(wb)` pontos são lidos (altura do maior bloco `tqq_*` da `_ThinQQ`); a leitura para no primeiro rótulo que cita `_ThinQQ`; série cuja `Series.Formula` já cita `_ThinQQ` não tem rótulos lidos; orçamento de 20000 pontos por passada (estourou = falha fechada).
+- Exceção estreita: gráfico nativo chartex (cascata/funil/treemap do Excel 2016+, `ChartType` 117..123 ou 140) cujo `Series.Formula` lança o erro 445 é ignorado (não é falha; o ThinQQ não cria chartex).
+- Ganchos de teste em `src/core/modules/modChartUtil.bas` (efeito só com `BUILD_CONFIG = "Test"`, como `Util_FailAfterBlockForTest`): `Util_FailChartReadForTest As Boolean`; `Util_FailChartReadSiteForTest As Long` com as constantes `READFAIL_SHAPE = 1`, `READFAIL_GROUP = 2`, `READFAIL_CHARTSHEET = 3`, `READFAIL_CHART = 4`, `READFAIL_SERIES = 5`, `READFAIL_HASLABEL = 6`, `READFAIL_FORMULA = 7`; `Util_LabelReadsForTest` (contador de pontos lidos); `Util_LabelBudgetForTest` (substitui o limite de 20000).
+- Testes já existentes (nenhuma tarefa posterior pode reutilizar estes nomes): em `TestCoreApi.bas` `Test_Core_Cleanup_Stacked100NoTotals_CopyKeepsBlock`, `Test_Core_Cleanup_ChartInsideGroup_KeepsBlock`, `Test_Core_Insert_WhileCleanupAborts_StillInsertsAndDoesNotOverlapOrphan`; em `TestCalcSheet.bas` `Test_CalcSheet_Cleanup_ReadFailure_DeletesNothing`, `Test_CalcSheet_Cleanup_ReadFailureAtEverySite_DeletesNothing`, `Test_CalcSheet_Cleanup_StopsScanningAfterFirstFailure`, `Test_CalcSheet_Cleanup_PointBudgetExceeded_FailsClosed`, `Test_CalcSheet_Cleanup_LargeChart_IsBoundedAndNotAFailure`, `Test_CalcSheet_Cleanup_SeriesReferencingCalcSheet_ReadsNoLabels`, `Test_CalcSheet_Cleanup_LabelsOnlyReference_KeepsBlock_StopsAtFirstLinkedLabel`, `Test_CalcSheet_Cleanup_PlainLabels_DoNotBlockCleanup`, `Test_CalcSheet_Cleanup_UnparseableCalcSheetMention_FailsClosed`, `Test_CalcSheet_Cleanup_NativeChartEx_IsNotAReadFailure`, `Test_CalcSheet_LabelFormula_ObservedBehavior`. Suíte ao fim da tarefa: core 173, loader 95, PowerShell verde.
 
-Contexto: o final-fix da Fase 1 (ledger, residual C1) deixou este caso: um gráfico 100% com Totais desligados tem como única referência ao bloco os rótulos de segmento ligados por `DataLabel.Formula` (participações); uma cópia dele (ou o gráfico movido para planilha de gráfico) perdia o bloco em `Atualizar`, e um `Insert` seguinte podia reaproveitar as células: números de outro gráfico na cópia.
+**Comportamento observado no Excel 2019 32-bit pt-BR (fixado em `Test_CalcSheet_LabelFormula_ObservedBehavior`):**
+- Ponto **sem** rótulo: `Point.HasDataLabel = False`, sem erro; ler `Point.DataLabel` lança erro (-2147467259; em rótulo apagado/parcial, -2147024809). Sempre teste `HasDataLabel` antes de tocar em `DataLabel`.
+- Rótulo automático: `DataLabel.Formula` não lança e devolve o **texto exibido** (ex.: `10`, igual a `.Text`); rótulo editado à mão (`.Text = "texto livre"`) devolve o texto; rótulo ligado a célula devolve `=Dados!$B$2` (sempre em A1, mesmo com `Application.ReferenceStyle = xlR1C1`).
+- `Series.HasDataLabels = False` quando só alguns pontos têm rótulo (não serve para pular séries).
+- Chartex: `HasChart = True`, `ChartType = 119`, `Points.Count` normal, mas `Series.Formula` e `DataLabel.Formula` lançam 445.
+- Custo medido: 3000 leituras de `HasDataLabel` + `.Formula` com rótulos levam cerca de 0,17 s.
 
-- [ ] **Passo 1: Escrever os testes de regressão (RED)**
+**Regras que valem para as tarefas seguintes:**
+- Todos os rótulos ligados de uma série apontam para o bloco do próprio gráfico (a varredura assume isso): nunca ligue rótulos de uma série a um bloco que nenhuma série do gráfico cite.
+- Séries auxiliares com pontos `NA()` (Tarefas 4, 9 e 10) entram na varredura: os testes dessas tarefas confirmam que uma limpeza com o gráfico novo e um bloco órfão remove só o órfão e não marca falha.
+- A pendência "o `Errors_Log` do build Test escreve no log real do usuário" é resolvida na Tarefa 1.
 
-Em `tests/vba/core/TestCoreApi.bas` (usa `Fixture`, `TqqNameCount`, `Teardown` já existentes no módulo):
-
-```vb
-' Tarefa 0: um 100% sem totais so referencia o bloco pelos rotulos ligados (DataLabel.Formula)
-Public Sub Test_Core_Cleanup_Stacked100NoTotals_CopyKeepsBlock()
-    Dim wb As Workbook, ws As Worksheet, dup As Object, cht As Chart
-    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
-    ws.Range("A1:C5").Select
-    Core_Insert "stacked100"
-    Core_SetToggle "totals", False
-    AssertTrue Chart_FindSeries(Core_ActiveChart(), "tqq_total") Is Nothing
-    Set dup = ws.ChartObjects(1).Duplicate
-    ws.ChartObjects(2).Name = "Gráfico 2"       ' como o Excel nomeia uma copia colada
-    ws.ChartObjects(1).Delete
-    AssertEqual 1, TqqNameCount(wb)
-    Core_Refresh
-    AssertEqual 1, TqqNameCount(wb), "bloco referenciado so por rotulos ligados nao pode ser apagado"
-    Set cht = ws.ChartObjects(1).Chart
-    AssertEqual "67%", cht.SeriesCollection(1).Points(1).DataLabel.Text, "a copia continua mostrando a participacao (100/150)"
-    ws.Range("A1:C5").Select
-    Core_Insert "stacked"
-    AssertEqual 2, TqqNameCount(wb), "copia + novo grafico"
-    AssertEqual "67%", cht.SeriesCollection(1).Points(1).DataLabel.Text, "o novo bloco nao reaproveitou as celulas da copia"
-    Teardown wb
-End Sub
-
-' Grupo de formas: o grafico dentro do grupo continua referenciando o bloco (codigo da Fase 1 sem teste dedicado)
-Public Sub Test_Core_Cleanup_ChartInsideGroup_KeepsBlock()
-    Dim wb As Workbook, ws As Worksheet, dup As Object, rect As Shape
-    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
-    ws.Range("A1:C5").Select
-    Core_Insert "waterfall"
-    Set dup = ws.ChartObjects(1).Duplicate
-    ws.ChartObjects(2).Name = "Gráfico 2"
-    ws.ChartObjects(1).Delete
-    Set rect = ws.Shapes.AddShape(msoShapeRectangle, 10, 400, 50, 20)
-    ws.Shapes.Range(Array("Gráfico 2", rect.Name)).Group
-    Core_Refresh
-    AssertEqual 1, TqqNameCount(wb), "bloco de grafico dentro de grupo preservado"
-    Teardown wb
-End Sub
-```
-
-Em `tests/vba/core/TestCalcSheet.bas`:
-
-```vb
-' Falha fechada: se a leitura de qualquer grafico falhar, a limpeza nao remove nada (nem orfaos de verdade)
-Public Sub Test_CalcSheet_Cleanup_ReadFailure_DeletesNothing()
-    Dim wb As Workbook, ws As Worksheet, n As Long, en As Long, es As String, ed As String
-    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
-    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
-    ws.ChartObjects.Add 10, 10, 100, 100                 ' um grafico qualquer: ha leitura a fazer
-    On Error GoTo Cleanup
-    Util_FailChartReadForTest = True
-    n = CalcSheet_Cleanup(wb)
-    Util_FailChartReadForTest = False
-    AssertEqual 0, n, "com leitura falha nada e removido"
-    AssertTrue CalcSheet_CleanupReadFailed(), "a falha fica registrada"
-    AssertTrue Not CalcSheet_FindBlock(wb, "orphan") Is Nothing
-    AssertEqual 1, CalcSheet_Cleanup(wb), "sem falha o orfao sai"
-    AssertFalse CalcSheet_CleanupReadFailed()
-    CloseTemp wb
-    Exit Sub
-Cleanup:
-    en = Err.Number: es = Err.Source: ed = Err.Description
-    Util_FailChartReadForTest = False
-    CloseTemp wb
-    Err.Raise en, es, ed
-End Sub
-
-' Rotulo de texto comum (nao ligado) nao conta como referencia nem como falha de leitura
-Public Sub Test_CalcSheet_Cleanup_PlainLabels_DoNotBlockCleanup()
-    Dim wb As Workbook, ws As Worksheet, co As ChartObject, s As Series
-    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
-    ws.Range("A1:B3").Value = Application.Transpose(Array(Array("a", "b", "c"), Array(1, 2, 3)))
-    Set co = ws.ChartObjects.Add(10, 10, 200, 150)
-    Set s = co.Chart.SeriesCollection.NewSeries: s.Values = "=" & ws.Name & "!$B$1:$B$3"
-    s.HasDataLabels = True
-    s.Points(1).DataLabel.Text = "texto livre"
-    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
-    AssertEqual 1, CalcSheet_Cleanup(wb), "orfao removido apesar de rotulos de texto em outro grafico"
-    AssertFalse CalcSheet_CleanupReadFailed()
-    CloseTemp wb
-End Sub
-```
-
-- [ ] **Passo 2: Rodar para ver falhar**
-
-Run: `pwsh C:\temp\tqq-f2\build\run-tests.ps1 -Target core -Filter "Cleanup" -TimeoutSec 240`
-Expected: saída 3 (`Util_FailChartReadForTest`/`CalcSheet_CleanupReadFailed` indefinidos = erro de compilação). Depois de criar só as duas declarações (gancho e função devolvendo `False`), rodar de novo e ver `not ok` em `Test_Core_Cleanup_Stacked100NoTotals_CopyKeepsBlock` (`esperado=<1> obtido=<0>`) e em `Test_CalcSheet_Cleanup_ReadFailure_DeletesNothing`.
-
-- [ ] **Passo 3: Implementar**
-
-`modChartUtil.bas` (ao lado de `Util_FailAfterBlockForTest`):
-
-```vb
-' Gancho de teste: quando True (e BUILD_CONFIG = "Test"), a leitura de formulas de graficos no Cleanup falha.
-Public Util_FailChartReadForTest As Boolean
-```
-
-`modCalcSheet.bas`: variável de módulo `Private mReadFailed As Boolean`; `Public Function CalcSheet_CleanupReadFailed() As Boolean` devolve `mReadFailed`. Substituir `AllSeriesFormulas`/`ChartFormulas` por `AllChartReferences`/`ChartReferences` com estas regras:
-
-```vb
-' Texto com as formulas de series E de rotulos ligados de um grafico. Qualquer erro de leitura marca mReadFailed.
-Private Function ChartReferences(ch As Object) As String
-    Dim s As Object, i As Long, acc As String
-    On Error GoTo Fail
-    If BUILD_CONFIG = "Test" Then
-        If Util_FailChartReadForTest Then Err.Raise vbObjectError + 9998, "ThinQQ", "Falha simulada de leitura (teste)"
-    End If
-    For Each s In ch.SeriesCollection
-        acc = acc & vbLf & s.Formula
-        For i = 1 To s.Points.Count
-            acc = acc & vbLf & LabelFormula(s.Points(i))
-        Next
-    Next
-    ChartReferences = acc
-    Exit Function
-Fail:
-    mReadFailed = True
-End Function
-
-' Formula do rotulo ligado ("" se o ponto nao tem rotulo ou se o rotulo e texto comum).
-' So conta como falha quando nem .Formula nem .Text podem ser lidos.
-Private Function LabelFormula(p As Object) As String
-    Dim f As String, t As String
-    On Error Resume Next
-    If Not p.HasDataLabel Then Exit Function
-    f = p.DataLabel.Formula
-    If Err.Number <> 0 Then
-        Err.Clear
-        t = p.DataLabel.Text
-        If Err.Number <> 0 Then mReadFailed = True
-        Exit Function
-    End If
-    LabelFormula = f
-End Function
-```
-
-`AllChartReferences(wb)` zera `mReadFailed`, percorre as mesmas coleções de hoje (formas de cada planilha, `GroupItems` de grupos, `wb.Charts`) chamando `ChartReferences`. Em `CalcSheet_Cleanup`: ao calcular `refs` pela primeira vez, se `mReadFailed` então `Errors_Log "CalcSheet_Cleanup: leitura de gráfico falhou; nenhum bloco removido"` e `Exit Function` (devolvendo 0). O comentário de cabeçalho do módulo passa a dizer que rótulos ligados também mantêm o bloco vivo.
-
-- [ ] **Passo 4: GREEN e suíte completa**
-
-Run: `pwsh C:\temp\tqq-f2\build\run-tests.ps1 -Target core -Filter "Cleanup" -TimeoutSec 240` → todos `ok`. Depois `pwsh C:\temp\tqq-f2\build\run-tests.ps1 -TimeoutSec 600` → `Todos os testes passaram` (core 159+4, loader 95, lint, ribbon, docs, instalador).
-
-- [ ] **Passo 5: Commit**
-
-```bash
-git add src/core/modules/modCalcSheet.bas src/core/modules/modChartUtil.bas tests/vba/core/TestCoreApi.bas tests/vba/core/TestCalcSheet.bas
-git commit -m "fix: limpeza de blocos conta rotulos ligados e nao apaga nada quando a leitura de um grafico falha" -m "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
-```
-
-**Verificação no Excel real (roteiro manual, anotar no relatório):** inserir Colunas 100%, desligar Totais, copiar/colar o gráfico, apagar o original, clicar Atualizar: a cópia mantém as participações; inserir outro gráfico: a cópia continua certa.
+**Verificação manual pendente (usuário, Excel real; entra na lista do README na Tarefa 14):** inserir Colunas 100%, desligar Totais, copiar/colar o gráfico, apagar o original, clicar Atualizar: a cópia mantém as participações; inserir outro gráfico: a cópia continua certa (o mesmo roteiro já é coberto, em Excel invisível, por `Test_Core_Cleanup_Stacked100NoTotals_CopyKeepsBlock`).
 
 ---
 
@@ -247,7 +106,7 @@ git commit -m "fix: limpeza de blocos conta rotulos ligados e nao apaga nada qua
 
 **Files:**
 - Create: `src/core/modules/modChartKinds.bas`
-- Modify: `src/core/modules/modChartUtil.bas`, `src/core/modules/modCalcSheet.bas` (`Block_Ref`), `src/core/modules/modLabels.bas`, `src/core/modules/modChartStyle.bas`, `src/core/modules/modChartStacked.bas`, `src/core/modules/modChartWaterfall.bas` (opção `n`), `src/core/modules/modCoreApi.bas`
+- Modify: `src/core/modules/modChartUtil.bas`, `src/core/modules/modCalcSheet.bas` (`Block_Ref`), `src/core/modules/modLabels.bas`, `src/core/modules/modChartStyle.bas`, `src/core/modules/modChartStacked.bas`, `src/core/modules/modChartWaterfall.bas` (opção `n`), `src/core/modules/modCoreApi.bas`, `src/core/modules/modErrors.bas` (log do build Test fora da pasta do usuário)
 - Test: `tests/vba/core/TestKinds.bas` (novo), `tests/vba/core/TestCoreApi.bas`, `tests/vba/core/TestStacked.bas`
 
 **Interfaces:**
@@ -256,19 +115,20 @@ git commit -m "fix: limpeza de blocos conta rotulos ligados e nao apaga nada qua
   - `Kinds_IsHorizontal(kind) As Boolean` — `barstacked, barclustered, barstacked100, barwaterfall, gantt`.
   - `Kinds_Is100(kind) As Boolean` — `stacked100, barstacked100, area100, mekko`.
   - `Kinds_Family(kind) As String` — `stacked` (stacked, clustered, stacked100, line, barstacked, barclustered, barstacked100), `waterfall` (waterfall, barwaterfall), `area` (area, area100), `combo`, `mekko` (mekko, mekkounits), `gantt`, `pie` (pie, doughnut); `""` se inválido.
-  - `Kinds_Supports(kind, feature As String) As Boolean` — matriz do design §7 (features: `totals, labels, connectors, numfmt, palette, gap, legend, ind100, vline, secondary, pieout, cagr, diff, bracket, samescale`); `False` para tipo ou feature desconhecidos.
+  - `Kinds_Supports(kind, feature As String) As Boolean` — matriz do design §7 (features: `totals, labels, connectors, numfmt, palette, gap, legend, ind100, vline, secondary, pieout, cagr, diff, bracket, samescale`); `False` para tipo ou feature desconhecidos. `pieout` vale **só para `pie`**: a rosca não aceita `DataLabels.Position` `InsideEnd`/`OutsideEnd` (o Excel lança 1004; ver Tarefa 8).
   - `Kinds_ExpectedCategoryRefs(kind, n As Long) As Long` — `5*n` para a família `mekko`, senão `n`.
   - `Kinds_Insert(ws As Worksheet, data As clsChartData, kind As String) As ChartObject` — despacho por família; nesta tarefa só `stacked` → `Stacked_Insert(ws, data, kind)` e `waterfall` → `Waterfall_Insert(ws, data)`; demais famílias: `Err.Raise vbObjectError + 7200, "Kinds_Insert", "Este tipo de gráfico ainda não está disponível nesta versão: " & kind`. Tarefas seguintes acrescentam os `Case`.
 - Produces (`modChartUtil`):
-  - `Chart_AddHelperSeries(cht As Chart, name As String, valueCells As Range, Optional posCells As Range = Nothing) As Series` — `posCells Is Nothing`: série `xlLine` invisível (linha e marcador ocultos) com `Values = Block_Ref(valueCells)` (grupo primário); com `posCells`: série `xlXYScatter` no grupo **secundário**, `XValues = Block_Ref(valueCells)`, `Values = Block_Ref(posCells)`, sem marcador nem linha, e chama `Chart_SetupSecondaryAxes cht, posCells.Rows.Count`.
+  - `Chart_AddHelperSeries(cht As Chart, name As String, valueCells As Range, Optional posCells As Range = Nothing) As Series` — `posCells Is Nothing`: série `xlLine` invisível (linha e marcador ocultos) com `Values = Block_Ref(valueCells)` (grupo primário); com `posCells`: série `xlXYScatter` no grupo **secundário**, `XValues = Block_Ref(valueCells)`, `Values = Block_Ref(posCells)`, sem marcador nem linha, e chama `Chart_SetupSecondaryAxes cht, posCells.Rows.Count`. Não mexe na legenda (quem chama decide com `Chart_HideHelperLegendEntries`).
   - `Chart_SetupSecondaryAxes(cht As Chart, n As Long)` — `cht.HasAxis(xlValue, xlSecondary) = True`; eixo Y secundário: `MinimumScale = 0`, `MaximumScale = n`, `ReversePlotOrder = False`, sem marcas, sem rótulos, linha invisível, sem grade; se `cht.HasAxis(xlCategory, xlSecondary)` for True, chama `Chart_SyncSecondaryX`.
   - `Chart_SyncSecondaryX(cht As Chart)` — se existe eixo X secundário (`HasAxis(xlCategory, xlSecondary)`), copia `MinimumScale/MaximumScale` do eixo de valores primário para ele e o oculta; senão não faz nada. Nunca propaga erro.
-  - `Chart_HideHelperLegendEntries(cht As Chart)` — remove da legenda toda entrada cuja série começa com `tqq_` (índice calculado pela ordem dos grupos e das séries nos grupos, como `Stacked_HideTotalLegendEntry`, que passa a delegar a esta função); idempotente.
+  - `Chart_HideHelperLegendEntries(cht As Chart)` — remove da legenda toda entrada de série `tqq_*`; idempotente e correta com várias auxiliares (o teste de hoje em `Stacked_HideTotalLegendEntry`, `LegendEntries.Count < SeriesCollection.Count`, para depois da primeira remoção). Algoritmo: sem legenda ou sem séries `tqq_*`, nada; `h` = nº de séries `tqq_*`; se `LegendEntries.Count = SeriesCollection.Count - h`, já está feito (sai); senão, se `LegendEntries.Count <> SeriesCollection.Count` (estado parcial), lê `Legend.Position` e `Legend.Font.Size`, religa a legenda (`HasLegend = False: HasLegend = True`) e restaura os dois; então calcula o índice de legenda de cada série `tqq_*` pela ordem dos grupos (`cht.ChartGroups`, inclusive os do eixo secundário) e das séries dentro de cada grupo, e apaga essas entradas **do maior índice para o menor** (apagar renumera as seguintes). `Stacked_HideTotalLegendEntry` passa a delegar a esta função (`Test_Stacked_Legend_ExtraSeries_KeepsDataEntries`, da Fase 1, continua verde). Cuidado: em pilhas com legenda vertical o Excel pode exibir as entradas em ordem invertida, e grupos secundários mudam a ordem; o teste abaixo confere o mapeamento pela cor da chave da legenda (se `LegendKey.Format.Fill.ForeColor.RGB` não refletir a cor da série no Excel 2019, use `LegendKey.Interior.Color` e registre no relatório); as Tarefas 3 e 4 conferem por `Chart.Export`.
 - Produces (`modCalcSheet`): `Block_Ref(cells As Range) As String` = `"='_ThinQQ'!" & cells.Address(True, True)`.
-- Produces (`modLabels`): `Labels_LinkPoints(s, valueCells, numFmt, Optional fixedPos As Long = 0, Optional fontColor As Long = -1, Optional horizontal As Boolean = False)` — com `horizontal`, a posição por sinal é `xlLabelPositionRight` (≥ 0) / `xlLabelPositionLeft` (< 0); `Labels_RefreshPositions` usa `Geom_ChartIsHorizontal`-equivalente (`Kinds_IsHorizontal(Registry_ChartType(cht))`) para escolher Right/Left ou Above/Below e isola cada ponto com `On Error Resume Next` (um ponto não plotado — `NA()` — não interrompe os demais).
+- Produces (`modLabels`): `Labels_LinkPoints(s, valueCells, numFmt, Optional fixedPos As Long = 0, Optional fontColor As Long = -1, Optional horizontal As Boolean = False)` — com `horizontal`, a posição por sinal é `xlLabelPositionRight` (≥ 0) / `xlLabelPositionLeft` (< 0); `Labels_RefreshPositions` usa `Geom_ChartIsHorizontal`-equivalente (`Kinds_IsHorizontal(Registry_ChartType(cht))`) para escolher Right/Left ou Above/Below e isola cada ponto com `On Error Resume Next` (um ponto não plotado — `NA()` — não interrompe os demais). `Labels_RefreshPositions` e `Labels_ApplyCellFormat` decidem por **família**, não pelo nome do tipo: `Kinds_Family(kind) = "waterfall"` → série `tqq_lbl` e coluna `WF_COL_LABELVAL` (hoje ambas comparam `Registry_ChartType(cht) = "waterfall"`, o que deixaria a cascata horizontal da Tarefa 5 de fora); colunas de participação (4..) quando `Kinds_Is100(kind)` na família `stacked`.
 - Produces (`modChartStyle`): `Style_ApplyBase` pula o bloco de eixos quando `cht.ChartType` é pizza/rosca (`xlPie`, `xlDoughnut`, `xlPieExploded`, `xlDoughnutExploded`) e, quando o gráfico é de barras (`xlBarStacked`, `xlBarClustered`, `xlBarStacked100`), define `Axes(xlCategory).ReversePlotOrder = True` (primeira categoria no topo) mantendo `TickLabelPosition = xlTickLabelPositionLow`.
-- Produces (`modCoreApi`): `Core_Supports(feature As String) As Boolean` — `False` sem gráfico ThinQQ ativo; `"changesource"` → True se há gráfico; demais → `Kinds_Supports(Registry_ChartType(c), feature)`; nunca propaga erro. `Core_Insert` aceita todo `Kinds_IsValid`, despacha por `Kinds_Insert` e trata `vbObjectError + 7200` com `Core_Notify Err.Description, vbInformation` (sem `Errors_Handle`). `Core_ChartSourceMismatch` compara com `Kinds_ExpectedCategoryRefs(kind, CLng(Registry_GetOption(cht, "n", "0")))` quando a opção `n` existe; senão com `blk.Rows.Count - 2` como hoje.
+- Produces (`modCoreApi`): `Core_Supports(feature As String) As Boolean` — `False` sem gráfico ThinQQ ativo; `"changesource"` → True se há gráfico; demais → `Kinds_Supports(Registry_ChartType(c), feature)`; nunca propaga erro. `Core_Insert` aceita todo `Kinds_IsValid`, despacha por `Kinds_Insert` e trata `vbObjectError + 7200` com `Core_Notify Err.Description, vbInformation` (sem `Errors_Handle`). `Core_ChartSourceMismatch` compara com `Kinds_ExpectedCategoryRefs(kind, CLng(Registry_GetOption(cht, "n", "0")))` quando a opção `n` existe; senão com `blk.Rows.Count - 2` como hoje. `Core_RebuildFromRange` também passa a construir por `Kinds_Insert(ws, data, kind)` (hoje: `If kind = "waterfall" Then Waterfall_Insert ... Else Stacked_Insert ...`), para que cada tipo das tarefas seguintes seja reconstruído pelo próprio `Insert`.
 - Produces: `Stacked_Insert` e `Waterfall_Insert` passam a gravar `Registry_SetOption cht, "n", CStr(data.CategoryCount)`. `Labels_SegmentFormat/TotalFormat` e `Style_ApplyNumberFormat` usam `Kinds_Is100` em vez de comparar com `"stacked100"`.
+- Produces (`modErrors`): `Public Function Errors_LogDir() As String` = `Environ$("TEMP") & "\ThinQQ-test-logs"` quando `BUILD_CONFIG = "Test"`, senão `Environ$("LOCALAPPDATA") & "\ThinQQ\logs"` (como hoje); `Errors_Log` grava em `Errors_LogDir() & "\thinqq.log"` (o corpo continua inteiro sob `On Error Resume Next`). Motivo: os testes de falha (rollback, limpeza fechada) escreviam no log real do usuário. A pasta de teste é pequena e reaproveitada (não precisa ser apagada).
 
 - [ ] **Passo 1: Testes (RED)** — `tests/vba/core/TestKinds.bas`:
 
@@ -306,7 +166,7 @@ Public Sub Test_Kinds_Supports_Matrix()
     AssertTrue Kinds_Supports("stacked100", "ind100"): AssertTrue Kinds_Supports("mekko", "ind100"): AssertFalse Kinds_Supports("mekkounits", "ind100")
     AssertTrue Kinds_Supports("mekkounits", "vline"): AssertFalse Kinds_Supports("stacked100", "vline"): AssertTrue Kinds_Supports("barclustered", "vline")
     AssertTrue Kinds_Supports("combo", "secondary"): AssertFalse Kinds_Supports("stacked", "secondary")
-    AssertTrue Kinds_Supports("pie", "pieout"): AssertFalse Kinds_Supports("area", "pieout")
+    AssertTrue Kinds_Supports("pie", "pieout"): AssertFalse Kinds_Supports("doughnut", "pieout"): AssertFalse Kinds_Supports("area", "pieout")
     AssertTrue Kinds_Supports("barwaterfall", "cagr"): AssertFalse Kinds_Supports("pie", "cagr"): AssertFalse Kinds_Supports("mekko", "cagr")
     AssertTrue Kinds_Supports("stacked", "diff"): AssertFalse Kinds_Supports("stacked100", "diff"): AssertFalse Kinds_Supports("area100", "diff")
     AssertTrue Kinds_Supports("gantt", "bracket"): AssertFalse Kinds_Supports("stacked", "bracket")
@@ -337,7 +197,7 @@ Public Sub Test_Chart_AddHelperSeries_Vertical_IsInvisibleLine()
 End Sub
 
 Public Sub Test_Chart_HideHelperLegendEntries_RemovesAllTqq()
-    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, body As Range
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, body As Range, pal As Variant, keys As String, k As Long
     Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
     ws.Range("A1:C1").Value = Array("Ano", "Sul", "Norte")
     ws.Range("A2:C2").Value = Array(2022, 10, 5): ws.Range("A3:C3").Value = Array(2023, 20, 6)
@@ -346,12 +206,22 @@ Public Sub Test_Chart_HideHelperLegendEntries_RemovesAllTqq()
     Set body = Block_Body(Registry_Block(cht))
     Chart_AddHelperSeries cht, "tqq_a", body.Cells(2, 2).Resize(2, 1)
     Chart_AddHelperSeries cht, "tqq_b", body.Cells(2, 3).Resize(2, 1)
+    AssertTrue cht.Legend.LegendEntries.Count >= 3, "as auxiliares novas aparecem na legenda (estado parcial)"
+    Chart_HideHelperLegendEntries cht
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "estado parcial resolvido: so Sul e Norte"
+    AssertEqual xlLegendPositionRight, cht.Legend.Position, "religar a legenda preserva a posicao"
+    AssertEqual 9, cht.Legend.Font.Size, "religar a legenda preserva a fonte"
     cht.HasLegend = False: cht.HasLegend = True               ' religa: todas as entradas voltam
     AssertEqual 5, cht.Legend.LegendEntries.Count
     Chart_HideHelperLegendEntries cht
     AssertEqual 2, cht.Legend.LegendEntries.Count, "so Sul e Norte"
     Chart_HideHelperLegendEntries cht
     AssertEqual 2, cht.Legend.LegendEntries.Count, "idempotente"
+    ' mapeamento: as entradas que ficaram sao as das series de dados (cor da chave = cor da serie)
+    pal = Style_Palette("padrao")
+    For k = 1 To 2: keys = keys & ";" & cht.Legend.LegendEntries(k).LegendKey.Format.Fill.ForeColor.RGB: Next
+    keys = keys & ";"
+    AssertTrue InStr(keys, ";" & CLng(pal(0)) & ";") > 0 And InStr(keys, ";" & CLng(pal(1)) & ";") > 0, "entradas restantes = Sul e Norte (cores " & keys & ")"
     CloseTemp wb
 End Sub
 ```
@@ -372,17 +242,35 @@ Public Sub Test_Core_Supports_FollowsActiveChart()
     Teardown wb
 End Sub
 
-' Temporario (a Tarefa 11 o substitui pelo teste de todos os tipos): tipo valido ainda sem implementacao avisa e nao deixa bloco
+' Temporario: a Tarefa 10 o remove ao implementar o Gantt (o ultimo tipo a ficar pronto). Tipo valido ainda sem
+' implementacao avisa e nao deixa bloco.
 Public Sub Test_Core_Insert_KindNotReady_NotifiesWithoutChart()
     Dim wb As Workbook, ws As Worksheet
     Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
     ws.Range("A1:C5").Select
     Core_ClearLastNotice
-    Core_Insert "pie"
+    Core_Insert "gantt"
     AssertEqual 0, ws.ChartObjects.Count
     AssertEqual 0, TqqNameCount(wb)
     AssertTrue InStr(Core_LastNotice(), "ainda não está disponível") > 0, Core_LastNotice()
     Teardown wb
+End Sub
+
+' Build Test: o log vai para %TEMP%\ThinQQ-test-logs, nunca para o log real do usuario.
+Public Sub Test_Errors_Log_TestBuildWritesToTempFolder()
+    Dim marker As String, p As String, f As Integer, txt As String
+    AssertEqual Environ$("TEMP") & "\ThinQQ-test-logs", Errors_LogDir()
+    Randomize
+    marker = "tqq-log-probe-" & Format$(Now, "hhnnss") & "-" & CStr(Int(Rnd * 100000))
+    Errors_Log marker
+    p = Errors_LogDir() & "\thinqq.log"
+    AssertTrue Len(Dir(p)) > 0, "log de teste criado em " & p
+    f = FreeFile
+    Open p For Binary Access Read As #f
+    txt = Space$(LOF(f))
+    Get #f, , txt
+    Close #f
+    AssertTrue InStr(txt, marker) > 0, "a linha foi para o log de teste"
 End Sub
 ```
 
@@ -406,7 +294,7 @@ Public Sub Test_Style_ApplyBase_Bars_ReverseCategories_AndPieSafe()
 End Sub
 ```
 
-- [ ] **Passo 2: RED** — `pwsh C:\temp\tqq-f2\build\run-tests.ps1 -Target core -Filter "TestKinds|Core_Supports|KindNotReady|ApplyBase_Bars" -TimeoutSec 240` → saída 3 (símbolos indefinidos).
+- [ ] **Passo 2: RED** — `pwsh C:\temp\tqq-f2\build\run-tests.ps1 -Target core -Filter "TestKinds|Core_Supports|KindNotReady|ApplyBase_Bars|Errors_Log" -TimeoutSec 240` → saída 3 (símbolos indefinidos).
 
 - [ ] **Passo 3: Implementar** — esboço de `modChartKinds.bas` (a matriz é dado, não lógica: use listas separadas por vírgula e `InStr`, como `WF_MARKERS`):
 
@@ -447,8 +335,8 @@ End Function
 - [ ] **Passo 5: Commit**
 
 ```bash
-git add src/core/modules/modChartKinds.bas src/core/modules/modChartUtil.bas src/core/modules/modCalcSheet.bas src/core/modules/modLabels.bas src/core/modules/modChartStyle.bas src/core/modules/modChartStacked.bas src/core/modules/modChartWaterfall.bas src/core/modules/modCoreApi.bas tests/vba/core/TestKinds.bas tests/vba/core/TestCoreApi.bas tests/vba/core/TestStacked.bas
-git commit -m "feat: matriz de tipos e capacidades (Kinds_*), Core_Supports, series auxiliares orientaveis e despacho de insercao por familia" -m "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+git add src/core/modules/modChartKinds.bas src/core/modules/modChartUtil.bas src/core/modules/modCalcSheet.bas src/core/modules/modLabels.bas src/core/modules/modChartStyle.bas src/core/modules/modChartStacked.bas src/core/modules/modChartWaterfall.bas src/core/modules/modCoreApi.bas src/core/modules/modErrors.bas tests/vba/core/TestKinds.bas tests/vba/core/TestCoreApi.bas tests/vba/core/TestStacked.bas
+git commit -m "feat: matriz de tipos e capacidades (Kinds_*), Core_Supports, series auxiliares orientaveis e despacho de insercao por familia" -m "<linha Co-Authored-By indicada no seu prompt>"
 ```
 
 **Verificação no Excel real:** nenhuma mudança visível ainda (os tipos antigos continuam iguais); conferir só que Colunas empilhadas/Cascata inserem e que `Atualizar` não avisa "tabela mudou de tamanho" (opção `n` coerente).
@@ -465,7 +353,7 @@ git commit -m "feat: matriz de tipos e capacidades (Kinds_*), Core_Supports, ser
 - Consumes: `Kinds_IsHorizontal`, `Kinds_Is100`, `Kinds_Supports`, `Kinds_Family` (Tarefa 1); `Registry_ChartType`, `Style_IsHelperSeries`, `Waterfall_EndValues`.
 - Produces (`modGeometry`, puras): `Geom_CategoryCenterY(insideTop, insideHeight, nCats, idx) As Double` = `insideTop + (idx - 0.5) * insideHeight / nCats` (categoria 1 **no topo**, que é como `Style_ApplyBase` inverte as barras); `Geom_ValueToX(insideLeft, insideWidth, axisMin, axisMax, v) As Double` = `insideLeft + insideWidth * (v - axisMin) / (axisMax - axisMin)` (escala degenerada → `insideLeft`).
 - Produces (`modGeometry`, de gráfico): `Geom_ChartIsHorizontal(cht) As Boolean` (= `Kinds_IsHorizontal(Registry_ChartType(cht))`); `Geom_ChartCategoryCenterY(cht, idx)`; `Geom_ChartValueToX(cht, v)` (eixo `Axes(xlValue, xlPrimary)`); `Geom_ChartCatCoord(cht, idx) As Double` (x nas colunas, y nas barras); `Geom_ChartValCoord(cht, v) As Double` (y nas colunas, x nas barras); `Geom_ChartBarHalfWidth` usa `InsideHeight` em horizontais. `Geom_ChartCategoryCenterX`/`Geom_ChartValueToY` continuam como estão.
-- Produces (`modAnnotations`): `Ann_GetCategoryData` cobre `barstacked/barstacked100` (como empilhadas; topo 1 em 100%), `barclustered` (como `clustered`), `barwaterfall` (como `waterfall`), `area` (soma dos positivos no topo), `area100` (topo 1), `combo` (soma das séries de coluna: todas as não-auxiliares **menos a última**). `Ann_AddCagr`/`Ann_AddDifference` recusam por `Kinds_Supports(kind, "cagr"/"diff")` com `vbObjectError + 7001` e mensagens exatas: 100% → `"A seta de diferença não está disponível para gráficos 100%."` (texto atual, mantido); outros tipos → `"A seta de diferença não está disponível para este tipo de gráfico."` e `"A seta CAGR não está disponível para este tipo de gráfico."`. `Ann_Refresh` valida `cagr/diff` por `Kinds_Supports` (oculta a forma quando o tipo não suporta). Layouts por orientação (abaixo). `Ann_EnsureRoom(cht)` (renomeia `Ann_EnsureHeadroom`): vertical como hoje (52 pt acima quando totais ligados); horizontal garante `ChartArea.Width - (InsideLeft + InsideWidth) >= 60` reduzindo `PlotArea.Width` (só aumenta a folga).
+- Produces (`modAnnotations`): `Ann_GetCategoryData` cobre `barstacked/barstacked100` (como empilhadas; topo 1 em 100%), `barclustered` (como `clustered`), `barwaterfall` (como `waterfall`), `area` (soma dos positivos no topo), `area100` (topo 1), `combo` (soma das séries de coluna: todas as não-auxiliares **menos a última**). `Ann_AddCagr`/`Ann_AddDifference` recusam por `Kinds_Supports(kind, "cagr"/"diff")` com `vbObjectError + 7001` e mensagens exatas: 100% → `"A seta de diferença não está disponível para gráficos 100%."` (texto atual, mantido); outros tipos → `"A seta de diferença não está disponível para este tipo de gráfico."` e `"A seta CAGR não está disponível para este tipo de gráfico."`. `Ann_Refresh` valida `cagr/diff` por `Kinds_Supports` (oculta a forma quando o tipo não suporta). Layouts por orientação (abaixo). `Ann_EnsureRoom(cht)` (renomeia `Ann_EnsureHeadroom`, privada): vertical como hoje (52 pt acima quando totais ligados; chamada só por `Ann_AddCagr`, como hoje); horizontal garante `ChartArea.Width - (InsideLeft + InsideWidth) >= 60` reduzindo `PlotArea.Width` e, quando o gráfico tem alguma forma `tqq_ann_diff_*`, também `ChartArea.Height - (InsideTop + InsideHeight) >= 34` reduzindo `PlotArea.Height` (espaço para a seta de diferença abaixo da última barra e para o rótulo dela: 10 até a seta + 6 + rótulo de ~16 + 2); as duas só aumentam a folga. Em horizontais, `Ann_AddCagr` **e** `Ann_AddDifference` chamam `Ann_EnsureRoom` depois de criar as formas e antes de `Ann_Refresh`.
 
 Layouts horizontais (coordenadas: `c = Geom_ChartCatCoord`, `v = Geom_ChartValCoord`, `half = Geom_ChartBarHalfWidth`, `extra = 18` se `totals=1`):
 - **CAGR**: de `(v(tops(from)) + 10 + extra, c(from))` a `(v(tops(to)) + 10 + extra, c(to))` (seta ao longo das categorias, ponta em `to`); x limitado a `ChartArea.Width - 24`; rótulo à direita: `lbl.Left = max(x1, x2) + 4`, `lbl.Top = (c(from) + c(to)) / 2 - lbl.Height / 2`; `Ann_ClampShape`.
@@ -555,6 +443,8 @@ Public Sub Test_Ann_Diff_Horizontal_BelowLastBar()
     AssertAlmost Geom_ChartValCoord(cht, 10), lvl.Left, 1
     AssertEqual "+30 (+300%)", lbl.TextFrame2.TextRange.Text
     AssertTrue lbl.Top >= ln.Top + 4, "rotulo abaixo da seta"
+    AssertTrue cht.ChartArea.Height - (cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight) >= 33.5, "folga abaixo da area de plotagem (Ann_EnsureRoom)"
+    AssertTrue lbl.Top + lbl.Height <= cht.ChartArea.Height + 0.5, "rotulo da diferenca dentro do grafico"
     CloseTemp wb
 End Sub
 
@@ -613,6 +503,7 @@ End Sub
 - Consumes: `Chart_AddHelperSeries`, `Chart_SetupSecondaryAxes`, `Chart_SyncSecondaryX`, `Chart_HideHelperLegendEntries`, `Labels_LinkPoints(..., horizontal)`, `Kinds_*`, `Geom_*`, `Ann_*` (Tarefas 1–2).
 - Produces: `Stacked_BuildBlock(wb, id, data, kind)` com colunas `1 Categoria | 2 Total | 3 TotalPos | [4..3+S Part_j só em 100%] | P Pos | P+1 VLine` para **todos** os tipos da família (`Pos = n - i + 0.5` como fórmula `=2.5`; `VLine = AVERAGE(coluna Total)` com referências absolutas dentro de `_ThinQQ`; `=NA()` em 100%); `Stacked_PosCol(blk) As Long` (= `blk.Columns.Count - 1`), `Stacked_VLineCol(blk) As Long` (= `blk.Columns.Count`); `Stacked_Insert(ws, data, kind)` aceita `barstacked` (`xlBarStacked`, gap 50), `barclustered` (`xlBarClustered`, gap 80), `barstacked100` (`xlBarStacked100`, gap 50); `Stacked_SetTotals` cria `tqq_total` por `Chart_AddHelperSeries` (em horizontais: XY secundária com `X = TotalPos`, `Y = Pos`) e liga os rótulos com `horizontal:=Kinds_IsHorizontal(kind)`; `Stacked_SetLabels` mantém as posições (Center em empilhadas/100%, OutsideEnd em agrupadas); `Stacked_SetConnectors` aceita `xlBarStacked/xlBarStacked100`; `Labels_ApplyCellFormat` em 100% formata só `Part_j` (`Columns.Count - 5` colunas a partir da 4).
 - Produces: `Core_SafeRefresh` chama `Chart_SyncSecondaryX cht` quando `Kinds_IsHorizontal(Registry_ChartType(cht))`.
+- Comparações da Fase 1 que esta tarefa troca (sem elas os testes abaixo falham): `Stacked_SetTotals` recusa por `Not Kinds_Supports(kind, "totals")` (hoje `<> "stacked" And <> "stacked100"`) e `Stacked_Insert` liga os totais com `Kinds_Supports(kind, "totals")` (hoje `kind = "stacked" Or kind = "stacked100"`); `Stacked_SetLabels` usa `is100 = Kinds_Is100(kind)` (participações também em `barstacked100`) e põe `xlLabelPositionOutsideEnd` também em séries `xlBarClustered` (hoje só `xlColumnClustered`); `Stacked_BuildBlock` usa `Kinds_Is100(kind)` para as colunas `Part_j` e `TotalPos = Total` também em `barclustered` (como `clustered`/`line`); `Stacked_Insert`: gap 80 em `clustered`/`barclustered`, 50 nos demais (exceto `line`).
 
 - [ ] **Passo 1: Testes (RED)** — `tests/vba/core/TestBars.bas`:
 
@@ -816,7 +707,7 @@ End Sub
 
 **Decisão da sonda (Passo 3b):** se `Test_Bars_TotalsHelper_AlignedWithBarsAndSlots` falhar no eixo X (rótulos fora do fim das barras) com o eixo X secundário não exibido, ative em `Chart_SetupSecondaryAxes` `cht.HasAxis(xlCategory, xlSecondary) = True` e deixe `Chart_SyncSecondaryX` copiar `Min/Max` do primário (oculto); `Core_SafeRefresh` já o chama em horizontais. Registre no relatório qual caminho foi necessário, com os números medidos.
 
-- [ ] **Passo 4: GREEN e suíte completa**; `-LoaderSwap` não é necessário aqui.
+- [ ] **Passo 4: GREEN e suíte completa**; `-LoaderSwap` não é necessário aqui. Exporte `cht.Export TempDir() & "\bars.png"` de um `barstacked` e de um `barstacked100` e confira na imagem que a legenda mostra só `Loja` e `Online` (mapeamento de `Chart_HideHelperLegendEntries` com a auxiliar XY no grupo secundário) e que os totais ficam no fim das barras; registre no relatório o que viu.
 
 - [ ] **Passo 5: Commit** — `git commit -m "feat: barras horizontais empilhadas, agrupadas e 100% com totais em serie XY, rotulos por sinal e setas"` (+ trailer).
 
@@ -827,7 +718,7 @@ End Sub
 ### Tarefa 4: Cascata com várias séries e cascata "de cima para baixo" (`e` na primeira linha)
 
 **Files:**
-- Modify: `src/core/modules/modChartWaterfall.bas`, `src/core/modules/modLabels.bas` (`Labels_LinkPoints` isola cada ponto: um ponto `NA()` não interrompe a ligação dos demais)
+- Modify: `src/core/modules/modChartWaterfall.bas`, `src/core/modules/modLabels.bas` (`Labels_LinkPoints` isola cada ponto: um ponto `NA()` não interrompe a ligação dos demais), `src/core/modules/modCoreApi.bas` (`Core_Insert` trata a faixa de validação 6007..6099 como aviso)
 - Test: `tests/vba/core/TestWaterfall2.bas` (novo), `tests/vba/core/TestWaterfall.bas` (um teste atualizado)
 
 **Interfaces:**
@@ -847,7 +738,9 @@ M_j   = (A_j + B_j) / 2
 UP_j  = IF(D_j >= 0, MAX(0,B_j) - MAX(0,A_j), 0)      DN_j  = IF(D_j < 0, MAX(0,B_j) - MAX(0,A_j), 0)
 UPN_j = IF(D_j >= 0, MIN(0,A_j) - MIN(0,B_j), 0)      DNN_j = IF(D_j < 0, MIN(0,A_j) - MIN(0,B_j), 0)
 col 4 Delta = SUM(D_1..D_S)      col 7 Lo = IF(RC3, MIN(0,RC6), RC5 - CN_S)      col 8 Hi = IF(RC3, MAX(0,RC6), RC5 + CP_S)
-col 3 IsTotal (S>1) = SUMPRODUCT(--ISNUMBER(MATCH(LOWER(TRIM(IFERROR(src_1:src_S,"")&"")),{"e","t","=","total","subtotal"},0)))>0
+col 3 IsTotal (S>1) = SUMPRODUCT(--ISNUMBER(MATCH(LOWER(TRIM(src_1:src_S&"")),{"e","t","=","total","subtotal"},0)))>0
+      (sem IFERROR: dentro de SUMPRODUCT ele não é avaliado como matriz no Excel 2019 sem Ctrl+Shift+Enter; um erro na
+       origem já vira FALSE em ISNUMBER(MATCH(...)))
 col 17 LabelVal (S>1) = IF(RC3, RC16, NA())      col 18 LabelPos (S>1) = IF(RC3, IF(RC16>=0, RC8, RC7), NA())
 col 19 Pos = n - i + 0.5 (constante por linha)
 col 20 BD = AND(<marcador na linha 1>, COUNT(<células de valor da linha n>)>0, NOT(<marcador na linha n>))   (mesma fórmula em todas as linhas)
@@ -856,6 +749,8 @@ col 6 End, linha 1: = IF(RC20, AGGREGATE(9,6,<células de valor da linha n>) - S
 col 6 End, última linha: = IF(RC20, AGGREGATE(9,6,<células de valor da linha n>), RC5 + RC4)
 ```
 Com S = 1 as colunas 10..15 continuam alimentando o gráfico; com S > 1 elas ficam calculadas mas não são usadas pelas séries (`UP/DN/UPN/DNN` são).
+
+`<marcador na linha k>` é uma expressão sobre as **células de origem** da linha k (referências absolutas), **nunca** sobre a célula `IsTotal` (col 3): `IsTotal` da última linha depende de `BD` (`OR(<marcador>, RC20)`), então usar `IsTotal` dentro de `BD` cria referência circular (também com n = 1, em que a linha 1 é a última). S = 1: `IF(ISERROR(src),FALSE,IF(ISNUMBER(src),FALSE,OR(LOWER(TRIM(src&""))={<lista>})))` (a expressão da col 3 da Fase 1, com a origem da linha k); S > 1: `SUMPRODUCT(--ISNUMBER(MATCH(LOWER(TRIM(src_1:src_S&"")),{<lista>},0)))>0` sobre a linha k. A `<lista>` (constante de matriz) é montada em VBA a partir de `WF_MARKERS`, como a Fase 1 já faz na col 3 (`Test_Waterfall_MarkerList_FormulaMatchesFunction` continua valendo).
 
 - [ ] **Passo 1: Testes (RED)** — `tests/vba/core/TestWaterfall2.bas`:
 
@@ -951,6 +846,10 @@ Public Sub Test_WaterfallMulti_Labels_SegmentsAndTotals()
     AssertEqual 10, cht.SeriesCollection.Count
     Waterfall_SetLabels cht, True
     AssertEqual 13, cht.SeriesCollection.Count
+    ' auxiliares com pontos NA() entram na varredura da limpeza (Tarefa 0): o grafico novo nao pode bloquear nem falhar
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    AssertEqual 1, CalcSheet_Cleanup(wb), "limpeza com a cascata multi remove so o orfao"
+    AssertFalse CalcSheet_CleanupReadFailed(), "pontos NA dos rotulos nao sao falha de leitura"
     CloseTemp wb
 End Sub
 
@@ -985,7 +884,7 @@ Public Sub Test_Waterfall_BuildDown_FirstRowE_LastRowNumber()
     ws.Range("B5").Value = 300
     AssertEqual 1250, body.Cells(2, WF_COL_END).Value, "recalcula ao mudar o total final"
     Set cht = Waterfall_Insert(ws, d).Chart
-    AssertEqual "1250", Chart_FindSeries(cht, "tqq_lbl").Points(1).DataLabel.Text
+    AssertEqual "1" & Application.International(xlThousandsSeparator) & "250", Chart_FindSeries(cht, "tqq_lbl").Points(1).DataLabel.Text, "formato int com separador de milhar"
     CloseTemp wb
 End Sub
 
@@ -1054,7 +953,7 @@ End Sub
 
 - [ ] **Passo 3: Implementar** — `Waterfall_BuildBlock`: alocar `20 + IIf(S > 1, 10*S, 0)` colunas; escrever as colunas 1..18 como hoje para S = 1 (apenas trocando `IsTotal` da última linha, `End` da 1.ª/última linha e acrescentando 19/20); para S > 1 escrever `IsTotal` (SUMPRODUCT), `Delta`, `Lo`, `Hi`, `LabelVal`, `LabelPos` nas versões multi e as 10 colunas por série. Em `Waterfall_Insert`, após validar `S <= 6`, montar as séries conforme a ordem acima com `Block_Ref`; `Waterfall_ApplyColors` lê `j` do sufixo `_j` dos nomes `tqq_dn_j/tqq_upn_j/tqq_dnn_j` e, para as não-auxiliares, pela ordem. `Labels_LinkPoints`: envolva o corpo do `For` por ponto em `On Error Resume Next ... If Err.Number <> 0 Then Err.Clear` (pontos `NA()` de `tqq_lbl` em multi).
 
-- [ ] **Passo 4: GREEN e suíte completa** (os testes da Fase 1 em `TestWaterfall` e `TestSamples` continuam verdes; `Test_Samples_Content` exige `B111 = "e"` etc.: nada muda nos exemplos ainda).
+- [ ] **Passo 4: GREEN e suíte completa** (os testes da Fase 1 em `TestWaterfall` e `TestSamples` continuam verdes; `Test_Samples_Content` exige `B111 = "e"` etc.: nada muda nos exemplos ainda). Exporte `cht.Export TempDir() & "\wfmulti.png"` da cascata de 2 séries e confira na imagem que a legenda mostra `Loja` e `Online` (e não `tqq_dn_*`, que têm a mesma cor: só a imagem distingue o mapeamento de `Chart_HideHelperLegendEntries`); registre no relatório. Se ler `HasDataLabel`/`DataLabel.Formula` de um ponto `NA()` lançar erro na limpeza, trate-o em `modCalcSheet` sem relaxar a falha fechada (um ponto `NA()` sem rótulo devolve `HasDataLabel = False`) e registre.
 
 - [ ] **Passo 5: Commit** — `git commit -m "feat: cascata com varias series (segmentos por serie, legenda) e cascata de cima para baixo com 'e' na primeira linha"` (+ trailer).
 
@@ -1065,12 +964,12 @@ End Sub
 ### Tarefa 5: Cascata horizontal (`barwaterfall`)
 
 **Files:**
-- Modify: `src/core/modules/modChartWaterfall.bas`, `src/core/modules/modChartKinds.bas` (`Kinds_Insert` passa `kind` à cascata), `src/core/modules/modCoreApi.bas` (`ApplyToggle "labels"/"connectors"` por família, não por `= "waterfall"`)
+- Modify: `src/core/modules/modChartWaterfall.bas`, `src/core/modules/modChartKinds.bas` (`Kinds_Insert` passa `kind` à cascata), `src/core/modules/modCoreApi.bas` (`ApplyToggle "labels"/"connectors"` por família, não por `= "waterfall"`), `src/core/modules/modAnnotations.bas` (`Ann_Refresh` reconstrói os conectores por família)
 - Test: `tests/vba/core/TestWaterfall2.bas`, `tests/vba/core/TestCoreApi.bas`
 
 **Interfaces:**
 - Consumes: Tarefas 1–4; `Ann_SetWaterfallConnectors` (layout horizontal da Tarefa 2), `Chart_SyncSecondaryX`.
-- Produces: `Waterfall_Insert(ws, data, Optional kind As String = "waterfall")` — `barwaterfall` usa `xlBarStacked`, `Style_ApplyBase` (categorias invertidas), `Registry` tipo `barwaterfall`; `Waterfall_SetLabels` em horizontal cria os auxiliares por `Chart_AddHelperSeries(cht, nome, valueCells, posCells = coluna 19)` (XY secundária) e liga com `horizontal:=True` (Right/Left); `Kinds_Insert` chama `Waterfall_Insert(ws, data, kind)` para a família `waterfall`. Em `modCoreApi`, `ApplyToggle`/`ApplyOption` decidem por `Kinds_Family(kind)` (`"waterfall"` → `Waterfall_SetLabels`, `Ann_SetWaterfallConnectors`, `Waterfall_ApplyColors`).
+- Produces: `Waterfall_Insert(ws, data, Optional kind As String = "waterfall")` — `barwaterfall` usa `xlBarStacked`, `Style_ApplyBase` (categorias invertidas), `Registry` tipo `barwaterfall` (`Waterfall_BuildBlock(wb, id, data, Optional kind As String = "waterfall")` grava `kind` na meta do bloco, de onde `Registry_ChartType` lê; hoje grava `"waterfall"` fixo); `Waterfall_SetLabels` em horizontal cria os auxiliares por `Chart_AddHelperSeries(cht, nome, valueCells, posCells = coluna 19)` (XY secundária) e liga com `horizontal:=True` (Right/Left); `Kinds_Insert` chama `Waterfall_Insert(ws, data, kind)` para a família `waterfall`. Em `modCoreApi`, `ApplyToggle`/`ApplyOption` decidem por `Kinds_Family(kind)` (`"waterfall"` → `Waterfall_SetLabels`, `Ann_SetWaterfallConnectors`, `Waterfall_ApplyColors`). `Ann_Refresh` reconstrói os conectores quando `Kinds_Family(chartKind) = "waterfall"` (hoje compara `chartKind = "waterfall"`: a cascata horizontal não refaria os conectores ao mudar o número de categorias).
 
 - [ ] **Passo 1: Testes (RED)** — acrescentar a `tests/vba/core/TestWaterfall2.bas`:
 
@@ -1154,7 +1053,7 @@ End Sub
 
 - [ ] **Passo 2: RED** — `-Filter "BarWaterfall"` → saída 3 / `not ok`.
 
-- [ ] **Passo 3: Implementar** — `Waterfall_Insert` ganha o parâmetro `kind`; `horiz = Kinds_IsHorizontal(kind)`; `cht.ChartType = IIf(horiz, xlBarStacked, xlColumnStacked)`; `Waterfall_SetLabels` e `Waterfall_SetLabelsMulti` recebem a coluna 19 como `posCells` quando horizontal; `Core_SafeRefresh` já sincroniza o eixo X secundário em horizontais (Tarefa 3). Em `modCoreApi.ApplyToggle`: `Select Case Kinds_Family(kind)`.
+- [ ] **Passo 3: Implementar** — `Waterfall_Insert` ganha o parâmetro `kind`; `horiz = Kinds_IsHorizontal(kind)`; `cht.ChartType = IIf(horiz, xlBarStacked, xlColumnStacked)`; `Waterfall_SetLabels` (nos dois ramos, S = 1 e S > 1) usa a coluna 19 como `posCells` quando horizontal; `Core_SafeRefresh` já sincroniza o eixo X secundário em horizontais (Tarefa 3). Em `modCoreApi.ApplyToggle`: `Select Case Kinds_Family(kind)`.
 
 - [ ] **Passo 4: GREEN e suíte completa.**
 
@@ -1168,7 +1067,7 @@ End Sub
 
 **Files:**
 - Create: `src/core/modules/modChartArea.bas`, `src/core/modules/modChartCombo.bas`, `src/core/modules/modDecorations.bas` (só `Deco_SetLegend` nesta tarefa)
-- Modify: `src/core/modules/modChartStacked.bas` (`Stacked_BuildBlock` com `kind = "combo"`; `Stacked_SetTotals/SetLabels/SetConnectors` decidem por `Kinds_Supports`; `Stacked_SetLabels` reaplica "fim da linha"), `src/core/modules/modChartStyle.bas` (`Style_HideValueAxis(ax)`, borda branca em áreas), `src/core/modules/modLabels.bas` (`Labels_ApplyCellFormat` por família), `src/core/modules/modChartKinds.bas` (`Kinds_Insert`: `area` → `Area_Insert`, `combo` → `Combo_Insert`), `src/core/modules/modCoreApi.bas` (`ValidateOption "legend"`, `ApplyOption "legend"`, `ApplyToggle "secondary"`, erro 7002 tratado como aviso)
+- Modify: `src/core/modules/modChartStacked.bas` (`Stacked_BuildBlock` com `kind = "combo"`; `Stacked_SetTotals/SetLabels/SetConnectors` decidem por `Kinds_Supports`; `Stacked_SetLabels` reaplica "fim da linha"), `src/core/modules/modChartStyle.bas` (`Style_HideValueAxis(ax)`, borda branca em áreas), `src/core/modules/modLabels.bas` (`Labels_ApplyCellFormat` por família), `src/core/modules/modChartKinds.bas` (`Kinds_Insert`: `area` → `Area_Insert`, `combo` → `Combo_Insert`), `src/core/modules/modCoreApi.bas` (`ValidateOption "legend"`, `ApplyOption "legend"`, `ApplyToggle "secondary"` e `"totals"/"labels"` da família `area`, erro 7002 tratado como aviso)
 - Test: `tests/vba/core/TestArea.bas` (novo), `tests/vba/core/TestCoreApi.bas`
 
 **Interfaces:**
@@ -1177,7 +1076,8 @@ End Sub
 - Produces (`modChartCombo`): `Combo_Insert(ws, data) As ChartObject` — exige `data.SeriesCount >= 2`, senão `Err.Raise vbObjectError + 6008, "Combo_Insert", "A combinação precisa de pelo menos 2 colunas de valores: as primeiras viram colunas empilhadas e a última vira linha."`; bloco `Stacked_BuildBlock(wb, id, data, "combo")` (Total/TotalPos só das séries 1..S-1); séries 1..S-1 `xlColumnStacked`, série S `xlLineMarkers`; `Combo_DefaultSecondary(data) As Boolean` (= ambas as magnitudes > 0 e `lineMax > 5*colMax Or lineMax*5 < colMax`, com `lineMax` = maior |valor| da última coluna e `colMax` = maior |soma das demais| por linha, lidos por `Util_ToDouble`); `Combo_SetSecondary(cht, on)` (`AxisGroup` da linha; eixo de valores secundário oculto por `Style_HideValueAxis`; opção `secondary`); `Combo_LineSeries(cht) As Series` (última série não-auxiliar). Totais/rótulos/conectores/cores via `Stacked_*` (kind `combo` está na matriz).
 - Produces (`modDecorations`): `Deco_SetLegend(cht, mode As String)` com `mode` em `right|none|lineend`: `right` liga a legenda à direita (9 pt) e esconde auxiliares; `none` desliga; `lineend` só para `line` e `combo` (senão `Err.Raise vbObjectError + 7002, "Deco_SetLegend", "Rótulos no fim da linha só existem em gráficos de linha e combinação."`): desliga a legenda e, em cada série de linha não-auxiliar, o último ponto ganha `HasDataLabel = True`, `ShowSeriesName = True`, `Separator = " "` (mantendo `ShowValue` conforme o toggle de rótulos); `right/none` desfazem o `ShowSeriesName`. Persiste `legend`. `Deco_ApplyLineEnd(cht)` (reaplica quando `legend=lineend`; chamada no fim de `Stacked_SetLabels`).
 - Produces (`modChartStyle`): `Style_HideValueAxis(ax As Axis)` (grade, marcas, rótulos e linha ocultos; extraído de `Style_ApplyBase`); `Style_ApplySeriesColors` em séries de área: preenchimento da paleta + `Format.Line.Visible = msoTrue`, `ForeColor = RGB(255,255,255)`, `Weight = 1`.
-- Produces (`modCoreApi`): `ValidateOption("legend", v)` aceita `right|none|lineend`; `ApplyOption "legend"` → `Deco_SetLegend`; `ApplyToggle "secondary"` → `Combo_SetSecondary` (só `combo`); em `Core_SetToggle/Core_SetOption`, erro `vbObjectError + 7002` vira `Core_Notify Err.Description, vbInformation` sem persistir a opção (mesmo tratamento do 7001 em `Core_AddAnnotation`); `Core_Insert` trata `vbObjectError + 6008` como aviso (`Core_Notify Err.Description`).
+- Produces (`modChartStacked`): `Stacked_Insert` passa a gravar `Registry_SetOption cht, "legend", "right"` (a legenda já nasce à direita, mas a opção nunca era gravada e `Core_GetOption("legend")` devolveria `""`); `Combo_Insert` também grava `legend=right` (e `Area_Insert`, acima).
+- Produces (`modCoreApi`): `ValidateOption("legend", v)` aceita `right|none|lineend`; `ApplyOption "legend"` → `Deco_SetLegend` **sem** passar pelo `Registry_SetOption` genérico do início de `ApplyOption` (hoje `ApplyOption` grava a opção antes de despachar): `Deco_SetLegend` valida, aplica e só então grava, de modo que a recusa 7002 não deixa `legend=lineend` gravado; as demais chaves continuam gravando antes de despachar (o despacho de `numfmt` lê a opção do registro, ex.: `Labels_SegmentFormat`: inverter a ordem para todas quebraria o 100%); `ApplyToggle "secondary"` → `Combo_SetSecondary` (só `combo`); `ApplyToggle "totals"`/`"labels"` na família `area` → `Area_SetTotals`/`Area_SetLabels` (a família `combo` usa os `Stacked_*`); em `Core_SetToggle/Core_SetOption`, erro `vbObjectError + 7002` vira `Core_Notify Err.Description, vbInformation` sem persistir a opção (mesmo tratamento do 7001 em `Core_AddAnnotation`); `Core_Insert` trata `vbObjectError + 6008` como aviso (`Core_Notify Err.Description`).
 - Produces (`modLabels`): `Labels_ApplyCellFormat` por família: `stacked` (col 2 + `Part_j`), `waterfall` (col 17, `LabelVal`, e `D_j` quando S > 1), `area` (col 2 + `Val_j`), `combo` (como `stacked`).
 
 - [ ] **Passo 1: Testes (RED)** — `tests/vba/core/TestArea.bas`:
@@ -1371,7 +1271,7 @@ End Sub
 
 - [ ] **Passo 2: RED** — `-Filter "TestArea|Legend_And_Secondary"` → saída 3.
 
-- [ ] **Passo 3: Implementar** — `Area_Insert` segue o esqueleto de `Stacked_Insert` (rollback idêntico: `co.Delete` + `CalcSheet_DeleteBlock`). `Combo_Insert`: montar como `Stacked_Insert` com `kind = "combo"` e, antes de `Style_ApplyBase`, `cht.SeriesCollection(S).ChartType = xlLineMarkers`; depois `Combo_SetSecondary cht, Combo_DefaultSecondary(data)`. `Stacked_SetTotals`: trocar a verificação `<> "stacked" And <> "stacked100"` por `Not Kinds_Supports(kind, "totals")`. `Deco_SetLegend "lineend"`: percorra `cht.SeriesCollection`, pule `Style_IsHelperSeries`, considere apenas séries com `ChartType` `xlLine`/`xlLineMarkers`.
+- [ ] **Passo 3: Implementar** — `Area_Insert` segue o esqueleto de `Stacked_Insert` (rollback idêntico: `co.Delete` + `CalcSheet_DeleteBlock`). `Combo_Insert`: montar como `Stacked_Insert` com `kind = "combo"` e, antes de `Style_ApplyBase`, `cht.SeriesCollection(S).ChartType = xlLineMarkers`; depois `Combo_SetSecondary cht, Combo_DefaultSecondary(data)`. `Stacked_SetTotals` já recusa por `Not Kinds_Supports(kind, "totals")` desde a Tarefa 3 (o que inclui `combo`). `Deco_SetLegend "lineend"`: percorra `cht.SeriesCollection`, pule `Style_IsHelperSeries`, considere apenas séries com `ChartType` `xlLine`/`xlLineMarkers`.
 
 - [ ] **Passo 4: GREEN e suíte completa.**
 
@@ -1384,18 +1284,18 @@ End Sub
 ### Tarefa 7: Decorações: linha de valor, indicador 100% e mesma escala
 
 **Files:**
-- Modify: `src/core/modules/modDecorations.bas`, `src/core/modules/modAnnotations.bas` (kind `ind100`), `src/core/modules/modChartStacked.bas` e `modChartArea.bas` (`ind100` ligado por padrão nos 100%), `src/core/modules/modCoreApi.bas` (`Core_SameScale`, `Core_ResetScale`, `Core_SelectedCharts`, toggles `ind100`/`vline`, `Core_SafeRefresh` reaplica escala fixa)
+- Modify: `src/core/modules/modDecorations.bas`, `src/core/modules/modAnnotations.bas` (kind `ind100`: `Ann_AddInd100`/`Ann_RemoveInd100`), `src/core/modules/modChartStacked.bas` e `modChartArea.bas` (`ind100` ligado por padrão nos 100%), `src/core/modules/modCoreApi.bas` (`Core_SameScale`, `Core_ResetScale`, `Core_SelectedCharts`, toggles `ind100`/`vline`, `Core_SafeRefresh` reaplica escala fixa)
 - Test: `tests/vba/core/TestDecorations.bas` (novo); ajustar `TestCoreApi.Test_Core_AddAnnotation_Diff_On100Chart_NoThrow` (contar só formas `tqq_ann_diff*`) e `TestSamples.Test_Samples_Content` (o 100% passa a ter o indicador: `Ann_ShapeCount` deve ignorar `tqq_ann_ind100*`)
 
 **Interfaces:**
 - Consumes: `Chart_AddHelperSeries`, `Stacked_VLineCol/PosCol`, `Area_VLineCol/PosCol`, `Kinds_Supports`, `Geom_ChartValCoord`, `Ann_Refresh`, `Registry_*`.
 - Produces (`modDecorations`):
-  - `Deco_SetValueLine(cht, on)` — recusa com `vbObjectError + 7002, "A linha de valor não está disponível para este tipo de gráfico."` quando `Not Kinds_Supports(kind, "vline")`; liga: série `tqq_vline` por `Chart_AddHelperSeries` (vertical: linha sobre a coluna `VLine`; horizontal: XY com `X = VLine`, `Y = Pos`, do centro da 1.ª faixa ao da última), linha **visível** cinza `RGB(127,127,127)`, 1 pt, `msoLineDash`, sem marcadores, fora da legenda; rótulo ligado só no **último** ponto (`DataLabel.Formula = Block_Ref(célula VLine da última linha)`, posição Right em vertical e Above em horizontal, 9 pt cinza); a coluna `VLine` do bloco recebe `NumberFormatLocal = Style_LocalizeCode("""Média """ & Style_NumberFormat(numfmt))`; opção `vline=1`. Desliga: apaga a série, `vline=0`. `Deco_VLineCells(cht) As Range` / `Deco_PosCells(cht) As Range` por família (`stacked`/`combo` → `Stacked_*Col`; `area` → `Area_*Col`; `mekko` acrescentado na Tarefa 9).
-  - `Deco_SetInd100(cht, on)` — recusa `7002, "O indicador 100% só existe em gráficos 100% e Mekko (%)."`; liga: formas `tqq_ann_ind100` (linha 1 pt `RGB(89,89,89)`) e `tqq_ann_ind100_lbl` (caixa de texto "100%", 9 pt, sem preenchimento nem borda, `AlternativeText = "kind=ind100"`), `Deco_EnsureIndicatorRoom(cht)` (vertical: `PlotArea.InsideLeft >= 46`, horizontal: `InsideTop >= 20`; só aumenta a folga), opção `ind100=1`, `Ann_Refresh`; desliga: apaga as duas formas, `ind100=0`.
+  - `Deco_SetValueLine(cht, on)` — recusa com `vbObjectError + 7002, "A linha de valor não está disponível para este tipo de gráfico."` quando `Not Kinds_Supports(kind, "vline")`; liga: série `tqq_vline` por `Chart_AddHelperSeries` (vertical: linha sobre a coluna `VLine`; horizontal: XY com `X = VLine`, `Y = Pos`, do centro da 1.ª faixa ao da última), linha **visível** cinza `RGB(127,127,127)`, 1 pt, `msoLineDash`, sem marcadores, fora da legenda; rótulo ligado só no **último** ponto (`m = vcells.Rows.Count`: n nas famílias `stacked`/`combo`/`area`, 5n no Mekko; `s.Points(m).DataLabel.Formula = Block_Ref(vcells.Cells(m, 1))`, posição Right em vertical e Above em horizontal, 9 pt cinza); a coluna `VLine` do bloco recebe `NumberFormatLocal = Style_LocalizeCode("""Média """ & Style_NumberFormat(numfmt))`; opção `vline=1`. Desliga: apaga a série, `vline=0`. `Deco_VLineCells(cht) As Range` / `Deco_PosCells(cht) As Range` por família (`stacked`/`combo` → `Stacked_*Col`; `area` → `Area_*Col`; `mekko` acrescentado na Tarefa 9).
+  - `Deco_SetInd100(cht, on)` — recusa `7002, "O indicador 100% só existe em gráficos 100% e Mekko (%)."`; liga: `Ann_AddInd100 cht` (as duas formas; ver `modAnnotations` abaixo), `Deco_EnsureIndicatorRoom(cht)` (vertical: `PlotArea.InsideLeft >= 46`, horizontal: `InsideTop >= 20`; só aumenta a folga), opção `ind100=1`, `Ann_Refresh`; desliga: `Ann_RemoveInd100 cht`, `ind100=0`.
   - `Deco_SameScale(charts As Collection, ByRef skipped As Long) As Long` — para cada gráfico com `Kinds_Supports(kind, "samescale")`: `Axes(xlValue).MinimumScaleIsAuto = True`, `MaximumScaleIsAuto = True`, lê min/max; aplica `min(mins)`/`max(maxs)` a todos os aceitos e persiste `vmin`/`vmax` com `Deco_ScaleText(v) = Trim$(Str$(v))` (ponto decimal; `Val` lê de volta); devolve quantos receberam a escala; `skipped` = quantos foram ignorados por tipo.
   - `Deco_ResetScale(cht)` — `vmin`/`vmax` = `""` e eixo automático.
   - `Deco_ApplyFixedScale(cht)` — se `vmin` não vazio, define `MinimumScale/MaximumScale` (só quando diferentes); nunca propaga erro.
-- Produces (`modAnnotations`): `Ann_Refresh` posiciona `kind=ind100` (válido quando `Kinds_Supports(kind, "ind100")`, senão oculto): vertical: `y = Geom_ChartValCoord(cht, 1)`, tique de `(InsideLeft - 8, y)` a `(InsideLeft - 1, y)`, rótulo `Left = InsideLeft - 10 - lbl.Width`, `Top = y - lbl.Height/2`; horizontal: `x = Geom_ChartValCoord(cht, 1)`, tique de `(x, InsideTop - 8)` a `(x, InsideTop - 1)`, rótulo `Left = x - lbl.Width/2`, `Top = InsideTop - 10 - lbl.Height`. `Ann_RemoveAll` **não** remove `ind100` (é um toggle).
+- Produces (`modAnnotations`): `Public Function Ann_AddInd100(cht As Chart) As Shape` (as formas ficam em `modAnnotations` porque `Ann_NewName`/`Ann_AddLabel` são privadas do módulo; `modDecorations` não as enxerga): linha `tqq_ann_ind100` (1 pt, `RGB(89,89,89)`, `AlternativeText = "kind=ind100"`) e rótulo `tqq_ann_ind100_lbl` criado por `Ann_AddLabel cht, "tqq_ann_ind100"` (logo `AlternativeText = "kind=label;owner=tqq_ann_ind100"`), ajustado para texto "100%", 9 pt, sem negrito, sem preenchimento e sem borda; se as formas já existem, não cria de novo; `Public Sub Ann_RemoveInd100(cht As Chart)` apaga as duas. `Ann_Refresh` posiciona `kind=ind100` (válido quando `Kinds_Supports(kind, "ind100")`, senão oculto): vertical: `y = Geom_ChartValCoord(cht, 1)`, tique de `(InsideLeft - 8, y)` a `(InsideLeft - 1, y)`, rótulo `Left = InsideLeft - 10 - lbl.Width`, `Top = y - lbl.Height/2`; horizontal: `x = Geom_ChartValCoord(cht, 1)`, tique de `(x, InsideTop - 8)` a `(x, InsideTop - 1)`, rótulo `Left = x - lbl.Width/2`, `Top = InsideTop - 10 - lbl.Height`. `Ann_RemoveAll` **não** remove `ind100` (é um toggle).
 - Produces (`modCoreApi`): `Core_SelectedCharts() As Collection` (gráfico ativo ThinQQ; senão todos os `Selection.ShapeRange` com `HasChart` e `Registry_IsThinQQChart`; nunca propaga erro); `Core_SameScale()` — com < 2 selecionados usa todos os gráficos ThinQQ da planilha ativa; com < 2 no total notifica `"Mesma escala: selecione dois ou mais gráficos do ThinQQ (ou nenhum, para usar todos os gráficos da planilha)."`; senão aplica e notifica `"Mesma escala aplicada a N gráfico(s)."` + (se `skipped > 0`) `" K ignorado(s): tipo sem escala livre (100%, Mekko (%), pizza, Gantt)."`; `Core_ResetScale()` — gráfico ativo ou seleção; notifica `"Escala automática restaurada em N gráfico(s)."`; `ApplyToggle "ind100"` → `Deco_SetInd100`, `"vline"` → `Deco_SetValueLine`; `Core_SafeRefresh` chama `Deco_ApplyFixedScale cht` antes de `Labels_RefreshPositions`. `Stacked_Insert`/`Area_Insert` chamam `Deco_SetInd100 cht, True` quando `Kinds_Is100(kind)`.
 
 - [ ] **Passo 1: Testes (RED)** — `tests/vba/core/TestDecorations.bas`:
@@ -1472,11 +1372,21 @@ Public Sub Test_VLine_Refused_On100AndWaterfall()
     AssertEqual vbObjectError + 7002, en
     AssertEqual "A linha de valor não está disponível para este tipo de gráfico.", ed
     AssertTrue Chart_FindSeries(cht, "tqq_vline") Is Nothing
+    Set cht = Waterfall_Insert(ws, d).Chart
+    On Error Resume Next
+    Deco_SetValueLine cht, True
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    AssertEqual vbObjectError + 7002, en, "cascata: sem linha de valor"
+    AssertEqual "A linha de valor não está disponível para este tipo de gráfico.", ed
+    AssertTrue Chart_FindSeries(cht, "tqq_vline") Is Nothing
     ws.Range("A1:D5").Select
     Core_Insert "stacked100"
     Core_ClearLastNotice
     Core_SetToggle "vline", True
-    AssertEqual "A linha de valor não está disponível para este tipo de gráfico.", Core_LastNotice()
+    ' via API o aviso fala da linha de valor (a Tarefa 11 troca o texto pela mensagem generica da matriz,
+    ' "'Linha de valor (media)' nao se aplica..."; a chamada direta acima mantem a mensagem especifica)
+    AssertTrue InStr(Core_LastNotice(), "inha de valor") > 0, Core_LastNotice()
     AssertFalse Core_GetToggle("vline")
     Watchers_Stop
     CloseTemp wb
@@ -1583,7 +1493,7 @@ End Sub
 
 - [ ] **Passo 2: RED** — `-Filter "TestDecorations"` → saída 3; depois de declarar as funções, `not ok`.
 
-- [ ] **Passo 3: Implementar** — `Deco_SetValueLine` (vertical): `Set s = Chart_AddHelperSeries(cht, "tqq_vline", vcells)`; depois `s.Format.Line.Visible = msoTrue` etc.; o rótulo do último ponto: `s.Points(n).HasDataLabel = True: s.Points(n).DataLabel.Formula = Block_Ref(vcells.Cells(n, 1))`. Em `Core_SelectedCharts`, a seleção múltipla de gráficos chega como `TypeName(Selection) = "DrawingObjects"`; use `Selection.ShapeRange` sob `On Error Resume Next`. Em `Deco_SameScale`, leia min/max **depois** de ligar `IsAuto` (o Excel recalcula a escala automática na leitura).
+- [ ] **Passo 3: Implementar** — `Deco_SetValueLine` (vertical): `Set s = Chart_AddHelperSeries(cht, "tqq_vline", vcells)`; depois `s.Format.Line.Visible = msoTrue` etc.; o rótulo do último ponto, com `m = vcells.Rows.Count` (não o número de categorias: no Mekko da Tarefa 9 são 5n pontos): `s.Points(m).HasDataLabel = True: s.Points(m).DataLabel.Formula = Block_Ref(vcells.Cells(m, 1))`. Em `Core_SelectedCharts`, a seleção múltipla de gráficos chega como `TypeName(Selection) = "DrawingObjects"`; use `Selection.ShapeRange` sob `On Error Resume Next`. Em `Deco_SameScale`, leia min/max **depois** de ligar `IsAuto` (o Excel recalcula a escala automática na leitura).
 
 - [ ] **Passo 4: GREEN e suíte completa** — incluindo os dois testes antigos ajustados (100% agora tem 2 formas `tqq_ann_ind100*`).
 
@@ -1597,12 +1507,13 @@ End Sub
 
 **Files:**
 - Create: `src/core/modules/modChartPie.bas`
-- Modify: `src/core/modules/modChartKinds.bas` (`Kinds_Insert`: `pie` → `Pie_Insert`), `src/core/modules/modChartStyle.bas` (`Style_ApplyNumberFormat` família `pie`; `Style_ApplyPointColors`), `src/core/modules/modLabels.bas` (`Labels_ApplyCellFormat`/`Labels_RefreshPositions` ignoram a família `pie`), `src/core/modules/modCoreApi.bas` (`ApplyToggle "pieout"`, `ApplyOption "palette"` por família)
+- Modify: `src/core/modules/modChartKinds.bas` (`Kinds_Insert`: `pie` → `Pie_Insert`), `src/core/modules/modChartStyle.bas` (`Style_ApplyNumberFormat` família `pie`; `Style_ApplyPointColors`), `src/core/modules/modLabels.bas` (`Labels_ApplyCellFormat`/`Labels_RefreshPositions` ignoram a família `pie`), `src/core/modules/modDecorations.bas` (`Deco_SetLegend` na família `pie`: precedência com `pieout`), `src/core/modules/modCoreApi.bas` (`ApplyToggle "pieout"` e `"labels"` da família `pie`, `ApplyOption "palette"` por família)
 - Test: `tests/vba/core/TestPie.bas` (novo)
 
 **Interfaces:**
 - Consumes: `CalcSheet_AllocateBlock`, `Block_Ref`, `Style_ApplyBase` (tolerante a pizza, Tarefa 1), `Style_Palette`, `Style_SetColor`, `Style_ContrastFont`, `Style_LocalizeCode`, `Style_NumberFormat`, `Kinds_*`, `Registry_*`.
-- Produces: `Pie_BuildBlock(wb, id, data, kind) As Range` — `1 Categoria | 2 Valor (=IF(AND(ISNUMBER(src),src>0),src,0)) | 3 Share (=IF(SUM(Valor)>0, Valor/SUM(Valor), 0))`; `Pie_Insert(ws, data, kind) As ChartObject` — uma série (nome = cabeçalho da 1.ª coluna de valores, `Values = Block_Ref(coluna Valor)`, `XValues = categorias da origem`), `xlPie` ou `xlDoughnut` (`DoughnutHoleSize = 50`), `FirstSliceAngle = 0`, `Style_ApplyBase`, `Style_ApplyPointColors cht, "padrao"` (`VaryByCategories = True`, ponto k com `pal((k-1) Mod 6)`, borda branca 1 pt), legenda à direita, rótulos **dentro**, opções `numfmt=int, palette=padrao, legend=right, pieout=0, labels=1, n`; `Pie_SetLabels(cht, on)`; `Pie_SetOutside(cht, on)` — `pieout=1`: rótulos `xlLabelPositionOutsideEnd` com `ShowCategoryName = True`, `Separator = vbLf`, `ShowLeaderLines = True`, fonte cinza-escuro, legenda desligada; `pieout=0`: `xlLabelPositionInsideEnd`, sem nome da categoria, cor da fonte por contraste com a fatia, legenda ligada; `Pie_ApplyNumberFormat(cht, key)` — `pct0/pct1`: `ShowPercentage = True`, `ShowValue = False`, formato localizado `0%`/`0.0%`; demais: `ShowValue = True`, `ShowPercentage = False`, formato localizado de `Style_NumberFormat(key)`; `Style_ApplyPointColors(cht, paletteName)` em `modChartStyle`. `Style_ApplyNumberFormat` despacha `pie` para `Pie_ApplyNumberFormat`; `ApplyOption "palette"` despacha por família (`pie` → `Style_ApplyPointColors`). Rótulos nativos: `Labels_ApplyCellFormat` e `Labels_RefreshPositions` saem cedo na família `pie`.
+- Produces: `Pie_BuildBlock(wb, id, data, kind) As Range` — `1 Categoria | 2 Valor (=IF(AND(ISNUMBER(src),src>0),src,0)) | 3 Share (=IF(SUM(Valor)>0, Valor/SUM(Valor), 0))`; `Pie_Insert(ws, data, kind) As ChartObject` — uma série (nome = cabeçalho da 1.ª coluna de valores, `Values = Block_Ref(coluna Valor)`, `XValues = categorias da origem`), `xlPie` ou `xlDoughnut` (`DoughnutHoleSize = 50`), `FirstSliceAngle = 0`, `Style_ApplyBase`, `Style_ApplyPointColors cht, "padrao"` (`VaryByCategories = True`, ponto k com `pal((k-1) Mod 6)`, borda branca 1 pt), legenda à direita, rótulos **dentro** (pizza: `xlLabelPositionInsideEnd`; rosca: **nunca define `Position`** — o Excel recusa `InsideEnd`/`OutsideEnd` na rosca com erro 1004 — e os rótulos ficam na posição padrão, sobre o anel), opções `numfmt=int, palette=padrao, legend=right, labels=1, n` e, só na pizza, `pieout=0`; `Pie_SetLabels(cht, on)`; `Pie_SetOutside(cht, on)` — só `pie`: na rosca levanta `Err.Raise vbObjectError + 7002, "Pie_SetOutside", "'Rótulos fora da pizza' não se aplica a este tipo de gráfico."` sem gravar nada (o mesmo texto que a Tarefa 11 gera pela matriz); `pieout=1`: rótulos `xlLabelPositionOutsideEnd` com `ShowCategoryName = True`, `Separator = vbLf`, `ShowLeaderLines = True`, fonte cinza-escuro, legenda oculta; `pieout=0`: `xlLabelPositionInsideEnd`, sem nome da categoria, cor da fonte por contraste com a fatia, legenda conforme a opção `legend`; `Pie_ApplyNumberFormat(cht, key As String)` — recebe a **chave** (`int`, `pct0`, ...), grava `numfmt=key` e reaplica o conteúdo dos rótulos: `pct0/pct1`: `ShowPercentage = True`, `ShowValue = False`, formato localizado `0%`/`0.0%`; demais: `ShowValue = True`, `ShowPercentage = False`, formato localizado de `Style_NumberFormat(key)`; `Style_ApplyPointColors(cht, paletteName)` em `modChartStyle`. `Style_ApplyNumberFormat(cht, fmt As String)` mantém a assinatura de hoje (recebe o **código** de formato de `Style_NumberFormat`) e, na família `pie`, chama `Pie_ApplyNumberFormat cht, Registry_GetOption(cht, "numfmt", "int")` e sai (`ApplyOption` grava `numfmt` antes de despachar, então a chave lida já é a nova); `ApplyOption "palette"` despacha por família (`pie` → `Style_ApplyPointColors`); `ApplyToggle "labels"` na família `pie` → `Pie_SetLabels` (não o `Stacked_SetLabels` de reserva, que poria `Position = Center` e apagaria nome e participação).
+- Precedência da legenda na família `pie` (`Deco_SetLegend` e `Pie_SetOutside` mexem em `HasLegend`): `HasLegend = (legend <> "none") And (pieout <> "1")` — rótulos fora vencem (os nomes já estão nos rótulos). `Pie_SetOutside` não grava `legend`; `Deco_SetLegend` (Tarefa 6) ganha o ramo `pie`: grava `legend` e aplica a mesma regra (com `pieout=1`, `right` fica gravado, mas a legenda continua oculta até desligar os rótulos fora); `lineend` continua recusado (7002). Rótulos nativos: `Labels_ApplyCellFormat` e `Labels_RefreshPositions` saem cedo na família `pie`.
 - Anotações: recusadas pela matriz (7001); `vline`/`ind100`/`samescale`: recusados (7002 / ignorado).
 
 - [ ] **Passo 1: Testes (RED)** — `tests/vba/core/TestPie.bas`:
@@ -1685,9 +1596,15 @@ Public Sub Test_Pie_Outside_CategoryNamesNoLegend_AndGeometry()
     AssertTrue InStr(s.Points(1).DataLabel.Text, "Eletro") > 0 And InStr(s.Points(1).DataLabel.Text, "50") > 0, s.Points(1).DataLabel.Text
     AssertFalse cht.HasLegend
     AssertTrue Dist(cht, s.Points(1).DataLabel) > Radius(cht), "rotulo externo fora do circulo"
+    Deco_SetLegend cht, "right"
+    AssertFalse cht.HasLegend, "rotulos fora vencem a opcao de legenda"
+    AssertEqual "right", Registry_GetOption(cht, "legend")
     Pie_SetOutside cht, False
     AssertTrue cht.HasLegend: AssertFalse s.DataLabels.ShowCategoryName
     AssertEqual xlLabelPositionInsideEnd, s.DataLabels.Position
+    Deco_SetLegend cht, "none"
+    Pie_SetOutside cht, True: Pie_SetOutside cht, False
+    AssertFalse cht.HasLegend, "desligar rotulos fora respeita legend=none"
     CloseTemp wb
 End Sub
 
@@ -1699,6 +1616,29 @@ Public Sub Test_Doughnut_HoleAndKind()
     AssertEqual xlDoughnut, cht.ChartType
     AssertEqual 50, cht.ChartGroups(1).DoughnutHoleSize
     AssertEqual "30", cht.SeriesCollection(1).Points(2).DataLabel.Text
+    CloseTemp wb
+End Sub
+
+' Sonda (Excel 2019): a rosca recusa DataLabels.Position InsideEnd/OutsideEnd (erro 1004). Por isso a rosca nunca
+' define Position e nao tem 'pieout'. Se esta sonda falhar, o Excel mudou: revise a regra (nao "conserte" o teste).
+Public Sub Test_Doughnut_RejectsLabelPosition_Probe_And_NoPieOut()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, en As Long, ed As String
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Pie_Insert(d.Source.Worksheet, d, "doughnut").Chart
+    AssertTrue cht.SeriesCollection(1).HasDataLabels, "rosca com rotulos na posicao padrao"
+    On Error Resume Next
+    cht.SeriesCollection(1).DataLabels.Position = xlLabelPositionOutsideEnd
+    en = Err.Number: Err.Clear
+    On Error GoTo 0
+    AssertTrue en <> 0, "sonda: o Excel aceitou OutsideEnd na rosca"
+    On Error Resume Next
+    Pie_SetOutside cht, True
+    en = Err.Number: ed = Err.Description: Err.Clear
+    On Error GoTo 0
+    AssertEqual vbObjectError + 7002, en
+    AssertEqual "'Rótulos fora da pizza' não se aplica a este tipo de gráfico.", ed
+    AssertEqual "", Registry_GetOption(cht, "pieout", ""), "rosca nao grava pieout"
+    AssertTrue cht.HasLegend
     CloseTemp wb
 End Sub
 
@@ -1778,6 +1718,10 @@ Public Sub Test_Core_Insert_Pie_TogglesAndOptions()
     AssertEqual RGB(64, 64, 64), cht.SeriesCollection(1).Points(1).Format.Fill.ForeColor.RGB
     Core_SetToggle "labels", False
     AssertFalse cht.SeriesCollection(1).HasDataLabels
+    Core_SetToggle "labels", True
+    AssertTrue cht.SeriesCollection(1).DataLabels.ShowPercentage, "religar por Pie_SetLabels mantem pct1 (participacao)"
+    AssertTrue cht.SeriesCollection(1).DataLabels.ShowCategoryName, "religar mantem os rotulos fora com o nome"
+    AssertEqual xlLabelPositionOutsideEnd, cht.SeriesCollection(1).DataLabels.Position
     Watchers_Stop
     CloseTemp wb
 End Sub
@@ -1785,13 +1729,13 @@ End Sub
 
 - [ ] **Passo 2: RED** — `-Filter "TestPie"` → saída 3.
 
-- [ ] **Passo 3: Implementar** — `Pie_Insert` no esqueleto de `Stacked_Insert` (rollback). Em `Pie_ApplyLabelContent(cht)` (privada, chamada por `Pie_SetLabels`, `Pie_SetOutside` e `Pie_ApplyNumberFormat`): leia `numfmt` e `pieout` do registro e aplique tudo de uma vez (posição, conteúdo, separador, linhas de chamada, fonte); cor da fonte por ponto só quando dentro. `Style_ApplyPointColors`: `cht.ChartGroups(1).VaryByCategories = True` e, para `k = 1 To s.Points.Count`, `Style_SetColor s.Points(k).Format.Fill.ForeColor, pal((k - 1) Mod 6)`; `s.Format.Line.Visible = msoTrue: ForeColor = RGB(255,255,255): Weight = 1`.
+- [ ] **Passo 3: Implementar** — `Pie_Insert` no esqueleto de `Stacked_Insert` (rollback). Em `Pie_ApplyLabelContent(cht)` (privada, chamada por `Pie_SetLabels`, `Pie_SetOutside` e `Pie_ApplyNumberFormat`): leia `numfmt` e `pieout` do registro e aplique tudo de uma vez (posição, conteúdo, separador, linhas de chamada, fonte); cor da fonte por ponto só quando dentro; na rosca, nunca escreva `Position`. `Style_ApplyPointColors`: `cht.ChartGroups(1).VaryByCategories = True` e, para `k = 1 To s.Points.Count`, `Style_SetColor s.Points(k).Format.Fill.ForeColor, pal((k - 1) Mod 6)`; `s.Format.Line.Visible = msoTrue: ForeColor = RGB(255,255,255): Weight = 1`.
 
 - [ ] **Passo 4: GREEN e suíte completa.**
 
 - [ ] **Passo 5: Commit** — `git commit -m "feat: pizza e rosca com rotulos dentro/fora, valor ou participacao e cores por fatia"` (+ trailer).
 
-**Verificação no Excel real:** Pizza e Rosca de uma tabela de 3 linhas; Mais opções > Rótulos fora da pizza (nomes + linhas de chamada, legenda some); Formato 12% mostra participações; Paleta; Seta CAGR avisa que não se aplica.
+**Verificação no Excel real:** Pizza e Rosca de uma tabela de 3 linhas; Mais opções > Rótulos fora da pizza (nomes + linhas de chamada, legenda some; na rosca o comando avisa que não se aplica); Formato 12% mostra participações; Paleta; Seta CAGR avisa que não se aplica.
 
 ---
 
@@ -1799,14 +1743,14 @@ End Sub
 
 **Files:**
 - Create: `src/core/modules/modChartMekko.bas`
-- Modify: `src/core/modules/modChartKinds.bas` (`Kinds_Insert`: `mekko` → `Mekko_Insert`), `src/core/modules/modChartStyle.bas` (`Style_ApplyNumberFormat` família `mekko`), `src/core/modules/modLabels.bas` (`Labels_ApplyCellFormat` família `mekko`; `Labels_RefreshPositions` ignora `mekko`), `src/core/modules/modDecorations.bas` (`Deco_VLineCells`: `mekko` → `Mekko_VLineCells`), `src/core/modules/modCoreApi.bas` (toggles/opções por família)
+- Modify: `src/core/modules/modChartKinds.bas` (`Kinds_Insert`: `mekko` → `Mekko_Insert`), `src/core/modules/modChartStyle.bas` (`Style_ApplyNumberFormat` família `mekko`), `src/core/modules/modLabels.bas` (`Labels_ApplyCellFormat` família `mekko`; `Labels_RefreshPositions` ignora `mekko`), `src/core/modules/modDecorations.bas` (`Deco_VLineCells`: `mekko` → `Mekko_VLineCells`), `src/core/modules/modCoreApi.bas` (família `mekko`: `ApplyToggle "labels"/"totals"` → `Mekko_SetLabels`/`Mekko_SetTotals`, `ApplyOption "palette"` → `Mekko_ApplyColors`)
 - Test: `tests/vba/core/TestMekko.bas` (novo)
 
 **Interfaces:**
 - Consumes: Tarefas 1, 6, 7 (`Chart_AddHelperSeries`, `Deco_SetInd100`, `Deco_SetValueLine`, `Style_ApplySeriesColors` com borda branca em áreas).
 - Produces (constantes/colunas): `MK_ROWS_PER_CAT = 5`; `MK_COL_X = 1`, `MK_COL_CAT = 2`, `MK_COL_W = 3`, `MK_COL_TOTAL = 4`; `Mekko_SeriesCount(blk) = (blk.Columns.Count - 8) \ 3`; `Mekko_YCol(j) = 4 + j`; `Mekko_LblCol(blk, j) = 4 + S + j`; `Mekko_LblValCol(blk, j) = 4 + 2*S + j`; `Mekko_TotPosCol(blk) = 5 + 3*S`; `Mekko_TotLblCol(blk) = 6 + 3*S`; `Mekko_CatPosCol(blk) = 7 + 3*S`; `Mekko_VLineCol(blk) = 8 + 3*S`; `Mekko_CenterRow(i) = 5*(i-1) + 3` (linha do corpo, contando o cabeçalho como linha 1: a linha `C` da categoria `i` é `body.Cells(1 + Mekko_CenterRow(i), ...)`).
-- Produces: `Mekko_BuildBlock(wb, id, data, kind) As Range` (corpo `5n` linhas + cabeçalho; fórmulas do design §4.5 — `percent`: séries = colunas 2..S+1 da tabela, `W = AGGREGATE(9,6,valores da linha)`; `units`: coluna 2 = largura (`W = IF(AND(ISNUMBER(w),w>0),w,0)`), séries = colunas 3.., exige `data.SeriesCount >= 2` senão `Err.Raise vbObjectError + 6009, "Mekko_Insert", "Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas."`); `WT = SUM(W de todas as linhas C)`; `X`: `L0/L = 1+ROUND(1000*IF(WT=0,0,SUM(W_C1:W_C(i-1))/WT),0)` (i = 1 → 1), `C = 1+ROUND(1000*IF(WT=0,0,(SUM(W_C1:W_C(i-1))+SUM(W_C1:W_Ci))/2/WT),0)`, `R/R0 = 1+ROUND(1000*IF(WT=0,0,SUM(W_C1:W_Ci)/WT),0)`; `Y_j` = 0 em `L0/R0`, participação (`percent`) ou valor (`units`) em `L/C/R`; `Lbl_j` (só `C`) `= SUM(Y_1..Y_j) - Y_j/2`, `LblVal_j` (só `C`) = mesmo que `Y_j`; `TotPos` (`C`) = 1 (`percent`) ou `Total` (`units`); `TotLbl` (`C`) = `IF(WT=0,0,W/WT)` (`percent`) ou `Total` (`units`); `CatPos` (`C`) = 0; `Categoria` (`C`) = célula da categoria; `VLine` (todas as `5n` linhas, só `units`) `= IF(WT=0,0,SUMPRODUCT(W_C1:W_Cn, Total_C1:Total_Cn)/WT)`; fora das linhas indicadas, `NA()` (nas colunas `Lbl/LblVal/TotPos/TotLbl/CatPos`) ou vazio (`Categoria`, `W`, `Total`).
-- Produces: `Mekko_Insert(ws, data, kind) As ChartObject` — séries `j` com `Values = Block_Ref(Y_j, 5n linhas)` e `XValues = Block_Ref(X)`, `xlAreaStacked`; `Style_ApplyBase` e **depois** `Axes(xlCategory)`: `CategoryType = xlTimeScale`, `BaseUnit = xlDays`, `MinimumScale = 1`, `MaximumScale = 1001`, `MajorUnit = 1000`, sem rótulos/marcas, linha cinza; eixo de valores: `percent` → `MinimumScale = 0`, `MaximumScale = 1` (oculto); `units` → automático (oculto); cores por `Style_ApplySeriesColors` (área: borda branca 1,5 pt — ajuste `Weight` para áreas Mekko em `Mekko_Insert` depois das cores); auxiliares: `tqq_lbl_j` (`Lbl_j`, rótulo ligado a `LblVal_j`, Center, contraste), `tqq_total` (`TotPos`, rótulo `TotLbl`, Above, negrito), `tqq_cat` (`CatPos`, rótulo = célula `Categoria`, Below, 9 pt cinza); `Mekko_LinkLabels(s, valueCells, labelCells, fmt, pos, fontColor)` liga só os pontos cujo `labelCells(r)` não é erro, sob `On Error Resume Next` por ponto; legenda à direita sem auxiliares; opções `numfmt` (`pct0` em `percent`, `int` em `units`), `palette=padrao`, `n`, `legend=right`, `totals=1`, `labels=1`; `Deco_SetInd100 cht, True` em `percent`. `Mekko_SetLabels(cht, on)`, `Mekko_SetTotals(cht, on)`, `Mekko_VLineCells(cht) As Range` (`5n` linhas), `Mekko_PosCells` não existe (vertical). `Style_ApplyNumberFormat` família `mekko`: segmentos com `Labels_SegmentFormat` (percent → `pct0/pct1`), totais: `percent` → `pct0`, `units` → `numfmt`; `Labels_ApplyCellFormat` família `mekko`: `LblVal_j` e `TotLbl`.
+- Produces: `Mekko_BuildBlock(wb, id, data, kind) As Range` (corpo `5n` linhas + cabeçalho; fórmulas do design §4.5 — `percent`: séries = colunas 2..S+1 da tabela, `W = AGGREGATE(9,6,valores da linha)`; `units`: coluna 2 = largura (`W = IF(AND(ISNUMBER(w),w>0),w,0)`), séries = colunas 3.., exige `data.SeriesCount >= 2` senão `Err.Raise vbObjectError + 6009, "Mekko_Insert", "Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas."`); `WT = SUM(W de todas as linhas C)`; `X`: `L0/L = 1+ROUND(1000*IF(WT=0,0,SUM(W_C1:W_C(i-1))/WT),0)` (i = 1 → 1), `C = 1+ROUND(1000*IF(WT=0,0,(SUM(W_C1:W_C(i-1))+SUM(W_C1:W_Ci))/2/WT),0)`, `R/R0 = 1+ROUND(1000*IF(WT=0,0,SUM(W_C1:W_Ci)/WT),0)`; `Y_j` = 0 em `L0/R0`; em `L/C/R`, com `v = IF(ISNUMBER(src),src,0)`: participação `IF(Total=0, 0, v/Total)` (`percent`: linha de total zero não gera `#DIV/0!`) ou o valor `v` (`units`); `Lbl_j` (só `C`) `= SUM(Y_1..Y_j) - Y_j/2`, `LblVal_j` (só `C`) = mesmo que `Y_j`; `TotPos` (`C`) = 1 (`percent`) ou `Total` (`units`); `TotLbl` (`C`) = `IF(WT=0,0,W/WT)` (`percent`) ou `Total` (`units`); `CatPos` (`C`) = 0; `Categoria` (`C`) = célula da categoria; `VLine` (todas as `5n` linhas): `units` → `= IF(WT=0,0,SUMPRODUCT(W_C1:W_Cn, Total_C1:Total_Cn)/WT)`; `percent` → `=NA()` (sem linha de valor); fora das linhas indicadas, `NA()` (nas colunas `Lbl/LblVal/TotPos/TotLbl/CatPos`) ou vazio (`Categoria`, `W`, `Total`).
+- Produces: `Mekko_Insert(ws, data, kind) As ChartObject` — séries `j` com `Values = Block_Ref(Y_j, 5n linhas)` e `XValues = Block_Ref(X)`, `xlAreaStacked`; `Style_ApplyBase` e **depois** `Axes(xlCategory)`: `CategoryType = xlTimeScale`, `BaseUnitIsAuto = False`, `BaseUnit = xlDays`, `AxisBetweenCategories = False` (X = 1 na borda esquerda da área de plotagem, sem meia fatia), `MinimumScale = 1`, `MaximumScale = 1001`, `MajorUnit = 1000`, sem rótulos/marcas, linha cinza; eixo de valores: `percent` → `MinimumScale = 0`, `MaximumScale = 1` (oculto); `units` → automático (oculto); cores por `Mekko_ApplyColors(cht, paletteName)` = `Style_ApplySeriesColors` (área: borda branca 1 pt, Tarefa 6) seguido de `Format.Line.Weight = 1.5` nas séries de área (separadores mais visíveis); `ApplyOption "palette"` na família `mekko` chama `Mekko_ApplyColors` (senão a troca de paleta voltaria os separadores para 1 pt); auxiliares: `tqq_lbl_j` (`Lbl_j`, rótulo ligado a `LblVal_j`, Center, contraste), `tqq_total` (`TotPos`, rótulo `TotLbl`, Above, negrito), `tqq_cat` (`CatPos`, rótulo = célula `Categoria`, Below, 9 pt cinza); `Mekko_LinkLabels(s, valueCells, labelCells, fmt, pos, fontColor)` liga só os pontos cujo `labelCells(r)` não é erro, sob `On Error Resume Next` por ponto; legenda à direita sem auxiliares; opções `numfmt` (`pct0` em `percent`, `int` em `units`), `palette=padrao`, `n`, `legend=right`, `totals=1`, `labels=1`; `Deco_SetInd100 cht, True` em `percent`. Por fim garante `PlotArea.InsideTop >= 24` (só aumenta: `delta = 24 - InsideTop`, `PlotArea.Height = PlotArea.Height - delta`, `PlotArea.Top = PlotArea.Top + delta`, como `Ann_EnsureRoom`), para os rótulos de `tqq_total`, acima do nível 100%, caberem no gráfico. `Mekko_SetLabels(cht, on)`, `Mekko_SetTotals(cht, on)`, `Mekko_ApplyColors(cht, paletteName)`, `Mekko_VLineCells(cht) As Range` (`5n` linhas), `Mekko_PosCells` não existe (vertical). `Style_ApplyNumberFormat` família `mekko`: segmentos com `Labels_SegmentFormat` (percent → `pct0/pct1`), totais: `percent` → `pct0`, `units` → `numfmt`; `Labels_ApplyCellFormat` família `mekko`: `LblVal_j` e `TotLbl`.
 - Anotações: recusadas (7001). `vline` só em `mekkounits`; `ind100` só em `mekko`; `gap`/`connectors`: não (matriz).
 
 - [ ] **Passo 1: Testes (RED)** — `tests/vba/core/TestMekko.bas`:
@@ -1843,7 +1787,7 @@ Public Sub Test_Mekko_Block_XSharesAndHelpers()
     Dim wb As Workbook, blk As Range, body As Range
     Set wb = NewTempWorkbook()
     Set blk = Mekko_BuildBlock(wb, "mk0001", Fixture(wb), "mekko"): Set body = Block_Body(blk)
-    AssertEqual 14, blk.Columns.Count: AssertEqual 16, blk.Rows.Count, "cabecalho + 5 linhas por categoria"
+    AssertEqual 14, blk.Columns.Count: AssertEqual 16, body.Rows.Count, "corpo: cabecalho + 5 linhas por categoria (o bloco tem ainda a linha de meta)"
     AssertEqual 2, Mekko_SeriesCount(blk)
     ' X: larguras 50%, 30%, 20% -> bordas 1, 501, 801, 1001; centros 251, 651, 901
     AssertEqual 1, body.Cells(2, MK_COL_X).Value: AssertEqual 1, body.Cells(3, MK_COL_X).Value
@@ -1887,6 +1831,10 @@ Public Sub Test_Mekko_Insert_AreaOnDateAxis_LabelsTotalsCategories()
     AssertEqual "1", Registry_GetOption(cht, "ind100"): AssertEqual "3", Registry_GetOption(cht, "n")
     AssertEqual "pct0", Registry_GetOption(cht, "numfmt")
     AssertEqual RGB(255, 255, 255), cht.SeriesCollection(1).Format.Line.ForeColor.RGB, "separadores brancos"
+    AssertEqual 1.5, cht.SeriesCollection(1).Format.Line.Weight, "separadores de 1,5 pt"
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    AssertEqual 1, CalcSheet_Cleanup(wb), "limpeza com o grafico novo (auxiliares com pontos NA) remove so o orfao"
+    AssertFalse CalcSheet_CleanupReadFailed(), "pontos NA dos auxiliares nao sao falha de leitura"
     Mekko_SetLabels cht, False
     AssertTrue Chart_FindSeries(cht, "tqq_lbl_1") Is Nothing
     Mekko_SetTotals cht, False
@@ -1909,6 +1857,8 @@ Public Sub Test_Mekko_Geometry_Independent()
     Next
     Set dl = Chart_FindSeries(cht, "tqq_total").Points(C(1) - 1).DataLabel
     AssertTrue dl.Top + dl.Height <= cht.PlotArea.InsideTop + 2, "total acima do nivel 100%"
+    AssertTrue dl.Top >= 0, "rotulo de total dentro do grafico"
+    AssertTrue cht.PlotArea.InsideTop >= 23.5, "folga acima da area de plotagem para os totais"
     AssertTrue Not cht.Shapes("tqq_ann_ind100") Is Nothing
     CloseTemp wb
 End Sub
@@ -2007,6 +1957,8 @@ Public Sub Test_Core_Insert_Mekko_TogglesAndOptions()
     AssertTrue Chart_FindSeries(cht, "tqq_total") Is Nothing
     Core_SetOption "palette", "cinza"
     AssertEqual RGB(64, 64, 64), cht.SeriesCollection(1).Format.Fill.ForeColor.RGB
+    AssertEqual 1.5, cht.SeriesCollection(1).Format.Line.Weight, "trocar a paleta mantem os separadores do Mekko"
+    Core_ClearLastNotice                                          ' o contador conta desde aqui, nao desde testes anteriores
     Core_Refresh
     AssertEqual 0, Core_NoticeCount(), "sem aviso de tabela mudada (n = 3 categorias, 15 pontos)"
     Watchers_Stop
@@ -2018,7 +1970,7 @@ Observação: a fixture de 3 colunas em modo `mekkounits` tem 1 série (coluna 2
 
 - [ ] **Passo 2: RED** — `-Filter "TestMekko"` → saída 3.
 
-- [ ] **Passo 3: Implementar** — ordem em `Mekko_Insert`: bloco → `ChartObjects.Add` → séries (`XValues` depois de `ChartType = xlAreaStacked`) → `Style_ApplyBase` → eixo de categorias em `xlTimeScale` com escala fixa (se o Excel recusar `MinimumScale = 1`, use `2..1002` e desloque o `+1` das fórmulas de `X` para `+2`; registre no relatório) → cores → auxiliares → opções → `Deco_SetInd100` (percent). Em `Mekko_LinkLabels`, defina `s.HasDataLabels = True` uma vez e depois, por ponto, `If Not IsError(labelCells.Cells(r, 1).Value) Then` ligue (`DataLabel.Formula = Block_Ref(célula)`); pontos `NA()` não são plotados e não mostram rótulo.
+- [ ] **Passo 3: Implementar** — ordem em `Mekko_Insert`: bloco → `ChartObjects.Add` → séries (`XValues` depois de `ChartType = xlAreaStacked`) → `Style_ApplyBase` → eixo de categorias em `xlTimeScale` com escala fixa (se o Excel recusar `MinimumScale = 1`, use `2..1002` e desloque o `+1` das fórmulas de `X` para `+2`; registre no relatório) → cores (`Mekko_ApplyColors`) → auxiliares → opções → `Deco_SetInd100` (percent) → folga `InsideTop >= 24`. Em `Mekko_LinkLabels`, defina `s.HasDataLabels = True` uma vez e depois, por ponto, `If Not IsError(labelCells.Cells(r, 1).Value) Then` ligue (`DataLabel.Formula = Block_Ref(célula)`); pontos `NA()` não são plotados e não mostram rótulo.
 
 - [ ] **Passo 4: GREEN e suíte completa.**
 
@@ -2032,17 +1984,18 @@ Observação: a fixture de 3 colunas em modo `mekkounits` tem 1 série (coluna 2
 
 **Files:**
 - Create: `src/core/modules/modChartGantt.bas`
-- Modify: `src/core/modules/modChartKinds.bas` (`Kinds_Insert`: `gantt` → `Gantt_Insert`), `src/core/modules/modAnnotations.bas` (kind `bracket`; `Ann_SetShapeVisible` também cobre `_t1/_t2`), `src/core/modules/modCoreApi.bas` (`Core_AddAnnotation "bracket"`; `Core_SafeRefresh` chama `Gantt_RefreshScale`), `src/core/modules/modLabels.bas` e `modChartStyle.bas` (família `gantt` sem formato numérico de rótulos)
-- Test: `tests/vba/core/TestGantt.bas` (novo)
+- Modify: `src/core/modules/modChartKinds.bas` (`Kinds_Insert`: `gantt` → `Gantt_Insert`), `src/core/modules/modAnnotations.bas` (kind `bracket`; `Ann_SetShapeVisible` também cobre `_t1/_t2`), `src/core/modules/modCoreApi.bas` (`Core_AddAnnotation "bracket"`, com `de = até` válido; `Core_SafeRefresh` chama `Gantt_RefreshScale`; família `gantt`: `ApplyToggle "labels"` → `Gantt_SetLabels`, `ApplyOption "palette"` → `Gantt_ApplyColors`), `src/core/modules/modLabels.bas` e `modChartStyle.bas` (família `gantt` sem formato numérico de rótulos)
+- Test: `tests/vba/core/TestGantt.bas` (novo), `tests/vba/core/TestCoreApi.bas` (remover `Test_Core_Insert_KindNotReady_NotifiesWithoutChart`, da Tarefa 1: com o Gantt pronto não resta tipo válido sem implementação)
 
 **Interfaces:**
-- Consumes: `Chart_AddHelperSeries`, `Chart_SetupSecondaryAxes`, `Chart_SyncSecondaryX`, `Geom_ChartValueToX`, `Geom_ChartCatCoord`, `Ann_NewName/Ann_AddLabel/Ann_MoveLine/Ann_ClampShape`, `Kinds_*`, `Style_Palette`, `Util_ToDouble`.
+- Consumes: `Chart_AddHelperSeries`, `Chart_SetupSecondaryAxes`, `Chart_SyncSecondaryX`, `Geom_ChartValueToX`, `Geom_ChartCatCoord`, `Ann_NewName/Ann_AddLabel/Ann_MoveLine/Ann_ClampShape` (privadas de `modAnnotations`, onde `Ann_AddBracket` também fica), `Kinds_*`, `Style_Palette`, `Util_ToDouble`, `Block_Ref`.
 - Produces (constantes): `GT_COL_ACT = 1, GT_COL_START = 2, GT_COL_END = 3, GT_COL_ISMS = 4, GT_COL_BARSTART = 5, GT_COL_DUR = 6, GT_COL_MSX = 7, GT_COL_POS = 8, GT_COL_LBLX = 9, GT_COL_LBLTXT = 10, GT_COL_UNIT = 12, GT_COL_AXMIN = 13, GT_COL_AXMAX = 14, GT_COL_TICK = 15, GT_COL_TICKY = 16, GT_COL_TICKLBL = 17, GT_COL_DMIN = 18, GT_COL_DMAX = 19, GT_SCALE_SLOTS = 40`; bloco com 19 colunas (a 11 fica vazia, separando atividades da escala) e `MAX(n, 40)` linhas de corpo além do cabeçalho.
-- Produces: `Gantt_BuildBlock(wb, id, data) As Range` — valida `data.SeriesCount >= 2` (senão `Err.Raise vbObjectError + 6010, "Gantt_Insert", "Gantt: a tabela precisa de 3 colunas: atividade, início e fim (datas). Deixe o fim vazio para um marco."`) e pelo menos uma célula numérica na coluna de início (senão `6010, "Gantt: a coluna de início não tem datas válidas (use células de data, não texto)."`), tudo **antes** de alocar; fórmulas do design §4.6; `LblTxt` = texto da 4.ª coluna (`=src4&""`) quando `data.SeriesCount >= 3`, senão `=LblX` com `NumberFormat = "dd/mm"`; `TickLbl` com `NumberFormat` definido por `Gantt_RefreshScale`.
-- Produces: `Gantt_Insert(ws, data) As ChartObject` — `xlBarStacked` com `tqq_start` (`BarStart`, preenchimento invisível) e `tqq_dur` (`Dur`, `pal(1)`), `XValues` = células de atividade da origem, gap 50, `Style_ApplyBase` (categorias invertidas; eixo de valores oculto), auxiliares XY secundárias: `tqq_ms` (`X = MsX`, `Y = Pos`, marcador `xlMarkerStyleDiamond` tamanho 9 `pal(0)`), `tqq_lbl` (`X = LblX`, `Y = Pos`, rótulos ligados a `LblTxt`, Right, 9 pt cinza), `tqq_scale` (`X = Tick` linhas 2..41, `Y = TickY`, rótulos ligados a `TickLbl`, Above, 8 pt cinza; `ErrorBar Direction:=xlY, Include:=xlErrorBarIncludeMinusValues, Type:=xlErrorBarTypeFixedValue, Amount:=n`, barras de erro cinza-claro tracejadas sem extremidade (`EndStyle = xlNoCap`)); `HasLegend = False`; opções `palette=padrao, gap=50, labels=1, n`; `Gantt_RefreshScale` ao final.
-- Produces: `Gantt_RefreshScale(cht)` — lê `Unit/AxisMin/AxisMax` (linha 2 do corpo), aplica ao eixo de valores primário (`MinimumScale/MaximumScale`), `Chart_SyncSecondaryX`, `Axes(xlValue, xlSecondary).MaximumScale = n`, e `NumberFormat` da coluna `TickLbl`: `w` → `"dd/mm"`, `m` → `"mmm/yy"`, `q`/`y` → `"General"`; nunca propaga erro (registra). `Gantt_SetLabels(cht, on)`; `Gantt_ApplyColors(cht, palette)` (`tqq_dur = pal(1)`, `tqq_ms = pal(0)`); `Gantt_Dates(cht, ByRef starts() As Double, ByRef ends() As Double)` (1..n; `NA()` = 0).
-- Produces (`modAnnotations`): `Ann_AddBracket(cht, fromIdx, toIdx) As Shape` — recusa `7001, "O colchete só está disponível em gráficos Gantt."` quando `Not Kinds_Supports(kind, "bracket")`; cria linha `nm` (`kind=bracket;from=i;to=j`), tiques `nm_t1`/`nm_t2` (`kind=tick;owner=nm`, 5 pt para baixo nas pontas) e rótulo `nm_lbl`; garante `PlotArea.InsideTop >= 40 + 14 * (nº de colchetes)`; `Ann_Refresh` posiciona: `d1 = menor início` e `d2 = maior fim/início` das atividades `i..j` (ignorando zeros), `x1 = Geom_ChartValueToX(cht, d1)`, `x2 = Geom_ChartValueToX(cht, d2)`, `y = InsideTop - 20 - 14 * (k - 1)` (`k` = ordinal do colchete pelo sufixo numérico do nome), rótulo `Format$(d1, "dd/mm") & " - " & Format$(d2, "dd/mm")` centralizado acima da linha; `Ann_RemoveAll` remove colchetes e tiques; `Core_AddAnnotation` aceita `kind = "bracket"`.
+- Produces: `Gantt_BuildBlock(wb, id, data) As Range` — valida `data.SeriesCount >= 2` (senão `Err.Raise vbObjectError + 6010, "Gantt_Insert", "Gantt: a tabela precisa de 3 colunas: atividade, início e fim (datas). Deixe o fim vazio para um marco."`) e pelo menos uma célula numérica na coluna de início (senão `6010, "Gantt: a coluna de início não tem datas válidas (use células de data, não texto)."`), tudo **antes** de alocar; fórmulas do design §4.6, com `LblX = IF(IsMs, Inicio, Fim + 1)` (a barra cobre o dia do fim inteiro e termina em `Fim + 1`: com `LblX = Fim` o rótulo invadiria a barra em 1 dia); `LblTxt` = texto da 4.ª coluna (`=src4&""`) quando `data.SeriesCount >= 3`, senão a data exibida `=IF(IsMs, Inicio, Fim)` (o último dia da atividade, não `LblX`) com `NumberFormat = "dd/mm"`; `DMin`/`DMax` (colunas 18/19, linha 2 do corpo) = `AGGREGATE(5,6,Inicio)` e `AGGREGATE(4,6,Inicio,Fim)`, e as fórmulas da escala referenciam essas duas células; `TickLbl` com `NumberFormat` definido por `Gantt_RefreshScale`.
+- Produces: `Gantt_Insert(ws, data) As ChartObject` — `xlBarStacked` com `tqq_start` (`BarStart`, preenchimento invisível) e `tqq_dur` (`Dur`, `pal(1)`), `XValues` = células de atividade da origem, gap 50, `Style_ApplyBase` (categorias invertidas; eixo de valores oculto), auxiliares XY secundárias: `tqq_ms` (`X = MsX`, `Y = Pos`, marcador `xlMarkerStyleDiamond` tamanho 9 `pal(0)`), `tqq_lbl` (`X = LblX`, `Y = Pos`, rótulos ligados a `LblTxt`, Right, 9 pt cinza), `tqq_scale` (`X = Tick` linhas 2..41, `Y = TickY`, rótulos ligados a `TickLbl`, Above, 8 pt cinza; `ErrorBar Direction:=xlY, Include:=xlErrorBarIncludeMinusValues, Type:=xlErrorBarTypeFixedValue, Amount:=n`, barras de erro cinza-claro tracejadas sem extremidade (`EndStyle = xlNoCap`)); `HasLegend = False`; opções `palette=padrao, gap=50, labels=1, n`; `Gantt_RefreshScale` ao final. Os rótulos de `tqq_lbl` e de `tqq_scale` são ligados ponto a ponto com `p.HasDataLabel = True: p.DataLabel.Formula = Block_Ref(célula)` (mais fonte e posição), **nunca** por `Labels_LinkPoints`, que sobrescreve o formato `dd/mm`/`mmm/yy` das células com o `NumberFormatLocal` de um formato numérico. Depois dos auxiliares, garante `PlotArea.InsideTop >= 24` (só aumenta, como `Ann_EnsureRoom`) para a escala acima da área de plotagem caber no gráfico (os colchetes pedem mais, abaixo).
+- Produces: `Gantt_RefreshScale(cht)` — lê `Unit/AxisMin/AxisMax` (linha 2 do corpo), aplica ao eixo de valores primário (`MinimumScale/MaximumScale`), `Chart_SyncSecondaryX`, `Axes(xlValue, xlSecondary).MaximumScale = n`, e `NumberFormat` da coluna `TickLbl`: `w` → `"dd/mm"`, `m` → `"mmm/yy"`, `q`/`y` → `"General"`; nunca propaga erro (registra). `Gantt_SetLabels(cht, on)`; `Gantt_ApplyColors(cht, palette)` (`tqq_dur = pal(1)`, `tqq_ms = pal(0)`); `Gantt_Dates(cht, ByRef starts() As Double, ByRef ends() As Double)` (1..n, lidos das colunas `GT_COL_START`/`GT_COL_END` do bloco; `NA()` ou vazio = 0).
+- Produces (`modAnnotations`): `Ann_AddBracket(cht, fromIdx, toIdx) As Shape` — recusa `7001, "O colchete só está disponível em gráficos Gantt."` quando `Not Kinds_Supports(kind, "bracket")`; cria linha `nm` (`kind=bracket;from=i;to=j`), tiques `nm_t1`/`nm_t2` (`kind=tick;owner=nm`, 5 pt para baixo nas pontas) e rótulo `nm_lbl`; garante `PlotArea.InsideTop >= 40 + 14 * (nº de colchetes)`; `Ann_Refresh` posiciona (válido com `1 <= i <= j <= n`: **`i = j` é válido** no colchete, ao contrário de CAGR/diferença/conectores, que continuam exigindo `i < j`): para cada atividade k em `i..j`, último dia `le_k = IF(fim_k > 0, fim_k, início_k)` e fim plotado `pe_k = IF(fim_k > 0, fim_k + 1, início_k)` (a barra vai até `Fim + 1`; o marco fica no próprio dia); `d1 = menor início`, `d2 = maior le_k` (zeros ignorados), `x1 = Geom_ChartValueToX(cht, d1)`, `x2 = Geom_ChartValueToX(cht, maior pe_k)`, `y = InsideTop - 20 - 14 * (k - 1)` (`k` = ordinal do colchete pelo sufixo numérico do nome), rótulo `Format$(d1, "dd/mm") & " - " & Format$(d2, "dd/mm")` centralizado acima da linha; `Ann_RemoveAll` remove colchetes e tiques; `Core_AddAnnotation` aceita `kind = "bracket"`: exige `n >= 1` (não 2) e só pede categorias quando `fromIdx < 1 Or toIdx > n Or fromIdx > toIdx` (com `de = até` não reabre o formulário); para `cagr`/`diff` a regra de hoje (`n >= 2` e `fromIdx < toIdx`) continua.
 - `Core_SafeRefresh`: família `gantt` → `Gantt_RefreshScale cht` (antes de `Ann_Refresh`). `Labels_RefreshPositions`, `Labels_ApplyCellFormat`, `Style_ApplyNumberFormat`: família `gantt` sai cedo.
+- `modCoreApi`, família `gantt` (os testes desta tarefa usam os dois pela API; a Tarefa 11 só reorganiza os despachos): `ApplyToggle "labels"` → `Gantt_SetLabels`; `ApplyOption "palette"` → `Gantt_ApplyColors`. Remova `Test_Core_Insert_KindNotReady_NotifiesWithoutChart` de `TestCoreApi.bas` (ele insere `gantt` esperando o aviso 7200); o ramo 7200 de `Kinds_Insert` fica como proteção, mas nenhum tipo válido chega mais a ele.
 
 - [ ] **Passo 1: Testes (RED)** — `tests/vba/core/TestGantt.bas`:
 
@@ -2078,7 +2031,7 @@ Public Sub Test_Gantt_Block_FormulasAndWeekScale()
     Dim wb As Workbook, blk As Range, body As Range
     Set wb = NewTempWorkbook()
     Set blk = Gantt_BuildBlock(wb, "gt0001", Fixture(wb)): Set body = Block_Body(blk)
-    AssertEqual 19, blk.Columns.Count: AssertEqual 41, blk.Rows.Count, "cabecalho + max(n, 40)"
+    AssertEqual 19, blk.Columns.Count: AssertEqual 41, body.Rows.Count, "corpo: cabecalho + max(n, 40) (o bloco tem ainda a linha de meta)"
     AssertEqual CDbl(DateSerial(2026, 3, 2)), body.Cells(2, GT_COL_DMIN).Value: AssertEqual CDbl(DateSerial(2026, 4, 20)), body.Cells(2, GT_COL_DMAX).Value
     AssertEqual False, body.Cells(2, GT_COL_ISMS).Value: AssertEqual True, body.Cells(4, GT_COL_ISMS).Value
     AssertEqual CDbl(DateSerial(2026, 3, 2)), body.Cells(2, GT_COL_BARSTART).Value
@@ -2087,7 +2040,8 @@ Public Sub Test_Gantt_Block_FormulasAndWeekScale()
     AssertTrue IsError(body.Cells(4, GT_COL_DUR).Value), "marco nao tem barra"
     AssertTrue IsError(body.Cells(2, GT_COL_MSX).Value): AssertEqual CDbl(DateSerial(2026, 4, 20)), body.Cells(4, GT_COL_MSX).Value
     AssertEqual 2.5, body.Cells(2, GT_COL_POS).Value: AssertEqual 0.5, body.Cells(4, GT_COL_POS).Value
-    AssertEqual CDbl(DateSerial(2026, 3, 13)), body.Cells(2, GT_COL_LBLX).Value: AssertEqual CDbl(DateSerial(2026, 4, 20)), body.Cells(4, GT_COL_LBLX).Value
+    AssertEqual CDbl(DateSerial(2026, 3, 14)), body.Cells(2, GT_COL_LBLX).Value, "rotulo depois do fim da barra (Fim + 1)"
+    AssertEqual CDbl(DateSerial(2026, 4, 20)), body.Cells(4, GT_COL_LBLX).Value, "marco: no proprio dia"
     AssertEqual "w", body.Cells(2, GT_COL_UNIT).Value, "49 dias: semanas"
     AssertEqual CDbl(DateSerial(2026, 3, 2)), body.Cells(2, GT_COL_AXMIN).Value
     AssertEqual CDbl(DateSerial(2026, 4, 27)), body.Cells(2, GT_COL_AXMAX).Value, "segunda seguinte ao fim"
@@ -2124,6 +2078,10 @@ Public Sub Test_Gantt_Insert_BarsMilestonesScale()
     AssertEqual "50", Registry_GetOption(cht, "gap"): AssertEqual "3", Registry_GetOption(cht, "n"): AssertEqual "1", Registry_GetOption(cht, "labels")
     Set body = Block_Body(Registry_Block(cht))
     AssertEqual "dd/mm", body.Cells(2, GT_COL_TICKLBL).NumberFormat
+    AssertEqual "dd/mm", body.Cells(2, GT_COL_LBLTXT).NumberFormat, "ligar os rotulos nao troca o formato de data das celulas"
+    CalcSheet_AllocateBlock wb, "orphan", "stacked", "x", 4, 3
+    AssertEqual 1, CalcSheet_Cleanup(wb), "limpeza com o grafico novo (auxiliares com pontos NA) remove so o orfao"
+    AssertFalse CalcSheet_CleanupReadFailed(), "pontos NA dos auxiliares nao sao falha de leitura"
     Gantt_SetLabels cht, False
     AssertTrue Chart_FindSeries(cht, "tqq_lbl") Is Nothing: AssertEqual "0", Registry_GetOption(cht, "labels")
     CloseTemp wb
@@ -2136,7 +2094,7 @@ Public Sub Test_Gantt_Geometry_Independent()
     Set lbl = Chart_FindSeries(cht, "tqq_lbl")
     il = cht.PlotArea.InsideLeft: it = cht.PlotArea.InsideTop: iw = cht.PlotArea.InsideWidth: ih = cht.PlotArea.InsideHeight
     Set ax = cht.Axes(xlValue, xlPrimary)
-    x = il + iw * (CDbl(DateSerial(2026, 4, 17)) - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale)
+    x = il + iw * (CDbl(DateSerial(2026, 4, 18)) - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale)      ' fim visual da barra = Fim + 1
     Set dl = lbl.Points(2).DataLabel
     AssertTrue dl.Left >= x - 2 And dl.Left <= x + 14, "rotulo da Execucao no fim da barra: " & dl.Left & " vs " & x
     AssertTrue Abs((dl.Top + dl.Height / 2) - (it + 1.5 * ih / 3)) <= ih / 6, "na faixa 2"
@@ -2147,6 +2105,8 @@ Public Sub Test_Gantt_Geometry_Independent()
     Set dl = Chart_FindSeries(cht, "tqq_scale").Points(1).DataLabel
     AssertTrue dl.Top + dl.Height <= it + 2, "rotulo da escala acima da area de plotagem"
     AssertTrue Abs((dl.Left + dl.Width / 2) - il) <= 12, "primeira marca na borda esquerda (AxisMin)"
+    AssertTrue dl.Top >= 0, "rotulo da escala dentro do grafico"
+    AssertTrue cht.PlotArea.InsideTop >= 23.5, "folga acima da area de plotagem para a escala"
     CloseTemp wb
 End Sub
 
@@ -2236,7 +2196,7 @@ Public Sub Test_Gantt_Bracket_Annotation()
     AssertEqual Format$(DateSerial(2026, 3, 2), "dd/mm") & " - " & Format$(DateSerial(2026, 4, 17), "dd/mm"), lbl.TextFrame2.TextRange.Text
     il = cht.PlotArea.InsideLeft: iw = cht.PlotArea.InsideWidth: Set ax = cht.Axes(xlValue, xlPrimary)
     AssertAlmost il + iw * (CDbl(DateSerial(2026, 3, 2)) - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale), br.Left, 1
-    AssertAlmost iw * (CDbl(DateSerial(2026, 4, 17)) - CDbl(DateSerial(2026, 3, 2))) / (ax.MaximumScale - ax.MinimumScale), br.Width, 1
+    AssertAlmost iw * (CDbl(DateSerial(2026, 4, 18)) - CDbl(DateSerial(2026, 3, 2))) / (ax.MaximumScale - ax.MinimumScale), br.Width, 1, "ate o fim visual da barra (Fim + 1)"
     AssertTrue br.Top < cht.PlotArea.InsideTop - 10, "colchete acima da area de plotagem"
     AssertTrue lbl.Top + lbl.Height <= br.Top + 0.5, "rotulo acima do colchete"
     AssertTrue lbl.Top >= 0
@@ -2266,6 +2226,10 @@ Public Sub Test_Core_Insert_Gantt_And_Rollback()
     AssertEqual 80, cht.ChartGroups(1).GapWidth
     Core_AddAnnotation "bracket", 1, 3
     AssertTrue Not cht.Shapes("tqq_ann_bracket_1") Is Nothing
+    Core_AddAnnotation "bracket", 2, 2
+    AssertTrue Not cht.Shapes("tqq_ann_bracket_2") Is Nothing, "colchete sobre uma unica atividade (de = ate) sem reabrir o formulario"
+    Core_SetOption "palette", "cinza"
+    AssertEqual RGB(127, 127, 127), Chart_FindSeries(cht, "tqq_dur").Format.Fill.ForeColor.RGB, "Gantt_ApplyColors pela API: tqq_dur = pal(1)"
     Core_SetToggle "labels", False
     AssertTrue Chart_FindSeries(cht, "tqq_lbl") Is Nothing
     Core_ClearLastNotice
@@ -2292,7 +2256,7 @@ End Sub
 - [ ] **Passo 3: Implementar** — fórmulas da escala (linha 2 do corpo; `U = célula Unit`, `I = coluna Inicio das linhas 2..n+1`, `F = Fim`):
 
 ```
-Unit    = IF(dmax-dmin<=98,"w",IF(dmax-dmin<=1100,"m",IF(dmax-dmin<=3700,"q","y")))      com dmin = AGGREGATE(5,6,I) e dmax = AGGREGATE(4,6,I,F) escritos inline
+Unit    = IF(dmax-dmin<=98,"w",IF(dmax-dmin<=1100,"m",IF(dmax-dmin<=3700,"q","y")))      com dmin = célula DMin (col 18) e dmax = célula DMax (col 19), não inline
 AxisMin = IF(U="w",dmin-WEEKDAY(dmin,3),IF(U="m",DATE(YEAR(dmin),MONTH(dmin),1),IF(U="q",DATE(YEAR(dmin),3*INT((MONTH(dmin)-1)/3)+1,1),DATE(YEAR(dmin),1,1))))
 AxisMax = IF(U="w",dmax-WEEKDAY(dmax,3)+7,IF(U="m",EDATE(DATE(YEAR(dmax),MONTH(dmax),1),1),IF(U="q",EDATE(DATE(YEAR(dmax),3*INT((MONTH(dmax)-1)/3)+1,1),3),DATE(YEAR(dmax)+1,1,1))))
 Tick_k  = IF(U="w",AxisMin+7*k,EDATE(AxisMin,k*IF(U="m",1,IF(U="q",3,12))))  -> IF(tick<AxisMax,tick,NA())   (k = linha - 2)
@@ -2313,17 +2277,17 @@ TickLbl = IF(U="q","T"&(INT((MONTH(Tick)-1)/3)+1)&"/"&YEAR(Tick),IF(U="y",YEAR(T
 
 **Files:**
 - Modify: `src/core/modules/modCoreApi.bas`, `src/core/modules/modChartKinds.bas` (`Kinds_FeatureLabel`), `src/core/modules/modLabels.bas`, `src/core/modules/modChartStyle.bas` (varredura final das famílias)
-- Test: `tests/vba/core/TestCoreApi.bas` (remover `Test_Core_Insert_KindNotReady_NotifiesWithoutChart`; adicionar os testes abaixo)
+- Test: `tests/vba/core/TestCoreApi.bas` (adicionar os testes abaixo; o teste temporário `Test_Core_Insert_KindNotReady_NotifiesWithoutChart` já saiu na Tarefa 10)
 
 **Interfaces:**
-- Produces: `Kinds_FeatureLabel(feature) As String` (`totals` → `Totais`, `labels` → `Rótulos`, `connectors` → `Conectores`, `ind100` → `Indicador 100%`, `vline` → `Linha de valor`, `secondary` → `Eixo secundário`, `pieout` → `Rótulos fora da pizza`, `gap` → `Espaço`, `legend` → `Legenda`, `numfmt` → `Formato`, `palette` → `Paleta`).
-- `ApplyToggle(c, key, value)`: se `Not Kinds_Supports(kind, key)` → `Err.Raise vbObjectError + 7002, "Core", "'" & Kinds_FeatureLabel(key) & "' não se aplica a este tipo de gráfico."`; senão despacha por família (`totals`: stacked/combo → `Stacked_SetTotals`, area → `Area_SetTotals`, mekko → `Mekko_SetTotals`; `labels`: stacked/combo → `Stacked_SetLabels`, waterfall → `Waterfall_SetLabels`, area → `Area_SetLabels`, mekko → `Mekko_SetLabels`, gantt → `Gantt_SetLabels`, pie → `Pie_SetLabels`; `connectors`: waterfall → `Ann_SetWaterfallConnectors`, demais → `Stacked_SetConnectors`; `ind100` → `Deco_SetInd100`; `vline` → `Deco_SetValueLine`; `secondary` → `Combo_SetSecondary`; `pieout` → `Pie_SetOutside`). `Core_SetToggle` trata 7002 como aviso (já feito na Tarefa 6); chaves desconhecidas continuam silenciosas (`Test_Core_InvalidKeysAndValues_DoNotRaise`).
-- `ApplyOption(c, key, value)`: `gap` e `legend` não suportados → `7002` com `"Espaço entre colunas não se aplica a este tipo de gráfico."` / `"Legenda não se aplica a este tipo de gráfico."` (o ramo especial de `gap` em linha de `Core_SetOption` é substituído por este; `Test_Core_SetOption_Gap_OnLineChart_NotPersisted` continua válido); `numfmt` → `Style_ApplyNumberFormat` (que despacha por família: `pie` → `Pie_ApplyNumberFormat`, `gantt` → nada) ; `palette` por família (`waterfall` → `Waterfall_ApplyColors`, `gantt` → `Gantt_ApplyColors`, `pie` → `Style_ApplyPointColors`, demais → `Style_ApplySeriesColors`).
-- `Core_AddAnnotation(kind, from, to)`: aceita `cagr|diff|bracket`; **antes** de pedir categorias verifica `Kinds_Supports(chartKind, kind)` e notifica a mesma mensagem de `Ann_Add*` (sem abrir formulário); despacha `bracket` → `Ann_AddBracket`.
-- `Core_RebuildFromRange(c, rng)`: constrói com `Kinds_Insert(ws, data, kind)`; copia as opções do bloco antigo; reaplica, **só quando `Kinds_Supports`**, `numfmt`, `palette`, `gap`, `legend`, e os toggles `totals, labels, connectors, ind100, vline, secondary, pieout` (valor do registro; `labels` com padrão `1`, os demais `0`; `ind100` com padrão `1` em tipos 100%); por fim `Deco_ApplyFixedScale`. Mensagens e rollback como hoje.
+- Produces: `Kinds_FeatureLabel(feature) As String` (`totals` → `Totais`, `labels` → `Rótulos`, `connectors` → `Conectores`, `ind100` → `Indicador 100%`, `vline` → `Linha de valor (média)`, `secondary` → `Eixo secundário (linha)`, `pieout` → `Rótulos fora da pizza`, `gap` → `Espaço`, `legend` → `Legenda`, `numfmt` → `Formato`, `palette` → `Paleta`) — os rótulos exatos dos controles da faixa (Tarefa 12), para o aviso citar o botão que o usuário clicou.
+- `ApplyToggle(c, key, value)`: chaves fora da lista de toggles (`totals, labels, connectors, ind100, vline, secondary, pieout`) saem sem fazer nada (silenciosas, como hoje); para uma chave da lista, se `Not Kinds_Supports(kind, key)` → `Err.Raise vbObjectError + 7002, "Core", "'" & Kinds_FeatureLabel(key) & "' não se aplica a este tipo de gráfico."`; senão despacha por família (`totals`: stacked/combo → `Stacked_SetTotals`, area → `Area_SetTotals`, mekko → `Mekko_SetTotals`; `labels`: stacked/combo → `Stacked_SetLabels`, waterfall → `Waterfall_SetLabels`, area → `Area_SetLabels`, mekko → `Mekko_SetLabels`, gantt → `Gantt_SetLabels`, pie → `Pie_SetLabels`; `connectors`: waterfall → `Ann_SetWaterfallConnectors`, demais → `Stacked_SetConnectors`; `ind100` → `Deco_SetInd100`; `vline` → `Deco_SetValueLine`; `secondary` → `Combo_SetSecondary`; `pieout` → `Pie_SetOutside`). `Core_SetToggle` trata 7002 como aviso (já feito na Tarefa 6); chaves desconhecidas continuam silenciosas (`Test_Core_InvalidKeysAndValues_DoNotRaise`).
+- `ApplyOption(c, key, value)`: valida o valor (como hoje) e, **antes de gravar**, recusa `gap` e `legend` não suportados com `7002` e `"Espaço entre colunas não se aplica a este tipo de gráfico."` / `"Legenda não se aplica a este tipo de gráfico."` (o ramo especial de `gap` em linha de `Core_SetOption` é substituído por este; `Test_Core_SetOption_Gap_OnLineChart_NotPersisted` continua válido); `numfmt` → `Style_ApplyNumberFormat` (que despacha por família: `pie` → `Pie_ApplyNumberFormat`, `gantt` → nada) ; `palette` por família (`waterfall` → `Waterfall_ApplyColors`, `gantt` → `Gantt_ApplyColors`, `pie` → `Style_ApplyPointColors`, `mekko` → `Mekko_ApplyColors`, demais → `Style_ApplySeriesColors`); `legend` → `Deco_SetLegend`, que só grava ao aceitar (Tarefa 6; precedência com `pieout` na pizza: Tarefa 8).
+- `Core_AddAnnotation(kind, from, to)`: aceita `cagr|diff|bracket`; **antes de qualquer outra verificação** (inclusive a de `n < 2`, que hoje vem primeiro e recusaria uma pizza ou um Gantt de uma linha com a mensagem errada) verifica `Kinds_Supports(chartKind, kind)` e notifica a mesma mensagem de `Ann_Add*` (sem abrir formulário); depois aplica as regras de índices da Tarefa 10 (`bracket`: `n >= 1` e `de <= até`; `cagr`/`diff`: `n >= 2` e `de < até`); `bracket` → `Ann_AddBracket` (despacho da Tarefa 10).
+- `Core_RebuildFromRange(c, rng)`: constrói com `Kinds_Insert(ws, data, kind)` (desde a Tarefa 1); copia as opções do bloco antigo; reaplica, **só quando `Kinds_Supports`**, `numfmt`, `palette`, `gap`, `legend`, e os toggles `totals, labels, connectors, ind100, vline, secondary, pieout` (valor do registro; `labels` com padrão `1`, os demais `0`; `ind100` com padrão `1` em tipos 100%); por fim `Deco_ApplyFixedScale`. Mensagens e rollback como hoje.
 - `Core_Refresh` (sem gráfico ativo) continua varrendo `ws.ChartObjects` com prefixo `tqq_`.
 
-- [ ] **Passo 1: Testes (RED)** — em `TestCoreApi.bas` (remova o teste temporário da Tarefa 1):
+- [ ] **Passo 1: Testes (RED)** — em `TestCoreApi.bas`:
 
 ```vb
 ' Tabela de dados adequada a cada tipo, escrita a partir de A1 de ws; devolve a faixa.
@@ -2466,6 +2430,8 @@ grpInsert "Inserir gráfico"
   menu mnuOthers    "Mais tipos"     size=large imageMso=ChartTypePieInsertGallery
       btnMekko "Mekko (%)" tag=mekko | btnMekkoUnits "Mekko (unidades)" tag=mekkounits | btnGantt "Gantt" tag=gantt | btnPie "Pizza" tag=pie | btnDoughnut "Rosca" tag=doughnut
   (todos os botões: onAction=Rx_OnInsert; supertips curtos com o formato da tabela esperada)
+  (nenhum filho de menu leva size: só o próprio menu no grupo tem size=large; um atributo inválido faz o Excel
+   descartar a aba inteira, em silêncio)
 grpChart "Gráfico selecionado"
   tglTotals, tglLabels, tglConnectors (como hoje; getEnabled=Rx_GetEnabled, getPressed=Rx_GetPressed)
   separator
@@ -2481,7 +2447,7 @@ grpAbout: inalterado
 ```
   `imageMso` dos itens novos: use nomes já validados na Fase 1 quando fizer sentido (`PercentStyle` para Indicador 100%, `ShapeStraightConnector` para Linha de valor, `ChartAxes` para Eixo secundário e Mesma escala, `Undo` para Escala automática, `TextBoxInsert` para Rótulos fora, `ChartTypePieInsertGallery` para Mais tipos); `Test_Ribbon_ImageMso_AreValid` decide: troque qualquer nome reprovado por `PropertySheet`.
 - Produces (`modRibbon`): `Rx_GetEnabled` → com `control.Tag` não vazio, `SupportsCached(tag)`; sem tag, `HasChartCached()`; `SupportsCached` guarda num `Scripting.Dictionary` por ciclo (limpo em `Loader_InvalidateRibbon` e `Rx_OnLoad`) o resultado de `Loader_RunCore("Core_Supports", tag)` e cai em `HasChartCached()` quando vem `Empty` (core antigo); `Rx_OnSameScale(control)` e `Rx_OnResetScale(control)` (`On Error Resume Next`; `CoreOrWarn`; `Loader_RunCore`; `Loader_InvalidateRibbon`); `Rx_GetSelectedId` com padrão `"right"` para `legend`.
-- Produces (`Test-Docs.ps1`): a lista de controles obrigatórios no tutorial inclui `menu`; limiares `known >= 60` e `ui >= 45`.
+- Produces (`Test-Docs.ps1`): a verificação "todo controle da faixa aparece no tutorial" passa a funcionar de fato e inclui `menu`. **Hoje ela não verifica nada:** o XPath `//*[self::button or self::toggleButton or ...]` não casa nenhum nó, porque o `customUI` tem namespace padrão (0 nós; com `local-name()` são 39). Troque por `//*[local-name()='button' or local-name()='toggleButton' or local-name()='dropDown' or local-name()='menu' or local-name()='group' or local-name()='tab']`. Como a verificação nunca rodou, rótulos da Fase 1 podem faltar no tutorial (a aba e o grupo `ThinQQ`, os grupos `Inserir gráfico` e `Gráfico selecionado`, os botões do grupo `ThinQQ`): acrescente os que faltarem em `<span class="ui">`. Limiares `known >= 60` e `ui >= 45`. O limite de tamanho do tutorial sobe **já nesta tarefa** de `-le 61440` para `-le 122880` (120 KB): a maquete e a tabela de tipos podem passar de 60 KB antes da Tarefa 14.
 - Produces (`tutorial.html`, parcial): maquete da faixa com os cinco menus e os dois menus do grupo do gráfico (cada rótulo em `<span class="ui">`), e uma seção `<section id="tipos">` "Tipos de gráfico" com uma tabela: um item por botão de inserção (rótulo exato + 1 frase + formato da tabela), mais uma linha por controle novo (`Legenda`, `Mais opções` e seus itens, `Setas` e `Colchete (Gantt)`, `Mesma escala`, `Escala automática`). Conteúdo real, não esqueleto; a Tarefa 14 aprofunda.
 
 - [ ] **Passo 1: Testes (RED)** — em `tests/vba/loader/TestRibbon.bas`:
@@ -2492,6 +2458,7 @@ Public Sub Test_Ribbon_Menus_Structure()
     Set d = LoadRibbon()
     AssertEqual 7, d.SelectNodes("//u:menu").Length, "5 menus de insercao + Mais opcoes + Setas"
     AssertEqual 5, d.SelectNodes("//u:group[@id='grpInsert']/u:menu[@size='large']").Length
+    AssertEqual 0, d.SelectNodes("//u:menu/*[@size]").Length, "filho de menu com 'size' (invalido: o Excel descarta a aba inteira sem aviso)"
     For Each m In d.SelectNodes("//u:group[@id='grpInsert']/u:menu")
         Set kids = m.SelectNodes("u:button")
         AssertTrue kids.Length >= 2, "menu " & m.Attributes.getNamedItem("id").Text & " com poucos itens"
@@ -2529,9 +2496,9 @@ Public Sub Test_Ribbon_Toggles_And_Dropdowns_Phase2()
 End Sub
 ```
 
-Atualize os testes existentes: `Test_Ribbon_Xml_HasAllCallbacks` inclui `Rx_OnSameScale`, `Rx_OnResetScale` e `tag="gantt"`; `ExpectedSig` aceita `menu`/`getEnabled` (`iribboncontrol,byref *`) e os `toggleButton` dentro de menus; `Test_Ribbon_Tags_MatchCoreKeys` passa a esperar 17 botões de inserção e 7 toggles (ou delegue a `Test_Ribbon_Menus_Structure`/`..._Phase2` e remova as contagens antigas); `Test_Ribbon_Dropdowns_ItemsMatchCoreOptions` espera 4 dropdowns; `Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh`: sem `getEnabled` só `btnRefresh` e `mnuMore` (dentro de `mnuMore`, os toggles têm `getEnabled` e os dois botões de escala não).
+Atualize os testes existentes: `Test_Ribbon_Xml_HasAllCallbacks` inclui `Rx_OnSameScale`, `Rx_OnResetScale` e `tag="gantt"`; `ExpectedSig` **não precisa mudar** (já devolve `iribboncontrol,byref *` para qualquer `getEnabled`, inclusive o de `menu`, e um `toggleButton` dentro de `menu` tem o mesmo `baseName`); `Test_Ribbon_Tags_MatchCoreKeys` passa a esperar 17 botões de inserção e 7 toggles (ou delegue a `Test_Ribbon_Menus_Structure`/`..._Phase2` e remova as contagens antigas); `Test_Ribbon_Dropdowns_ItemsMatchCoreOptions` espera 4 dropdowns; `Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh`: sem `getEnabled` só `btnRefresh` e `mnuMore` (dentro de `mnuMore`, os toggles têm `getEnabled` e os dois botões de escala não).
 
-`tests/ps/Test-Docs.ps1`: XPath `//*[self::button or self::toggleButton or self::dropDown or self::menu or self::group or self::tab]`; `Check ($known.Count -ge 60)`; `Check ($ui.Count -ge 45)`.
+`tests/ps/Test-Docs.ps1`: no laço "tutorial documenta o controle", XPath `//*[local-name()='button' or local-name()='toggleButton' or local-name()='dropDown' or local-name()='menu' or local-name()='group' or local-name()='tab']` (o atual, com `self::`, casa 0 nós por causa do namespace padrão); `Check ($known.Count -ge 60)`; `Check ($ui.Count -ge 45)`; `Check ($bytes -le 122880) "tutorial com até 120 KB ($bytes bytes)"`.
 
 - [ ] **Passo 2: RED** — `pwsh C:\temp\tqq-f2\build\run-tests.ps1 -Target loader -TimeoutSec 300` (sem filtro, para rodar também `Test-Ribbon.ps1` e `Test-Docs.ps1`): `not ok` nos testes novos; `Test-Docs` reprova os rótulos ausentes no tutorial.
 
@@ -2563,8 +2530,8 @@ Atualize os testes existentes: `Test_Ribbon_Xml_HasAllCallbacks` inclui `Rx_OnSa
 | 10 | 64 | `10) Mekko (%): largura = total da linha` | Regiao/Eletro/Moveis: Sul 40 10; Sudeste 20 10; Norte 10 10 | `mekko` |
 | 11 | 85 | `11) Mekko (unidades) com linha de valor` | Regiao/Largura/Eletro/Moveis: Sul 50 40 10; Sudeste 30 20 10; Norte 20 10 10 | `mekkounits` + `Deco_SetValueLine True` |
 | 12 | 106 | `12) Gantt com marco e colchete` | Atividade/Início/Fim: Planejamento 02/03/2026–13/03/2026; Execução 09/03/2026–17/04/2026; Entrega 20/04/2026 (sem fim) | `gantt` + `Ann_AddBracket 1, 2` |
-| 13 | 127 | `13) Pizza (rótulos dentro)` | Produto/Vendas: Eletro 50; Móveis 30; Tintas 20 | `pie` |
-| 14 | 148 | `14) Rosca (rótulos fora, com nomes)` | mesma tabela | `doughnut` + `Pie_SetOutside True` |
+| 13 | 127 | `13) Rosca (rótulos sobre o anel)` | Produto/Vendas: Eletro 50; Móveis 30; Tintas 20 | `doughnut` |
+| 14 | 148 | `14) Pizza com rótulos fora (nomes e linhas de chamada)` | mesma tabela | `pie` + `Pie_SetOutside True` (a rosca não aceita rótulos fora: Tarefa 8) |
 | 15 | 169 | `15) Área empilhada` | Ano/Sul/Sudeste/Nordeste (2022..2025 como no exemplo 1) | `area` |
 | 16 | 190 | `16) Combinação: colunas + linha no eixo secundário` | Ano/Vendas/Custo/Margem: 2022 100 60 0,42; 2023 120 70 0,45; 2024 150 80 0,47 | `combo` |
 | 17 | 211 | `17) Colunas empilhadas com linha de valor (média)` | tabela do exemplo 1 | `stacked` + `Deco_SetValueLine True` |
@@ -2572,7 +2539,7 @@ Atualize os testes existentes: `Test_Ribbon_Xml_HasAllCallbacks` inclui `Rx_OnSa
 
   Ao final, `Samples_Create` ativa "Exemplos" com `A1` selecionada (comportamento atual preservado). Falha em qualquer exemplo fecha a pasta e propaga (como hoje).
 
-- [ ] **Passo 1: Testes (RED)** — em `tests/vba/core/TestSamples.bas`:
+- [ ] **Passo 1: Testes (RED)** — em `tests/vba/core/TestSamples.bas`. Para a suíte não ficar lenta (cada `Samples_Create` passa a montar 19 gráficos), a pasta de exemplos é criada **uma vez** para todas as verificações de conteúdo: transforme `Test_Samples_Create`, `Test_Samples_Layout_NoOverlap` e `Test_Samples_Content`, da Fase 1, em `Private Sub CheckSheet1Create(wb As Workbook)`, `Private Sub CheckSheet1Layout(wb As Workbook)` e `Private Sub CheckSheet1Content(wb As Workbook)` (corpo inalterado, sem o `Samples_Create` e o `CloseTemp` de cada um) e acrescente:
 
 ```vb
 Private Function TitleRows2() As Variant
@@ -2581,11 +2548,28 @@ Private Function TitleRows2() As Variant
     TitleRows2 = r
 End Function
 
-Public Sub Test_Samples_Sheet2_KindsAndFeatures()
-    Dim wb As Workbook, ws As Worksheet, co As ChartObject, kinds As String, c1 As Chart, c2 As Chart, nFound As Long
+' Uma unica pasta de exemplos para todas as verificacoes de conteudo (Samples_Create monta 19 graficos).
+Public Sub Test_Samples_BothSheets()
+    Dim wb As Workbook, en As Long, es As String, ed As String
     Set wb = Samples_Create()
-    Set ws = wb.Worksheets("Exemplos 2")
+    On Error GoTo Cleanup
     AssertEqual "Exemplos", wb.ActiveSheet.Name, "a primeira planilha continua ativa"
+    CheckSheet1Create wb
+    CheckSheet1Layout wb
+    CheckSheet1Content wb
+    CheckSheet2KindsAndFeatures wb
+    CheckSheet2Layout wb
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub
+
+Private Sub CheckSheet2KindsAndFeatures(wb As Workbook)
+    Dim ws As Worksheet, co As ChartObject, kinds As String, c1 As Chart, c2 As Chart
+    Set ws = wb.Worksheets("Exemplos 2")
     AssertEqual 13, ws.ChartObjects.Count, "12 secoes, a ultima com 2 graficos"
     For Each co In ws.ChartObjects
         AssertTrue Registry_IsThinQQChart(co.Chart), co.Name
@@ -2597,19 +2581,19 @@ Public Sub Test_Samples_Sheet2_KindsAndFeatures()
     AssertEqual 2, Waterfall_SeriesCount(ws.ChartObjects(2).Chart), "8: cascata com 2 series"
     AssertTrue Not Chart_FindSeries(ws.ChartObjects(5).Chart, "tqq_vline") Is Nothing, "11: linha de valor"
     AssertTrue Not ws.ChartObjects(6).Chart.Shapes("tqq_ann_bracket_1") Is Nothing, "12: colchete"
-    AssertEqual "0", Registry_GetOption(ws.ChartObjects(7).Chart, "pieout"): AssertEqual "1", Registry_GetOption(ws.ChartObjects(8).Chart, "pieout")
+    AssertEqual "doughnut", Registry_ChartType(ws.ChartObjects(7).Chart), "13: rosca"
+    AssertEqual "pie", Registry_ChartType(ws.ChartObjects(8).Chart), "14: pizza"
+    AssertEqual "1", Registry_GetOption(ws.ChartObjects(8).Chart, "pieout"), "14: rotulos fora"
     AssertEqual "1", Registry_GetOption(ws.ChartObjects(10).Chart, "secondary"), "16: linha no eixo secundario"
     AssertTrue Not Chart_FindSeries(ws.ChartObjects(11).Chart, "tqq_vline") Is Nothing, "17: linha de valor"
     Set c1 = ws.ChartObjects(12).Chart: Set c2 = ws.ChartObjects(13).Chart
     AssertEqual c1.Axes(xlValue).MaximumScale, c2.Axes(xlValue).MaximumScale, "18: mesma escala"
     AssertTrue Len(Registry_GetOption(c1, "vmax")) > 0
     AssertEqual ws.ChartObjects(12).Top, ws.ChartObjects(13).Top
-    CloseTemp wb
 End Sub
 
-Public Sub Test_Samples_Sheet2_Layout_NoOverlap()
-    Dim wb As Workbook, ws As Worksheet, i As Long, j As Long, tr As Variant, a As ChartObject, b As ChartObject, sec As Long
-    Set wb = Samples_Create()
+Private Sub CheckSheet2Layout(wb As Workbook)
+    Dim ws As Worksheet, i As Long, j As Long, tr As Variant, a As ChartObject, b As ChartObject, sec As Long
     Set ws = wb.Worksheets("Exemplos 2")
     tr = TitleRows2()
     For i = 1 To ws.ChartObjects.Count
@@ -2625,15 +2609,14 @@ Public Sub Test_Samples_Sheet2_Layout_NoOverlap()
     For i = 0 To 11
         AssertTrue Len(CStr(ws.Cells(tr(i), 1).Value)) > 0, "titulo " & (i + 7)
     Next
-    CloseTemp wb
 End Sub
 ```
 
-- [ ] **Passo 2: RED** — `-Filter "Samples_Sheet2"` → `not ok` (planilha inexistente).
+- [ ] **Passo 2: RED** — `-Filter "TestSamples"` → `not ok` em `Test_Samples_BothSheets` (planilha "Exemplos 2" inexistente).
 
 - [ ] **Passo 3: Implementar** — reutilize `WriteTable`/`WriteTitle`; datas do Gantt com `DateSerial` e `NumberFormat = "dd/mm/yyyy"` nas células; percentuais da combinação como números (0,42) com `NumberFormat = "0%"`; para o exemplo 18 insira os dois gráficos, redimensione e reposicione **antes** de `Deco_SameScale` (a escala automática depende do tamanho); exporte `cht.Export` dos 13 gráficos para PNG numa pasta temporária e olhe cada um (o relatório da tarefa lista o que foi visto e corrigido).
 
-- [ ] **Passo 4: GREEN e suíte completa** (`Test_Samples_*` da Fase 1 continuam verdes; `Test_Samples_Content` já ignora `tqq_ann_ind100*` desde a Tarefa 7).
+- [ ] **Passo 4: GREEN e suíte completa** (as verificações da Fase 1, agora em `CheckSheet1*`, continuam verdes; a de conteúdo já ignora `tqq_ann_ind100*` desde a Tarefa 7; `Test_Samples_Failure_ClosesWorkbook_NoSideEffects` e `Test_Core_InsertSamples_NeverRaises` ficam como estão: a suíte monta a pasta completa só duas vezes). Registre no relatório o tempo dos testes de exemplos.
 
 - [ ] **Passo 5: Commit** — `git commit -m "feat: planilha Exemplos 2 com os tipos e decoracoes da Fase 2"` (+ trailer).
 
@@ -2663,7 +2646,7 @@ foreach ($msg in 'A seta de diferença não está disponível para gráficos 100
 Check ($cl -match '(?m)^## \[1\.1\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG tem a seção 1.1.0'
 Check (((Read-Utf8 (Join-Path $RepoRoot 'version.json')) | ConvertFrom-Json).loader -eq '1.1.0') 'loader 1.1.0'
 ```
-(colocadas depois das definições de `$xml`, `$html` e `$cl`, dentro do bloco `if ($parsed)` as que usam `$xml`; o limite de tamanho do tutorial sobe para `-le 122880` (120 KB); as demais verificações continuam). Rode `pwsh C:\temp\tqq-f2\tests\ps\Test-Docs.ps1 -RepoRoot C:\temp\tqq-f2` → `not ok` nas seções/mensagens/versões.
+(colocadas depois das definições de `$xml`, `$html` e `$cl`, dentro do bloco `if ($parsed)` as que usam `$xml`; o limite de tamanho do tutorial já é `-le 122880` (120 KB) desde a Tarefa 12; as demais verificações continuam). Rode `pwsh C:\temp\tqq-f2\tests\ps\Test-Docs.ps1 -RepoRoot C:\temp\tqq-f2` → `not ok` nas seções/mensagens/versões.
 
 - [ ] **Passo 2: Tutorial** — conteúdo obrigatório (cada rótulo de controle em `<span class="ui">` com o texto **exato** do XML; `id`s únicos; sem recursos externos; um único `<script>` inline existente):
   - "Neste tutorial": índice com as seções novas.
@@ -2673,7 +2656,7 @@ Check (((Read-Utf8 (Join-Path $RepoRoot 'version.json')) | ConvertFrom-Json).loa
   - `#linha-area`: Linha, Área empilhada, Área 100% (rótulos no meio da faixa, participações), Combinação (última coluna vira linha; `Eixo secundário (linha)` ligado automaticamente quando as grandezas diferem mais de 5×; o toggle alterna), `Legenda` (Direita, Nenhuma, Nome no fim da linha — só linha e combinação; citar a mensagem de recusa).
   - `#mekko`: as duas variantes com as tabelas de exemplo (10 e 11 dos Exemplos), larguras proporcionais, separadores, rótulos (participação; largura no topo; nomes embaixo), `Indicador 100%`, `Linha de valor (média)` ponderada só em unidades, sem setas (mensagem), eixo de valores livre em unidades.
   - `#gantt`: tabela (Atividade, Início, Fim; fim vazio = marco; fim é o último dia da atividade; 4.ª coluna opcional vira rótulo), escala automática (semanas até 14 semanas; meses até 3 anos; trimestres até 10 anos; anos), separadores, `Colchete (Gantt)`, `Espaço` = espaçamento das linhas, `Formato` não se aplica; **limitação**: o intervalo do eixo só é recalculado pelo ThinQQ (botão `Atualizar` ou evento de cálculo): sem o ThinQQ as barras/marcos/rótulos seguem os dados, mas o intervalo visível fica o último aplicado.
-  - `#pizza`: Pizza e Rosca, `Rótulos fora da pizza`, `Formato` 12%/12,3% mostra participações, negativos/zero/texto não viram fatia, paleta por fatia, sem setas.
+  - `#pizza`: Pizza e Rosca, `Rótulos fora da pizza` (só na pizza: a rosca mantém os rótulos sobre o anel e o botão fica cinza), `Formato` 12%/12,3% mostra participações, negativos/zero/texto não viram fatia, paleta por fatia, sem setas.
   - `#decoracoes`: `Linha de valor (média)` (média dos totais; da primeira à última categoria; vertical em barras), `Indicador 100%` (ligado por padrão nos 100% e no Mekko (%)), `Mesma escala` / `Escala automática` (regras de seleção, mensagens, escala fixa — clicar de novo após grandes mudanças, tipos ignorados), tabela de "o que se aplica a cada tipo" (matriz do design §7 em linguagem de usuário).
   - "Opções do gráfico selecionado": linhas novas (`Legenda`, `Mais opções` e seus quatro toggles, `Setas` com `Seta CAGR`, `Seta diferença`, `Colchete (Gantt)`, `Remover setas`); nota de que os controles cinza não se aplicam ao tipo selecionado.
   - FAQ "Copiei ou movi um gráfico": atualizar (Tarefa 0: a cópia mantém dados e rótulos ligados, inclusive 100% sem totais).
@@ -2691,7 +2674,8 @@ pwsh C:\temp\tqq-f2\build\release.ps1 -Version 1.1.0 -LoaderVersion 1.1.0 -BaseU
 Expand-Archive C:\temp\tqq-rel\ThinQQ-1.1.0.zip C:\temp\tqq-rel-x
 pwsh C:\temp\tqq-rel-x\install.ps1 -Root C:\temp\tqq-rel-root\ThinQQ -RegistryRoot HKCU:\Software\ThinQQ_Test_f2 -SkipExcelCheck
 # esperado: "ThinQQ 1.1.0 instalado"; versions\1.1.0 com ThinQQ.core.xlam e tutorial.html
-pwsh C:\temp\tqq-rel-x\uninstall.ps1 -Root C:\temp\tqq-rel-root\ThinQQ -RegistryRoot HKCU:\Software\ThinQQ_Test_f2
+pwsh C:\temp\tqq-rel-x\uninstall.ps1 -Root C:\temp\tqq-rel-root\ThinQQ -RegistryRoot HKCU:\Software\ThinQQ_Test_f2 -SkipExcelCheck
+# -SkipExcelCheck é obrigatório aqui: o Excel do usuário está aberto e, sem ele, o script lança 'Feche o Excel antes de desinstalar'
 Remove-Item HKCU:\Software\ThinQQ_Test_f2 -Recurse -ErrorAction SilentlyContinue      # chave de teste propria
 Remove-Item C:\temp\tqq-rel, C:\temp\tqq-rel-x, C:\temp\tqq-rel-root -Recurse -Force
 ```
@@ -2717,10 +2701,10 @@ pwsh C:\temp\tqq-f2\build\run-tests.ps1 -LoaderSwap -TimeoutSec 900
 ```
   Esperado: `Todos os testes passaram`, `loader-swap: ok`; anote no relatório os totais (`# passed N failed 0` do core e do loader), o tempo e a saída 0. Se o tempo total passar de 6 minutos, registre quais testes são os mais lentos (TAP com `Timer` por teste pode ser adicionado em `modTestRunner` como `fix:` de infraestrutura) — não remova testes.
 - [ ] **Passo 2: Build Release e guarda** — `pwsh C:\temp\tqq-f2\build\build.ps1 -Target all -Configuration Release` → `OK dist\ThinQQ.xlam`, `OK dist\ThinQQ.core.xlam`; `pwsh C:\temp\tqq-f2\tests\ps\Test-ReleaseGuard.ps1` → sem módulos de teste no Release.
-- [ ] **Passo 3: Compatibilidade entre versões (opcional, recomendado)** — loader 1.1.0 com core 1.0.0: `New-Item -ItemType Directory C:\temp\tqq-old`, `git -C "C:\Users\143272\Desktop\Aplicações\ThinkQQ" archive feat/fase1 | tar -x -C C:\temp\tqq-old`, `pwsh C:\temp\tqq-old\build\build.ps1 -Target core -Configuration Release`. Numa instância própria de Excel de automação (`New-ExcelApp` de `Build-Common.ps1`), abra `C:\temp\tqq-old\dist\ThinQQ.core.xlam` (core velho) e `C:\temp\tqq-f2\dist\ThinQQ.xlam` (loader novo, build Release da Tarefa 14) e execute `$xl.Run("'ThinQQ.xlam'!Loader_RunCore", "Core_Supports", "totals")` — esperado: `Empty`/`$null` e uma linha `Loader_RunCore(Core_Supports) erro ...` no log, sem diálogo modal; com uma tabela selecionada, `$xl.Run("'ThinQQ.xlam'!Loader_RunCore", "Core_Insert", "pie")` registra "Tipo de gráfico desconhecido" no log do core. Os callbacks `Rx_*` não podem ser chamados por automação (exigem `IRibbonControl`); a faixa é conferida só no roteiro manual. Feche com `Close-ExcelApp` e apague `C:\temp\tqq-old`.
-- [ ] **Passo 4: Auditoria de aderência às regras do plano** — `grep` nos fontes por: `Declare ` (nenhum), `NumberFormat =` fora de células de data (`Range.NumberFormat` só com `dd/mm`, `mmm/yy`, `General`, `0%`, `dd/mm/yyyy`), `MsgBox` fora de `Core_Notify`/`RxMsg`/`Loader_Msg`/formulários, `Application.Run` nos testes (nenhum), `On Error GoTo 0` dentro de handlers ativos (padrão proibido pela Fase 1). Confirme que todo `Public Sub Core_*` novo tem `On Error` antes da primeira linha executável (estenda `Test_Ribbon_AllCallbacks_HaveErrorContainment` com um equivalente no core, `Test_Core_AllPublicApi_HaveErrorContainment`, lendo `modCoreApi` via `VBProject.VBComponents("modCoreApi").CodeModule` — exceções permitidas: getters puros `Core_Ping`, `Core_Version`, `Core_LoaderPath`, `Core_LastNotice`, `Core_NoticeCount`, `Core_ClearLastNotice`, `Core_TestSetApplyBusy`).
+- [ ] **Passo 3: Compatibilidade entre versões (sem automação contra o core velho)** — loader 1.1.0 com core 1.0.0 é coberto por testes que já rodam no Passo 1: `TestLoaderMain.Test_RunCore_MissingProc_ReturnsEmpty_NoRaise` (`Loader_RunCore("Core_NaoExiste")` devolve `Empty` sem erro, com a raiz redirecionada) e o fallback de `Rx_GetEnabled` para `HasChartCached()` quando `Core_Supports` devolve `Empty` (Tarefa 12); confirme que estão verdes e registre. **Não** abra um core 1.0.0 Release por automação para chamar `Core_*` por `Loader_RunCore`: (a) qualquer `Core_*` que avise o usuário (ex.: `Core_Insert "pie"` → "Tipo de gráfico desconhecido") passa por `Core_Notify`, que em Release mostra `MsgBox` e trava a automação; (b) no loader Release, o caminho de erro de `Loader_RunCore` grava `Loader_Log` em `%LOCALAPPDATA%\ThinQQ\logs` (e cria as pastas), a pasta real do usuário, proibida por este plano (`Loader_SetRootOverride` é inerte em Release). Os callbacks `Rx_*` não podem ser chamados por automação (exigem `IRibbonControl`); a faixa com core antigo fica para o roteiro manual do usuário.
+- [ ] **Passo 4: Auditoria de aderência às regras do plano** — `grep` nos fontes por: `Declare ` (nenhum), `NumberFormat =` fora de células de data (`Range.NumberFormat` só com `dd/mm`, `mmm/yy`, `General`, `0%`, `dd/mm/yyyy`), `MsgBox` fora de `Core_Notify`/`RxMsg`/`Loader_Msg`/formulários, `Application.Run` nos testes (nenhum), handlers que dependem de `On Error Resume Next` para limpar recursos num `Core_*` (a Fase 1 descobriu, em `Core_ApplyPendingLoader`, que dentro de um handler ativo ele não protege: um erro novo escapa ao chamador; por isso a restauração fica em `RestoreLoaderFiles`, procedimento separado). A regra **não** acusa os handlers que desfazem e repropagam de propósito — os `Fail:` dos `*_Insert` (`On Error Resume Next` → apagar gráfico/bloco → `On Error GoTo 0` → `Err.Raise en, es, ed`, como `Stacked_Insert`/`Waterfall_Insert` da Fase 1) e o `FailNew:` de `Core_RebuildFromRange` (termina em `Errors_HandleErr`): depois de `On Error GoTo 0` dentro de um handler só podem vir `Err.Raise`, `Errors_Handle`/`Errors_HandleErr`, `Core_Notify`, `Errors_Log`, atribuições e `Exit`; liste no relatório qualquer outro caso. Confirme que todo `Public Sub`/`Public Function Core_*` tem `On Error` antes da primeira linha executável (estenda `Test_Ribbon_AllCallbacks_HaveErrorContainment` com um equivalente no core, `Test_Core_AllPublicApi_HaveErrorContainment`, lendo `modCoreApi` via `VBProject.VBComponents("modCoreApi").CodeModule` — exceções permitidas: getters puros `Core_Ping`, `Core_Version`, `Core_LoaderPath`, `Core_LastNotice`, `Core_NoticeCount`, `Core_ClearLastNotice`, `Core_TestSetApplyBusy`, e `Core_ApplyPendingLoader`, cuja guarda de reentrada `If mApplyBusy Then Exit Sub` vem antes do `On Error` de propósito e cujo corpo roda em `ApplyPendingLoaderImpl`, com `On Error GoTo Fail`).
 - [ ] **Passo 5: Estado do repositório** — `git status` limpo; `git log --oneline feat/fase1..feat/fase2` lista os commits da Fase 2 (um por tarefa, mais `fix:`); nenhum push; `dist/` e `tests/results/` continuam ignorados; `release/manifest.json` inexistente.
-- [ ] **Passo 6: Relatório final** — consolidar: contagens da suíte, decisões tomadas nas sondas (barras, Gantt, Mekko), lista de "minor (deferred)" de todos os relatórios de tarefa, pastas temporárias removidas (`C:\temp\tqq-f2`, `tqq-old`, `tqq-rel*`), confirmação de que os PIDs 4856, 28284 e 43616 continuam vivos e intocados (`Get-Process excel | Select-Object Id, StartTime`), e a lista numerada das verificações manuais no Excel real que ficam para o usuário (a mesma do README).
+- [ ] **Passo 6: Relatório final** — consolidar: contagens da suíte, decisões tomadas nas sondas (barras, Gantt, Mekko), lista de "minor (deferred)" de todos os relatórios de tarefa, pastas temporárias removidas (`C:\temp\tqq-f2`, `tqq-rel*`), confirmação de que os PIDs 4856, 28284 e 43616 continuam vivos e intocados (`Get-Process excel | Select-Object Id, StartTime`), e a lista numerada das verificações manuais no Excel real que ficam para o usuário (a mesma do README).
 
 **Verificação no Excel real (usuário, após instalar pelo ZIP):** percorrer a lista "Verificações manuais no Excel real" do README na ordem; qualquer desvio volta como `fix:` com teste.
 
@@ -2728,8 +2712,9 @@ pwsh C:\temp\tqq-f2\build\run-tests.ps1 -LoaderSwap -TimeoutSec 900
 
 ## Autorrevisão (feita ao escrever o plano)
 
-- **Cobertura da spec/adendo:** Tarefa 0 (carry-over C1 residual) ✓; barras ✓ (3); cascata horizontal ✓ (5); várias séries ✓ (4); build-down ✓ (4); Mekko % e unidades ✓ (9); Gantt com atividades, barras, marcos, escala e colchetes ✓ (10); pizza/rosca dentro/fora ✓ (8); área ✓ e combinação com eixo secundário ✓ (6); linhas de valor na média ✓, indicador 100% ✓, mesma escala ✓ (7); rótulos no fim da linha ✓ (6); faixa em menus ✓ (12); exemplos ✓ (13); tutorial/README/CHANGELOG/versão/release ✓ (14); integração ✓ (15). Ícones próprios na faixa: adiado (design §1/§10).
+- **Cobertura da spec/adendo:** Tarefa 0 (carry-over C1 residual) ✓ (concluída: `b19615e`, `6b036c3`); barras ✓ (3); cascata horizontal ✓ (5); várias séries ✓ (4); build-down ✓ (4); Mekko % e unidades ✓ (9); Gantt com atividades, barras, marcos, escala e colchetes ✓ (10); pizza/rosca dentro/fora ✓ (8); área ✓ e combinação com eixo secundário ✓ (6); linhas de valor na média ✓, indicador 100% ✓, mesma escala ✓ (7); rótulos no fim da linha ✓ (6); faixa em menus ✓ (12); exemplos ✓ (13); tutorial/README/CHANGELOG/versão/release ✓ (14); integração ✓ (15). Ícones próprios na faixa: adiado (design §1/§10).
 - **Placeholders:** nenhum "TBD/TODO"; todo passo de código traz o código ou a fórmula; cada mensagem de usuário aparece com o texto exato onde é testada.
-- **Consistência de nomes:** `Chart_AddHelperSeries(cht, name, valueCells, posCells)` (T1) usada em T3/T4/T5/T7/T9/T10; `Stacked_PosCol/VLineCol` (T3) usadas em T7; `Area_*Col` (T6) em T7; `Mekko_*Col`/`Mekko_CenterRow` (T9) em T9/T13; `GT_COL_*` (T10); `Kinds_Supports/Family/Is100/IsHorizontal/FeatureLabel` (T1/T11); `Deco_SetValueLine/SetInd100/SetLegend/SameScale/ResetScale/ApplyFixedScale` (T6/T7); `Waterfall_Insert(ws, data, kind)` (T5) e `Waterfall_SeriesCol/SeriesCount` (T4); `Geom_ChartCatCoord/ValCoord/ValueToX/CategoryCenterY` (T2); erros `7001` (anotação), `7002` (decoração/opção), `7200` (tipo não pronto, só até a T10), `6007..6010` (validação de dados).
+- **Consistência de nomes:** `Chart_AddHelperSeries(cht, name, valueCells, posCells)` (T1) usada em T3/T4/T5/T7/T9/T10; `Stacked_PosCol/VLineCol` (T3) usadas em T7; `Area_*Col` (T6) em T7; `Mekko_*Col`/`Mekko_CenterRow` (T9) em T9/T13; `GT_COL_*` (T10); `Kinds_Supports/Family/Is100/IsHorizontal/FeatureLabel` (T1/T11); `Deco_SetValueLine/SetInd100/SetLegend/SameScale/ResetScale/ApplyFixedScale` (T6/T7); `Ann_AddInd100/Ann_RemoveInd100` (T7); `Mekko_ApplyColors` (T9); `Errors_LogDir` (T1); `Waterfall_Insert(ws, data, kind)` (T5) e `Waterfall_SeriesCol/SeriesCount` (T4); `Geom_ChartCatCoord/ValCoord/ValueToX/CategoryCenterY` (T2); erros `7001` (anotação), `7002` (decoração/opção), `7200` (tipo não pronto; o teste temporário com `gantt` sai na T10), `6007..6010` (validação de dados).
+- **Varredura de coerência (pre-flight, antes da Tarefa 1):** aplicada sobre este plano. Principais correções: teste temporário de tipo não pronto com `gantt` (sai na T10); `pieout` só na pizza (rosca recusa `InsideEnd`/`OutsideEnd`; exemplo 14 = pizza); totais 1.250 com o separador da localidade; `body.Rows.Count` (o bloco tem a linha de meta) nos testes de Mekko e Gantt; `legend=right` gravado por `Stacked_Insert`/`Combo_Insert` e `ApplyOption "legend"` gravando só quando `Deco_SetLegend` aceita; `IsTotal` sem `IFERROR` e `BD` sobre as células de origem (sem circularidade); folgas para setas/totais/escala; dispatch de `labels`/`palette` por família na tarefa que o testa; colchete com `de = até`; `Test-Docs` com `local-name()`; `menu` sem filhos com `size`; `-SkipExcelCheck` no ensaio; compatibilidade com core 1.0.0 sem automação; log do build Test fora da pasta do usuário.
 - **Review Focus → testes:** 1 → `Test_Bars_TotalsHelper_StaysAlignedAfterDataChangeAndResize` (T3); 2 → `Test_WaterfallMulti_Block_MixedSignsCrossingZero` (T4); 3 → `Test_Mekko_ZeroTotalRow_NoErrorNoWidth` (T9); 4 → `Test_Gantt_InvalidDates_RefusedWithMessage`, `Test_Gantt_ScaleUnitSwitches_OnRefresh`, `Test_Gantt_OnlyMilestones_And_SingleActivity` (T10); 5 → `Test_Pie_NegativeZeroText_AndSevenSlices` (T8).
 

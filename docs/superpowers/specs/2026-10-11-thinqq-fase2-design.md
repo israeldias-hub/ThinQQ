@@ -174,7 +174,9 @@ Eixo secundário oculto como o primário. Totais só das colunas.
 Rótulos **nativos** (`ShowValue`/`ShowPercentage`, `NumberFormatLocal`), `xlLabelPositionInsideEnd` (dentro, perto da
 borda, como o think-cell) ou `xlLabelPositionOutsideEnd` + nome da categoria + linhas de chamada (fora);
 `VaryByCategories` com cores da paleta por ponto; `FirstSliceAngle = 0`; `DoughnutHoleSize = 50`. Uma série
-(primeira coluna de valores). Sem anotações.
+(primeira coluna de valores). Sem anotações. **Rosca:** o Excel recusa `DataLabels.Position` `InsideEnd`/`OutsideEnd`
+(erro 1004), então a rosca nunca define a posição (rótulos na posição padrão, sobre o anel) e não tem `pieout`;
+"rótulos fora" existe só na pizza (verificação no pre-flight do plano).
 
 ### 3.8 Faixa de opções
 customUI14 permite `menu` com `button`/`toggleButton`/`menuSeparator` filhos; as assinaturas dos callbacks são as
@@ -201,7 +203,7 @@ Famílias (`Kinds_Family`): `stacked` (colunas/barras/linha), `waterfall`, `area
 | mekko | categorias nas linhas, séries nas colunas | área empilhada em eixo de datas (§3.2) | participação no segmento; largura (%) no topo; categorias em y=0 | sim (largura %) | n/a | nenhuma (recusa 7001) | ind100 |
 | mekkounits | 2.ª coluna = largura | idem; eixo em unidades | valor no segmento; total no topo | sim (total) | n/a | nenhuma | vline (média ponderada) |
 | gantt | Atividade, Início, Fim [, Rótulo] | barras empilhadas + XY (§3.3) | data do fim/marco ou 4.ª coluna | n/a | n/a | colchete | gap (espaço entre linhas) |
-| pie / doughnut | Categoria + Valor | `xlPie/xlDoughnut` | nativos, dentro/fora; valor ou % | n/a | n/a | nenhuma | rótulos fora |
+| pie / doughnut | Categoria + Valor | `xlPie/xlDoughnut` | nativos; pizza dentro/fora, rosca na posição padrão; valor ou % | n/a | n/a | nenhuma | rótulos fora (só pie) |
 
 Opções persistidas (`Registry_SetOption`, chave=valor): as da Fase 1 (`numfmt, palette, gap, totals, labels,
 connectors`) mais `legend` (`right|none|lineend`), `ind100`, `vline`, `secondary`, `pieout` (`0|1`), `vmin`/`vmax`
@@ -216,7 +218,8 @@ soma só as séries de coluna (todas menos a última). As colunas 1..3 (e `Part_
 ### 4.3 Bloco da cascata (uma ou várias séries, vertical ou horizontal)
 Colunas 1..18 como na Fase 1 (`Cat, Src, IsTotal, Delta, Start, End, Lo, Hi, Base, PiecePos, PieceNeg, UpPos, UpNeg,
 DownPos, DownNeg, Total, LabelVal, LabelPos`), mais `19 Pos`, `20 BD` (build-down: `=AND(marcador(linha 1),
-ISNUMBER(valor da última linha))`, igual em todas as linhas) e, **só com S > 1**, 10 colunas por série `j` a partir da
+ISNUMBER(valor da última linha))`, igual em todas as linhas; "marcador" é uma expressão sobre as células de **origem**
+da linha, nunca sobre `IsTotal`, que na última linha depende de `BD`: seria referência circular) e, **só com S > 1**, 10 colunas por série `j` a partir da
 coluna `21 + 10(j-1)`: `D_j, CP_j, CN_j, A_j, B_j, M_j, UP_j, DN_j, UPN_j, DNN_j`:
 
 ```
@@ -228,7 +231,8 @@ M_j  = (A_j + B_j) / 2
 UP_j = IF(D_j >= 0, MAX(0,B_j) - MAX(0,A_j), 0)      DN_j  = IF(D_j < 0, MAX(0,B_j) - MAX(0,A_j), 0)
 UPN_j = IF(D_j >= 0, MIN(0,A_j) - MIN(0,B_j), 0)     DNN_j = IF(D_j < 0, MIN(0,A_j) - MIN(0,B_j), 0)
 Delta (col 4) = SUM(D_1..D_S)     Lo = IF(IsTotal, MIN(0,End), Start - CN_S)     Hi = IF(IsTotal, MAX(0,End), Start + CP_S)
-IsTotal (S>1) = SUMPRODUCT(--ISNUMBER(MATCH(LOWER(TRIM(IFERROR(src_1:src_S,"")&"")), {"e","t","=","total","subtotal"}, 0))) > 0
+IsTotal (S>1) = SUMPRODUCT(--ISNUMBER(MATCH(LOWER(TRIM(src_1:src_S&"")), {"e","t","=","total","subtotal"}, 0))) > 0
+                (sem IFERROR: dentro de SUMPRODUCT ele exige entrada matricial no Excel 2019; erro na origem já dá FALSE)
 ```
 Com S = 1, `Lo/Hi` ficam `MIN/MAX(Start, End)` (equivalente). **Build-down** (`BD` verdadeiro): `End_1 = src_n -
 SUM(Delta_2..Delta_{n-1})`, a última linha vira total com `Total_n = src_n` (`IsTotal_n` forçado), `Start_1 = 0`.
@@ -255,7 +259,8 @@ Corpo com `MAX(n, 40)` linhas e 19 colunas. Atividades (linhas 2..n+1): `1 Ativi
 Inicio = IF(ISNUMBER(src2), src2, NA())      Fim = IF(ISNUMBER(src3), src3, NA())
 IsMs = AND(ISNUMBER(src2), NOT(ISNUMBER(src3)))
 BarStart = IF(IsMs, NA(), Inicio)            Dur = IF(IsMs, NA(), MAX(0, Fim - Inicio + 1))
-MsX = IF(IsMs, Inicio, NA())                 Pos = n - i + 0.5        LblX = IF(IsMs, Inicio, Fim)
+MsX = IF(IsMs, Inicio, NA())                 Pos = n - i + 0.5        LblX = IF(IsMs, Inicio, Fim + 1)
+LblTxt = 4.ª coluna (texto) ou a data IF(IsMs, Inicio, Fim) em dd/mm   (a barra cobre o dia do fim: termina em Fim + 1)
 dmin = AGGREGATE(5,6,Inicio)   dmax = AGGREGATE(4,6,Inicio:Fim)   span = dmax - dmin
 Unit = IF(span<=98,"w",IF(span<=1100,"m",IF(span<=3700,"q","y")))
 AxisMin = w: dmin-WEEKDAY(dmin,3) | m: DATE(YEAR(dmin),MONTH(dmin),1) | q: DATE(YEAR(dmin),3*INT((MONTH(dmin)-1)/3)+1,1) | y: DATE(YEAR(dmin),1,1)
@@ -295,7 +300,7 @@ ou negativos contam como 0 (`IF(AND(ISNUMBER(src),src>0),src,0)` alimenta a sér
 | Mesma escala | `vmin`/`vmax` | `Deco_SameScale(charts)`: lê a escala automática de cada gráfico, aplica a união a todos, persiste; `Deco_ApplyFixedScale` reaplica no refresh; "Escala automática" limpa | todos com eixo de valores livre (não 100%, mekko, pie, gantt) |
 | Legenda | `legend=right|none|lineend` | `Deco_SetLegend`: `lineend` oculta a legenda e mostra o nome da série no rótulo do último ponto (`ShowSeriesName`) | lineend só em line e combo (linha); right/none em todos com legenda |
 | Eixo secundário | `secondary=1` | `Combo_SetSecondary` | combo |
-| Rótulos fora | `pieout=1` | `Pie_SetOutside` | pie, doughnut |
+| Rótulos fora | `pieout=1` | `Pie_SetOutside` (com `pieout=1` a legenda fica oculta, qualquer que seja `legend`) | pie (a rosca recusa a posição de rótulo) |
 
 "Mesma escala" age sobre os gráficos ThinQQ **selecionados** (`Selection.ShapeRange`, 2 ou mais) ou, sem seleção
 múltipla, sobre **todos os gráficos ThinQQ da planilha ativa**; o botão fica sempre habilitado (a seleção múltipla
@@ -333,7 +338,7 @@ think-cell): quem mudar muito os dados clica de novo. Documentado no tutorial.
 | ind100 | stacked100, barstacked100, area100, mekko |
 | vline | stacked, clustered, line, barstacked, barclustered, area, combo, mekkounits |
 | secondary | combo |
-| pieout | pie, doughnut |
+| pieout | pie |
 | cagr | stacked, clustered, stacked100, line, waterfall, barstacked, barclustered, barstacked100, barwaterfall, area, area100, combo |
 | diff | stacked, clustered, line, waterfall, barstacked, barclustered, barwaterfall, area, combo |
 | bracket | gantt |
