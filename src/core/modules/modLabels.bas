@@ -332,8 +332,8 @@ Private Sub SyncThinSegmentLabels(cht As Chart, body As Range, horiz As Boolean)
                 If i <= s.Points.Count Then
                     Set c = body.Cells(i + 1, dcol)
                     v = Util_ToDouble(c.Value)
-                    txt = Format$(v, fmt)
-                    If Len(txt) > 0 Then
+                    If v <> 0 Then                      ' delta zero: o rotulo ja e vazio (secao de zero do formato) e fica como esta
+                        txt = Format$(v, fmt)
                         If horiz Then need = Labels_EstimateWidth(txt) Else need = SEGMENT_TEXT_HEIGHT
                         want = (Abs(v) * k >= need)
                         On Error Resume Next
