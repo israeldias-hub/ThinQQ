@@ -93,3 +93,32 @@ Public Sub Test_RunCore_MissingProc_Logs()
     txt = Input$(LOF(f), f): Close #f
     AssertTrue InStr(txt, "Core_NaoExiste") > 0, "log sem a entrada"
 End Sub
+
+' Build Test sem raiz de teste: o log vai para %TEMP%\ThinQQ-test-logs, nunca para o log REAL do usuario (%LOCALAPPDATA%\ThinQQ\logs);
+' com a raiz de teste continua em <raiz>\logs (Test_RunCore_MissingProc_Logs). Release nao muda (a raiz de teste e inerte).
+Public Sub Test_Loader_Log_TestBuildWritesToTempFolder()
+    Dim marker As String, p As String, f As Integer, txt As String
+    Loader_SetRootOverride ""
+    AssertEqual Environ$("TEMP") & "\ThinQQ-test-logs", Loader_LogDir()
+    AssertFalse LCase$(Left$(Loader_LogDir(), Len(Loader_Root()))) = LCase$(Loader_Root()), "o log de teste nao pode ficar dentro da pasta real do usuario"
+    Randomize
+    marker = "tqq-loader-log-probe-" & Format$(Now, "hhnnss") & "-" & CStr(Int(Rnd * 100000))
+    Loader_Log marker
+    p = Loader_LogDir() & "\thinqq.log"
+    AssertTrue Len(Dir(p)) > 0, "log de teste criado em " & p
+    f = FreeFile
+    Open p For Binary Access Read As #f
+    txt = Space$(LOF(f))
+    Get #f, , txt
+    Close #f
+    AssertTrue InStr(txt, marker) > 0, "a linha foi para o log de teste"
+End Sub
+
+' Com a raiz de teste o log fica sob ela.
+Public Sub Test_Loader_LogDir_WithRootOverride_IsUnderRoot()
+    Dim d As String
+    d = TempDir() & "\r"
+    Loader_SetRootOverride d
+    AssertEqual d & "\logs", Loader_LogDir()
+    Loader_SetRootOverride ""
+End Sub

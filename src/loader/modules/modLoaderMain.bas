@@ -50,11 +50,21 @@ Public Function Loader_CoreFileName() As String
     Loader_CoreFileName = "ThinQQ.core" & BUILD_SUFFIX & ".xlam"
 End Function
 
+' Pasta do log. Com a raiz de teste: <raiz>\logs. Build Test SEM raiz de teste: %TEMP%\ThinQQ-test-logs (os testes nao podem escrever no log
+' REAL do usuario nem criar pastas em %LOCALAPPDATA%\ThinQQ). Demais builds: <raiz>\logs, como sempre.
+Public Function Loader_LogDir() As String
+    If Len(mRootOverride) = 0 And BUILD_CONFIG = "Test" Then
+        Loader_LogDir = Environ$("TEMP") & "\ThinQQ-test-logs"
+    Else
+        Loader_LogDir = Loader_Root() & "\logs"
+    End If
+End Function
+
 Public Sub Loader_EnsureFolders()
     EnsureDir Loader_Root()
     EnsureDir Loader_VersionsDir()
     EnsureDir Loader_TmpDir()
-    EnsureDir Loader_Root() & "\logs"
+    EnsureDir Loader_LogDir()
 End Sub
 
 Private Sub EnsureDir(path As String)
@@ -71,9 +81,13 @@ End Sub
 Public Sub Loader_Log(msg As String)
     On Error Resume Next
     Dim f As Integer
-    Loader_EnsureFolders
+    If Len(mRootOverride) = 0 And BUILD_CONFIG = "Test" Then
+        EnsureDir Loader_LogDir()           ' build Test: so a pasta de log de %TEMP% (nada em %LOCALAPPDATA%\ThinQQ)
+    Else
+        Loader_EnsureFolders
+    End If
     f = FreeFile
-    Open Loader_Root() & "\logs\thinqq.log" For Append As #f
+    Open Loader_LogDir() & "\thinqq.log" For Append As #f
     Print #f, Format$(Now, "yyyy-mm-dd hh:nn:ss") & vbTab & "loader" & vbTab & msg
     Close #f
 End Sub
@@ -239,7 +253,7 @@ Public Sub Loader_Startup()
     End If
     ver = Loader_OpenBestCore(Loader_VersionsDir())
     If ver = "" Then
-        MsgBox "Não foi possível carregar o ThinQQ core. Veja o log em " & Loader_Root() & "\logs.", vbExclamation, APP_NAME
+        MsgBox "Não foi possível carregar o ThinQQ core. Veja o log em " & Loader_LogDir() & ".", vbExclamation, APP_NAME
         Exit Sub
     End If
     Updater_SchedulePendingLoader 4
