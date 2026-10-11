@@ -352,7 +352,10 @@ Public Sub Test_Gantt_RightRoom_LayoutReset_Refusals_RebuildAndRollback()
     Set dl = Chart_FindSeries(cht, "tqq_lbl").Points(2).DataLabel
     x = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth
     AssertTrue dl.Left >= x - 2 And dl.Left + dl.Width <= cht.ChartArea.Width + 0.5, "folga a direita refeita: " & dl.Left & " vs " & x
+    Core_ClearLastNotice
     Core_SetOption "numfmt", "dec1"
+    AssertEqual "'Formato' não se aplica a este tipo de gráfico.", Core_LastNotice(), "numfmt no Gantt: aviso (Tarefa 11)"
+    AssertEqual "", Core_GetOption("numfmt"), "numfmt no Gantt nao e gravado"
     AssertEqual "dd/mm", Block_Body(Registry_Block(cht)).Cells(2, GT_COL_LBLTXT).NumberFormat, "numfmt nao se aplica ao Gantt"
     AssertEqual Format$(DateSerial(2026, 3, 13), "dd/mm"), Chart_FindSeries(cht, "tqq_lbl").Points(1).DataLabel.Text, "rotulo de data intacto"
     AssertEqual Format$(DateSerial(2026, 3, 2), "dd/mm"), Chart_FindSeries(cht, "tqq_scale").Points(1).DataLabel.Text
@@ -361,7 +364,7 @@ Public Sub Test_Gantt_RightRoom_LayoutReset_Refusals_RebuildAndRollback()
     AssertEqual "Legenda não se aplica a este tipo de gráfico.", Core_LastNotice()
     Core_ClearLastNotice
     Core_SetToggle "vline", True
-    AssertEqual "A linha de valor não está disponível para este tipo de gráfico.", Core_LastNotice()
+    AssertEqual "'Linha de valor (média)' não se aplica a este tipo de gráfico.", Core_LastNotice()
     Core_SetToggle "totals", True
     Core_SetToggle "connectors", True
     AssertEqual "", Registry_GetOption(cht, "totals") & Registry_GetOption(cht, "connectors"), "totais e conectores nao existem no Gantt"

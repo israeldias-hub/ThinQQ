@@ -1093,3 +1093,274 @@ Public Sub Test_Core_Legend_And_Secondary_Options()
     AssertFalse Core_GetToggle("secondary"), "secondary so em combinacao"
     Teardown wb
 End Sub
+
+' ---------------------------------------------------------------------------------------------------------------------
+' Tarefa 11: API unificada para todos os tipos (toggles e opcoes pela matriz, reconstrucao generica, setas e colchete)
+' ---------------------------------------------------------------------------------------------------------------------
+
+' Tabela de dados adequada a cada tipo, escrita a partir de A1 de ws; devolve a faixa.
+Private Function FixtureFor(ws As Worksheet, kind As String) As Range
+    Select Case Kinds_Family(kind)
+        Case "waterfall"
+            ws.Range("A1:C1").Value = Array("Etapa", "Loja", "Online")
+            ws.Range("A2:C2").Value = Array("Inicio", 100, 50): ws.Range("A3:C3").Value = Array("Ajuste", -30, 10)
+            ws.Range("A4:C4").Value = Array("Fim", "e", "e")
+            Set FixtureFor = ws.Range("A1:C4")
+        Case "mekko"
+            ws.Range("A1:D1").Value = Array("Regiao", "Largura", "Eletro", "Moveis")
+            ws.Range("A2:D2").Value = Array("Sul", 50, 40, 10): ws.Range("A3:D3").Value = Array("Norte", 30, 20, 10)
+            If kind = "mekko" Then ws.Columns("B").Delete          ' percentual: sem coluna de largura
+            Set FixtureFor = ws.Range("A1").CurrentRegion
+        Case "gantt"
+            ws.Range("A1:C1").Value = Array("Atividade", "Início", "Fim")
+            ws.Range("A2").Value = "A": ws.Range("B2").Value = DateSerial(2026, 3, 2): ws.Range("C2").Value = DateSerial(2026, 3, 13)
+            ws.Range("A3").Value = "B": ws.Range("B3").Value = DateSerial(2026, 3, 16)
+            Set FixtureFor = ws.Range("A1:C3")
+        Case "pie"
+            ws.Range("A1:B1").Value = Array("Produto", "Vendas")
+            ws.Range("A2:B2").Value = Array("Eletro", 50): ws.Range("A3:B3").Value = Array("Moveis", 30)
+            Set FixtureFor = ws.Range("A1:B3")
+        Case Else
+            ws.Range("A1:D1").Value = Array("Ano", "Sul", "Sudeste", "Nordeste")
+            ws.Range("A2:D2").Value = Array(2022, 10, 20, 5): ws.Range("A3:D3").Value = Array(2023, 12, 22, 6)
+            ws.Range("A4:D4").Value = Array(2024, 15, 25, 8)
+            Set FixtureFor = ws.Range("A1:D4")
+    End Select
+End Function
+
+' A mesma tabela do tipo com UMA categoria so (cabecalho + uma linha).
+Private Function OneRowFixtureFor(ws As Worksheet, kind As String) As Range
+    Dim rng As Range
+    Set rng = FixtureFor(ws, kind)
+    ws.Rows("3:" & rng.Rows.Count).Delete
+    Set OneRowFixtureFor = ws.Range("A1").CurrentRegion
+End Function
+
+' O que o registro guarda das escolhas do usuario (alternadores e opcoes), em uma linha: a comparacao antes e depois de "Alterar dados"
+' mostra se alguma escolha foi sobrescrita pelo estado real do grafico novo (ex.: indicador 100% desligado voltando ligado).
+Private Function ChoicesSnapshot() As String
+    Dim k As Variant
+    For Each k In Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "numfmt", "palette", "gap", "legend", "n")
+        ChoicesSnapshot = ChoicesSnapshot & k & "=" & Core_GetOption(CStr(k)) & ";"
+    Next
+End Function
+
+' Formas de anotacao (setas, colchetes, indicador) do grafico.
+Private Function AnnotationShapeCount(c As Chart) As Long
+    Dim i As Long
+    For i = 1 To c.Shapes.Count
+        If Left$(c.Shapes(i).Name, Len(ANN_PREFIX)) = ANN_PREFIX Then AnnotationShapeCount = AnnotationShapeCount + 1
+    Next
+End Function
+
+' Todo tipo: insere pela API, exercita cada toggle/opcao conforme a matriz (suportado = funciona; nao suportado = aviso,
+' nada persiste), reconstroi mantendo o tipo e as opcoes, e aceita/recusa setas pela matriz.
+Public Sub Test_Core_AllKinds_InsertTogglesOptionsRebuild()
+    Dim kinds As Variant, toggles As Variant, k As Long, t As Long, wb As Workbook, ws As Worksheet, rng As Range, c As Chart, kind As String, key As String
+    Dim before As String, ch As Variant
+    kinds = Array("stacked", "clustered", "stacked100", "line", "waterfall", "barstacked", "barclustered", "barstacked100", "barwaterfall", _
+                  "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut")
+    toggles = Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout")
+    For k = LBound(kinds) To UBound(kinds)
+        kind = kinds(k)
+        Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+        Set rng = FixtureFor(ws, kind)
+        rng.Select
+        Core_ClearLastNotice
+        Core_Insert kind
+        Set c = Core_ActiveChart()
+        AssertTrue Not c Is Nothing, kind & ": nao inseriu (" & Core_LastNotice() & ")"
+        AssertEqual kind, Registry_ChartType(c)
+        For t = LBound(toggles) To UBound(toggles)
+            key = toggles(t)
+            Core_ClearLastNotice
+            If Kinds_Supports(kind, key) Then
+                Core_SetToggle key, True
+                AssertTrue Core_GetToggle(key), kind & "/" & key & " ligado"
+                Core_SetToggle key, False
+                AssertFalse Core_GetToggle(key), kind & "/" & key & " desligado"
+                Core_SetToggle key, True
+            Else
+                Core_SetToggle key, True
+                AssertEqual "'" & Kinds_FeatureLabel(key) & "' não se aplica a este tipo de gráfico.", Core_LastNotice(), kind & "/" & key
+                AssertFalse Core_GetToggle(key), kind & "/" & key & " nao persiste"
+            End If
+        Next
+        Core_ClearLastNotice
+        Core_SetOption "numfmt", "dec1"
+        If Kinds_Supports(kind, "numfmt") Then
+            AssertEqual "dec1", Core_GetOption("numfmt"), kind
+        Else
+            AssertEqual "'Formato' não se aplica a este tipo de gráfico.", Core_LastNotice(), kind & "/numfmt"
+            AssertTrue Core_GetOption("numfmt") <> "dec1", kind & "/numfmt nao persiste"
+        End If
+        Core_SetOption "palette", "cinza": AssertEqual "cinza", Core_GetOption("palette"), kind
+        Core_ClearLastNotice
+        Core_SetOption "gap", "80"
+        If Kinds_Supports(kind, "gap") Then
+            AssertEqual "80", Core_GetOption("gap"), kind & "/gap"
+            AssertEqual 80, c.ChartGroups(1).GapWidth, kind & "/gap aplicado"
+        Else
+            AssertEqual "Espaço entre colunas não se aplica a este tipo de gráfico.", Core_LastNotice(), kind & "/gap"
+            AssertTrue Core_GetOption("gap") <> "80", kind & "/gap nao persiste"
+        End If
+        If Kinds_Supports(kind, "legend") Then Core_SetOption "legend", "none": AssertFalse c.HasLegend, kind & "/legend"
+        ' escolhas do usuario DIFERENTES do padrao do Insert (rotulos e indicador 100% desligados): "Alterar dados" as mantem
+        For Each ch In Array("labels", "ind100")
+            If Kinds_Supports(kind, CStr(ch)) Then Core_SetToggle CStr(ch), False
+        Next
+        before = ChoicesSnapshot()
+        Core_ClearLastNotice
+        AssertTrue Core_RebuildFromRange(c, rng), kind & ": rebuild (" & Core_LastNotice() & ")"
+        Set c = Core_ActiveChart()
+        AssertEqual kind, Registry_ChartType(c), kind & ": tipo apos rebuild"
+        AssertEqual before, ChoicesSnapshot(), kind & ": opcoes persistidas apos rebuild"
+        If Kinds_Supports(kind, "numfmt") Then AssertEqual "dec1", Core_GetOption("numfmt"), kind & ": numfmt apos rebuild"
+        AssertEqual "cinza", Core_GetOption("palette"), kind & ": paleta apos rebuild"
+        If Kinds_Supports(kind, "vline") Then AssertTrue Not Chart_FindSeries(c, "tqq_vline") Is Nothing, kind & ": linha de valor apos rebuild"
+        If Kinds_Supports(kind, "ind100") Then AssertFalse Ann_HasInd100(c), kind & ": indicador desligado pelo usuario continua desligado"
+        If Kinds_Supports(kind, "legend") Then AssertFalse c.HasLegend, kind & ": legenda 'nenhuma' apos rebuild"
+        AssertEqual 1, TqqNameCount(wb), kind & ": um bloco"
+        Core_ClearLastNotice
+        Core_AddAnnotation "cagr", 1, 2
+        If Kinds_Supports(kind, "cagr") Then
+            AssertTrue Not c.Shapes("tqq_ann_cagr_1") Is Nothing, kind & ": CAGR"
+        Else
+            AssertEqual "A seta CAGR não está disponível para este tipo de gráfico.", Core_LastNotice(), kind & ": recusa CAGR"
+        End If
+        Teardown wb
+    Next
+End Sub
+
+Public Sub Test_Core_AddAnnotation_Unsupported_NotifiesBeforeForm()
+    Dim wb As Workbook, ws As Worksheet, rng As Range
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    Set rng = FixtureFor(ws, "stacked")
+    rng.Select
+    Core_Insert "stacked"
+    Core_ClearLastNotice
+    Core_AddAnnotation "bracket"                       ' sem indices: nao pode abrir formulario nem falhar
+    AssertEqual "O colchete só está disponível em gráficos Gantt.", Core_LastNotice()
+    AssertEqual 1, Core_NoticeCount(), "um unico aviso (conta desde Core_ClearLastNotice)"
+    Teardown wb
+End Sub
+
+' A recusa da matriz vem ANTES de qualquer outra verificacao (formulario de categorias e "minimo de categorias"): uma pizza ou um
+' Gantt de UMA linha, o Mekko e os 100% recebem a mensagem do tipo, sem indices e sem formulario; os tipos que aceitam seguem as regras
+' de indices ("pelo menos 2 categorias" so para quem suporta a seta).
+Public Sub Test_Core_AddAnnotation_RefusalComesBeforeCountAndForm()
+    Dim wb As Workbook, ws As Worksheet, cases As Variant, i As Long, kind As String, ann As String, want As String, c As Chart, one As Boolean, shapesBefore As Long
+    ' tipo; uma categoria so?; anotacao; aviso esperado
+    cases = Array( _
+        Array("pie", True, "cagr", "A seta CAGR não está disponível para este tipo de gráfico."), _
+        Array("pie", True, "diff", "A seta de diferença não está disponível para este tipo de gráfico."), _
+        Array("pie", True, "bracket", "O colchete só está disponível em gráficos Gantt."), _
+        Array("doughnut", False, "cagr", "A seta CAGR não está disponível para este tipo de gráfico."), _
+        Array("mekko", False, "cagr", "A seta CAGR não está disponível para este tipo de gráfico."), _
+        Array("mekko", False, "diff", "A seta de diferença não está disponível para este tipo de gráfico."), _
+        Array("mekkounits", False, "diff", "A seta de diferença não está disponível para este tipo de gráfico."), _
+        Array("stacked100", False, "diff", "A seta de diferença não está disponível para gráficos 100%."), _
+        Array("gantt", True, "cagr", "A seta CAGR não está disponível para este tipo de gráfico."), _
+        Array("gantt", True, "diff", "A seta de diferença não está disponível para este tipo de gráfico."), _
+        Array("clustered", False, "bracket", "O colchete só está disponível em gráficos Gantt."), _
+        Array("stacked", True, "cagr", "O gráfico precisa de pelo menos 2 categorias."), _
+        Array("stacked", True, "diff", "O gráfico precisa de pelo menos 2 categorias."))
+    For i = LBound(cases) To UBound(cases)
+        kind = cases(i)(0): one = cases(i)(1): ann = cases(i)(2): want = cases(i)(3)
+        Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+        If one Then OneRowFixtureFor(ws, kind).Select Else FixtureFor(ws, kind).Select
+        Core_Insert kind
+        Set c = Core_ActiveChart()
+        AssertTrue Not c Is Nothing, kind & ": nao inseriu (" & Core_LastNotice() & ")"
+        If one Then AssertEqual 1, Geom_ChartCategoryCount(c), kind & ": premissa, uma categoria"
+        shapesBefore = AnnotationShapeCount(c)           ' (os 100% e o Mekko % ja trazem o indicador 100%)
+        Core_ClearLastNotice
+        Core_AddAnnotation ann                          ' sem indices: o formulario nunca pode ser o primeiro passo
+        AssertEqual want, Core_LastNotice(), kind & "/" & ann
+        AssertEqual 1, Core_NoticeCount(), kind & "/" & ann & ": um unico aviso"
+        AssertEqual shapesBefore, AnnotationShapeCount(c), kind & "/" & ann & ": nenhuma forma criada"
+        Teardown wb
+    Next
+    ' O colchete aceita a mesma atividade nas duas pontas (de = ate) e nao pede o formulario: com os indices certos cria a forma.
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    FixtureFor(ws, "gantt").Select
+    Core_Insert "gantt"
+    Set c = Core_ActiveChart()
+    Core_ClearLastNotice
+    Core_AddAnnotation "bracket", 2, 2
+    AssertTrue Not c.Shapes("tqq_ann_bracket_1") Is Nothing, "colchete de uma atividade (de = ate)"
+    AssertEqual 0, Core_NoticeCount(), "sem aviso"
+    Teardown wb
+End Sub
+
+' Escreve a partir de K1 uma tabela de teste com "cols" colunas (categoria + valores) e 2 linhas; devolve a faixa.
+Private Function BadTable(ws As Worksheet, cols As Long) As Range
+    Dim j As Long
+    ws.Range("K1").Value = "Etapa": ws.Range("K2").Value = "A": ws.Range("K3").Value = "B"
+    For j = 2 To cols
+        ws.Cells(1, 10 + j).Value = "S" & (j - 1): ws.Cells(2, 10 + j).Value = 1: ws.Cells(3, 10 + j).Value = 2
+    Next
+    Set BadTable = ws.Range("K1").Resize(3, cols)
+End Function
+
+' "Alterar dados" com dados que o tipo recusa (codigos 6007..6099, validacao dos dados): aviso com a mensagem do tipo, nao o erro generico;
+' o grafico antigo fica intacto (mesmo tipo, mesmo bloco) e nada novo sobra.
+Public Sub Test_Core_RebuildFromRange_ValidationRefusals_NoticeNotGenericError()
+    Dim wb As Workbook, ws As Worksheet, cases As Variant, i As Long, kind As String, c As Chart, want As String, idBefore As String
+    ' tipo; aviso esperado; colunas da tabela recusada (8 = 7 series; 2 = uma coluna de valores so)
+    cases = Array( _
+        Array("waterfall", "A cascata aceita no máximo 6 séries.", 8), _
+        Array("barwaterfall", "A cascata aceita no máximo 6 séries.", 8), _
+        Array("combo", "A combinação precisa de pelo menos 2 colunas de valores: as primeiras viram colunas empilhadas e a última vira linha.", 2), _
+        Array("mekkounits", "Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas.", 2), _
+        Array("gantt", "Gantt: a tabela precisa de 3 colunas: atividade, início e fim (datas). Deixe o fim vazio para um marco.", 2))
+    For i = LBound(cases) To UBound(cases)
+        kind = cases(i)(0): want = cases(i)(1)
+        Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+        FixtureFor(ws, kind).Select
+        Core_Insert kind
+        Set c = Core_ActiveChart()
+        idBefore = Registry_IdFromChart(c)
+        Core_ClearLastNotice
+        AssertFalse Core_RebuildFromRange(c, BadTable(ws, CLng(cases(i)(2)))), kind & ": recusa devolve False"
+        AssertEqual want, Core_LastNotice(), kind & ": aviso do tipo (nao o erro generico)"
+        AssertEqual 1, Core_NoticeCount(), kind & ": um unico aviso"
+        AssertEqual 1, ws.ChartObjects.Count, kind & ": o grafico antigo fica"
+        AssertEqual 1, TqqNameCount(wb), kind & ": nenhum bloco novo"
+        Set c = Core_ActiveChart()
+        AssertEqual idBefore, Registry_IdFromChart(c), kind & ": e o mesmo grafico"
+        AssertEqual kind, Registry_ChartType(c)
+        Teardown wb
+    Next
+End Sub
+
+' numfmt, gap e legenda fora da matriz (Gantt: sem formato numerico nem legenda; linha, area, pizza e Mekko: sem espacamento; cascata de uma
+' serie: sem legenda) avisam e NAO gravam (antes o Gantt gravava o formato em silencio).
+Public Sub Test_Core_SetOption_UnsupportedByMatrix_NoticeNotPersisted()
+    Dim wb As Workbook, ws As Worksheet, cases As Variant, i As Long, kind As String, key As String, val As String, want As String
+    cases = Array( _
+        Array("gantt", "numfmt", "dec1", "'Formato' não se aplica a este tipo de gráfico."), _
+        Array("line", "gap", "80", "Espaço entre colunas não se aplica a este tipo de gráfico."), _
+        Array("area", "gap", "80", "Espaço entre colunas não se aplica a este tipo de gráfico."), _
+        Array("pie", "gap", "80", "Espaço entre colunas não se aplica a este tipo de gráfico."), _
+        Array("mekko", "gap", "80", "Espaço entre colunas não se aplica a este tipo de gráfico."), _
+        Array("gantt", "legend", "none", "Legenda não se aplica a este tipo de gráfico."), _
+        Array("waterfall", "legend", "none", "Legenda não se aplica a este tipo de gráfico."))
+    For i = LBound(cases) To UBound(cases)
+        kind = cases(i)(0): key = cases(i)(1): val = cases(i)(2): want = cases(i)(3)
+        Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+        If kind = "waterfall" Then      ' uma serie so: a legenda da cascata exige varias
+            ws.Range("A1:B1").Value = Array("Etapa", "Valor"): ws.Range("A2:B2").Value = Array("Inicio", 100)
+            ws.Range("A3:B3").Value = Array("Fim", "e"): ws.Range("A1:B3").Select
+        Else
+            FixtureFor(ws, kind).Select
+        End If
+        Core_Insert kind
+        Core_ClearLastNotice
+        Core_SetOption key, val
+        AssertEqual want, Core_LastNotice(), kind & "/" & key
+        AssertEqual 1, Core_NoticeCount(), kind & "/" & key & ": um aviso"
+        AssertTrue Core_GetOption(key) <> val, kind & "/" & key & ": nao persiste (" & Core_GetOption(key) & ")"
+        Teardown wb
+    Next
+End Sub

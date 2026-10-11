@@ -8,8 +8,9 @@ Option Explicit
 ' Rotulos: valor (ShowValue) ou participacao (ShowPercentage: numfmt pct0/pct1); dentro (pizza: InsideEnd; rosca: posicao padrao, sobre
 ' o anel: o Excel recusa DataLabels.Position InsideEnd/OutsideEnd na rosca, erro 1004, e por isso a rosca nunca define a posicao e nao
 ' tem pieout) ou fora (pieout=1: OutsideEnd + nome da categoria + linhas de chamada, sem legenda).
-' Legenda: HasLegend = (legend <> "none") And (pieout <> "1"). Rotulos fora vencem a opcao de legenda (os nomes ja estao nos rotulos);
-' desligar os rotulos fora devolve a legenda que a opcao pede. Pie_ApplyLegend e o unico lugar que aplica essa regra.
+' Legenda: HasLegend = (legend <> "none") And Not (pieout = "1" And labels <> "0"). Rotulos fora LIGADOS vencem a opcao de legenda (os nomes ja
+' estao nos rotulos); desligar os rotulos fora ou os proprios rotulos devolve a legenda que a opcao pede. Pie_ApplyLegend e o unico lugar que
+' aplica essa regra (Pie_SetLabels e Pie_SetOutside a chamam).
 
 Public Function Pie_BuildBlock(wb As Workbook, id As String, data As clsChartData, kind As String) As Range
     Dim blk As Range, body As Range, i As Long, n As Long, srcAddr As String, valAddr As String, valRange As String
@@ -88,6 +89,7 @@ Public Sub Pie_SetLabels(cht As Chart, turnOn As Boolean)
     s.HasDataLabels = turnOn
     Registry_SetOption cht, "labels", IIf(turnOn, "1", "0")
     If turnOn Then Pie_ApplyLabelContent cht
+    Pie_ApplyLegend cht                              ' com rotulos fora, a legenda sai so enquanto os rotulos (com os nomes) estiverem ligados
 End Sub
 
 ' Rotulos fora da pizza (pieout): OutsideEnd, nome da categoria e linhas de chamada, sem legenda (Pie_ApplyLegend). So na pizza: a rosca
@@ -114,10 +116,12 @@ Public Sub Pie_ApplyColors(cht As Chart, paletteName As String)
     Pie_ApplyLabelContent cht
 End Sub
 
-' A legenda da pizza: (legend <> "none") And (pieout <> "1"). Aplica o estado e nao grava opcao nenhuma.
+' A legenda da pizza: (legend <> "none") And Not (pieout = "1" And labels <> "0"). Os rotulos fora trazem o nome da fatia, entao so eles
+' dispensam a legenda: com os rotulos desligados a legenda continua (senao o grafico ficaria sem nome nenhum). Aplica o estado e nao grava
+' opcao nenhuma.
 Public Sub Pie_ApplyLegend(cht As Chart)
     Dim want As Boolean
-    want = (Registry_GetOption(cht, "legend", "right") <> "none") And (Registry_GetOption(cht, "pieout", "0") <> "1")
+    want = (Registry_GetOption(cht, "legend", "right") <> "none") And Not (Registry_GetOption(cht, "pieout", "0") = "1" And Registry_GetOption(cht, "labels", "1") <> "0")
     If want Then
         If Not cht.HasLegend Then cht.HasLegend = True
         cht.Legend.Position = xlLegendPositionRight

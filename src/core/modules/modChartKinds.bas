@@ -77,6 +77,24 @@ Public Function Kinds_Supports(kind As String, feature As String, Optional serie
     If Kinds_Supports And feature = "legend" And Kinds_Family(kind) = "waterfall" Then Kinds_Supports = (seriesCount > 1)
 End Function
 
+' Rotulo (pt-BR) do controle da faixa que aciona o recurso: os avisos de "nao se aplica a este tipo de grafico" citam o botao que o
+' usuario clicou. "" para recurso desconhecido.
+Public Function Kinds_FeatureLabel(feature As String) As String
+    Select Case feature
+        Case "totals":     Kinds_FeatureLabel = "Totais"
+        Case "labels":     Kinds_FeatureLabel = "Rótulos"
+        Case "connectors": Kinds_FeatureLabel = "Conectores"
+        Case "ind100":     Kinds_FeatureLabel = "Indicador 100%"
+        Case "vline":      Kinds_FeatureLabel = "Linha de valor (média)"
+        Case "secondary":  Kinds_FeatureLabel = "Eixo secundário (linha)"
+        Case "pieout":     Kinds_FeatureLabel = "Rótulos fora da pizza"
+        Case "gap":        Kinds_FeatureLabel = "Espaço"
+        Case "legend":     Kinds_FeatureLabel = "Legenda"
+        Case "numfmt":     Kinds_FeatureLabel = "Formato"
+        Case "palette":    Kinds_FeatureLabel = "Paleta"
+    End Select
+End Function
+
 ' O mesmo para um grafico concreto: le o tipo e, na cascata, o numero de series de dados do bloco. E a pergunta que a faixa
 ' (Core_Supports) e os comandos de opcao devem fazer: Kinds_Supports(tipo, recurso) sozinho nega a legenda da cascata.
 Public Function Kinds_SupportsChart(cht As Chart, feature As String) As Boolean

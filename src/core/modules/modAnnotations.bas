@@ -14,6 +14,27 @@ Private Const ANN_BRACKET_STEP As Double = 20   ' cada colchete a mais sobe 20 p
 Private Const ANN_BRACKET_ROOM As Double = 42   ' folga (pt) acima da area interna com um colchete: 25 + rotulo de 13,1 + respiro; +20 por colchete
 Public Const ANN_BRACKET_REFUSAL As String = "O colchete só está disponível em gráficos Gantt."
 
+' Texto da recusa (erro 7001) de uma anotação ("cagr", "diff" ou "bracket") pela matriz de tipos; "" quando o gráfico a suporta. Fonte única
+' das mensagens: Ann_AddCagr/Ann_AddDifference/Ann_AddBracket as levantam e Core_AddAnnotation a consulta ANTES de qualquer outra verificação
+' (formulário de categorias, mínimo de categorias), para uma pizza ou um Gantt de uma linha receberem a mensagem do tipo.
+Public Function Ann_RefusalText(cht As Chart, kind As String) As String
+    Dim ck As String
+    ck = Registry_ChartType(cht)
+    If Kinds_Supports(ck, kind) Then Exit Function
+    Select Case kind
+        Case "cagr"
+            Ann_RefusalText = "A seta CAGR não está disponível para este tipo de gráfico."
+        Case "diff"
+            If Kinds_Is100(ck) And Kinds_Family(ck) <> "mekko" Then     ' o Mekko recebe a mensagem genérica
+                Ann_RefusalText = "A seta de diferença não está disponível para gráficos 100%."
+            Else
+                Ann_RefusalText = "A seta de diferença não está disponível para este tipo de gráfico."
+            End If
+        Case "bracket"
+            Ann_RefusalText = ANN_BRACKET_REFUSAL
+    End Select
+End Function
+
 Public Function Ann_TryCagr(startVal As Double, endVal As Double, periods As Double, ByRef rate As Double) As Boolean
     rate = 0
     If periods <= 0 Or startVal = 0 Then Exit Function
@@ -105,8 +126,9 @@ Private Function Ann_ArrayValue(vals As Variant, i As Long) As Double
 End Function
 
 Public Function Ann_AddCagr(cht As Chart, fromIdx As Long, toIdx As Long) As Shape
-    Dim nm As String, ln As Shape
-    If Not Kinds_Supports(Registry_ChartType(cht), "cagr") Then Err.Raise vbObjectError + 7001, "Ann_AddCagr", "A seta CAGR não está disponível para este tipo de gráfico."
+    Dim nm As String, ln As Shape, refusal As String
+    refusal = Ann_RefusalText(cht, "cagr")
+    If Len(refusal) > 0 Then Err.Raise vbObjectError + 7001, "Ann_AddCagr", refusal
     nm = Ann_NewName(cht, "cagr")
     Set ln = cht.Shapes.AddLine(0, 0, 10, 10)
     ln.Name = nm
@@ -256,15 +278,9 @@ Private Function Ann_BottomEdge(cht As Chart) As Double
 End Function
 
 Public Function Ann_AddDifference(cht As Chart, fromIdx As Long, toIdx As Long) As Shape
-    Dim nm As String, ln As Shape, lvl As Shape, kind As String
-    kind = Registry_ChartType(cht)
-    If Not Kinds_Supports(kind, "diff") Then
-        If Kinds_Is100(kind) And Kinds_Family(kind) <> "mekko" Then     ' o Mekko recebe a mensagem genérica
-            Err.Raise vbObjectError + 7001, "Ann_AddDifference", "A seta de diferença não está disponível para gráficos 100%."
-        Else
-            Err.Raise vbObjectError + 7001, "Ann_AddDifference", "A seta de diferença não está disponível para este tipo de gráfico."
-        End If
-    End If
+    Dim nm As String, ln As Shape, lvl As Shape, refusal As String
+    refusal = Ann_RefusalText(cht, "diff")
+    If Len(refusal) > 0 Then Err.Raise vbObjectError + 7001, "Ann_AddDifference", refusal
     nm = Ann_NewName(cht, "diff")
     Set ln = cht.Shapes.AddLine(0, 0, 0, 10)
     ln.Name = nm
@@ -289,8 +305,9 @@ End Function
 ' nm_lbl com o periodo (dd/mm - dd/mm) acima da linha. Ann_Refresh posiciona (Ann_LayoutBracket); Ann_EnsureRoom abre a folga de cima (42 pt +
 ' 20 pt por colchete a mais). Recusa (7001) fora do Gantt.
 Public Function Ann_AddBracket(cht As Chart, fromIdx As Long, toIdx As Long) As Shape
-    Dim nm As String, ln As Shape, tk As Shape, lbl As Shape, sfx As Variant
-    If Not Kinds_Supports(Registry_ChartType(cht), "bracket") Then Err.Raise vbObjectError + 7001, "Ann_AddBracket", ANN_BRACKET_REFUSAL
+    Dim nm As String, ln As Shape, tk As Shape, lbl As Shape, sfx As Variant, refusal As String
+    refusal = Ann_RefusalText(cht, "bracket")
+    If Len(refusal) > 0 Then Err.Raise vbObjectError + 7001, "Ann_AddBracket", refusal
     nm = Ann_NewName(cht, "bracket")
     Set ln = cht.Shapes.AddLine(0, 0, 10, 0)
     ln.Name = nm

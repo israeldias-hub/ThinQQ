@@ -163,7 +163,8 @@ Public Sub Test_Pie_NegativeZeroText_AndSevenSlices()
     AssertAlmost 50 / 110, body.Cells(2, 3).Value
     AssertEqual 7, s.Points.Count
     pal = Style_Palette("padrao")
-    AssertEqual CLng(pal(0)), s.Points(7).Format.Fill.ForeColor.RGB, "setima fatia volta ao inicio da paleta"
+    AssertEqual CLng(pal(3)), s.Points(7).Format.Fill.ForeColor.RGB, "setima fatia: pal(3), nao repete a da 1a (vizinha dela no circulo)"
+    AssertTrue s.Points(7).Format.Fill.ForeColor.RGB <> s.Points(1).Format.Fill.ForeColor.RGB, "a ultima fatia difere da primeira"
     AssertEqual "", s.Points(2).DataLabel.Text, "fatia zero sem rotulo"
     Pie_SetOutside cht, True
     ForceLayout cht
@@ -525,7 +526,7 @@ Public Sub Test_Core_Pie_Refusals_NoticeAndNothingSaved()
     AssertEqual "right", Registry_GetOption(cht, "legend"): AssertTrue cht.HasLegend
     Core_ClearLastNotice
     Core_SetToggle "vline", True
-    AssertEqual "A linha de valor não está disponível para este tipo de gráfico.", Core_LastNotice()
+    AssertEqual "'Linha de valor (média)' não se aplica a este tipo de gráfico.", Core_LastNotice()
     Core_ClearLastNotice
     Core_AddAnnotation "cagr", 1, 3
     AssertEqual "A seta CAGR não está disponível para este tipo de gráfico.", Core_LastNotice()
@@ -614,4 +615,75 @@ Public Sub Test_Pie_SafeRefresh_KeepsLabelsAndCreatesNoShapes()
     AssertFalse Core_ChartSourceMismatch(cht), "origem do tamanho esperado"
     Watchers_Stop
     CloseTemp wb
+End Sub
+
+' Tarefa 11 (M1 da Tarefa 8): rotulos fora SEM rotulos deixavam o grafico sem legenda e sem nomes. A legenda so some quando os nomes estao
+' nos rotulos: (legend <> "none") And Not (pieout = "1" And labels <> "0"). Vale nas duas ordens, com legend=none e depois de "Alterar dados".
+Public Sub Test_Pie_OutsideWithLabelsOff_KeepsLegend()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("A1:B4").Select
+    Core_Insert "pie"
+    Set cht = Core_ActiveChart()
+    Core_SetToggle "pieout", True
+    AssertFalse cht.HasLegend, "rotulos fora ligados: os nomes estao nos rotulos, sem legenda"
+    Core_SetToggle "labels", False
+    AssertTrue cht.HasLegend, "rotulos desligados: a legenda volta (senao nao haveria nome em lugar nenhum)"
+    AssertEqual 3, cht.Legend.LegendEntries.Count
+    AssertEqual "1", Registry_GetOption(cht, "pieout"): AssertEqual "right", Registry_GetOption(cht, "legend"), "a opcao de legenda nao e reescrita"
+    Core_SetToggle "labels", True
+    AssertFalse cht.HasLegend, "rotulos religados: a legenda sai de novo"
+    ' outra ordem: rotulos desligados primeiro, depois os rotulos fora
+    Core_SetToggle "pieout", False
+    Core_SetToggle "labels", False
+    AssertTrue cht.HasLegend
+    Core_SetToggle "pieout", True
+    AssertTrue cht.HasLegend, "pieout ligado com rotulos desligados mantem a legenda"
+    ' legend=none vence sempre
+    Core_SetOption "legend", "none"
+    AssertFalse cht.HasLegend
+    Core_SetOption "legend", "right"
+    AssertTrue cht.HasLegend
+    ' Alterar dados com pieout=1 e labels=0: a legenda continua
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("A1:B4"))
+    Set cht = Core_ActiveChart()
+    AssertEqual "1", Registry_GetOption(cht, "pieout"): AssertEqual "0", Registry_GetOption(cht, "labels")
+    AssertTrue cht.HasLegend, "apos Alterar dados: pieout=1 e labels=0 mantem a legenda"
+    AssertFalse cht.SeriesCollection(1).HasDataLabels
+    Teardown wb
+End Sub
+
+' Tarefa 11 (M2 da Tarefa 8): com n > 6 e (n - 1) Mod 6 = 0 a ultima fatia cairia na cor da primeira (e as duas sao vizinhas no circulo):
+' usa pal(3). Nos demais n o ciclo e o de sempre (a fatia k recebe pal((k - 1) Mod 6)). Expectativas escritas a mao, sem a formula de producao.
+Public Sub Test_Pie_LastSlice_DiffersFromFirst_WhenCycleWraps()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, s As Series, pal As Variant, n As Variant, i As Long, want As Variant
+    Dim idx13 As Variant, idx8 As Variant
+    idx13 = Array(0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 3)      ' 13 fatias: a 13a (que seria pal(0)) vira pal(3)
+    idx8 = Array(0, 1, 2, 3, 4, 5, 0, 1)                      ' 8 fatias: o ciclo normal (a 8a e pal(1), vizinha da 1a que e pal(0))
+    pal = Style_Palette("padrao")
+    For Each n In Array(13, 8)
+        Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+        ws.Range("A1:B1").Value = Array("Produto", "Vendas")
+        For i = 1 To n
+            ws.Cells(i + 1, 1).Value = "P" & i: ws.Cells(i + 1, 2).Value = 10 + i
+        Next
+        Set d = ChartData_FromRange(ws.Range("A1").Resize(n + 1, 2))
+        Set cht = Pie_Insert(ws, d, IIf(n = 13, "pie", "doughnut")).Chart
+        Set s = cht.SeriesCollection(1)
+        If n = 13 Then want = idx13 Else want = idx8
+        AssertEqual n, s.Points.Count
+        For i = 1 To n
+            AssertEqual CLng(pal(want(i - 1))), s.Points(i).Format.Fill.ForeColor.RGB, n & " fatias: fatia " & i
+        Next
+        AssertTrue s.Points(n).Format.Fill.ForeColor.RGB <> s.Points(1).Format.Fill.ForeColor.RGB, n & " fatias: a ultima difere da primeira"
+        ' a regra vale tambem para a paleta trocada pela API
+        Core_ClearLastNotice
+        cht.Parent.Select
+        Core_SetOption "palette", "cinza"
+        pal = Style_Palette("cinza")
+        AssertEqual CLng(pal(want(n - 1))), s.Points(n).Format.Fill.ForeColor.RGB, n & " fatias: ultima fatia na paleta cinza"
+        AssertTrue s.Points(n).Format.Fill.ForeColor.RGB <> s.Points(1).Format.Fill.ForeColor.RGB, n & " fatias: cinza, a ultima difere da primeira"
+        pal = Style_Palette("padrao")
+        Teardown wb
+    Next
 End Sub

@@ -304,3 +304,19 @@ Public Sub Test_Labels_Horizontal_RightLeft_And_Refresh_IsolatesUnplottedPoint()
     AssertEqual xlLabelPositionLeft, s.Points(4).DataLabel.Position, "ponto 4 atualizado mesmo com o ponto 3 nao plotado"
     CloseTemp wb
 End Sub
+
+' Os rotulos exatos dos controles da faixa (Tarefa 12): os avisos de "nao se aplica" citam o botao que o usuario clicou.
+Public Sub Test_Kinds_FeatureLabel_ExactRibbonLabels()
+    AssertEqual "Totais", Kinds_FeatureLabel("totals")
+    AssertEqual "Rótulos", Kinds_FeatureLabel("labels")
+    AssertEqual "Conectores", Kinds_FeatureLabel("connectors")
+    AssertEqual "Indicador 100%", Kinds_FeatureLabel("ind100")
+    AssertEqual "Linha de valor (média)", Kinds_FeatureLabel("vline")
+    AssertEqual "Eixo secundário (linha)", Kinds_FeatureLabel("secondary")
+    AssertEqual "Rótulos fora da pizza", Kinds_FeatureLabel("pieout")
+    AssertEqual "Espaço", Kinds_FeatureLabel("gap")
+    AssertEqual "Legenda", Kinds_FeatureLabel("legend")
+    AssertEqual "Formato", Kinds_FeatureLabel("numfmt")
+    AssertEqual "Paleta", Kinds_FeatureLabel("palette")
+    AssertEqual "", Kinds_FeatureLabel("xyz"), "recurso desconhecido: texto vazio"
+End Sub

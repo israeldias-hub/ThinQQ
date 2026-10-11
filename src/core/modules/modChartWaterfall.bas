@@ -285,9 +285,22 @@ Fail:
     Err.Raise en, es, ed
 End Function
 
+' Indice da paleta da serie j (1..WF_MAX_SERIES) numa cascata de varias series: as series percorrem o ciclo 0, 1, 2, 4, 5 (pulam o indice 3,
+' que e a cor dos totais); com 6 series a 6a volta ao 0. Escrito como tabela (nao como formula): e a regra do ruling de cor da Tarefa 4.
+Private Function SeriesPaletteIndex(j As Long) As Long
+    Select Case (j - 1) Mod 5
+        Case 0: SeriesPaletteIndex = 0
+        Case 1: SeriesPaletteIndex = 1
+        Case 2: SeriesPaletteIndex = 2
+        Case 3: SeriesPaletteIndex = 4
+        Case Else: SeriesPaletteIndex = 5
+    End Select
+End Function
+
 ' Cor das series de dados e das partes auxiliares. Uma serie: como na Fase 1 (alta/queda/total). Varias: todas as partes
-' da serie j (UP/DN/UPN/DNN) recebem a cor j da paleta (ciclo de 6) e os totais o cinza (indice 3); o j das auxiliares
-' vem do sufixo _j do nome e o das series de dados (UP_j, com o nome da coluna) da ordem entre as nao auxiliares.
+' da serie j (UP/DN/UPN/DNN) recebem a cor da serie j (SeriesPaletteIndex: ciclo 0, 1, 2, 4, 5) e os totais SEMPRE o cinza (indice 3, que
+' nenhuma serie usa); o j das auxiliares vem do sufixo _j do nome e o das series de dados (UP_j, com o nome da coluna) da ordem entre
+' as nao auxiliares.
 Public Sub Waterfall_ApplyColors(cht As Chart, paletteName As String)
     Dim pal As Variant, s As Series, multi As Boolean, nm As String, j As Long, k As Long, p As Long
     pal = Style_Palette(paletteName)
@@ -308,7 +321,7 @@ Public Sub Waterfall_ApplyColors(cht As Chart, paletteName As String)
                 k = k + 1
                 j = k
             End If
-            If j > 0 Then Style_SetColor s.Format.Fill.ForeColor, pal((j - 1) Mod 6): s.Format.Line.Visible = msoFalse
+            If j > 0 Then Style_SetColor s.Format.Fill.ForeColor, pal(SeriesPaletteIndex(j)): s.Format.Line.Visible = msoFalse
         Else
             Select Case nm
                 Case "tqq_uppos", "tqq_upneg"

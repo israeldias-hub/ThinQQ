@@ -120,15 +120,19 @@ Public Sub Style_ApplySeriesColors(cht As Chart, paletteName As String, Optional
 End Sub
 
 ' Cores por PONTO da pizza e da rosca (uma serie so): VaryByCategories e a fatia k recebe pal((k - 1) Mod 6) (a 7a volta ao inicio da
-' paleta), com borda branca de 1 pt que separa as fatias. Nao mexe nos rotulos: quem chama (Pie_ApplyColors) refaz a cor da fonte.
+' paleta), com borda branca de 1 pt que separa as fatias. Excecao: com n > 6 e (n - 1) Mod 6 = 0 (7, 13, 19 fatias) a ultima cairia na cor da
+' primeira, sua vizinha no circulo; ela recebe pal(3). Nao mexe nos rotulos: quem chama (Pie_ApplyColors) refaz a cor da fonte.
 Public Sub Style_ApplyPointColors(cht As Chart, paletteName As String)
-    Dim pal As Variant, s As Series, k As Long
+    Dim pal As Variant, s As Series, k As Long, n As Long, idx As Long
     If cht.SeriesCollection.Count = 0 Then Exit Sub
     pal = Style_Palette(paletteName)
     Set s = cht.SeriesCollection(1)
     cht.ChartGroups(1).VaryByCategories = True
-    For k = 1 To s.Points.Count
-        Style_SetColor s.Points(k).Format.Fill.ForeColor, pal((k - 1) Mod 6)
+    n = s.Points.Count
+    For k = 1 To n
+        idx = (k - 1) Mod 6
+        If k = n And n > 6 And idx = 0 Then idx = 3
+        Style_SetColor s.Points(k).Format.Fill.ForeColor, pal(idx)
     Next
     s.Format.Line.Visible = msoTrue
     s.Format.Line.ForeColor.RGB = RGB(255, 255, 255)

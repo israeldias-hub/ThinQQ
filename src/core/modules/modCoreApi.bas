@@ -155,59 +155,46 @@ Public Function Core_GetToggle(key As String) As Boolean
     Core_GetToggle = (Registry_GetOption(c, key, "0") = "1")
 End Function
 
-' Aplica o toggle no gráfico informado (sem depender da seleção). Propaga erros.
+' Aplica o toggle no gráfico informado (sem depender da seleção). Propaga erros. Chaves fora da lista de toggles saem sem fazer nada
+' (silenciosas, como sempre); para uma chave da lista a MATRIZ de capacidades decide: tipo sem o recurso => erro 7002 (Core_SetToggle mostra o
+' aviso e nada é gravado); com o recurso, despacha pela família do tipo.
 Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
     Dim kind As String, fam As String
+    Select Case key
+        Case "totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout"
+        Case Else: Exit Sub
+    End Select
     kind = Registry_ChartType(c)
+    If Not Kinds_Supports(kind, key) Then
+        Err.Raise vbObjectError + 7002, "Core", "'" & Kinds_FeatureLabel(key) & "' não se aplica a este tipo de gráfico."
+    End If
     fam = Kinds_Family(kind)
-    If fam = "pie" Then
-        ' Pizza e rosca: so os rotulos (nativos) e os rotulos fora (a rosca recusa: 7002). Totais, conectores e eixo secundario nao existem
-        ' e nao gravam nada (Core_RebuildFromRange chama todos); linha de valor e indicador 100% seguem para a recusa propria (7002).
-        Select Case key
-            Case "labels": Pie_SetLabels c, value: Exit Sub
-            Case "pieout": Pie_SetOutside c, value: Exit Sub
-            Case "ind100", "vline"
-            Case Else: Exit Sub
-        End Select
-    End If
-    If fam = "gantt" Then
-        ' Gantt: so os rotulos a direita das barras (Gantt_SetLabels). Totais, conectores e eixo secundario nao existem e nao gravam nada
-        ' (Core_RebuildFromRange chama todos); linha de valor, indicador 100% e rotulos fora seguem para a recusa propria (7002).
-        Select Case key
-            Case "labels": Gantt_SetLabels c, value: Exit Sub
-            Case "ind100", "vline", "pieout"
-            Case Else: Exit Sub
-        End Select
-    End If
     Select Case key
         Case "totals"
-            If fam = "area" Then
-                Area_SetTotals c, value
-            ElseIf fam = "mekko" Then
-                Mekko_SetTotals c, value
-            ElseIf fam <> "waterfall" Then
-                Stacked_SetTotals c, value              ' inclui a combinacao (so os totais das colunas)
-            End If
+            Select Case fam
+                Case "area": Area_SetTotals c, value
+                Case "mekko": Mekko_SetTotals c, value
+                Case Else: Stacked_SetTotals c, value       ' colunas, barras (empilhadas e 100%) e a combinacao (so os totais das colunas)
+            End Select
         Case "labels"
-            If fam = "waterfall" Then
-                Waterfall_SetLabels c, value
-            ElseIf fam = "area" Then
-                Area_SetLabels c, value
-            ElseIf fam = "mekko" Then
-                Mekko_SetLabels c, value
-            Else
-                Stacked_SetLabels c, value              ' inclui a combinacao
-            End If
+            Select Case fam
+                Case "waterfall": Waterfall_SetLabels c, value
+                Case "area": Area_SetLabels c, value
+                Case "mekko": Mekko_SetLabels c, value
+                Case "gantt": Gantt_SetLabels c, value
+                Case "pie": Pie_SetLabels c, value
+                Case Else: Stacked_SetLabels c, value       ' colunas, barras, linha e a combinacao
+            End Select
         Case "connectors"
             If fam = "waterfall" Then Ann_SetWaterfallConnectors c, value Else Stacked_SetConnectors c, value
-        Case "secondary"
-            Combo_SetSecondary c, value                 ' so a combinacao (nos demais tipos nao faz nada nem grava a opcao)
-        Case "pieout"
-            Pie_SetOutside c, value                     ' recusa (7002) fora da pizza (a pizza e a rosca saem acima): Core_SetToggle mostra o aviso
         Case "ind100"
-            Deco_SetInd100 c, value                     ' recusa (7002) fora dos 100% e Mekko (%): Core_SetToggle mostra o aviso
+            Deco_SetInd100 c, value
         Case "vline"
-            Deco_SetValueLine c, value                  ' recusa (7002) nos tipos sem linha de valor ou em grafico antigo
+            Deco_SetValueLine c, value                      ' recusa (7002) em grafico antigo, sem os dados da linha de valor
+        Case "secondary"
+            Combo_SetSecondary c, value
+        Case "pieout"
+            Pie_SetOutside c, value
     End Select
 End Sub
 
@@ -240,11 +227,22 @@ Private Function ValidateOption(key As String, value As String) As String
     End Select
 End Function
 
-' Aplica a opção no gráfico informado (sem depender da seleção). Valida antes de persistir. Propaga erros.
+' Texto do aviso quando o tipo de gráfico não tem a opção (erro 7002; Core_SetOption mostra e nada é gravado).
+Private Function OptionNotApplicableText(key As String) As String
+    Select Case key
+        Case "gap": OptionNotApplicableText = "Espaço entre colunas não se aplica a este tipo de gráfico."
+        Case "legend": OptionNotApplicableText = "Legenda não se aplica a este tipo de gráfico."
+        Case Else: OptionNotApplicableText = "'" & Kinds_FeatureLabel(key) & "' não se aplica a este tipo de gráfico."
+    End Select
+End Function
+
+' Aplica a opção no gráfico informado (sem depender da seleção). Valida o valor e consulta a matriz de capacidades ANTES de gravar: opção que
+' o tipo não tem (gap, legenda da cascata de uma série e do Gantt, formato do Gantt) => erro 7002 e nada é gravado. Propaga erros.
 Private Sub ApplyOption(c As Chart, key As String, value As String)
     Dim msg As String
     msg = ValidateOption(key, value)
     If Len(msg) > 0 Then Err.Raise vbObjectError + 7100, "Core", msg
+    If Not Kinds_SupportsChart(c, key) Then Err.Raise vbObjectError + 7002, "Core", OptionNotApplicableText(key)
     If key = "legend" Then
         ' A legenda valida, aplica e SO ENTAO grava (Deco_SetLegend): uma recusa (7002) nao pode deixar legend=lineend gravado.
         ' As demais opcoes gravam antes de despachar porque o despacho le a opcao do registro (ex.: numfmt, em Labels_SegmentFormat).
@@ -254,13 +252,13 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
     Registry_SetOption c, key, value
     Select Case key
         Case "numfmt"
-            Style_ApplyNumberFormat c, Style_NumberFormat(value)
+            Style_ApplyNumberFormat c, Style_NumberFormat(value)       ' despacha por familia (pizza: Pie_ApplyNumberFormat; Mekko: Mekko_ApplyNumberFormat)
             Chart_EnsureRoomAfterChange c               ' rotulos de total mais largos: refaz a folga dos totais e das setas
         Case "palette"
             Select Case Kinds_Family(Registry_ChartType(c))
                 Case "waterfall": Waterfall_ApplyColors c, value
                 Case "area": Area_ApplyColors c, value
-                Case "pie": Pie_ApplyColors c, value
+                Case "pie": Pie_ApplyColors c, value           ' cores por fatia (Style_ApplyPointColors) e fonte dos rotulos por contraste
                 Case "mekko": Mekko_ApplyColors c, value        ' separadores de 1,5 pt e contraste dos rotulos (por ponto)
                 Case "gantt": Gantt_ApplyColors c, value        ' barras pal(1) e marcos pal(0) (as series do Gantt sao todas tqq_*)
                 Case Else: Style_ApplySeriesColors c, value
@@ -301,15 +299,7 @@ Public Sub Core_SetOption(key As String, value As String)
     If c Is Nothing Then Exit Sub
     msg = ValidateOption(key, value)
     If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
-    If key = "gap" And Registry_ChartType(c) = "line" Then
-        Core_Notify "Espaço entre colunas não se aplica a gráficos de linha.", vbInformation
-        Exit Sub
-    End If
-    If key = "gap" And Not Kinds_Supports(Registry_ChartType(c), "gap") Then
-        Core_Notify "Espaço entre colunas não se aplica a este tipo de gráfico.", vbInformation
-        Exit Sub
-    End If
-    ApplyOption c, key, value
+    ApplyOption c, key, value                            ' recusa pela matriz (7002) antes de gravar: o Fail: abaixo mostra o aviso
     Core_SafeRefresh c
     Exit Sub
 Fail:
@@ -320,29 +310,37 @@ Fail:
     End If
 End Sub
 
-' Setas (cagr, diff) e colchete (bracket, so no Gantt). O colchete vale sobre UMA atividade (de = ate): exige n >= 1 e so pede as atividades
-' quando de/ate nao formam um intervalo valido (de > ate ou fora de 1..n); recusado (7001) antes do formulario fora do Gantt. As setas seguem
-' exigindo n >= 2 e de < ate.
+' Setas (cagr, diff) e colchete (bracket, só no Gantt). A MATRIZ de tipos vem ANTES de qualquer outra verificação (inclusive a de poucas
+' categorias e o formulário): tipo sem a anotação => erro 7001 com a mensagem do tipo (Ann_RefusalText), mostrada como aviso sem abrir formulário
+' (uma pizza ou um Gantt de uma linha recebem a mensagem do tipo, não "pelo menos 2 categorias"). Depois valem as regras de índices: o colchete
+' vale sobre UMA atividade (de = até): exige n >= 1 e de <= até; as setas exigem n >= 2 e de < até. Índices fora da regra abrem o formulário.
+' Tipo de anotação desconhecido sai em silêncio (como as chaves desconhecidas de Core_SetToggle).
 Public Sub Core_AddAnnotation(kind As String, Optional fromIdx As Long = 0, Optional toIdx As Long = 0)
     On Error GoTo Fail
-    Dim c As Chart, n As Long
+    Dim c As Chart, n As Long, refusal As String, isBracket As Boolean
+    Select Case kind
+        Case "cagr", "diff", "bracket"
+        Case Else: Exit Sub
+    End Select
     Set c = Core_ActiveChart()
     If c Is Nothing Then Exit Sub
+    refusal = Ann_RefusalText(c, kind)
+    If Len(refusal) > 0 Then Err.Raise vbObjectError + 7001, "Core_AddAnnotation", refusal
+    isBracket = (kind = "bracket")
     n = Geom_ChartCategoryCount(c)
-    If kind = "bracket" Then
-        If Not Kinds_SupportsChart(c, "bracket") Then Err.Raise vbObjectError + 7001, "Core_AddAnnotation", ANN_BRACKET_REFUSAL
+    If isBracket Then
         If n < 1 Then Core_Notify "O gráfico precisa de pelo menos 1 atividade.": Exit Sub
-        If fromIdx < 1 Or toIdx > n Or fromIdx > toIdx Then
-            If Not Core_AskCategories(c, n, fromIdx, toIdx, True) Then Exit Sub
-        End If
-        Ann_AddBracket c, fromIdx, toIdx
-        Exit Sub
+    ElseIf n < 2 Then
+        Core_Notify "O gráfico precisa de pelo menos 2 categorias.": Exit Sub
     End If
-    If n < 2 Then Core_Notify "O gráfico precisa de pelo menos 2 categorias.": Exit Sub
-    If fromIdx < 1 Or toIdx > n Or fromIdx >= toIdx Then
-        If Not Core_AskCategories(c, n, fromIdx, toIdx) Then Exit Sub
+    If fromIdx < 1 Or toIdx > n Or IIf(isBracket, fromIdx > toIdx, fromIdx >= toIdx) Then
+        If Not Core_AskCategories(c, n, fromIdx, toIdx, isBracket) Then Exit Sub
     End If
-    If kind = "cagr" Then Ann_AddCagr c, fromIdx, toIdx Else Ann_AddDifference c, fromIdx, toIdx
+    Select Case kind
+        Case "cagr": Ann_AddCagr c, fromIdx, toIdx
+        Case "diff": Ann_AddDifference c, fromIdx, toIdx
+        Case Else: Ann_AddBracket c, fromIdx, toIdx
+    End Select
     Exit Sub
 Fail:
     If Err.Number = vbObjectError + 7001 Then
@@ -647,15 +645,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     On Error GoTo FailNew
     Registry_Block(nc).Cells(1, 4).Value = opts
     Registry_SetOption nc, "n", CStr(data.CategoryCount)     ' as opções antigas trazem o n da tabela anterior
-    ApplyOption nc, "numfmt", Registry_GetOption(nc, "numfmt", "int")
-    ApplyOption nc, "palette", Registry_GetOption(nc, "palette", "padrao")
-    If Len(Registry_GetOption(nc, "gap", "")) > 0 Then ApplyOption nc, "gap", Registry_GetOption(nc, "gap", "")
-    ApplyToggle nc, "totals", Registry_GetOption(nc, "totals", "0") = "1"
-    ApplyToggle nc, "labels", Registry_GetOption(nc, "labels", "1") = "1"      ' pizza: aplica tambem os rotulos fora (pieout, copiado nas opcoes)
-    ApplyToggle nc, "connectors", Registry_GetOption(nc, "connectors", "0") = "1"
-    ApplyToggle nc, "secondary", Registry_GetOption(nc, "secondary", "0") = "1"      ' so a combinacao: a escolha do usuario, nao o padrao pelos dados novos
-    ReapplySavedDecorations nc                  ' linha de valor, indicador 100% e mesma escala: a escolha salva do usuario, nao o padrao do Insert
-    ReapplySavedLegend nc                       ' depois dos toggles: "fim da linha" depende dos rotulos ligados
+    ReapplyOptions nc                           ' formato, paleta, espaco, alternadores, escala fixa e legenda: as ESCOLHAS salvas do usuario
     oldCo.Delete
     ' A partir daqui o gráfico antigo não existe mais: nada pode apagar o novo. Falhas só são registradas.
     On Error Resume Next
@@ -696,17 +686,27 @@ Fail:
     End If
 End Function
 
-' Reaplica as decoracoes que o usuario tinha (as opcoes foram copiadas do grafico antigo para o novo): o Insert do novo grafico criou o
-' PADRAO (indicador 100% ligado nos 100%, sem linha de valor, eixo automatico) e a opcao salva e uma ESCOLHA, nao o estado real: um
-' indicador desligado pelo usuario continua desligado, a linha de valor ligada volta e a escala fixa (vmin/vmax, Mesma escala) e reaplicada
-' ao eixo (os dados novos nao a mudam: quem quer outra escala usa Mesma escala de novo). Opcao sem a chave: o padrao (indicador ligado,
-' linha de valor desligada). So nos tipos com o recurso. Propaga erros (Core_RebuildFromRange descarta o grafico novo e mantem o antigo).
-Private Sub ReapplySavedDecorations(nc As Chart)
-    Dim kind As String
+' Reaplica no gráfico NOVO as escolhas do usuário (as opções foram copiadas do gráfico antigo): o Insert criou o PADRÃO (rótulos ligados,
+' indicador 100% ligado nos 100%, sem linha de valor, eixo automático, legenda à direita) e a opção salva é uma ESCOLHA, nunca o estado real:
+' um indicador ou rótulo desligado pelo usuário continua desligado, a linha de valor ligada volta e a escala fixa (vmin/vmax, Mesma escala) é
+' reaplicada ao eixo (os dados novos não a mudam: quem quer outra escala usa Mesma escala de novo). Só o que o tipo suporta (Kinds_Supports);
+' valores ausentes: rótulos e indicador 100% ligados, os demais alternadores desligados. Ordem: formato, paleta, espaço, alternadores (rótulos
+' antes da legenda: "fim da linha" depende deles), escala fixa e, por último, a legenda. Fica aqui a lista única do que "Alterar dados" reaplica.
+' Propaga erros (Core_RebuildFromRange descarta o gráfico novo e mantém o antigo); a legenda só registra (ReapplyLegend).
+Private Sub ReapplyOptions(nc As Chart)
+    Dim kind As String, k As Variant, dflt As String
     kind = Registry_ChartType(nc)
-    If Kinds_Supports(kind, "ind100") Then Deco_SetInd100 nc, (Registry_GetOption(nc, "ind100", "1") <> "0")
-    If Kinds_Supports(kind, "vline") Then Deco_SetValueLine nc, (Registry_GetOption(nc, "vline", "0") = "1")
+    If Kinds_Supports(kind, "numfmt") Then ApplyOption nc, "numfmt", Registry_GetOption(nc, "numfmt", "int")
+    ApplyOption nc, "palette", Registry_GetOption(nc, "palette", "padrao")
+    If Kinds_Supports(kind, "gap") And Len(Registry_GetOption(nc, "gap", "")) > 0 Then ApplyOption nc, "gap", Registry_GetOption(nc, "gap", "")
+    For Each k In Array("totals", "labels", "connectors", "secondary", "ind100", "vline", "pieout")
+        If Kinds_Supports(kind, CStr(k)) Then
+            dflt = IIf(k = "labels" Or k = "ind100", "1", "0")
+            ApplyToggle nc, CStr(k), (Registry_GetOption(nc, CStr(k), dflt) = "1")      ' pizza: rotulos fora (pieout) tambem aplicados aqui
+        End If
+    Next
     Deco_ApplyFixedScale nc
+    ReapplyLegend nc
 End Sub
 
 ' Reaplica a opção de legenda que o usuário tinha (copiada do gráfico antigo para o novo pelas opções): a opção salva é uma
@@ -714,7 +714,7 @@ End Sub
 ' uma série); aqui "none"/"lineend" voltam a valer. Tipo sem legenda possível (cascata de uma série, Gantt): a escolha salva
 ' fica como está (o gráfico não tem legenda; se a tabela voltar a ter várias séries, a escolha volta a valer). Sem opção salva
 ' (gráfico sem a chave), fica o estado que o Insert produziu e a opção passa a refleti-lo. Nunca propaga erro (registra).
-Private Sub ReapplySavedLegend(nc As Chart)
+Private Sub ReapplyLegend(nc As Chart)
     Dim mode As String
     On Error GoTo Fail
     mode = Registry_GetOption(nc, "legend", "")
@@ -727,7 +727,7 @@ Private Sub ReapplySavedLegend(nc As Chart)
     Deco_SetLegend nc, mode
     Exit Sub
 Fail:
-    Errors_Log "ReapplySavedLegend" & vbTab & Err.Number & vbTab & Err.Description
+    Errors_Log "ReapplyLegend" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
 
 ' Substitui o arquivo do loader (registrado em PendingLoaderPath) e o recarrega.

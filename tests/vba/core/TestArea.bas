@@ -543,8 +543,10 @@ Public Sub Test_Core_Area_TogglesOptionsAndRefusals()
     AssertTrue Chart_FindSeries(cht, "tqq_lbl_1") Is Nothing
     Core_SetToggle "labels", True
     AssertEqual "10", Chart_FindSeries(cht, "tqq_lbl_1").Points(1).DataLabel.Text
+    Core_ClearLastNotice
     Core_SetToggle "connectors", True
-    AssertEqual "0", Core_GetOption("connectors"), "area nao tem conectores"
+    AssertEqual "'Conectores' não se aplica a este tipo de gráfico.", Core_LastNotice(), "area nao tem conectores: aviso (Tarefa 11)"
+    AssertEqual "", Core_GetOption("connectors"), "area nao tem conectores: a opcao nem e gravada"
     Core_SetOption "numfmt", "dec1"
     AssertEqual "10" & Application.International(xlDecimalSeparator) & "0", Chart_FindSeries(cht, "tqq_lbl_1").Points(1).DataLabel.Text, "numfmt chega aos rotulos de segmento"
     AssertEqual "35" & Application.International(xlDecimalSeparator) & "0", Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Text, "e aos totais"

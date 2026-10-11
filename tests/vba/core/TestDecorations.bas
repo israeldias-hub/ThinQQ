@@ -591,7 +591,7 @@ Public Sub Test_Core_Toggles_Ind100_And_VLine_ThroughApi()
     AssertFalse Core_Supports("ind100")
     Core_ClearLastNotice
     Core_SetToggle "ind100", True
-    AssertEqual "O indicador 100% só existe em gráficos 100% e Mekko (%).", Core_LastNotice()
+    AssertEqual "'Indicador 100%' não se aplica a este tipo de gráfico.", Core_LastNotice()
     AssertFalse Core_GetToggle("ind100")
     AssertTrue Core_Supports("vline")
     Core_SetToggle "vline", True

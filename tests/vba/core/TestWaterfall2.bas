@@ -454,7 +454,7 @@ End Sub
 
 ' Limite: 6 series (a paleta tem 6 cores) e a cor de cada serie e de suas partes.
 Public Sub Test_WaterfallMulti_SixSeries_Boundary()
-    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, pal As Variant, j As Long, blk As Range, ends() As Double
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, pal As Variant, j As Long, blk As Range, ends() As Double, want As Variant
     Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Seis"
     ws.Range("A1:G1").Value = Array("Etapa", "S1", "S2", "S3", "S4", "S5", "S6")
     ws.Range("A2:G2").Value = Array("x", 1, 2, 3, 4, 5, 6)
@@ -466,10 +466,11 @@ Public Sub Test_WaterfallMulti_SixSeries_Boundary()
     AssertEqual 80, blk.Columns.Count: AssertEqual 6, Waterfall_SeriesCount(cht)
     AssertEqual 33, cht.SeriesCollection.Count, "base + 24 partes + total + 6 rotulos de segmento + rotulo de total"
     pal = Style_Palette("padrao")
+    want = Array(0, 1, 2, 4, 5, 0)          ' as series pulam pal(3) (cor dos totais): ciclo 0, 1, 2, 4, 5 (Tarefa 11)
     For j = 1 To 6
-        AssertEqual CLng(pal(j - 1)), Chart_FindSeries(cht, "S" & j).Format.Fill.ForeColor.RGB, "serie " & j
-        AssertEqual CLng(pal(j - 1)), Chart_FindSeries(cht, "tqq_upn_" & j).Format.Fill.ForeColor.RGB
-        AssertEqual CLng(pal(j - 1)), Chart_FindSeries(cht, "tqq_dn_" & j).Format.Fill.ForeColor.RGB
+        AssertEqual CLng(pal(want(j - 1))), Chart_FindSeries(cht, "S" & j).Format.Fill.ForeColor.RGB, "serie " & j
+        AssertEqual CLng(pal(want(j - 1))), Chart_FindSeries(cht, "tqq_upn_" & j).Format.Fill.ForeColor.RGB
+        AssertEqual CLng(pal(want(j - 1))), Chart_FindSeries(cht, "tqq_dn_" & j).Format.Fill.ForeColor.RGB
     Next
     AssertEqual 6, cht.Legend.LegendEntries.Count
     ' x soma 21; y soma 0 (liquido); z e total: 21
@@ -1018,5 +1019,40 @@ Public Sub Test_BarWaterfallMulti_Cagr_StaysLeftOfLegend()
     AssertTrue ln.Left + ln.Width <= cht.Legend.Left, "seta antes da legenda"
     AssertAlmost XOf(cht, 150) + 10, ln.Left + ln.Width, 1.5, "origem a 10 pt do End 150"
     AssertAlmost XOf(cht, 130) + 10, ln.Left, 1.5, "ponta a 10 pt do End 130"
+    CloseTemp wb
+End Sub
+
+' Tarefa 11 (ruling de cor da Tarefa 4): os totais usam SEMPRE pal(3) e as SERIES da cascata pulam o indice 3 (ciclo 0, 1, 2, 4, 5), para
+' nenhuma serie ter a cor das barras de total (com 4 ou mais series a 4a caia em pal(3)). Com 6 series a 6a volta ao inicio do ciclo.
+' Expectativas escritas a mao; com 1 serie as cores seguem as da Fase 1 (alta pal(1), queda pal(2), total pal(0)): ver os outros testes.
+Public Sub Test_WaterfallMulti_SeriesColors_SkipTheTotalColor()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, pal As Variant, want As Variant, j As Long, p As Variant, pn As Variant
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Ponte"
+    ws.Range("A1:G1").Value = Array("Etapa", "S1", "S2", "S3", "S4", "S5", "S6")
+    ws.Range("A2:G2").Value = Array("Inicio", 10, 20, 30, 40, 50, 60)
+    ws.Range("A3:G3").Value = Array("Ajuste", 1, -2, 3, -4, 5, -6)
+    ws.Range("A4:G4").Value = Array("Fim", "e", "e", "e", "e", "e", "e")
+    ws.Range("A1:G4").Select
+    Core_Insert "waterfall"
+    Set cht = Core_ActiveChart()
+    AssertEqual 6, Waterfall_SeriesCount(cht)
+    want = Array(0, 1, 2, 4, 5, 0)                       ' indice da paleta de S1..S6
+    For Each pn In Array("padrao", "cinza")
+        If pn = "cinza" Then Core_SetOption "palette", "cinza"
+        pal = Style_Palette(CStr(pn))
+        AssertEqual CLng(pal(3)), Chart_FindSeries(cht, "tqq_total").Format.Fill.ForeColor.RGB, pn & ": totais em pal(3)"
+        For j = 1 To 6
+            AssertEqual CLng(pal(want(j - 1))), Chart_FindSeries(cht, "S" & j).Format.Fill.ForeColor.RGB, pn & ": serie S" & j
+            If j <= 5 Then AssertTrue Chart_FindSeries(cht, "S" & j).Format.Fill.ForeColor.RGB <> Chart_FindSeries(cht, "tqq_total").Format.Fill.ForeColor.RGB, pn & ": S" & j & " nao tem a cor dos totais"
+            For Each p In Array("tqq_dn_", "tqq_upn_", "tqq_dnn_")
+                AssertEqual CLng(pal(want(j - 1))), Chart_FindSeries(cht, p & j).Format.Fill.ForeColor.RGB, pn & ": " & p & j & " com a cor da serie"
+            Next
+        Next
+    Next
+    Teardown wb
+End Sub
+
+Private Sub Teardown(wb As Workbook)
+    Watchers_Stop
     CloseTemp wb
 End Sub
