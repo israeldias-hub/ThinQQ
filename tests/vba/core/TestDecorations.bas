@@ -936,3 +936,38 @@ Public Sub Test_SameScale_DataAboveFixedMaximum_NoticeOncePerChart()
     AssertFalse Deco_ScaleClipped(c3), "sem escala fixa nao ha o que cortar"
     CloseTemp wb
 End Sub
+
+' Tarefa 15b: Escala automatica so mexe no eixo cujo maximo o ThinQQ fixou (opcao vmax, Mesma escala). Um grafico sem escala fixa, com o maximo
+' do eixo e o tamanho da area de plotagem ajustados a mao pelo usuario, fica como esta (eixo e layout); o aviso diz que nada havia a restaurar.
+' Com a escala fixa gravada o comportamento continua: eixo automatico e opcoes limpas.
+Public Sub Test_ResetScale_OnlyTouchesAxisFixedByThinQQ()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, w0 As Double, c2 As Chart
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("A1:D5").Select: Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    cht.Axes(xlValue).MaximumScale = 500                         ' ajuste manual do usuario (sem Mesma escala)
+    cht.PlotArea.Width = cht.PlotArea.Width - 60
+    w0 = cht.PlotArea.Width
+    AssertEqual "", Registry_GetOption(cht, "vmax", ""), "pre-condicao: sem escala fixa do ThinQQ"
+    Deco_ResetScale cht
+    AssertFalse cht.Axes(xlValue).MaximumScaleIsAuto, "maximo manual do usuario fica"
+    AssertEqual 500, cht.Axes(xlValue).MaximumScale
+    AssertAlmost w0, cht.PlotArea.Width, 0.5, "layout manual da area de plotagem fica"
+    AssertEqual "-", Registry_GetOption(cht, "vmin", "-"), "nenhuma opcao gravada (vmin ausente)"
+    Core_ClearLastNotice
+    Core_ResetScale
+    AssertEqual 500, cht.Axes(xlValue).MaximumScale, "pelo Core tambem"
+    AssertEqual "Escala automática: nenhum gráfico tinha a escala fixa de 'Mesma escala' (um eixo ajustado à mão fica como está).", Core_LastNotice()
+    ' com a escala fixa do ThinQQ: volta ao automatico
+    ws.Range("A1:D5").Select: Core_Insert "clustered"
+    Set c2 = Core_ActiveChart()
+    Registry_SetOption c2, "vmin", "0": Registry_SetOption c2, "vmax", Deco_ScaleText(80)
+    Core_SafeRefresh c2
+    AssertEqual 80, c2.Axes(xlValue).MaximumScale, "pre-condicao: escala fixa aplicada"
+    Core_ClearLastNotice
+    Core_ResetScale
+    AssertTrue c2.Axes(xlValue).MaximumScaleIsAuto, "escala fixa do ThinQQ desfeita"
+    AssertEqual "", Registry_GetOption(c2, "vmax", "")
+    AssertEqual "Escala automática restaurada em 1 gráfico(s).", Core_LastNotice()
+    Teardown wb
+End Sub

@@ -567,13 +567,18 @@ Public Sub Deco_AfterScaleChange(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Deco_AfterScaleChange" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
 
-' Volta o eixo de valores ao automatico e limpa vmin/vmax. Tipo sem escala livre: so limpa as opcoes (nunca ha o que desfazer).
+' Desfaz a escala fixa do ThinQQ (Mesma escala): volta o eixo de valores ao automatico e limpa vmin/vmax. So mexe no eixo cujo maximo o
+' ThinQQ fixou (a opcao vmax existe): um grafico sem escala fixa, com o eixo ou a area de plotagem ajustados a mao pelo usuario, fica como esta
+' (nem o eixo nem o layout). Tipo sem escala livre: so limpa as opcoes (nunca ha o que desfazer). True quando havia escala fixa a desfazer.
 ' Nunca propaga erro.
-Public Sub Deco_ResetScale(cht As Chart)
-    Dim ax As Axis
+Public Function Deco_ResetScale(cht As Chart) As Boolean
+    Dim ax As Axis, hadMax As Boolean
     On Error Resume Next
-    Registry_SetOption cht, "vmin", ""
+    hadMax = (Len(Registry_GetOption(cht, "vmax", "")) > 0)
+    If Len(Registry_GetOption(cht, "vmin", "")) > 0 Then Registry_SetOption cht, "vmin", ""
+    If Not hadMax Then Exit Function
     Registry_SetOption cht, "vmax", ""
+    Deco_ResetScale = True
     If Kinds_Supports(Registry_ChartType(cht), "samescale") Then
         Set ax = cht.Axes(xlValue, xlPrimary)
         ax.MinimumScaleIsAuto = True
@@ -582,7 +587,7 @@ Public Sub Deco_ResetScale(cht As Chart)
         Deco_AfterScaleChange cht
     End If
     If Err.Number <> 0 Then Errors_Log "Deco_ResetScale" & vbTab & Err.Number & vbTab & Err.Description
-End Sub
+End Function
 
 ' Reaplica a escala fixa gravada (vmin/vmax) quando o eixo mudou (o refresh depois de uma mudanca de dados: o automatico recalcula).
 ' Sem a opcao, em tipo sem escala livre ou com texto invalido: nao faz nada. So escreve quando o eixo e automatico ou difere do gravado

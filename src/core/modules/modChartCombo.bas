@@ -71,8 +71,9 @@ End Sub
 
 ' Escala do eixo secundario (oculto): com todos os valores da linha >= 0 o minimo fica em 0 (o automatico do Excel escolheria um
 ' minimo perto do menor valor, ex.: 0,39 para 0,42..0,47, e exageraria a inclinacao de uma linha que o usuario nao ve medida);
-' com algum valor negativo volta ao automatico. Só escreve quando precisa. Sem eixo secundario nao faz nada.
-' Nunca propaga erro (chamada por eventos).
+' com algum valor negativo volta ao automatico. O 0 fixado aqui fica registrado na opcao "secmin": um minimo FIXO que nao e esse 0 foi
+' definido a mao pelo usuario e nao e sobrescrito (devolvido ao automatico pelo usuario, volta a valer a regra). Só escreve quando precisa.
+' Sem eixo secundario nao faz nada. Nunca propaga erro (chamada por eventos).
 Public Sub Combo_SyncSecondaryScale(cht As Chart)
     Dim ln As Series, v As Variant, i As Long, nonNeg As Boolean, ax As Axis
     On Error GoTo Done
@@ -95,10 +96,15 @@ Public Sub Combo_SyncSecondaryScale(cht As Chart)
         Next
     End If
     Set ax = cht.Axes(xlValue, xlSecondary)
+    If Not ax.MinimumScaleIsAuto Then
+        If Not (Registry_GetOption(cht, "secmin", "") = "0" And ax.MinimumScale = 0) Then GoTo Done      ' minimo do usuario: fica
+    End If
     If nonNeg Then
-        If ax.MinimumScaleIsAuto Or ax.MinimumScale <> 0 Then ax.MinimumScale = 0
+        If ax.MinimumScaleIsAuto Then ax.MinimumScale = 0
+        If Registry_GetOption(cht, "secmin", "") <> "0" Then Registry_SetOption cht, "secmin", "0"
     Else
         If Not ax.MinimumScaleIsAuto Then ax.MinimumScaleIsAuto = True
+        If Len(Registry_GetOption(cht, "secmin", "")) > 0 Then Registry_SetOption cht, "secmin", ""
     End If
 Done:
     If Err.Number <> 0 Then Errors_Log "Combo_SyncSecondaryScale" & vbTab & Err.Number & vbTab & Err.Description

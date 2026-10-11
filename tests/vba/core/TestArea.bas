@@ -1273,3 +1273,32 @@ Public Sub Test_Deco_ShrinkPlotWidth_StopsAtMinimumFraction()
     AssertTrue cht.PlotArea.InsideWidth > 0
     CloseTemp wb
 End Sub
+
+' Tarefa 15b: um minimo definido a mao pelo usuario no eixo secundario da combinacao (fixo e diferente do 0 que o ThinQQ fixa) nao e
+' sobrescrito por Combo_SyncSecondaryScale; voltando o minimo ao automatico, o ThinQQ volta a fixa-lo em 0. O 0 do proprio ThinQQ continua
+' voltando ao automatico com um valor negativo.
+Public Sub Test_Combo_SecondaryScale_KeepsUserManualMinimum()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ws As Worksheet, ax As Axis
+    Set wb = NewTempWorkbook(): Set d = ComboFixture(wb): Set ws = d.Source.Worksheet
+    Set cht = Combo_Insert(ws, d).Chart
+    Set ax = cht.Axes(xlValue, xlSecondary)
+    AssertEqual 0, ax.MinimumScale: AssertFalse ax.MinimumScaleIsAuto, "pre-condicao: o ThinQQ fixou 0"
+    ax.MinimumScale = -0.5                                               ' o usuario fixa o minimo a mao
+    Core_SafeRefresh cht
+    Combo_SyncSecondaryScale cht
+    Set ax = cht.Axes(xlValue, xlSecondary)
+    AssertFalse ax.MinimumScaleIsAuto, "minimo manual continua fixo"
+    AssertEqual -0.5, ax.MinimumScale, "minimo manual do usuario nao e sobrescrito"
+    ws.Range("D3").Value = -0.1                                          ' dados com negativo: o minimo do usuario continua
+    Core_SafeRefresh cht
+    AssertEqual -0.5, cht.Axes(xlValue, xlSecondary).MinimumScale, "com negativo o minimo manual tambem fica"
+    ws.Range("D3").Value = 0.45
+    cht.Axes(xlValue, xlSecondary).MinimumScaleIsAuto = True             ' o usuario devolve ao automatico
+    Core_SafeRefresh cht
+    Set ax = cht.Axes(xlValue, xlSecondary)
+    AssertEqual 0, ax.MinimumScale: AssertFalse ax.MinimumScaleIsAuto, "de volta ao automatico: o ThinQQ fixa 0 de novo"
+    ws.Range("D3").Value = -0.1
+    Core_SafeRefresh cht
+    AssertTrue cht.Axes(xlValue, xlSecondary).MinimumScaleIsAuto, "o 0 do ThinQQ volta ao automatico com negativo"
+    CloseTemp wb
+End Sub

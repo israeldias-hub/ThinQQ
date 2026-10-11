@@ -34,6 +34,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - Aviso único quando linhas são inseridas ou removidas na tabela de origem (use Alterar dados).
 - Gráficos 100%: rótulos dos segmentos mostram a participação; o formato escolhido vale para os totais.
 - Rótulo do total em colunas empilhadas de sinais misturados no topo da parte positiva.
+- Escala automática só desfaz a escala fixa de Mesma escala: um eixo ou uma área de plotagem ajustados à mão ficam como estão, e um mínimo fixado à mão no eixo secundário da combinação não é mais trocado por zero.
 - Faixa de opções: os itens da lista Espaço usavam ids que começavam por dígito, o que o Excel não aceita no `customUI14` (ele descarta a aba inteira, sem aviso); agora são `gap30` a `gap120`. Só afetava compilações internas anteriores a esta versão.
 
 ### Segurança

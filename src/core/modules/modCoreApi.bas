@@ -493,10 +493,11 @@ Fail:
 End Sub
 
 ' Escala automatica: devolve ao automatico o eixo de valores do grafico ThinQQ ativo ou dos selecionados (sem nenhum, de todos os da
-' planilha ativa, como a Mesma escala) e limpa a escala gravada. Informa quantos graficos foram restaurados.
+' planilha ativa, como a Mesma escala) e limpa a escala gravada. So os graficos com a escala fixa do ThinQQ (Deco_ResetScale): um eixo ajustado
+' a mao pelo usuario fica como esta. Informa quantos graficos foram restaurados.
 Public Sub Core_ResetScale()
     On Error GoTo Fail
-    Dim coll As Collection, c As Variant, cht As Chart, n As Long
+    Dim coll As Collection, c As Variant, cht As Chart, n As Long, nFree As Long
     Set coll = Core_SelectedCharts()
     If coll.Count = 0 Then Set coll = SheetThinQQCharts()
     If coll.Count = 0 Then
@@ -506,12 +507,14 @@ Public Sub Core_ResetScale()
     For Each c In coll
         Set cht = c
         If Kinds_Supports(Registry_ChartType(cht), "samescale") Then
-            Deco_ResetScale cht
-            n = n + 1
+            nFree = nFree + 1
+            If Deco_ResetScale(cht) Then n = n + 1
         End If
     Next
-    If n = 0 Then
+    If nFree = 0 Then
         Core_Notify "Escala automática: o gráfico não tem escala livre (100%, Mekko (%), pizza, Gantt).", vbInformation
+    ElseIf n = 0 Then
+        Core_Notify "Escala automática: nenhum gráfico tinha a escala fixa de 'Mesma escala' (um eixo ajustado à mão fica como está).", vbInformation
     Else
         Core_Notify "Escala automática restaurada em " & n & " gráfico(s).", vbInformation
     End If
