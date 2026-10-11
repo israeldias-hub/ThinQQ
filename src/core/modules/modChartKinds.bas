@@ -95,6 +95,17 @@ Public Function Kinds_FeatureLabel(feature As String) As String
     End Select
 End Function
 
+' Texto unico do aviso "nao se aplica" (erro 7002) quando o tipo de grafico nao tem o recurso: cita o controle da faixa que o usuario clicou
+' (Kinds_FeatureLabel); Espaco e Legenda tem frase propria. Usado pelos toggles e opcoes de modCoreApi, pela recusa de familia sem despacho, por
+' Pie_SetOutside e por Deco_SetLegend (o mesmo texto em todo caminho que o usuario alcanca).
+Public Function Kinds_NotApplicableText(feature As String) As String
+    Select Case feature
+        Case "gap": Kinds_NotApplicableText = "Espaço entre colunas não se aplica a este tipo de gráfico."
+        Case "legend": Kinds_NotApplicableText = "Legenda não se aplica a este tipo de gráfico."
+        Case Else: Kinds_NotApplicableText = "'" & Kinds_FeatureLabel(feature) & "' não se aplica a este tipo de gráfico."
+    End Select
+End Function
+
 ' O mesmo para um grafico concreto: le o tipo e, na cascata, o numero de series de dados do bloco. E a pergunta que a faixa
 ' (Core_Supports) e os comandos de opcao devem fazer: Kinds_Supports(tipo, recurso) sozinho nega a legenda da cascata.
 Public Function Kinds_SupportsChart(cht As Chart, feature As String) As Boolean

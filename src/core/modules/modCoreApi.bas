@@ -168,9 +168,7 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
         Case Else: Exit Sub
     End Select
     kind = Registry_ChartType(c)
-    If Not Kinds_Supports(kind, key) Then
-        Err.Raise vbObjectError + 7002, "Core", "'" & Kinds_FeatureLabel(key) & "' não se aplica a este tipo de gráfico."
-    End If
+    If Not Kinds_Supports(kind, key) Then Err.Raise vbObjectError + 7002, "Core", Kinds_NotApplicableText(key)
     fam = DispatchFamily(c)
     ' Cada familia tem o seu Case: uma familia sem Case (a matriz diz que o tipo suporta, o despacho nao sabe fazer) e recusada com o aviso 7002,
     ' nunca despachada para o padrao da Fase 1 (colunas), que mexeria no grafico errado.
@@ -218,7 +216,7 @@ End Function
 ' registra a divergencia no log e recusa com 7002 (o mesmo aviso de "nao se aplica"), em vez de cair no padrao de outra familia.
 Private Sub RefuseUndispatched(key As String, c As Chart, fam As String)
     Errors_Log "despacho sem familia" & vbTab & key & vbTab & Registry_ChartType(c) & vbTab & fam
-    Err.Raise vbObjectError + 7002, "Core", "'" & Kinds_FeatureLabel(key) & "' não se aplica a este tipo de gráfico."
+    Err.Raise vbObjectError + 7002, "Core", Kinds_NotApplicableText(key)
 End Sub
 
 ' Valida o valor de uma opção. Retorna "" se válido, senão a mensagem de erro.
@@ -250,22 +248,13 @@ Private Function ValidateOption(key As String, value As String) As String
     End Select
 End Function
 
-' Texto do aviso quando o tipo de gráfico não tem a opção (erro 7002; Core_SetOption mostra e nada é gravado).
-Private Function OptionNotApplicableText(key As String) As String
-    Select Case key
-        Case "gap": OptionNotApplicableText = "Espaço entre colunas não se aplica a este tipo de gráfico."
-        Case "legend": OptionNotApplicableText = "Legenda não se aplica a este tipo de gráfico."
-        Case Else: OptionNotApplicableText = "'" & Kinds_FeatureLabel(key) & "' não se aplica a este tipo de gráfico."
-    End Select
-End Function
-
 ' Aplica a opção no gráfico informado (sem depender da seleção). Valida o valor e consulta a matriz de capacidades ANTES de gravar: opção que
 ' o tipo não tem (gap, legenda da cascata de uma série e do Gantt, formato do Gantt) => erro 7002 e nada é gravado. Propaga erros.
 Private Sub ApplyOption(c As Chart, key As String, value As String)
     Dim msg As String, fam As String
     msg = ValidateOption(key, value)
     If Len(msg) > 0 Then Err.Raise vbObjectError + 7100, "Core", msg
-    If Not Kinds_SupportsChart(c, key) Then Err.Raise vbObjectError + 7002, "Core", OptionNotApplicableText(key)
+    If Not Kinds_SupportsChart(c, key) Then Err.Raise vbObjectError + 7002, "Core", Kinds_NotApplicableText(key)
     If key = "legend" Then
         ' A legenda valida, aplica e SO ENTAO grava (Deco_SetLegend): uma recusa (7002) nao pode deixar legend=lineend gravado.
         ' As demais opcoes gravam antes de despachar porque o despacho le a opcao do registro (ex.: numfmt, em Labels_SegmentFormat).
@@ -293,9 +282,28 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
                 Case Else: RefuseUndispatched key, c, fam       ' (inalcancavel: PALETTE_FAMILIES ja recusou antes de gravar)
             End Select
         Case "gap"
-            c.ChartGroups(1).GapWidth = CLng(Val(value))
+            ApplyGapWidth c, CLng(Val(value))
     End Select
 End Sub
+
+' Espaco entre colunas/barras em TODOS os grupos de colunas ou barras do grafico (uma serie de colunas da combinacao levada ao eixo secundario
+' forma um segundo grupo de colunas); os grupos de linha (combinacao, auxiliares) e XY (barras, Gantt) nao tem espaco e ficam como estao. Sem
+' nenhum grupo de colunas/barras reconhecido, o primeiro grupo (como antes).
+Private Sub ApplyGapWidth(c As Chart, gap As Long)
+    Dim g As ChartGroup, n As Long
+    For Each g In c.ChartGroups
+        If IsColumnOrBarGroup(g) Then g.GapWidth = gap: n = n + 1
+    Next
+    If n = 0 Then c.ChartGroups(1).GapWidth = gap
+End Sub
+
+Private Function IsColumnOrBarGroup(g As ChartGroup) As Boolean
+    If g.SeriesCollection.Count = 0 Then Exit Function
+    Select Case g.SeriesCollection(1).ChartType
+        Case xlColumnClustered, xlColumnStacked, xlColumnStacked100, xlBarClustered, xlBarStacked, xlBarStacked100
+            IsColumnOrBarGroup = True
+    End Select
+End Function
 
 Public Sub Core_SetToggle(key As String, value As Boolean)
     On Error GoTo Fail

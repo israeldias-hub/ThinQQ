@@ -32,7 +32,7 @@ Public Sub Deco_SetLegend(cht As Chart, mode As String)
     If mode = "lineend" Then
         If Not Kinds_Supports(kind, "lineend") Then Err.Raise vbObjectError + 7002, "Deco_SetLegend", "Rótulos no fim da linha só existem em gráficos de linha e combinação."
     End If
-    If Not Kinds_SupportsChart(cht, "legend") Then Err.Raise vbObjectError + 7002, "Deco_SetLegend", "Legenda não se aplica a este tipo de gráfico."
+    If Not Kinds_SupportsChart(cht, "legend") Then Err.Raise vbObjectError + 7002, "Deco_SetLegend", Kinds_NotApplicableText("legend")
     If Kinds_Family(kind) = "pie" Then
         ' Pizza e rosca: grava a opcao e aplica a regra unica de Pie_ApplyLegend: (legend <> "none") And Not (pieout = "1" And labels <> "0").
         ' Com rotulos fora LIGADOS a legenda continua oculta, qualquer que seja a opcao (os nomes ja estao nos rotulos); desligados os rotulos

@@ -1550,3 +1550,35 @@ Public Sub Test_Core_RebuildFromRange_Pie_KeepsOutsideLabelsAsRealState()
     AssertFalse c.HasLegend, "sem legenda enquanto os rotulos fora (com os nomes) estao ligados"
     Teardown wb
 End Sub
+
+' Tarefa 15b: "Espaco" vale para TODOS os grupos de colunas/barras (uma serie de colunas da combinacao levada ao eixo secundario forma um
+' segundo grupo de colunas; antes so ChartGroups(1) recebia), sem tocar nos grupos de linha; e o texto 7002 "nao se aplica" tem uma fonte so
+' (Kinds_NotApplicableText), igual ao que o usuario ja via.
+Public Sub Test_Core_Gap_EveryColumnGroup_And_NotApplicableTextIsCentral()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, g As ChartGroup, nCol As Long, ct As Long
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("D1:D5").Value = Application.Transpose(Array("Meta", 140, 160, 180, 220))
+    ws.Range("A1:D5").Select
+    Core_Insert "combo"
+    Set cht = Core_ActiveChart()
+    AssertEqual "combo", Registry_ChartType(cht)
+    cht.SeriesCollection(2).AxisGroup = xlSecondary              ' o usuario leva a 2a serie de colunas ao eixo secundario
+    For Each g In cht.ChartGroups
+        If g.SeriesCollection(1).ChartType = xlColumnStacked Then nCol = nCol + 1
+    Next
+    AssertEqual 2, nCol, "pre-condicao: dois grupos de colunas"
+    Core_SetOption "gap", "120"
+    For Each g In cht.ChartGroups
+        ct = g.SeriesCollection(1).ChartType
+        If ct = xlColumnStacked Then AssertEqual 120, g.GapWidth, "grupo de colunas do eixo " & g.AxisGroup
+    Next
+    AssertEqual "120", Registry_GetOption(cht, "gap")
+    AssertEqual "Espaço entre colunas não se aplica a este tipo de gráfico.", Kinds_NotApplicableText("gap")
+    AssertEqual "Legenda não se aplica a este tipo de gráfico.", Kinds_NotApplicableText("legend")
+    AssertEqual "'Rótulos fora da pizza' não se aplica a este tipo de gráfico.", Kinds_NotApplicableText("pieout")
+    Core_ClearLastNotice
+    Core_SetToggle "ind100", True
+    AssertEqual Kinds_NotApplicableText("ind100"), Core_LastNotice(), "toggle recusado pela matriz"
+    AssertEqual "'Indicador 100%' não se aplica a este tipo de gráfico.", Core_LastNotice()
+    Teardown wb
+End Sub

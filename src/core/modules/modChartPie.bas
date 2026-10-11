@@ -95,7 +95,7 @@ End Sub
 ' recusa a posicao do rotulo (erro 1004 do Excel) e aqui levanta 7002 sem gravar nada (Core_SetToggle mostra o aviso).
 Public Sub Pie_SetOutside(cht As Chart, turnOn As Boolean)
     If Not Kinds_Supports(Registry_ChartType(cht), "pieout") Then
-        Err.Raise vbObjectError + 7002, "Pie_SetOutside", "'Rótulos fora da pizza' não se aplica a este tipo de gráfico."
+        Err.Raise vbObjectError + 7002, "Pie_SetOutside", Kinds_NotApplicableText("pieout")
     End If
     Registry_SetOption cht, "pieout", IIf(turnOn, "1", "0")
     Pie_ApplyLabelContent cht
