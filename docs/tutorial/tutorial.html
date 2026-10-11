@@ -1,2 +1,487 @@
-<!-- THINQQ-TUTORIAL-STUB -->
-<html><body>ThinQQ</body></html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>ThinQQ: tutorial</title>
+<style>
+:root {
+  --bg: #fbfcfe;
+  --panel: #ffffff;
+  --soft: #eef2fa;
+  --ink: #1b2437;
+  --muted: #55607a;
+  --line: #d3dbea;
+  --navy: #1f3864;
+  --blue: #2f5fb3;
+  --sky: #9dc3e6;
+  --link: #24509f;
+  --warn-bg: #fff4d6;
+  --warn-ink: #5c3b00;
+  --warn-line: #e0a526;
+  --ok-bg: #e7f4ec;
+  --ok-ink: #14532d;
+  --ok-line: #3d9a62;
+  --ui-bg: #e3ebfa;
+  --ui-ink: #1b3f86;
+  --focus: #b45309;
+  --grid: rgba(255, 255, 255, .07);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1524;
+    --panel: #151e33;
+    --soft: #1a2542;
+    --ink: #e5eaf5;
+    --muted: #a3aec7;
+    --line: #2b3a5c;
+    --navy: #0a1020;
+    --blue: #6f9cf0;
+    --sky: #9dc3e6;
+    --link: #8db4ff;
+    --warn-bg: #3a2c0a;
+    --warn-ink: #ffe7b0;
+    --warn-line: #b98319;
+    --ok-bg: #12301f;
+    --ok-ink: #bfe9cf;
+    --ok-line: #2f7d4f;
+    --ui-bg: #22345f;
+    --ui-ink: #cfdcff;
+    --focus: #fbbf24;
+    --grid: rgba(255, 255, 255, .05);
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+a { color: var(--link); text-underline-offset: 2px; }
+a:focus-visible, summary:focus-visible, .tw:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.skip {
+  position: absolute; left: 12px; top: -60px; z-index: 10;
+  background: var(--panel); color: var(--ink); padding: 10px 14px; border-radius: 6px; border: 2px solid var(--focus);
+}
+.skip:focus { top: 12px; }
+
+/* Cabeçalho em papel quadriculado */
+.top {
+  background-color: var(--navy);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 28px 28px;
+  color: #fff;
+  padding: 44px 20px 40px;
+}
+.top-in { max-width: 1080px; margin: 0 auto; }
+.top h1 { margin: 0; font-size: clamp(2.4rem, 6vw, 3.6rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; }
+.top p { margin: 10px 0 28px; max-width: 46ch; color: #d6e2f7; font-size: 1.1rem; }
+
+/* Maquete da faixa de opções */
+.ribbon { margin: 0; background: #f3f3f3; color: #252525; border-radius: 8px; overflow: hidden; border: 1px solid #c9c9c9; box-shadow: 0 10px 28px rgba(0, 0, 0, .35); font-size: .8125rem; line-height: 1.25; }
+.rb-tabs { display: flex; gap: 2px; padding: 6px 10px 0; background: #217346; overflow-x: auto; }
+.rb-tabs span { padding: 5px 12px; color: #fff; white-space: nowrap; border-radius: 4px 4px 0 0; }
+.rb-tabs span.on { background: #f3f3f3; color: #217346; font-weight: 700; }
+.rb-body { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px 0; padding: 8px 6px 6px; }
+.rb-group { display: flex; flex-direction: column; justify-content: space-between; padding: 0 10px; border-right: 1px solid #d0d0d0; min-width: max-content; }
+.rb-group:last-child { border-right: 0; }
+.rb-btns { display: flex; gap: 4px; align-items: flex-start; }
+.rb-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 74px; padding: 4px 2px; text-align: center; border-radius: 3px; }
+.rb-btn.sm { flex-direction: row; width: auto; gap: 6px; padding: 2px 4px; text-align: left; }
+.rb-btn.off { opacity: .45; }
+.rb-col { display: flex; flex-direction: column; gap: 1px; }
+.rb-row { display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.ic { display: flex; align-items: flex-end; gap: 2px; width: 30px; height: 30px; padding: 3px; }
+.ic i { display: block; flex: 1; background: #1f3864; }
+.ic i:nth-child(2) { background: #4472c4; }
+.ic i:nth-child(3) { background: #9dc3e6; }
+.ic.w i { background: transparent; border-top: 8px solid #4472c4; }
+.ic.w i:nth-child(1) { border-top-color: #1f3864; }
+.ic.ln { background: linear-gradient(160deg, transparent 45%, #1f3864 46%, #1f3864 54%, transparent 55%); }
+.ic.pl { background: #dde7f7; border-radius: 4px; position: relative; }
+.ic.pl::after { content: ""; position: absolute; inset: 8px; border: 2px solid #1f3864; border-radius: 50%; }
+.chk { display: inline-block; width: 12px; height: 12px; border: 1px solid #555; background: #fff; }
+.chk.on { background: #1f3864; border-color: #1f3864; }
+.dd { border: 1px solid #b5b5b5; background: #fff; padding: 1px 6px; border-radius: 2px; }
+.rb-title { text-align: center; color: #555; padding-top: 4px; font-size: .75rem; }
+.rb-title.ui { background: none; }
+.ribbon .ui { background: none; color: inherit; padding: 0; font-weight: inherit; }
+.ribbon .ui { white-space: normal; }
+.rb-btn .ui { font-size: .75rem; }
+.rb-btn.sm .ui { white-space: nowrap; }
+.cap { margin: 12px 0 0; color: #c3d2ee; font-size: .9rem; max-width: 80ch; }
+
+/* Estrutura */
+.wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 44px; }
+.toc { position: sticky; top: 16px; align-self: start; max-height: calc(100vh - 32px); overflow: auto; font-size: .95rem; }
+.toc h2 { margin: 0 0 8px; font-size: 1rem; border: 0; padding: 0; color: var(--muted); font-weight: 600; }
+.toc ol { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--line); }
+.toc a { display: block; padding: 5px 12px; text-decoration: none; color: var(--ink); border-left: 2px solid transparent; margin-left: -2px; }
+.toc a:hover { color: var(--link); border-left-color: var(--blue); background: var(--soft); }
+main { min-width: 0; max-width: 46rem; }
+section { margin: 0 0 54px; }
+h2 { font-size: 1.65rem; line-height: 1.2; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--line); letter-spacing: -.01em; }
+h3 { font-size: 1.15rem; margin: 28px 0 8px; }
+p { margin: 0 0 14px; }
+ul, ol { padding-left: 1.4rem; margin: 0 0 16px; }
+li { margin: 5px 0; }
+code, kbd { font-family: Consolas, "Cascadia Mono", monospace; font-size: .9em; background: var(--soft); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; overflow-wrap: anywhere; }
+.ui { background: var(--ui-bg); color: var(--ui-ink); border-radius: 4px; padding: 0 6px; font-weight: 600; white-space: nowrap; }
+.xl { font-weight: 600; }
+
+/* Passos de verdade: sequência numerada */
+ol.steps { list-style: none; padding: 0; counter-reset: s; }
+ol.steps > li { counter-increment: s; position: relative; padding: 2px 0 12px 46px; margin: 0; }
+ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 700; display: grid; place-items: center; }
+@media (prefers-color-scheme: dark) { ol.steps > li::before { background: var(--blue); color: #0e1524; } }
+
+.note, .warn, .ok { padding: 12px 16px; border-radius: 6px; border-left: 5px solid; margin: 16px 0; }
+.note { background: var(--soft); border-color: var(--blue); }
+.warn { background: var(--warn-bg); color: var(--warn-ink); border-color: var(--warn-line); }
+.ok { background: var(--ok-bg); color: var(--ok-ink); border-color: var(--ok-line); }
+.note > :last-child, .warn > :last-child, .ok > :last-child { margin-bottom: 0; }
+
+.tw.fit { width: fit-content; max-width: 100%; }
+.tw { overflow-x: auto; margin: 12px 0 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+th, td { padding: 8px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { background: var(--soft); font-weight: 600; }
+table.mini { width: auto; min-width: 60%; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+td.e { font-weight: 700; color: var(--blue); }
+
+details { border: 1px solid var(--line); border-radius: 6px; background: var(--panel); margin: 10px 0; }
+summary { cursor: pointer; padding: 11px 16px; font-weight: 600; }
+details[open] > summary { border-bottom: 1px solid var(--line); }
+details > div { padding: 12px 16px 2px; }
+
+footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align: center; color: var(--muted); font-size: .92rem; }
+
+@media (max-width: 900px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .toc { position: static; max-height: none; }
+  .toc ol { display: flex; flex-wrap: wrap; border-left: 0; gap: 4px 6px; }
+  .toc a { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; margin: 0; }
+  .top { padding: 32px 16px 28px; }
+}
+@media print {
+  :root { --bg: #fff; --panel: #fff; --ink: #000; --muted: #333; --line: #bbb; --soft: #f1f1f1; --link: #000; --ui-bg: #eee; --ui-ink: #000; }
+  body { font-size: 11pt; }
+  .top { background: none; color: #000; padding: 0 0 12px; border-bottom: 2px solid #000; }
+  .top p, .cap { color: #000; }
+  .ribbon { box-shadow: none; }
+  .toc, .skip { display: none; }
+  .wrap { display: block; padding: 12px 0; }
+  section { break-inside: auto; margin-bottom: 24px; }
+  h2, h3, .tw, details { break-inside: avoid; break-after: avoid; }
+  details > div { display: block; }
+  a { text-decoration: none; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+
+<header class="top">
+  <div class="top-in">
+    <h1>ThinQQ</h1>
+    <p>Gráficos de apresentação no Excel: cascata, colunas empilhadas, setas de CAGR e de diferença, sem sair da planilha.</p>
+
+    <figure class="ribbon" role="group" aria-labelledby="rib-cap" style="margin:0">
+      <div class="rb-tabs" aria-hidden="true">
+        <span>Arquivo</span><span>Início</span><span>Inserir</span><span class="on"><span class="ui">ThinQQ</span></span><span>Dados</span>
+      </div>
+      <div class="rb-body">
+        <div class="rb-group">
+          <div class="rb-btns">
+            <div class="rb-btn"><span class="ic"><i style="height:90%"></i><i style="height:60%"></i><i style="height:35%"></i></span><span class="ui">Colunas empilhadas</span></div>
+            <div class="rb-btn"><span class="ic"><i style="height:80%"></i><i style="height:55%"></i><i style="height:30%"></i></span><span class="ui">Colunas agrupadas</span></div>
+            <div class="rb-btn"><span class="ic"><i style="height:100%"></i><i style="height:100%"></i><i style="height:100%"></i></span><span class="ui">Colunas 100%</span></div>
+            <div class="rb-btn"><span class="ic w"><i style="height:90%"></i><i style="height:60%"></i><i style="height:35%"></i></span><span class="ui">Cascata</span></div>
+            <div class="rb-btn"><span class="ic ln"></span><span class="ui">Linha</span></div>
+          </div>
+          <div class="rb-title ui">Inserir gráfico</div>
+        </div>
+        <div class="rb-group">
+          <div class="rb-btns">
+            <div class="rb-col">
+              <div class="rb-row">
+                <div class="rb-btn sm"><span class="chk on"></span><span class="ui">Totais</span></div>
+                <div class="rb-btn sm"><span class="chk on"></span><span class="ui">Rótulos</span></div>
+                <div class="rb-btn sm"><span class="chk"></span><span class="ui">Conectores</span></div>
+              </div>
+              <div class="rb-row">
+                <div class="rb-btn sm"><span class="ui">Formato</span><span class="dd">1.234</span></div>
+                <div class="rb-btn sm"><span class="ui">Paleta</span><span class="dd">Padrão ThinQQ</span></div>
+                <div class="rb-btn sm"><span class="ui">Espaço</span><span class="dd">Normal (50%)</span></div>
+              </div>
+              <div class="rb-row">
+                <div class="rb-btn sm"><span class="ui">Seta CAGR</span></div>
+                <div class="rb-btn sm"><span class="ui">Seta diferença</span></div>
+                <div class="rb-btn sm"><span class="ui">Remover setas</span></div>
+                <div class="rb-btn sm"><span class="ui">Atualizar</span></div>
+                <div class="rb-btn sm"><span class="ui">Alterar dados</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="rb-title ui">Gráfico selecionado</div>
+        </div>
+        <div class="rb-group">
+          <div class="rb-btns">
+            <div class="rb-btn"><span class="ic pl"></span><span class="ui">Exemplos</span></div>
+            <div class="rb-btn"><span class="ic pl"></span><span class="ui">Tutorial</span></div>
+            <div class="rb-col" style="align-self:center">
+              <div class="rb-btn sm"><span class="ui">Verificar atualizações</span></div>
+              <div class="rb-btn sm"><span class="ui">Configurações</span></div>
+              <div class="rb-btn sm"><span class="ui">Sobre</span></div>
+            </div>
+          </div>
+          <div class="rb-title ui">ThinQQ</div>
+        </div>
+      </div>
+      <figcaption class="cap" id="rib-cap" style="padding:8px 14px 10px;background:#f3f3f3;color:#444;margin:0;max-width:none;border-top:1px solid #d0d0d0">A aba <span class="ui">ThinQQ</span> na faixa de opções do Excel, ao lado de Inserir. Os três grupos: inserir, ajustar o gráfico selecionado e ajuda.</figcaption>
+    </figure>
+  </div>
+</header>
+
+<div class="wrap">
+<nav class="toc" aria-label="Índice do tutorial">
+  <h2>Neste tutorial</h2>
+  <ol>
+    <li><a href="#primeiro">Primeiro gráfico</a></li>
+    <li><a href="#dados">Como preparar os dados</a></li>
+    <li><a href="#cascata">Cascata</a></li>
+    <li><a href="#opcoes">Opções do gráfico</a></li>
+    <li><a href="#setas">Setas de CAGR e diferença</a></li>
+    <li><a href="#atualizar">Atualizações</a></li>
+    <li><a href="#instalar">Instalar e desinstalar</a></li>
+    <li><a href="#problemas">Problemas comuns</a></li>
+    <li><a href="#faq">Perguntas frequentes</a></li>
+    <li><a href="#limites">Limitações</a></li>
+    <li><a href="#como">Como funciona</a></li>
+  </ol>
+</nav>
+
+<main id="conteudo" tabindex="-1">
+
+<section id="primeiro" aria-labelledby="h-primeiro">
+  <h2 id="h-primeiro">Seu primeiro gráfico</h2>
+  <p>O ThinQQ cria gráficos do Excel já formatados, com totais, rótulos e setas que se atualizam quando os números mudam. Para ver tudo funcionando, clique em <span class="ui">Exemplos</span>: abre uma pasta de trabalho nova com seis tabelas e seus gráficos.</p>
+  <p>Para criar o seu, siga estes passos com a tabela abaixo (ou a sua).</p>
+  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de exemplo">
+  <table class="mini">
+    <thead><tr><th>Ano</th><th class="n">Sul</th><th class="n">Sudeste</th><th class="n">Nordeste</th></tr></thead>
+    <tbody>
+      <tr><td>2022</td><td class="n">120</td><td class="n">210</td><td class="n">65</td></tr>
+      <tr><td>2023</td><td class="n">131</td><td class="n">228</td><td class="n">72</td></tr>
+      <tr><td>2024</td><td class="n">140</td><td class="n">251</td><td class="n">80</td></tr>
+      <tr><td>2025</td><td class="n">158</td><td class="n">276</td><td class="n">91</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <ol class="steps">
+    <li>Digite a tabela com uma linha de cabeçalho (nomes das séries) e uma coluna de categorias à esquerda.</li>
+    <li>Clique em qualquer célula da tabela. Com uma célula só, o ThinQQ usa a região inteira ao redor. Se preferir, selecione a tabela toda.</li>
+    <li>Na aba <span class="ui">ThinQQ</span>, grupo <span class="ui">Inserir gráfico</span>, clique em <span class="ui">Colunas empilhadas</span>.</li>
+    <li>O gráfico aparece à direita da tabela, selecionado, com totais e rótulos. O grupo <span class="ui">Gráfico selecionado</span> passa a funcionar.</li>
+    <li>Troque um número na tabela: colunas, totais e rótulos acompanham.</li>
+  </ol>
+  <div class="note">
+    <p>Os tipos disponíveis são <span class="ui">Colunas empilhadas</span>, <span class="ui">Colunas agrupadas</span>, <span class="ui">Colunas 100%</span>, <span class="ui">Linha</span> e <span class="ui">Cascata</span>. Todos usam o mesmo formato de tabela, exceto a cascata (próxima seção).</p>
+  </div>
+</section>
+
+<section id="dados" aria-labelledby="h-dados">
+  <h2 id="h-dados">Como preparar os dados</h2>
+  <ul>
+    <li><strong>Cabeçalho e categorias:</strong> a primeira linha traz os nomes das séries e a primeira coluna traz as categorias (anos, meses, etapas). A célula do canto superior esquerdo pode ficar vazia ou ter um título.</li>
+    <li><strong>Células vazias, texto ou erro contam como zero.</strong> Um <code>n/d</code> no meio dos valores não impede o gráfico: aquele ponto vale 0. Em empilhadas, um erro como <code>#N/D</code> é ignorado no total.</li>
+    <li><strong>Números negativos</strong> descem abaixo do eixo; o total negativo fica com o rótulo abaixo da coluna.</li>
+    <li><strong>Marcador <code>e</code> (só cascata):</strong> no lugar do valor, <code>e</code>, <code>t</code>, <code>=</code>, <code>total</code> ou <code>subtotal</code> (maiúsculas, minúsculas e espaços ao redor não importam) desenha uma barra de total calculada.</li>
+    <li><strong>Várias áreas ou planilha protegida:</strong> selecione uma única região contígua. Em planilha protegida o ThinQQ pede que você a desproteja antes de inserir.</li>
+    <li><strong>Nomes de planilha</strong> com espaços ou apóstrofos (como <code>Plano 'A' 2026</code>) funcionam normalmente.</li>
+  </ul>
+</section>
+
+<section id="cascata" aria-labelledby="h-cascata">
+  <h2 id="h-cascata">Cascata (ponte)</h2>
+  <p>A cascata usa uma tabela de duas colunas: etapa e valor. Valores positivos sobem, negativos descem, e o gráfico liga o fim de uma barra ao início da próxima com conectores. Só a primeira coluna de valores é usada.</p>
+  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de cascata">
+  <table class="mini">
+    <thead><tr><th>Etapa</th><th class="n">Valor</th></tr></thead>
+    <tbody>
+      <tr><td>Receita</td><td class="n">1200</td></tr>
+      <tr><td>Custos</td><td class="n">-700</td></tr>
+      <tr><td>Despesas</td><td class="n">-250</td></tr>
+      <tr><td>EBITDA</td><td class="n e">e</td></tr>
+      <tr><td>Impostos</td><td class="n">-80</td></tr>
+      <tr><td>Lucro</td><td class="n e">e</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Selecione a tabela e clique em <span class="ui">Cascata</span>. Cada <code>e</code> vira uma barra de total que soma tudo o que veio antes: aqui, EBITDA = 250 e Lucro = 170.</p>
+  <ul>
+    <li><strong>Cruzar o zero:</strong> a cascata trata barras que passam do positivo para o negativo (e o contrário) sem sobrepor segmentos, e os nomes das categorias ficam na base do gráfico. Veja o exemplo 6 em <span class="ui">Exemplos</span>.</li>
+    <li><strong>Não use <code>e</code> na primeira linha.</strong> O total começa de zero, então nada é desenhado ali.</li>
+    <li><span class="ui">Conectores</span> vêm ligados na cascata. <span class="ui">Totais</span> não se aplica a ela, porque os totais já são barras.</li>
+  </ul>
+</section>
+
+<section id="opcoes" aria-labelledby="h-opcoes">
+  <h2 id="h-opcoes">Opções do gráfico selecionado</h2>
+  <p>Clique no gráfico. O grupo <span class="ui">Gráfico selecionado</span> mostra o estado atual dele; sem um gráfico do ThinQQ selecionado, os botões ficam cinzas (exceto <span class="ui">Atualizar</span>).</p>
+  <div class="tw" tabindex="0" role="region" aria-label="Referência das opções">
+  <table>
+    <thead><tr><th scope="col">Controle</th><th scope="col">O que faz</th></tr></thead>
+    <tbody>
+      <tr><td><span class="ui">Totais</span></td><td>Mostra ou oculta o total em negrito acima de cada coluna. Vale para colunas empilhadas e 100%.</td></tr>
+      <tr><td><span class="ui">Rótulos</span></td><td>Mostra ou oculta os valores nos segmentos, barras ou pontos. Os rótulos ficam ligados às células.</td></tr>
+      <tr><td><span class="ui">Conectores</span></td><td>Linhas entre as colunas (empilhadas) ou entre as barras (cascata). Em agrupadas e linha não há conectores.</td></tr>
+      <tr><td><span class="ui">Formato</span></td><td>Formato dos números: <span class="ui">1.234</span>, <span class="ui">1.234,5</span>, <span class="ui">1.234,56</span>, <span class="ui">12%</span>, <span class="ui">12,3%</span>, <span class="ui">Milhares (1.234 → 1)</span> ou <span class="ui">Milhões (1,2)</span>. As duas últimas dividem por mil ou por um milhão só na exibição.</td></tr>
+      <tr><td><span class="ui">Paleta</span></td><td><span class="ui">Padrão ThinQQ</span> (azul-marinho, azul, azul-claro, cinza...), <span class="ui">Tons de cinza</span> ou <span class="ui">Cores do tema</span> (as cores do tema da pasta de trabalho).</td></tr>
+      <tr><td><span class="ui">Espaço</span></td><td>Largura do vão entre as colunas: <span class="ui">Estreito (30%)</span>, <span class="ui">Normal (50%)</span>, <span class="ui">Largo (80%)</span> ou <span class="ui">Muito largo (120%)</span>. Não se aplica a gráficos de linha.</td></tr>
+      <tr><td><span class="ui">Seta CAGR</span></td><td>Seta de crescimento anual composto entre duas categorias (veja a próxima seção).</td></tr>
+      <tr><td><span class="ui">Seta diferença</span></td><td>Seta com a diferença absoluta e relativa entre dois totais.</td></tr>
+      <tr><td><span class="ui">Remover setas</span></td><td>Apaga as setas de CAGR e de diferença do gráfico. Os conectores da cascata ficam.</td></tr>
+      <tr><td><span class="ui">Atualizar</span></td><td>Reposiciona setas e rótulos e remove dados internos de gráficos que você apagou. Funciona também sem gráfico selecionado: atualiza todos os gráficos ThinQQ da planilha ativa.</td></tr>
+      <tr><td><span class="ui">Alterar dados</span></td><td>Pede uma nova tabela de origem e recria o gráfico no mesmo lugar, com as mesmas opções. As setas não são preservadas: coloque-as de novo.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Os gráficos são gráficos comuns do Excel. Você pode mudar fontes, cores e tamanho manualmente; as opções acima voltam a aplicar o padrão quando você as usa.</p>
+</section>
+
+<section id="setas" aria-labelledby="h-setas">
+  <h2 id="h-setas">Setas de CAGR e de diferença</h2>
+  <ol class="steps">
+    <li>Clique no gráfico e depois em <span class="ui">Seta CAGR</span> ou <span class="ui">Seta diferença</span>.</li>
+    <li>Na janela, escolha a categoria inicial (<em>Da categoria</em>) e a final (<em>Até a categoria</em>); por padrão, a primeira e a última.</li>
+    <li>Clique em <span class="ui">OK</span>. A seta fica dentro do gráfico e acompanha os dados e o tamanho dele.</li>
+  </ol>
+
+  <h3>Seta CAGR</h3>
+  <p>Mostra a taxa composta anual entre os totais das duas categorias, por exemplo <code>CAGR +9,9%</code>.</p>
+  <ul>
+    <li><strong>Quantos períodos?</strong> Se as duas categorias forem anos (números entre 1900 e 2200) ou datas, o número de períodos é a diferença em anos entre elas (2022 até 2025 são 3 anos). Caso contrário, cada categoria conta como um período: de jan até jun são 5.</li>
+    <li><strong>Em que valores?</strong> Em empilhadas e 100%, na soma das séries; na cascata, no valor final de cada barra; em agrupadas e linha, na primeira série.</li>
+    <li>Aparece <code>CAGR n/d</code> quando não há taxa possível: valor inicial zero, valor final zero ou sinais diferentes entre início e fim.</li>
+  </ul>
+
+  <h3>Seta de diferença</h3>
+  <p>Uma seta vertical ao lado da coluna final, com uma linha tracejada no nível da inicial e o rótulo da diferença absoluta e relativa, por exemplo <code>+130 (+33%)</code>.</p>
+  <div class="warn">
+    <p><strong>Gráficos 100% não aceitam a seta de diferença.</strong> Todas as colunas somam 100%, então não há diferença a mostrar; o ThinQQ avisa com a mensagem &quot;A seta de diferença não está disponível para gráficos 100%&quot;. A <span class="ui">Seta CAGR</span> funciona, calculada sobre os valores informados na tabela.</p>
+  </div>
+  <p>O gráfico precisa ter pelo menos duas categorias. Se mover o gráfico para outra planilha ou algo parecer fora do lugar, clique em <span class="ui">Atualizar</span>.</p>
+</section>
+
+<section id="atualizar" aria-labelledby="h-atualizar">
+  <h2 id="h-atualizar">Atualizações</h2>
+  <p>Ao abrir o Excel, o ThinQQ consulta a fonte de atualização no máximo uma vez por dia. Se houver versão nova, abre uma janela com as novidades e os botões <span class="ui">Atualizar agora</span> e <span class="ui">Depois</span>. Na verificação automática há também <span class="ui">Pular esta versão</span>, que silencia o aviso até sair uma versão mais nova. A atualização é baixada, conferida e aplicada sem reiniciar o Excel.</p>
+  <ul>
+    <li><span class="ui">Verificar atualizações</span> consulta na hora, sem esperar o próximo dia, e informa também quando você já está na versão mais recente.</li>
+    <li><span class="ui">Configurações</span> mostra a fonte de atualização e permite trocá-la: o endereço (<code>https://...</code>) do <code>manifest.json</code>, ou o caminho de uma pasta ou arquivo, inclusive de rede ou de uma pasta do OneDrive/Teams sincronizada. Variáveis como <code>%USERPROFILE%</code> funcionam. Deixe em branco para voltar à fonte padrão (o repositório do ThinQQ no GitHub).</li>
+    <li><span class="ui">Sobre</span> mostra as versões do carregador e do núcleo e a pasta de instalação.</li>
+  </ul>
+  <div class="ok">
+    <p><strong>Segurança:</strong> o ThinQQ só instala um arquivo se o código SHA-256 dele conferir com o do manifesto. O manifesto precisa trazer esses códigos; um manifesto sem eles é recusado, e se o arquivo baixado estiver diferente nada é instalado.</p>
+  </div>
+  <details>
+    <summary>Para administradores: manifesto sem hashes</summary>
+    <div>
+      <p>Para fontes internas que não geram SHA-256, é possível aceitar manifestos sem hash gravando o valor <code>AllowUnverified</code> igual a <code>1</code> em <code>HKCU\Software\VB and VBA Program Settings\ThinQQ\Updater</code>. Isso desliga a verificação de integridade e não é recomendado; prefira gerar o manifesto com <code>build/release.ps1</code>, que já inclui os hashes.</p>
+    </div>
+  </details>
+</section>
+
+<section id="instalar" aria-labelledby="h-instalar">
+  <h2 id="h-instalar">Instalar e desinstalar</h2>
+  <p>Funciona no Excel do Office 16.0 (2016, 2019, 2021 e Microsoft 365) para Windows, sem precisar ser administrador. O passo a passo completo, incluindo a instalação manual, está no arquivo <code>LEIA-ME.txt</code> que vem no ZIP.</p>
+  <ol class="steps">
+    <li>Descompacte o ZIP inteiro em uma pasta (não execute de dentro do ZIP) e feche o Excel.</li>
+    <li>Dê dois cliques em <code>Instalar-ThinQQ.cmd</code>. Se o Windows perguntar, clique em Executar.</li>
+    <li>Abra o Excel: a aba <span class="ui">ThinQQ</span> aparece na faixa de opções.</li>
+  </ol>
+  <p>Para <strong>desinstalar</strong>, feche o Excel e, na pasta onde descompactou o ZIP, execute <code>powershell -ExecutionPolicy Bypass -File uninstall.ps1</code>. Isso remove o suplemento, o local confiável, as configurações e a pasta <code>%LOCALAPPDATA%\ThinQQ</code>.</p>
+  <p>Se o script for bloqueado pela política da empresa, use a instalação manual do <code>LEIA-ME.txt</code>.</p>
+</section>
+
+<section id="problemas" aria-labelledby="h-problemas">
+  <h2 id="h-problemas">Problemas comuns</h2>
+  <div class="tw" tabindex="0" role="region" aria-label="Tabela de problemas e soluções">
+  <table>
+    <thead><tr><th scope="col">O que você vê</th><th scope="col">O que fazer</th></tr></thead>
+    <tbody>
+      <tr><td>&quot;As macros foram desabilitadas&quot; ou a aba <span class="ui">ThinQQ</span> não aparece</td><td>Feche o Excel e rode o <code>Instalar-ThinQQ.cmd</code> de novo: ele desbloqueia os arquivos e cria o local confiável. Na instalação manual, desbloqueie cada <code>.xlam</code> (Propriedades, Desbloquear) e adicione <code>%LOCALAPPDATA%\ThinQQ</code> como Local Confiável. Se a política da empresa bloquear macros em pastas do usuário, fale com a TI.</td></tr>
+      <tr><td>A aba existe, mas os botões não fazem nada</td><td>O núcleo do ThinQQ não carregou. Use <span class="ui">Verificar atualizações</span> ou reinstale; confira a pasta <code>%LOCALAPPDATA%\ThinQQ\versions</code>.</td></tr>
+      <tr><td>Botões do grupo <span class="ui">Gráfico selecionado</span> em cinza</td><td>Eles só funcionam com um gráfico criado pelo ThinQQ selecionado. Clique no gráfico, não em uma célula.</td></tr>
+      <tr><td>Setas fora do lugar</td><td>Clique em <span class="ui">Atualizar</span>. As posições são recalculadas pelo tamanho atual do gráfico.</td></tr>
+      <tr><td>Um aviso diz que não é possível inserir</td><td>Veja a mensagem: planilha protegida, nenhuma tabela selecionada ou menos de duas categorias são os casos mais comuns.</td></tr>
+      <tr><td>Erro ao atualizar</td><td>Confira a fonte em <span class="ui">Configurações</span> e o acesso à rede ou à pasta. Os detalhes ficam em <code>%LOCALAPPDATA%\ThinQQ\logs\thinqq.log</code>.</td></tr>
+      <tr><td>O Excel abriu sem a aba logo após uma atualização do carregador</td><td>Feche o Excel, vá a <code>%LOCALAPPDATA%\ThinQQ</code>, apague (ou renomeie) <code>ThinQQ.xlam</code> e renomeie <code>ThinQQ.xlam.bak</code> para <code>ThinQQ.xlam</code>. Sem o <code>.bak</code>, reinstale.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="faq" aria-labelledby="h-faq">
+  <h2 id="h-faq">Perguntas frequentes</h2>
+  <details>
+    <summary>Quem recebe minha planilha precisa ter o ThinQQ?</summary>
+    <div><p>Não. Os gráficos são gráficos nativos do Excel, ligados por fórmulas a uma planilha interna oculta. Eles abrem, recalculam e podem ser formatados em qualquer Excel. O que o ThinQQ faz a mais é criar e reposicionar as setas; sem ele, as setas existentes ficam como estão.</p></div>
+  </details>
+  <details>
+    <summary>Posso colar o gráfico no PowerPoint?</summary>
+    <div><p>Sim. Copie o gráfico no Excel e cole no PowerPoint como imagem ou mantendo o vínculo com o Excel, como faria com qualquer gráfico.</p></div>
+  </details>
+  <details>
+    <summary>O que é a planilha <code>_ThinQQ</code>?</summary>
+    <div><p>Uma planilha muito oculta, criada na sua pasta de trabalho, com as fórmulas que alimentam os gráficos. Não a edite. Se você apagar um gráfico, <span class="ui">Atualizar</span> remove o bloco que sobrou.</p></div>
+  </details>
+  <details>
+    <summary>Posso mudar cores e fontes do gráfico à mão?</summary>
+    <div><p>Pode. Só lembre que <span class="ui">Paleta</span>, <span class="ui">Formato</span> e <span class="ui">Espaço</span> reaplicam o padrão quando você os usa.</p></div>
+  </details>
+  <details>
+    <summary>O ThinQQ envia meus dados para algum lugar?</summary>
+    <div><p>Não. A única conexão é a consulta ao manifesto de atualização (um arquivo de texto com números de versão e endereços), na fonte que você configurou.</p></div>
+  </details>
+</section>
+
+<section id="limites" aria-labelledby="h-limites">
+  <h2 id="h-limites">Limitações</h2>
+  <ul>
+    <li>Somente Excel para Windows, Office 16.0 (2016 ou mais novo), 32 e 64 bits. Não há versão para Mac nem para o Excel na web.</li>
+    <li>Cascata com uma série, na vertical. Gráficos de barras horizontais, Mekko, Gantt e pizza ainda não existem.</li>
+    <li>Os eventos que reposicionam as setas só rodam com o gráfico visível: se algo parecer fora do lugar, use <span class="ui">Atualizar</span>.</li>
+    <li>Macros precisam estar habilitadas para o ThinQQ funcionar; a política da sua empresa pode exigir um local confiável ou uma assinatura digital.</li>
+  </ul>
+</section>
+
+<section id="como" aria-labelledby="h-como">
+  <h2 id="h-como">Como funciona</h2>
+  <p>O ThinQQ tem dois arquivos: o <em>carregador</em> (<code>ThinQQ.xlam</code>), que cuida da faixa de opções e das atualizações, e o <em>núcleo</em> (<code>ThinQQ.core.xlam</code>), que desenha os gráficos. O núcleo vive em <code>%LOCALAPPDATA%\ThinQQ\versions\&lt;versão&gt;\</code> e é trocado a quente quando você atualiza. Cada gráfico tem um bloco de fórmulas na planilha oculta <code>_ThinQQ</code> e as setas são formas dentro do gráfico.</p>
+  <p>O código-fonte e o histórico de versões estão em <a href="https://github.com/israeldias-hub/ThinQQ">github.com/israeldias-hub/ThinQQ</a>.</p>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <p>ThinQQ 1.0.0. Dúvidas e sugestões: abra uma <a href="https://github.com/israeldias-hub/ThinQQ/issues">issue no GitHub</a>.</p>
+</footer>
+</body>
+</html>

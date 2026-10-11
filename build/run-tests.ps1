@@ -102,6 +102,12 @@ if (-not $timedOut -and $targets -contains 'loader') {
     if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
 }
 if (-not $timedOut) {
+    Write-Host '=== documentacao (tutorial, README, rotulos da faixa) ==='
+    $global:LASTEXITCODE = 0
+    & (Join-Path $RepoRoot 'tests\ps\Test-Docs.ps1') -RepoRoot $RepoRoot
+    if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
+}
+if (-not $timedOut) {
     Write-Host '=== instalador (pwsh e Windows PowerShell 5.1) + guarda de release ==='
     $psExes = @((Get-Process -Id $PID).Path, (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'))
     foreach ($exe in $psExes) {
