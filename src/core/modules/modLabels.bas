@@ -48,7 +48,7 @@ End Function
 
 ' Reaplica acima/abaixo conforme o sinal atual das séries auxiliares de rótulo.
 Public Sub Labels_RefreshPositions(cht As Chart)
-    Dim blk As Range, body As Range, s As Series, col As Long, i As Long, n As Long, en As Long, ed As String
+    Dim blk As Range, body As Range, s As Series, col As Long, i As Long, n As Long, en As Long, ed As String, want As Long
     If mRefreshing Then Exit Sub
     mRefreshing = True
     On Error GoTo Done
@@ -65,7 +65,8 @@ Public Sub Labels_RefreshPositions(cht As Chart)
     If Not s.HasDataLabels Then GoTo Done
     For i = 1 To n
         If i <= s.Points.Count Then
-            s.Points(i).DataLabel.Position = IIf(Util_ToDouble(body.Cells(i + 1, col).Value) < 0, xlLabelPositionBelow, xlLabelPositionAbove)
+            want = IIf(Util_ToDouble(body.Cells(i + 1, col).Value) < 0, xlLabelPositionBelow, xlLabelPositionAbove)
+            If s.Points(i).DataLabel.Position <> want Then s.Points(i).DataLabel.Position = want    ' so escreve se mudou (evita redesenho a cada calculo)
         End If
     Next
 Done:

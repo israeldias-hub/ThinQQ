@@ -70,7 +70,7 @@ Public Function Util_CellLabel(c As Range) As String
     If VarType(v) = vbString Then Util_CellLabel = v: Exit Function
     s = CStr(c.Text)
     If Left$(s, 1) = "#" Then
-        If VarType(c.Value) = vbDate Then s = Format$(c.Value, "dd/mm/yyyy") Else s = CStr(v)
+        If VarType(c.Value) = vbDate Then s = Format$(c.Value, "Short Date") Else s = CStr(v)
     End If
     Util_CellLabel = s
 End Function

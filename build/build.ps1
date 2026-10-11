@@ -87,7 +87,7 @@ foreach ($t in $targets) {
 if ($Install -and $Configuration -eq 'Release') {
     $root = Join-Path $env:LOCALAPPDATA 'ThinQQ'
     $verDir = Join-Path $root "versions\$($versions.core)"
-    New-Item -ItemType Directory -Force $verDir, (Join-Path $root 'tmp'), (Join-Path $root 'logs') | Out-Null
+    New-Item -ItemType Directory -Force $verDir, (Join-Path $root 'logs') | Out-Null
     Copy-Item (Join-Path $DistDir 'ThinQQ.xlam') $root -Force
     Copy-Item (Join-Path $DistDir 'ThinQQ.core.xlam') $verDir -Force
     Write-Host "Instalado em $root (abra o Excel; na primeira vez registre o suplemento em Arquivo > Opções > Suplementos > Ir... > Procurar)"

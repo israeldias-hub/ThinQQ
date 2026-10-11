@@ -64,6 +64,7 @@ Public Function Updater_IsBusy() As Boolean
 End Function
 
 Public Sub Updater_TestSetBusy(value As Boolean)
+    If BUILD_CONFIG <> "Test" Then Exit Sub     ' gancho de teste: inerte em Release
     mBusy = value
 End Sub
 

@@ -39,6 +39,15 @@ Public Sub Test_RootOverride_And_EnsureFolders()
     AssertEqual Environ$("LOCALAPPDATA") & "\ThinQQ", Loader_Root()
 End Sub
 
+' M4b: downloads fora da pasta confiavel (%LOCALAPPDATA%\ThinQQ e subpastas).
+Public Sub Test_TmpDir_IsOutsideTrustedRoot()
+    Dim t As String
+    Loader_SetRootOverride ""
+    t = Loader_TmpDir()
+    AssertEqual Environ$("TEMP") & "\ThinQQ", t
+    AssertFalse LCase$(Left$(t, Len(Loader_Root()))) = LCase$(Loader_Root()), "tmp nao pode ficar dentro da raiz confiavel"
+End Sub
+
 Public Sub Test_RunCore_Ping()
     ' O run-tests.ps1 abre dist\ThinQQ.core.test.xlam antes dos testes do loader.
     AssertTrue Not Loader_CoreWorkbook() Is Nothing, "core de teste não está aberto"

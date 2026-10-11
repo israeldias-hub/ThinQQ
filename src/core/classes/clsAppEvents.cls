@@ -14,11 +14,13 @@ Public WithEvents App As Application
 Private Sub App_SheetActivate(ByVal Sh As Object)
     On Error Resume Next
     Watchers_Rehook
+    Watchers_NotifySelection        ' atualiza o estado da faixa ao trocar de planilha/janela
 End Sub
 
 Private Sub App_WorkbookActivate(ByVal Wb As Workbook)
     On Error Resume Next
     Watchers_Rehook
+    Watchers_NotifySelection
 End Sub
 
 Private Sub App_WorkbookOpen(ByVal Wb As Workbook)

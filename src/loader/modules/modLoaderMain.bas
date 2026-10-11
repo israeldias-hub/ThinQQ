@@ -21,7 +21,10 @@ Public Function Loader_Msg(prompt As String, Optional style As VbMsgBoxStyle = v
     End If
 End Function
 
+' Gancho de teste: so existe no build de Teste. Em Release e inerte (um Application.Run de terceiros nao pode
+' redirecionar a raiz de onde o loader carrega codigo).
 Public Sub Loader_SetRootOverride(path As String)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
     mRootOverride = path
 End Sub
 
@@ -33,8 +36,14 @@ Public Function Loader_VersionsDir() As String
     Loader_VersionsDir = Loader_Root() & "\versions"
 End Function
 
+' Downloads e arquivos pendentes ficam em %TEMP%\ThinQQ, FORA da pasta confiavel (%LOCALAPPDATA%\ThinQQ e subpastas):
+' um arquivo baixado e ainda nao verificado nunca esta em local confiavel. (Com a raiz de teste, fica sob ela.)
 Public Function Loader_TmpDir() As String
-    Loader_TmpDir = Loader_Root() & "\tmp"
+    If Len(mRootOverride) > 0 Then
+        Loader_TmpDir = mRootOverride & "\tmp"
+    Else
+        Loader_TmpDir = Environ$("TEMP") & "\ThinQQ"
+    End If
 End Function
 
 Public Function Loader_CoreFileName() As String

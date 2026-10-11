@@ -7,9 +7,9 @@
 #   pwsh build/build.ps1 -Target all -Configuration Release
 #   pwsh build/build.ps1 -Target all -Configuration Test     (ThinQQ.test.xlam = loader "novo" inofensivo)
 #   pwsh tests/ps/Test-LoaderSwap.ps1
-# Seguranca: nao instala nada, nao toca no registro de add-ins nem em %LOCALAPPDATA%\ThinQQ (a raiz do loader vai
-# para uma pasta temporaria via Loader_SetRootOverride; o log do CORE segue o caminho padrao, como nos testes
-# unitarios). Valores do registro do atualizador (HKCU\Software\VB and VBA Program Settings\ThinQQ\Updater)
+# Seguranca: nao instala nada, nao toca no registro de add-ins nem em %LOCALAPPDATA%\ThinQQ: o Excel iniciado aqui
+# herda um LOCALAPPDATA redirecionado para uma pasta temporaria (Loader_SetRootOverride e inerte em Release, M1).
+# Valores do registro do atualizador (HKCU\Software\VB and VBA Program Settings\ThinQQ\Updater)
 # sao salvos e restaurados. Usa SO o Excel iniciado aqui (New-ExcelApp valida PID novo; watchdog por PID).
 param(
     [string]$RepoRoot = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
@@ -57,11 +57,14 @@ function Restore-Reg {
 }
 
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("thinqq_swap_" + [guid]::NewGuid().ToString('N').Substring(0, 8))
-$rootDir  = Join-Path $tmp 'root'
+$localApp = Join-Path $tmp 'localapp'
+$rootDir  = Join-Path $localApp 'ThinQQ'
 $instDir  = Join-Path $tmp 'inst'
-$stageDir = Join-Path $rootDir 'tmp'
+$stageDir = Join-Path $tmp 'stage'
+$prevLocalApp = $env:LOCALAPPDATA
 $verDir   = Join-Path $rootDir 'versions\1.0.0'
 New-Item -ItemType Directory -Force $rootDir, $instDir, $stageDir, $verDir | Out-Null
+$env:LOCALAPPDATA = $localApp        # herdado pelo Excel desta execucao (Loader_Root = %LOCALAPPDATA%\ThinQQ)
 $target  = Join-Path $instDir 'ThinQQ.xlam'
 $staged  = Join-Path $stageDir 'ThinQQ.xlam'
 $coreTmp = Join-Path $verDir 'ThinQQ.core.xlam'
@@ -88,7 +91,6 @@ try {
     # 2) Loader de PRODUCAO (Release) aberto SEM eventos (evita o Loader_Startup contra a pasta real); redireciona a
     #    raiz e abre o core temporario pelo mesmo caminho de codigo do Startup (Loader_OpenCore).
     $lw = $xl.Workbooks.Open($target)
-    $xl.Run("'ThinQQ.xlam'!Loader_SetRootOverride", $rootDir) | Out-Null
     $opened = $xl.Run("'ThinQQ.xlam'!Loader_OpenCore", $coreTmp)
     Check ($opened -eq $true) 'Loader_OpenCore abriu o core Release temporario'
     Check ($xl.Run("'ThinQQ.core.xlam'!Core_Ping") -eq 'pong') 'Core_Ping responde antes da troca'
@@ -135,6 +137,7 @@ try {
         Close-ExcelApp $xl
     }
     Restore-Reg
+    $env:LOCALAPPDATA = $prevLocalApp
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
 if (Test-ExcelWatchdogFired $wd) { Write-Host 'not ok - TIMEOUT (dialogo modal ou travamento)'; $script:fail++ }

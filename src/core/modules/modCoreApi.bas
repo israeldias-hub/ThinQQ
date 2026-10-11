@@ -445,6 +445,7 @@ End Sub
 
 ' Gancho de teste da guarda de reentrada.
 Public Sub Core_TestSetApplyBusy(value As Boolean)
+    If BUILD_CONFIG <> "Test" Then Exit Sub     ' gancho de teste: inerte em Release
     mApplyBusy = value
 End Sub
 

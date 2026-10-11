@@ -4,6 +4,7 @@ Private mWatchers As Collection
 Private mAppEvents As clsAppEvents
 Private mLastHasChart As Boolean
 Private mLoaderName As String
+Private mRehooking As Boolean       ' reentrada: Core_SafeRefresh pode disparar eventos que chamam Rehook
 
 Public Sub Watchers_Start()
     On Error Resume Next
@@ -41,6 +42,12 @@ Public Sub Watchers_Rehook()
             If Err.Number = 0 Then mWatchers.Add w
             Err.Clear
             On Error GoTo 0
+            ' redesenha anotacoes/rotulos do grafico que acabou de ser observado (planilha recem-ativada)
+            If Not mRehooking Then
+                mRehooking = True
+                Core_SafeRefresh co.Chart
+                mRehooking = False
+            End If
         End If
     Next
 End Sub

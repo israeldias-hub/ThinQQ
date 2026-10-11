@@ -852,3 +852,21 @@ Public Sub Test_Core_Stacked100_NumFmt_AppliesToTotals_Pct1ToShares()
     AssertEqual "29%", cht.SeriesCollection(1).Points(1).DataLabel.Text, "volta a pct0"
     Teardown wb
 End Sub
+
+' ---- M12: Watchers_Rehook redesenha os graficos recem-observados ----
+
+Public Sub Test_Watchers_Rehook_RefreshesAnnotations()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    Watchers_Stop
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    Set cht = ws.ChartObjects(1).Chart
+    Core_AddAnnotation "cagr", 1, 4
+    Watchers_Stop                                   ' sem observadores: mudancas nao redesenham
+    ws.Range("B5").Value = 250                      ' total 2025 = 340
+    AssertEqual "CAGR +17,0%", cht.Shapes("tqq_ann_cagr_1_lbl").TextFrame2.TextRange.Text, "rotulo ainda desatualizado"
+    Watchers_Rehook                                 ' ao observar de novo, atualiza
+    AssertEqual "CAGR +31,4%", cht.Shapes("tqq_ann_cagr_1_lbl").TextFrame2.TextRange.Text
+    Teardown wb
+End Sub

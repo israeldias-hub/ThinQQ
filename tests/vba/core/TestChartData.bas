@@ -147,7 +147,7 @@ Public Sub Test_ChartData_Text_NarrowColumn_Date()
     ws.Range("A3").NumberFormat = "dd/mm/yyyy"
     ws.Columns("A").ColumnWidth = 1
     Set d = ChartData_FromRange(ws.Range("A1:D5"))
-    AssertEqual "05/03/2024", d.CategoryText(2)
+    AssertEqual Format$(DateSerial(2024, 3, 5), "Short Date"), d.CategoryText(2), "data no formato curto da localidade (M6)"
     CloseTemp wb
 End Sub
 

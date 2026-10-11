@@ -94,7 +94,7 @@ try {
             Unblock-File -LiteralPath (Join-Path $stage $f) -ErrorAction SilentlyContinue
         }
     }
-    foreach ($d in @($verDir, (Join-Path $Root 'tmp'), (Join-Path $Root 'logs'), $undoDir)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
+    foreach ($d in @($verDir, (Join-Path $Root 'logs'), $undoDir)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
 
     # guarda copias para o desfazer; o loader antigo vira ThinQQ.xlam.bak (so o ultimo e mantido)
     if ($hadLoader) { Copy-Item -LiteralPath $loaderDest -Destination (Join-Path $undoDir 'loader') -Force; Copy-Item -LiteralPath $loaderDest -Destination $bak -Force }
