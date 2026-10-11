@@ -1,4 +1,4 @@
-• Barras horizontais (empilhadas, agrupadas e 100%) e cascata horizontal, com totais e rótulos ligados às células.
+• Barras horizontais (empilhadas, agrupadas e 100%) e cascata horizontal, com totais e rótulos que acompanham os dados.
 • Cascata com várias séries (até 6) e "de cima para baixo" (e na primeira linha e um número na última).
 • Área (empilhada e 100%) e combinação de colunas com linha, com eixo secundário e nome da série no fim da linha.
 • Mekko (% e unidades), Gantt (escala de semanas a anos, marcos e colchetes), pizza e rosca.

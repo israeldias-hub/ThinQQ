@@ -161,9 +161,9 @@ negativa, de cima para baixo), `tqq_total`, auxiliares de rótulo. `UP_j` leva o
 Alternativas: forma (`Chart.Shapes.AddLine`) — não vive sem o ThinQQ; série XY no grupo primário — alinha só em
 colunas; **série de linha** com valor constante — simples, viva, atravessa da primeira à última categoria (em eixo
 "entre categorias" fica meia fatia aquém das bordas: aceito e documentado).
-- Decisão: coluna `VLine` no bloco (`=AVERAGE(Total)`; Mekko unidades: média ponderada pela largura) + série
+- Decisão: coluna `VLine` no bloco (`=AVERAGE(Total)` nas empilhadas, na área e na combinação; **média de todos os valores plotados** em agrupadas e linha, onde cada valor é uma coluna ou ponto; Mekko unidades: média ponderada pela largura) + série
   `tqq_vline` (linha cinza tracejada, sem marcadores) com rótulo ligado no último ponto (célula com formato
-  `"Média "#,##0`, localizado por `Style_LocalizeCode`). Em barras: XY secundária com 2 pontos (`Y = 0` e `Y = n`).
+  `"Média "#,##0`, localizado por `Style_LocalizeCode`). Em barras: XY secundária com `X = VLine` e `Y = Pos`, do centro da primeira faixa ao da última (como nas colunas; só o Mekko atravessa o gráfico todo).
 
 ### 3.6 Combinação e eixo secundário
 `Series.ChartType = xlLineMarkers` na última série de um gráfico de colunas empilhadas; `Series.AxisGroup =
@@ -300,7 +300,7 @@ ou negativos contam como 0 (`IF(AND(ISNUMBER(src),src>0),src,0)` alimenta a sér
 | Mesma escala | `vmin`/`vmax` | `Deco_SameScale(charts)`: lê a escala automática de cada gráfico, aplica a união a todos, persiste; `Deco_ApplyFixedScale` reaplica no refresh; "Escala automática" limpa | todos com eixo de valores livre (não 100%, mekko, pie, gantt) |
 | Legenda | `legend=right|none|lineend` | `Deco_SetLegend`: `lineend` oculta a legenda e mostra o nome da série no rótulo do último ponto (`ShowSeriesName`) | lineend só em line e combo (linha); right/none em todos com legenda |
 | Eixo secundário | `secondary=1` | `Combo_SetSecondary` | combo |
-| Rótulos fora | `pieout=1` | `Pie_SetOutside` (com `pieout=1` a legenda fica oculta, qualquer que seja `legend`) | pie (a rosca recusa a posição de rótulo) |
+| Rótulos fora | `pieout=1` | `Pie_SetOutside` (regra de `Pie_ApplyLegend`: com `pieout=1` e rótulos ligados a legenda fica oculta, qualquer que seja `legend`; desligados os rótulos, a legenda volta) | pie (a rosca recusa a posição de rótulo) |
 
 "Mesma escala" age sobre os gráficos ThinQQ **selecionados** (`Selection.ShapeRange`, 2 ou mais) ou, sem seleção
 múltipla, sobre **todos os gráficos ThinQQ da planilha ativa**; o botão fica sempre habilitado (a seleção múltipla

@@ -54,7 +54,8 @@ do que cada tipo aceita, as mensagens do ThinQQ e os limites conhecidos.
 - [ ] Publicar o conteúdo do repositório no GitHub (`israeldias-hub/ThinQQ`).
 - [ ] Gerar os arquivos com `build/release.ps1` e publicar a release **v1.1.0** com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`).
 - [ ] Fazer commit de `release/manifest.json` (com URLs reais) e de `version.json` (já em `{ "loader": "1.1.0", "core": "1.1.0" }`) na `main`.
-- [ ] Habilitar o GitHub Pages (Settings > Pages > branch `main`, pasta `/docs`) para o tutorial online.
+- [ ] **Limpeza de privacidade antes de publicar** (o repositório ou o Pages): os arquivos de especificação e plano (`docs/superpowers/**`) trazem caminhos locais (`C:\Users\<usuário>\...`), números de processo e detalhes da máquina do autor. Troque por `%USERPROFILE%` e `<repo>` e confira que nada disso ficou em outros arquivos; o histórico do Git guarda o texto antigo, então decida se publica o histórico ou um repositório novo.
+- [ ] Habilitar o GitHub Pages para o tutorial online (veja "Tutorial online (GitHub Pages)": pela pasta `/docs`, tudo o que está em `docs/` fica público, inclusive a especificação e o plano em `docs/superpowers`).
 - [ ] Verificar a verificação de atualização a partir de um perfil limpo (usuário do Windows novo ou máquina sem o ThinQQ): instalar uma versão anterior (como a 1.1.0 é a primeira publicada, use um ensaio local com uma versão menor) e conferir que o aviso de atualização aparece e atualiza.
 - [ ] Ativar autenticação em dois fatores na conta do GitHub (veja Segurança abaixo).
 - [ ] Rodar o roteiro manual no Excel real (seção "Verificações manuais no Excel real"), a começar pela conferência de que a aba ThinQQ aparece.
@@ -80,7 +81,7 @@ O valor `CheckIntervalHours` (horas; padrão 24) em `HKCU\Software\VB and VBA Pr
 
 ## Instalação (usuários)
 
-Requisitos: Excel do Office 16.0 (2016, 2019, 2021 ou Microsoft 365) para Windows. O código não faz chamadas à API do Windows (nenhuma instrução `Declare`), então é compatível com 32 e 64 bits por construção; os testes automatizados rodaram apenas em Excel 32 bits.
+Requisitos: Excel do Office 16.0 para Windows. Os testes automatizados rodaram só no Excel 2019 de 32 bits; o 2016, o 2021 e o Microsoft 365 são esperados, não testados. O código não faz chamadas à API do Windows (nenhuma instrução `Declare`), então é compatível com 32 e 64 bits por construção.
 
 1. Baixe `ThinQQ-x.y.z.zip` da página de [Releases](https://github.com/israeldias-hub/ThinQQ/releases) e descompacte a pasta inteira.
 2. Feche o Excel e dê dois cliques em `Instalar-ThinQQ.cmd`.
@@ -154,7 +155,7 @@ O botão ThinQQ > Tutorial abre o `tutorial.html` da versão instalada; se ele n
 <https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html>. Para essa página existir, habilite uma vez
 em Settings > Pages > "Deploy from a branch", branch `main`, pasta `/docs`.
 
-Atenção: o Pages publica a pasta `/docs` inteira, inclusive `docs/superpowers` (especificação e plano). Se quiser uma superfície publicada menor, o tutorial pode ir para `docs/tutorial-site` (não movido ainda). Se isso não for desejado, mova o tutorial para uma pasta própria (por exemplo `site/`), aponte o Pages para ela e ajuste `TUTORIAL_URL` em `src/loader/modules/modRibbon.bas` e o caminho em `build/release.ps1`.
+Atenção: o Pages por branch só serve a raiz (`/`) ou a pasta `/docs`, então mover o tutorial para outra subpasta de `docs/` (como `docs/tutorial-site`) **não** reduz o que é publicado: com `/docs`, tudo sob `docs/` vai ao ar, inclusive `docs/superpowers` (especificação e plano). Para publicar só o tutorial há duas saídas: (1) publicar por um workflow do GitHub Actions (Settings > Pages > Source: GitHub Actions) que envie apenas a pasta do tutorial, mantendo o caminho `tutorial/tutorial.html` para que `TUTORIAL_URL` em `src/loader/modules/modRibbon.bas` continue valendo; ou (2) tirar a especificação e os planos de `docs/` (por exemplo para `design/`) e manter o Pages em `/docs`. Em qualquer caso, faça antes a limpeza de privacidade da checklist acima.
 
 ## Arquitetura
 
@@ -203,9 +204,9 @@ Os testes automáticos usam um Excel invisível; estas verificações precisam d
 1. A aba ThinQQ aparece na faixa de opções, ao lado de Inserir, com os cinco menus de inserção (Colunas, Barras, Cascata, Linha e área, Mais tipos). Esta é a primeira conferência: sem a aba, nenhum outro item vale.
 2. Com células selecionadas, só os cinco menus, Mais opções (com Mesma escala e Escala automática), Atualizar e o grupo ThinQQ ficam ativos; o resto do grupo "Gráfico selecionado" fica cinza.
 3. ThinQQ > Colunas > Colunas empilhadas insere o gráfico à direita, selecionado; Totais e Rótulos pressionados; Totais e Conectores ligam e desligam.
-4. Formato, Paleta e Espaço (e a mensagem em gráfico de linha); Colunas 100% mostra participações nos segmentos e nasce com "100%" à esquerda.
+4. Formato, Paleta e Espaço (que fica cinza em gráfico de linha); Colunas 100% mostra participações nos segmentos e nasce com "100%" à esquerda.
 5. Setas > Seta CAGR abre o formulário e desenha o texto; mudar um valor atualiza; Seta diferença; Remover setas; redimensionar reposiciona.
-6. Cascata (colunas) com `e`: barras, rótulos e conectores; clicar numa célula desabilita o grupo; Sobre, Tutorial, Configurações, Exemplos.
+6. Cascata (colunas) com `e`: barras, rótulos e conectores; clicar numa célula deixa cinza o resto do grupo (Mais opções e Atualizar continuam ativos); Sobre, Tutorial, Configurações, Exemplos.
 7. Copiar um gráfico e apagar o original: a cópia mantém os dados; inserir linha na tabela de origem mostra o aviso uma vez.
 8. Colunas 100% com Totais desligado: copiar e colar o gráfico, apagar o original e clicar em Atualizar; a cópia mantém as participações e continua certa depois de inserir outro gráfico.
 9. Verificar atualizações e um ciclo real de atualização (core e, depois, loader); conferir `Workbooks("ThinQQ.core.xlam")`.
@@ -216,7 +217,7 @@ Os testes automáticos usam um Excel invisível; estas verificações precisam d
 14. Cascata (barras) com a tabela Receita a Lucro do exemplo 9: rótulos à direita ou à esquerda, conectores verticais; redimensionar e mudar valores.
 15. Área empilhada e Área 100% (rótulos no meio das faixas, totais acima, bordas brancas); Combinação com uma coluna de percentual (linha no eixo secundário, totais só das colunas); Legenda > Nome no fim da linha num gráfico de linha; Legenda > Nenhuma.
 16. Mais opções > Linha de valor (média) num empilhado: linha tracejada com "Média N" à direita; mudar um valor move a linha.
-17. Dois gráficos com escalas diferentes selecionados com Ctrl+clique > Mais opções > Mesma escala; depois Escala automática; sem seleção, a mensagem informa quantos gráficos foram afetados; com dados acima do máximo fixo, o aviso aparece uma vez.
+17. Dois gráficos com escalas diferentes selecionados com Ctrl+clique > Mais opções > Mesma escala; depois Escala automática; com um só gráfico selecionado ou nenhum, vale para todos os da planilha e a mensagem informa quantos foram afetados (Escala automática com um selecionado age só nele); com dados acima do máximo fixo, o aviso aparece uma vez.
 18. Pizza e Rosca de uma tabela de 3 linhas: Mais opções > Rótulos fora da pizza (nomes nas fatias, legenda some; arraste um rótulo para ver as linhas de chamada; na rosca o item fica cinza); Formato 12% mostra participações; Paleta; as setas ficam cinza.
 19. Mekko (%) de uma tabela 3x3: larguras proporcionais aos totais, separadores brancos, participações nos segmentos, larguras no topo, nomes embaixo, "100%" à esquerda; mudar um valor redistribui as larguras ao vivo.
 20. Mekko (unidades) com a coluna Largura e Linha de valor (média): média ponderada pela largura.
@@ -237,7 +238,7 @@ Os detalhes de cada tipo estão na seção "Limitações" do tutorial.
 - Somente Excel para Windows, Office 16.0; sem Mac nem Excel na web. A compatibilidade com Excel 64 bits é por construção (sem `Declare`), ainda não verificada em teste.
 - Cascata com no máximo 6 séries. Pizza e rosca usam só a primeira coluna de valores; valores negativos, zero, texto e erros viram fatias vazias.
 - A seta de diferença não existe em gráficos 100%, Mekko, pizza e Gantt; a seta CAGR não existe em Mekko, pizza e Gantt; o colchete só existe no Gantt.
-- Mesma escala é uma escala fixa, não dinâmica: depois de mudar muito os dados, use de novo ou Escala automática; um ajuste manual do eixo é desfeito no próximo cálculo ou redimensionamento. Gráficos 100%, Mekko (%), pizza e Gantt não entram.
+- Mesma escala é uma escala fixa, não dinâmica: depois de mudar muito os dados, use de novo ou Escala automática; um ajuste manual do eixo é desfeito no próximo cálculo ou redimensionamento. Gráficos 100%, Mekko (%), pizza e Gantt não entram. Com um só gráfico selecionado (ou nenhum), a Mesma escala vale para todos os gráficos ThinQQ da planilha.
 - A linha de valor só existe na média dos valores. Nome no fim da linha só em linha e combinação.
 - Gantt: sem sombreamento de fins de semana, colunas de responsável e observação (só uma 4ª coluna, que vira o rótulo da barra), âncoras, setas de processo nem escala de dias; os separadores da escala são desenhados sobre as barras; o intervalo do eixo só é recalculado pelo ThinQQ (Atualizar ou eventos de cálculo).
 - Mekko: sem setas; colunas estreitas ou muitas categorias deixam os rótulos e os nomes sobrepostos.

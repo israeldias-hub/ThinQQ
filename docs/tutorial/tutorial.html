@@ -184,9 +184,9 @@ table.mx thead th { vertical-align: bottom; min-width: 4.6rem; }
 table.mx thead th:first-child, table.mx tbody th { text-align: left; position: sticky; left: 0; z-index: 1; background: var(--soft); min-width: 7.5rem; }
 table.mx tbody th { box-shadow: 1px 0 0 var(--line); }
 table.mx .ui { background: none; padding: 0; color: inherit; font-weight: 600; white-space: normal; }
+table.mx td { color: var(--muted); }
 table.mx td.y { color: var(--ok-ink); background: var(--ok-bg); font-weight: 700; }
 table.mx td.w { color: var(--warn-ink); background: var(--warn-bg); font-weight: 600; white-space: normal; }
-table.mx td.no { color: var(--muted); }
 
 details { border: 1px solid var(--line); border-radius: 6px; background: var(--panel); margin: 10px 0; }
 summary { cursor: pointer; padding: 11px 16px; font-weight: 600; }
@@ -218,7 +218,8 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   .toc, .skip { display: none; }
   .wrap { display: block; padding: 12px 0; }
   section { break-inside: auto; margin-bottom: 24px; }
-  h2, h3, h4, .tw, details { break-inside: avoid; break-after: avoid; }
+  h2, h3, h4 { break-inside: avoid; break-after: avoid; }
+  .tw, details { break-inside: avoid; }
   .tw, .rb-body { overflow: visible; }
   ol.steps > li::before { background: #000; color: #fff; }
   details > div { display: block; }
@@ -332,7 +333,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <h2 id="h-primeiro">Seu primeiro gráfico</h2>
   <p>O ThinQQ cria gráficos do Excel já formatados, com totais, rótulos e setas que se atualizam quando os números mudam. Para ver tudo funcionando, clique em <span class="ui">Exemplos</span>: abre uma pasta de trabalho nova com 18 exemplos em duas planilhas, "Exemplos" e "Exemplos 2".</p>
   <p>Para criar o seu, siga estes passos com a tabela abaixo (ou a sua).</p>
-  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de exemplo">
+  <div class="tw fit">
   <table class="mini">
     <thead><tr><th>Ano</th><th class="n">Sul</th><th class="n">Sudeste</th><th class="n">Nordeste</th></tr></thead>
     <tbody>
@@ -343,7 +344,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     </tbody>
   </table>
   </div>
-  <ol class="steps">
+  <ol class="steps" role="list">
     <li>Digite a tabela com uma linha de cabeçalho (nomes das séries) e uma coluna de categorias à esquerda.</li>
     <li>Clique em qualquer célula da tabela. Com uma célula só, o ThinQQ usa a região inteira ao redor. Se preferir, selecione a tabela toda.</li>
     <li>Na aba <span class="ui">ThinQQ</span>, grupo <span class="ui">Inserir gráfico</span>, abra o menu <span class="ui">Colunas</span> e clique em <span class="ui">Colunas empilhadas</span>.</li>
@@ -402,8 +403,8 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </table>
   </div>
 
-  <h3>O que cada tipo aceita</h3>
-  <p>No grupo <span class="ui">Gráfico selecionado</span>, cada controle só fica ativo nos tipos que o aceitam; os demais ficam cinza. Na pizza, por exemplo, <span class="ui">Totais</span>, <span class="ui">Conectores</span> e <span class="ui">Espaço</span> ficam cinzas e <span class="ui">Rótulos fora da pizza</span> fica ativo. A tabela completa, tipo por tipo, está em <a href="#matriz">O que cada tipo aceita</a>, e cada controle é explicado em <a href="#opcoes">Opções do gráfico selecionado</a>.</p>
+  <h3>Controles que dependem do tipo</h3>
+  <p>No grupo <span class="ui">Gráfico selecionado</span>, cada controle só fica ativo nos tipos que o aceitam; os demais ficam cinza. Na pizza, por exemplo, <span class="ui">Totais</span>, <span class="ui">Conectores</span> e <span class="ui">Espaço</span> ficam cinzas e <span class="ui">Rótulos fora da pizza</span> fica ativo. As exceções são <span class="ui">Mesma escala</span> e <span class="ui">Escala automática</span>, que ficam sempre ativos. A tabela completa, tipo por tipo, está em <a href="#matriz">O que cada tipo aceita</a>, e cada controle é explicado em <a href="#opcoes">Opções do gráfico selecionado</a>.</p>
 
   <h3>Sobre os exemplos</h3>
   <p>As duas planilhas de <span class="ui">Exemplos</span> mostram 14 dos 17 tipos, a seta de diferença, o colchete, a linha de valor, o indicador 100% e a mesma escala. Não há exemplo pronto de Barras agrupadas, Barras 100% e Área 100%, da cascata de cima para baixo e de <span class="ui">Nome no fim da linha</span>: use as tabelas das seções de cada tipo. Os exemplos são gráficos comuns do ThinQQ: clique neles e experimente os controles.</p>
@@ -418,7 +419,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <dt>Cabeçalho</dt><dd>A primeira linha dá o nome de cada série (aparece na legenda). Células vazias ou com texto valem 0.</dd>
     <dt>Marcadores</dt><dd>Nenhum: o <code>e</code> só vale na cascata.</dd>
   </dl>
-  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de exemplo das barras">
+  <div class="tw fit">
   <table class="mini">
     <thead><tr><th>Região</th><th class="n">Loja</th><th class="n">Online</th></tr></thead>
     <tbody>
@@ -451,7 +452,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </dl>
 
   <h3>Uma série</h3>
-  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de cascata">
+  <div class="tw fit">
   <table class="mini">
     <thead><tr><th>Etapa</th><th class="n">Valor</th></tr></thead>
     <tbody>
@@ -473,7 +474,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
   <h3 id="cascata-series">Várias séries</h3>
   <p>Com mais de uma coluna de valores, cada coluna vira uma série dentro da mesma ponte: cada categoria empilha os segmentos das séries, e o conector acompanha o total líquido.</p>
-  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de cascata com duas séries">
+  <div class="tw fit">
   <table class="mini">
     <thead><tr><th>Etapa</th><th class="n">Loja</th><th class="n">Online</th></tr></thead>
     <tbody>
@@ -490,12 +491,12 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li><strong>Até 6 séries.</strong> Com 7 ou mais colunas de valores o ThinQQ avisa "A cascata aceita no máximo 6 séries." e não cria o gráfico.</li>
     <li><strong>Segmentos:</strong> os positivos sobem a partir do nível acumulado e os negativos descem; cada segmento tem a extensão certa mesmo quando uma série cruza o zero (na linha Queda, o segmento da Loja desce de 130 até −70).</li>
     <li><strong>Cores e legenda:</strong> cada série tem a sua cor, na ordem da paleta. As barras de total são sempre da quarta cor da paleta (cinza, no Padrão ThinQQ) e as séries pulam essa cor; com 6 séries, a 6.ª repete a cor da 1.ª. A <span class="ui">Legenda</span> lista as séries e só existe quando há mais de uma.</li>
-    <li><strong>Rótulos:</strong> cada segmento mostra o seu valor, com sinal, e cada total mostra o total da linha. Segmentos muito finos têm o rótulo encostado nas bordas.</li>
+    <li><strong>Rótulos:</strong> cada segmento mostra o seu valor (os negativos, com o sinal −) e cada total mostra o total da linha. Segmentos muito finos têm o rótulo encostado nas bordas.</li>
   </ul>
 
   <h3 id="cascata-baixo">De cima para baixo</h3>
   <p>Quando você conhece o resultado final e quer mostrar de onde ele vem, ponha <code>e</code> na <strong>primeira</strong> linha e um <strong>número</strong> na última: o ThinQQ calcula o primeiro total para trás.</p>
-  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de cascata de cima para baixo">
+  <div class="tw fit">
   <table class="mini">
     <thead><tr><th>Etapa</th><th class="n">Valor</th></tr></thead>
     <tbody>
@@ -539,7 +540,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
   <h3>Combinação (colunas + linha)</h3>
   <p>As primeiras colunas de valores viram colunas empilhadas e a <strong>última coluna vira uma linha</strong>. É o exemplo 16 de "Exemplos 2".</p>
-  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de combinação">
+  <div class="tw fit">
   <table class="mini">
     <thead><tr><th>Ano</th><th class="n">Vendas</th><th class="n">Custo</th><th class="n">Margem</th></tr></thead>
     <tbody>
@@ -578,7 +579,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </dl>
 
   <h3>Mekko (%)</h3>
-  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela do Mekko percentual">
+  <div class="tw fit">
   <table class="mini">
     <thead><tr><th>Região</th><th class="n">Eletro</th><th class="n">Móveis</th></tr></thead>
     <tbody>
@@ -596,7 +597,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </ul>
 
   <h3>Mekko (unidades)</h3>
-  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela do Mekko em unidades">
+  <div class="tw fit">
   <table class="mini">
     <thead><tr><th>Região</th><th class="n">Largura</th><th class="n">Eletro</th><th class="n">Móveis</th></tr></thead>
     <tbody>
@@ -660,7 +661,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </div>
 
   <h3>Colchete (Gantt)</h3>
-  <ol class="steps">
+  <ol class="steps" role="list">
     <li>Clique no gráfico, abra o menu <span class="ui">Setas</span> e clique em <span class="ui">Colchete (Gantt)</span>.</li>
     <li>Na janela, escolha a primeira atividade (<em>Da categoria</em>) e a última (<em>Até a categoria</em>). Pode ser a mesma atividade nas duas pontas.</li>
     <li>O colchete aparece acima da escala, cobrindo do primeiro início ao último fim dessas atividades, com o período escrito, como <code>02/03 - 17/04</code> (um marco ou um só dia mostra uma data só).</li>
@@ -693,7 +694,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <dt>Colunas</dt><dd>Só a <strong>primeira</strong> coluna de valores é usada.</dd>
     <dt>Marcadores</dt><dd>Nenhum.</dd>
   </dl>
-  <div class="tw fit" tabindex="0" role="region" aria-label="Tabela de pizza">
+  <div class="tw fit">
   <table class="mini">
     <thead><tr><th>Produto</th><th class="n">Vendas</th></tr></thead>
     <tbody>
@@ -726,7 +727,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <p>Três recursos do menu <span class="ui">Mais opções</span> que se aplicam a vários tipos. A tabela <a href="#matriz">O que cada tipo aceita</a>, no fim desta seção, diz onde cada um vale.</p>
 
   <h3>Linha de valor (média)</h3>
-  <p><span class="ui">Mais opções</span> › <span class="ui">Linha de valor (média)</span> desenha uma linha tracejada cinza na média dos valores, com o rótulo "Média" e o número (por exemplo "Média 38"). A linha acompanha os dados: mudou um valor, a linha se move. É horizontal nas colunas, áreas, linha e Mekko (unidades) e <strong>vertical nas barras</strong>. Nas colunas, áreas e linha ela vai do centro da primeira categoria ao centro da última (a meia categoria das bordas fica de fora); nas barras e no Mekko atravessa o gráfico todo.</p>
+  <p><span class="ui">Mais opções</span> › <span class="ui">Linha de valor (média)</span> desenha uma linha tracejada cinza na média dos valores, com o rótulo "Média" e o número (por exemplo "Média 38"). A linha acompanha os dados: mudou um valor, a linha se move. É horizontal nas colunas, áreas, linha e Mekko (unidades) e <strong>vertical nas barras</strong>. Nas colunas, barras, áreas e linha ela vai do centro da primeira categoria ao centro da última (a meia categoria das bordas fica de fora); só no Mekko atravessa o gráfico todo.</p>
   <div class="tw" tabindex="0" role="region" aria-label="Como a média da linha de valor é calculada">
   <table>
     <thead><tr><th scope="col">Tipo</th><th scope="col">A média é calculada sobre</th></tr></thead>
@@ -749,75 +750,76 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
   <h3>Mesma escala e Escala automática</h3>
   <p>Para comparar gráficos lado a lado, eles precisam ter o mesmo eixo de valores.</p>
-  <ol class="steps">
+  <ol class="steps" role="list">
     <li>Deixe os gráficos no tamanho final (a escala automática do Excel depende da altura do gráfico).</li>
-    <li>Selecione dois ou mais gráficos do ThinQQ (Ctrl+clique), ou nenhum: sem seleção, o comando age em <strong>todos os gráficos ThinQQ da planilha</strong>.</li>
+    <li>Selecione dois ou mais gráficos do ThinQQ (Ctrl+clique). Com <strong>um só gráfico selecionado, ou nenhum</strong>, a <span class="ui">Mesma escala</span> age em <strong>todos os gráficos ThinQQ da planilha</strong>, e não só no selecionado.</li>
     <li>Clique em <span class="ui">Mais opções</span> › <span class="ui">Mesma escala</span>. O ThinQQ aplica a todos o menor mínimo e o maior máximo entre eles e informa quantos receberam a escala ("Mesma escala aplicada a 2 gráfico(s).").</li>
   </ol>
   <ul>
     <li><strong>Entram:</strong> colunas, barras, linha, área, cascata, combinação (só o eixo das colunas; o eixo secundário da linha segue independente) e Mekko (unidades). <strong>Não entram:</strong> gráficos 100%, Mekko (%), pizza e Gantt: ficam de fora e a mensagem diz quantos foram ignorados.</li>
     <li><strong>A escala é fixa</strong>, não acompanha os dados. Depois de mudar muito os números, aplique <span class="ui">Mesma escala</span> de novo. Se os dados passarem do máximo gravado, as barras ficam cortadas e o ThinQQ avisa uma vez por gráfico e por sessão: "Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'."</li>
+    <li>Os dois botões ficam <strong>sempre ativos</strong>, mesmo com uma célula, uma pizza ou um Gantt selecionado.</li>
     <li>O ThinQQ reaplica a escala a cada cálculo e a cada redimensionamento: <strong>um ajuste manual do eixo desses gráficos é desfeito</strong> no cálculo seguinte.</li>
     <li>Com menos de dois gráficos de escala livre, o ThinQQ avisa "Mesma escala: selecione dois ou mais gráficos do ThinQQ (ou nenhum, para usar todos os gráficos da planilha)." ou "Mesma escala: são necessários dois ou mais gráficos com escala livre (100%, Mekko (%), pizza e Gantt não entram)."</li>
-    <li><span class="ui">Mais opções</span> › <span class="ui">Escala automática</span> devolve o eixo ao automático nos gráficos selecionados (ou em todos os da planilha) e informa quantos foram restaurados. Também descarta um tamanho manual dado à área de plotagem.</li>
+    <li><span class="ui">Mais opções</span> › <span class="ui">Escala automática</span> devolve o eixo ao automático no gráfico selecionado (ou nos selecionados) e informa quantos foram restaurados: <strong>com um só gráfico selecionado age só nele</strong>, e sem nenhum selecionado age em todos os da planilha. Também descarta um tamanho manual dado à área de plotagem. Num gráfico sem escala livre (100%, Mekko (%), pizza ou Gantt) ele só avisa "Escala automática: o gráfico não tem escala livre".</li>
   </ul>
 
   <h3 id="matriz">O que cada tipo aceita</h3>
-  <p>"Sim" quer dizer que o controle fica ativo para o tipo; "—" quer dizer que fica cinza. Na cascata, <span class="ui">Legenda</span> só existe com várias séries. Esta tabela é a mesma matriz que a faixa de opções consulta.</p>
+  <p>"Sim" quer dizer que o controle fica ativo para o tipo; "—" quer dizer que fica cinza. Na cascata, <span class="ui">Legenda</span> só existe com várias séries. <strong>A coluna <span class="ui">Mesma escala</span> é diferente:</strong> o botão fica sempre ativo; "Sim" quer dizer que o gráfico entra na escala comum e "—" que ele é ignorado (e contado na mensagem). Esta tabela é a mesma matriz que a faixa de opções consulta.</p>
   <h4>Dados, rótulos e legenda</h4>
   <div class="tw" tabindex="0" role="region" aria-label="Tabela do que cada tipo aceita: dados, rótulos e legenda (em telas estreitas, role para os lados)">
   <table class="mx">
-    <thead><tr><th scope="col">Tipo</th><th scope="col"><span class="ui">Totais</span></th><th scope="col"><span class="ui">Rótulos</span></th><th scope="col"><span class="ui">Conectores</span></th><th scope="col"><span class="ui">Formato</span></th><th scope="col"><span class="ui">Paleta</span></th><th scope="col"><span class="ui">Espaço</span></th><th scope="col"><span class="ui">Legenda</span></th><th scope="col"><span class="ui">Nome no fim da linha</span></th></tr></thead>
+    <thead><tr><th scope="col">Tipo</th><th scope="col" data-f="totals"><span class="ui">Totais</span></th><th scope="col" data-f="labels"><span class="ui">Rótulos</span></th><th scope="col" data-f="connectors"><span class="ui">Conectores</span></th><th scope="col" data-f="numfmt"><span class="ui">Formato</span></th><th scope="col" data-f="palette"><span class="ui">Paleta</span></th><th scope="col" data-f="gap"><span class="ui">Espaço</span></th><th scope="col" data-f="legend"><span class="ui">Legenda</span></th><th scope="col" data-f="lineend"><span class="ui">Nome no fim da linha</span></th></tr></thead>
     <tbody>
-      <tr data-kind="stacked"><th scope="row"><span class="ui">Colunas empilhadas</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="clustered"><th scope="row"><span class="ui">Colunas agrupadas</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="stacked100"><th scope="row"><span class="ui">Colunas 100%</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="barstacked"><th scope="row"><span class="ui">Barras empilhadas</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="barclustered"><th scope="row"><span class="ui">Barras agrupadas</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="barstacked100"><th scope="row"><span class="ui">Barras 100%</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="waterfall"><th scope="row"><span class="ui">Cascata (colunas)</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="w">Várias séries</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="barwaterfall"><th scope="row"><span class="ui">Cascata (barras)</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="w">Várias séries</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="line"><th scope="row"><span class="ui">Linha</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="y">Sim</td></tr>
-      <tr data-kind="area"><th scope="row"><span class="ui">Área empilhada</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="area100"><th scope="row"><span class="ui">Área 100%</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="combo"><th scope="row"><span class="ui">Combinação (colunas + linha)</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="y">Sim</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="y">Sim</td></tr>
-      <tr data-kind="mekko"><th scope="row"><span class="ui">Mekko (%)</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="mekkounits"><th scope="row"><span class="ui">Mekko (unidades)</span></th><td data-f="totals" class="y">Sim</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="no">—</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="y">Sim</td><td data-f="legend" class="no">—</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
-      <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td data-f="totals" class="no">—</td><td data-f="labels" class="y">Sim</td><td data-f="connectors" class="no">—</td><td data-f="numfmt" class="y">Sim</td><td data-f="palette" class="y">Sim</td><td data-f="gap" class="no">—</td><td data-f="legend" class="y">Sim</td><td data-f="lineend" class="no">—</td></tr>
+      <tr data-kind="stacked"><th scope="row"><span class="ui">Colunas empilhadas</span></th><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="clustered"><th scope="row"><span class="ui">Colunas agrupadas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="stacked100"><th scope="row"><span class="ui">Colunas 100%</span></th><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="barstacked"><th scope="row"><span class="ui">Barras empilhadas</span></th><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="barclustered"><th scope="row"><span class="ui">Barras agrupadas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="barstacked100"><th scope="row"><span class="ui">Barras 100%</span></th><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="waterfall"><th scope="row"><span class="ui">Cascata (colunas)</span></th><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="w">Várias séries</td><td>—</td></tr>
+      <tr data-kind="barwaterfall"><th scope="row"><span class="ui">Cascata (barras)</span></th><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="w">Várias séries</td><td>—</td></tr>
+      <tr data-kind="line"><th scope="row"><span class="ui">Linha</span></th><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td></tr>
+      <tr data-kind="area"><th scope="row"><span class="ui">Área empilhada</span></th><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="area100"><th scope="row"><span class="ui">Área 100%</span></th><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="combo"><th scope="row"><span class="ui">Combinação (colunas + linha)</span></th><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td></tr>
+      <tr data-kind="mekko"><th scope="row"><span class="ui">Mekko (%)</span></th><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="mekkounits"><th scope="row"><span class="ui">Mekko (unidades)</span></th><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td>—</td></tr>
+      <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
     </tbody>
   </table>
   </div>
   <h4>Decorações, setas e escala</h4>
   <div class="tw" tabindex="0" role="region" aria-label="Tabela do que cada tipo aceita: decorações, setas e escala (em telas estreitas, role para os lados)">
   <table class="mx">
-    <thead><tr><th scope="col">Tipo</th><th scope="col"><span class="ui">Indicador 100%</span></th><th scope="col"><span class="ui">Linha de valor (média)</span></th><th scope="col"><span class="ui">Eixo secundário (linha)</span></th><th scope="col"><span class="ui">Rótulos fora da pizza</span></th><th scope="col"><span class="ui">Seta CAGR</span></th><th scope="col"><span class="ui">Seta diferença</span></th><th scope="col"><span class="ui">Colchete (Gantt)</span></th><th scope="col"><span class="ui">Mesma escala</span></th></tr></thead>
+    <thead><tr><th scope="col">Tipo</th><th scope="col" data-f="ind100"><span class="ui">Indicador 100%</span></th><th scope="col" data-f="vline"><span class="ui">Linha de valor (média)</span></th><th scope="col" data-f="secondary"><span class="ui">Eixo secundário (linha)</span></th><th scope="col" data-f="pieout"><span class="ui">Rótulos fora da pizza</span></th><th scope="col" data-f="cagr"><span class="ui">Seta CAGR</span></th><th scope="col" data-f="diff"><span class="ui">Seta diferença</span></th><th scope="col" data-f="bracket"><span class="ui">Colchete (Gantt)</span></th><th scope="col" data-f="samescale"><span class="ui">Mesma escala</span></th></tr></thead>
     <tbody>
-      <tr data-kind="stacked"><th scope="row"><span class="ui">Colunas empilhadas</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
-      <tr data-kind="clustered"><th scope="row"><span class="ui">Colunas agrupadas</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
-      <tr data-kind="stacked100"><th scope="row"><span class="ui">Colunas 100%</span></th><td data-f="ind100" class="y">Sim</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
-      <tr data-kind="barstacked"><th scope="row"><span class="ui">Barras empilhadas</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
-      <tr data-kind="barclustered"><th scope="row"><span class="ui">Barras agrupadas</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
-      <tr data-kind="barstacked100"><th scope="row"><span class="ui">Barras 100%</span></th><td data-f="ind100" class="y">Sim</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
-      <tr data-kind="waterfall"><th scope="row"><span class="ui">Cascata (colunas)</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
-      <tr data-kind="barwaterfall"><th scope="row"><span class="ui">Cascata (barras)</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
-      <tr data-kind="line"><th scope="row"><span class="ui">Linha</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
-      <tr data-kind="area"><th scope="row"><span class="ui">Área empilhada</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
-      <tr data-kind="area100"><th scope="row"><span class="ui">Área 100%</span></th><td data-f="ind100" class="y">Sim</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
-      <tr data-kind="combo"><th scope="row"><span class="ui">Combinação (colunas + linha)</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="y">Sim</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="y">Sim</td><td data-f="diff" class="y">Sim</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
-      <tr data-kind="mekko"><th scope="row"><span class="ui">Mekko (%)</span></th><td data-f="ind100" class="y">Sim</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="no">—</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
-      <tr data-kind="mekkounits"><th scope="row"><span class="ui">Mekko (unidades)</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="y">Sim</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="no">—</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="y">Sim</td></tr>
-      <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="no">—</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="y">Sim</td><td data-f="samescale" class="no">—</td></tr>
-      <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="y">Sim</td><td data-f="cagr" class="no">—</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
-      <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td data-f="ind100" class="no">—</td><td data-f="vline" class="no">—</td><td data-f="secondary" class="no">—</td><td data-f="pieout" class="no">—</td><td data-f="cagr" class="no">—</td><td data-f="diff" class="no">—</td><td data-f="bracket" class="no">—</td><td data-f="samescale" class="no">—</td></tr>
+      <tr data-kind="stacked"><th scope="row"><span class="ui">Colunas empilhadas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="clustered"><th scope="row"><span class="ui">Colunas agrupadas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="stacked100"><th scope="row"><span class="ui">Colunas 100%</span></th><td class="y">Sim</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="barstacked"><th scope="row"><span class="ui">Barras empilhadas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="barclustered"><th scope="row"><span class="ui">Barras agrupadas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="barstacked100"><th scope="row"><span class="ui">Barras 100%</span></th><td class="y">Sim</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="waterfall"><th scope="row"><span class="ui">Cascata (colunas)</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="barwaterfall"><th scope="row"><span class="ui">Cascata (barras)</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="line"><th scope="row"><span class="ui">Linha</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="area"><th scope="row"><span class="ui">Área empilhada</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="area100"><th scope="row"><span class="ui">Área 100%</span></th><td class="y">Sim</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="combo"><th scope="row"><span class="ui">Combinação (colunas + linha)</span></th><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="mekko"><th scope="row"><span class="ui">Mekko (%)</span></th><td class="y">Sim</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="mekkounits"><th scope="row"><span class="ui">Mekko (unidades)</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td>—</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
     </tbody>
   </table>
   </div>
   <ul>
     <li>No Gantt, <span class="ui">Espaço</span> é o espaçamento entre as linhas. No Mekko (%), <span class="ui">Totais</span> mostra a largura de cada coluna; nas unidades, o total.</li>
     <li><span class="ui">Rótulos</span> e <span class="ui">Paleta</span> valem em todos os tipos. <span class="ui">Formato</span> não altera os rótulos da linha da combinação (eles seguem o formato da célula).</li>
-    <li><span class="ui">Mais opções</span> e <span class="ui">Atualizar</span> ficam ativos mesmo sem gráfico selecionado; <span class="ui">Alterar dados</span> e <span class="ui">Remover setas</span> valem em qualquer gráfico do ThinQQ.</li>
+    <li><span class="ui">Mais opções</span> (com <span class="ui">Mesma escala</span> e <span class="ui">Escala automática</span>) e <span class="ui">Atualizar</span> ficam ativos mesmo sem gráfico selecionado; <span class="ui">Alterar dados</span> e <span class="ui">Remover setas</span> valem em qualquer gráfico do ThinQQ.</li>
   </ul>
 </section>
 
@@ -840,8 +842,8 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr><td><span class="ui">Linha de valor (média)</span></td><td>Linha na média dos valores, com o rótulo "Média" e o número. Em colunas e barras empilhadas e agrupadas, linha, área empilhada, combinação e Mekko (unidades); não nos gráficos 100%, na cascata, no Mekko (%), na pizza e no Gantt.</td></tr>
       <tr><td><span class="ui">Eixo secundário (linha)</span></td><td>Só na combinação: a linha usa um eixo próprio. Já nasce ligado quando as grandezas da linha e das colunas diferem mais de 5 vezes.</td></tr>
       <tr><td><span class="ui">Rótulos fora da pizza</span></td><td>Só na pizza: rótulos fora das fatias, com o nome da categoria; a legenda sai enquanto eles estiverem ligados.</td></tr>
-      <tr><td><span class="ui">Mesma escala</span></td><td>Aplica a mesma escala do eixo de valores a dois ou mais gráficos selecionados (sem nenhum selecionado, a todos os da planilha). Gráficos 100%, Mekko (%), pizza e Gantt não entram. A escala fica fixa até você usar <span class="ui">Escala automática</span>.</td></tr>
-      <tr><td><span class="ui">Escala automática</span></td><td>Devolve o eixo de valores ao automático nos gráficos selecionados (ou em todos os da planilha).</td></tr>
+      <tr><td><span class="ui">Mesma escala</span></td><td>Aplica a mesma escala do eixo de valores a dois ou mais gráficos selecionados (com um só selecionado ou nenhum, a todos os da planilha); o botão fica sempre ativo. Gráficos 100%, Mekko (%), pizza e Gantt não entram. A escala fica fixa até você usar <span class="ui">Escala automática</span>.</td></tr>
+      <tr><td><span class="ui">Escala automática</span></td><td>Devolve o eixo de valores ao automático no gráfico (ou nos gráficos) selecionado(s); sem nenhum selecionado, em todos os da planilha. Sempre ativo.</td></tr>
       <tr><td><span class="ui">Setas</span></td><td>Menu com <span class="ui">Seta CAGR</span>, <span class="ui">Seta diferença</span>, <span class="ui">Colchete (Gantt)</span> e <span class="ui">Remover setas</span>. Cada seta só fica ativa nos tipos que a aceitam; a pizza não tem setas.</td></tr>
       <tr><td><span class="ui">Seta CAGR</span></td><td>No menu <span class="ui">Setas</span>: seta de crescimento anual composto entre duas categorias (veja a próxima seção). Não existe no Mekko, na pizza e no Gantt.</td></tr>
       <tr><td><span class="ui">Seta diferença</span></td><td>No menu <span class="ui">Setas</span>: seta com a diferença absoluta e relativa entre dois totais. Não existe nos gráficos 100%, no Mekko, na pizza e no Gantt.</td></tr>
@@ -857,7 +859,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
 <section id="setas" aria-labelledby="h-setas">
   <h2 id="h-setas">Setas de CAGR e de diferença</h2>
-  <ol class="steps">
+  <ol class="steps" role="list">
     <li>Clique no gráfico, abra o menu <span class="ui">Setas</span> e clique em <span class="ui">Seta CAGR</span> ou <span class="ui">Seta diferença</span>.</li>
     <li>Na janela, escolha a categoria inicial (<em>Da categoria</em>) e a final (<em>Até a categoria</em>); por padrão, a primeira e a última.</li>
     <li>Clique em <span class="ui">OK</span>. A seta fica dentro do gráfico e acompanha os dados e o tamanho dele.</li>
@@ -907,8 +909,8 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
 <section id="instalar" aria-labelledby="h-instalar">
   <h2 id="h-instalar">Instalar e desinstalar</h2>
-  <p>Funciona no Excel do Office 16.0 (2016, 2019, 2021 e Microsoft 365) para Windows, sem precisar ser administrador. O passo a passo completo, incluindo a instalação manual, está no arquivo <code>LEIA-ME.txt</code> que vem no ZIP.</p>
-  <ol class="steps">
+  <p>Feito para o Excel do Office 16.0 (2016, 2019, 2021 e Microsoft 365) para Windows, sem precisar ser administrador; os testes automáticos rodaram no Excel 2019 de 32 bits e as demais versões são esperadas, não testadas. O passo a passo completo, incluindo a instalação manual, está no arquivo <code>LEIA-ME.txt</code> que vem no ZIP.</p>
+  <ol class="steps" role="list">
     <li>Descompacte o ZIP inteiro em uma pasta (não execute de dentro do ZIP) e feche o Excel.</li>
     <li>Dê dois cliques em <code>Instalar-ThinQQ.cmd</code>. Se o Windows perguntar, clique em Executar.</li>
     <li>Abra o Excel: a aba <span class="ui">ThinQQ</span> aparece na faixa de opções.</li>
@@ -939,7 +941,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr><td>A pizza está sem legenda</td><td>Os <span class="ui">Rótulos fora da pizza</span> estão ligados e já mostram os nomes. Desligue-os (ou os <span class="ui">Rótulos</span>) para a legenda voltar.</td></tr>
       <tr><td>Falta uma fatia na pizza, ou a coluna de um Mekko (unidades) sumiu</td><td>Valor negativo, zero, texto ou célula vazia (na largura, no caso do Mekko) conta como 0 e a fatia ou a coluna não aparece. Confira os números da tabela.</td></tr>
       <tr><td>Um rótulo, uma seta ou a linha de valor cobre outro rótulo</td><td>Aumente o gráfico, arraste o rótulo ou ajuste a <span class="ui">Paleta</span> e o <span class="ui">Formato</span> para números mais curtos. Alguns casos são limites conhecidos: veja <a href="#limites">Limitações</a>.</td></tr>
-      <tr><td>Um aviso diz que não é possível inserir</td><td>Veja a mensagem: planilha protegida, nenhuma tabela selecionada ou menos de duas categorias são os casos mais comuns. As mensagens específicas de cada tipo estão na tabela abaixo.</td></tr>
+      <tr><td>Um aviso diz que não é possível inserir</td><td>Veja a mensagem: planilha protegida, nenhuma tabela selecionada ou uma seleção com menos de 2 linhas ou 2 colunas (cabeçalho mais ao menos uma categoria) são os casos mais comuns. As mensagens específicas de cada tipo estão na tabela abaixo.</td></tr>
       <tr><td>Erro ao atualizar</td><td>Confira a fonte em <span class="ui">Configurações</span> e o acesso à rede ou à pasta. Os detalhes ficam em <code>%LOCALAPPDATA%\ThinQQ\logs\thinqq.log</code>.</td></tr>
       <tr><td>O Excel abriu sem a aba logo após uma atualização do carregador</td><td>Feche o Excel, vá a <code>%LOCALAPPDATA%\ThinQQ</code>, apague (ou renomeie) <code>ThinQQ.xlam</code> e renomeie <code>ThinQQ.xlam.bak</code> para <code>ThinQQ.xlam</code>. Sem o <code>.bak</code>, reinstale.</td></tr>
     </tbody>
@@ -1015,7 +1017,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
   <h3>Em geral</h3>
   <ul>
-    <li>Somente Excel para Windows, Office 16.0 (2016 ou mais novo). Não há versão para Mac nem para o Excel na web. O código não usa chamadas ao Windows, então deve funcionar em 32 e 64 bits; os testes automáticos rodaram só em 32 bits.</li>
+    <li>Somente Excel para Windows, Office 16.0 (2016 ou mais novo); testado só no Excel 2019 de 32 bits, e as outras versões são esperadas. Não há versão para Mac nem para o Excel na web. O código não usa chamadas ao Windows, então deve funcionar em 32 e 64 bits, mas só o 32 bits foi testado.</li>
     <li>Mudanças no tamanho da tabela de origem exigem <span class="ui">Alterar dados</span> (o aviso aparece uma vez por gráfico e por sessão); linhas filtradas ou ocultas continuam plotadas; <code>.xls</code> não é suportado.</li>
     <li>Os eventos que reposicionam as setas só rodam com o gráfico visível: se algo parecer fora do lugar, use <span class="ui">Atualizar</span>.</li>
     <li>Macros precisam estar habilitadas para o ThinQQ funcionar; a política da sua empresa pode exigir um local confiável ou uma assinatura digital (a assinatura de código é da Fase 3).</li>
@@ -1049,7 +1051,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <ul>
     <li><strong>Gráficos nativos:</strong> colunas, barras, linha, área, pizza e rosca são os tipos comuns do Excel. A combinação é uma série de linha sobre colunas empilhadas, e o Mekko é uma área empilhada sobre um eixo de datas, o que dá a largura variável. O Gantt é uma barra empilhada com uma série de início invisível, mais séries de dispersão (XY) para os marcos, a escala e os rótulos.</li>
     <li><strong>Séries auxiliares:</strong> totais, rótulos, linhas de valor e a escala do Gantt são séries cujo nome começa com <code>tqq_</code>, escondidas da legenda. Nos gráficos horizontais (barras, cascata horizontal e Gantt), onde o Excel não combina barras com linhas, elas são séries XY no grupo secundário de eixos.</li>
-    <li><strong>O bloco em <code>_ThinQQ</code></strong> é maior nos tipos novos: o Mekko usa 5 linhas por categoria (as bordas e o centro de cada coluna) e o Gantt tem pelo menos 40 linhas de escala, calculada por fórmula (semanas, meses, trimestres ou anos). Só o intervalo do eixo do Gantt e a escala fixa de <span class="ui">Mesma escala</span> são aplicados por código.</li>
+    <li><strong>O bloco em <code>_ThinQQ</code></strong> é maior nos tipos novos: o Mekko usa 5 linhas por categoria (as bordas e o centro de cada coluna) e o Gantt tem pelo menos 40 linhas de escala, calculada por fórmula (semanas, meses, trimestres ou anos). Alguns ajustes são feitos por código e não por fórmula: o intervalo do eixo do Gantt, a escala fixa de <span class="ui">Mesma escala</span>, o mínimo do eixo secundário da combinação, o lado dos rótulos conforme o sinal (acima ou abaixo, à direita ou à esquerda) e o nome das fatias de valor 0 na pizza com rótulos fora.</li>
     <li><strong>Capacidades por tipo:</strong> uma única matriz no núcleo diz o que cada tipo aceita; a faixa de opções, os comandos e <span class="ui">Alterar dados</span> consultam a mesma matriz (é a tabela de <a href="#matriz">O que cada tipo aceita</a>).</li>
   </ul>
   <p>O código-fonte e o histórico de versões estão em <a href="https://github.com/israeldias-hub/ThinQQ">github.com/israeldias-hub/ThinQQ</a>.</p>

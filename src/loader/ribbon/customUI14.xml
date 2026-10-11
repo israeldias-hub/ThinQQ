@@ -63,7 +63,7 @@
           <toggleButton id="tglTotals" label="Totais" imageMso="AutoSum" tag="totals"
                         onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
                         screentip="Totais de cada categoria"
-                        supertip="Mostra o total de cada coluna, barra ou área empilhada, da combinação e do Mekko (no Mekko (%), a largura da coluna). Agrupadas, linha, cascata, pizza e Gantt não têm totais."/>
+                        supertip="Mostra o total de cada coluna, barra ou área empilhada ou 100%, da combinação e do Mekko (no Mekko (%), a largura da coluna). Agrupadas, linha, cascata, pizza e Gantt não têm totais."/>
           <toggleButton id="tglLabels" label="Rótulos" imageMso="TextBoxInsert" tag="labels"
                         onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
                         screentip="Rótulos de valor"/>
@@ -122,9 +122,9 @@
                           screentip="Rótulos fora da pizza" supertip="Move os rótulos para fora das fatias, com o nome da categoria (a legenda sai enquanto os rótulos ficam ligados). O Excel só desenha as linhas de chamada depois que você arrasta um rótulo. A rosca não tem esta opção."/>
             <menuSeparator id="msepScale"/>
             <button id="btnSameScale" label="Mesma escala" imageMso="ChartFormatAxis" onAction="Rx_OnSameScale"
-                    screentip="Mesma escala" supertip="Aplica a mesma escala do eixo de valores aos gráficos ThinQQ selecionados (sem nenhum selecionado, a todos os da planilha)."/>
+                    screentip="Mesma escala" supertip="Aplica a mesma escala do eixo de valores a dois ou mais gráficos ThinQQ selecionados; com um só selecionado ou nenhum, a todos os da planilha."/>
             <button id="btnResetScale" label="Escala automática" imageMso="Undo" onAction="Rx_OnResetScale"
-                    screentip="Escala automática" supertip="Devolve o eixo de valores ao automático nos gráficos selecionados (ou em todos os da planilha)."/>
+                    screentip="Escala automática" supertip="Devolve o eixo de valores ao automático no gráfico selecionado (ou nos selecionados); sem nenhum selecionado, em todos os da planilha."/>
           </menu>
           <!-- Setas: o menu so exige um grafico (sem tag); cada seta consulta a matriz pela propria tag. -->
           <menu id="mnuArrows" label="Setas" imageMso="ArrowsMore" getEnabled="Rx_GetEnabled"

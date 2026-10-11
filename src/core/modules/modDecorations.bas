@@ -34,8 +34,9 @@ Public Sub Deco_SetLegend(cht As Chart, mode As String)
     End If
     If Not Kinds_SupportsChart(cht, "legend") Then Err.Raise vbObjectError + 7002, "Deco_SetLegend", "Legenda não se aplica a este tipo de gráfico."
     If Kinds_Family(kind) = "pie" Then
-        ' Pizza e rosca: grava a opcao e aplica a regra unica (legend <> "none") And (pieout <> "1"): com rotulos fora a legenda continua oculta,
-        ' qualquer que seja a opcao (os nomes ja estao nos rotulos). "lineend" ja foi recusado acima (so linha e combinacao).
+        ' Pizza e rosca: grava a opcao e aplica a regra unica de Pie_ApplyLegend: (legend <> "none") And Not (pieout = "1" And labels <> "0").
+        ' Com rotulos fora LIGADOS a legenda continua oculta, qualquer que seja a opcao (os nomes ja estao nos rotulos); desligados os rotulos
+        ' (labels = 0), a legenda volta. "lineend" ja foi recusado acima (so linha e combinacao).
         Registry_SetOption cht, "legend", mode
         Pie_ApplyLegend cht
         Exit Sub
@@ -178,7 +179,7 @@ Private Sub LineEndRoom(cht As Chart)
 End Sub
 
 ' ---------------------------------------------------------------------------------------------------------------------
-' Linha de valor (media dos totais)
+' Linha de valor (media)
 ' ---------------------------------------------------------------------------------------------------------------------
 
 ' Celulas da coluna VLine (uma por categoria; no Mekko, uma por ponto: 5 por categoria) e da coluna Pos do bloco do grafico, por
@@ -241,10 +242,11 @@ Public Sub Deco_ApplyVLineFormat(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Deco_ApplyVLineFormat" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
 
-' Linha de valor na media dos totais (opcao vline). Ligar: refaz a serie auxiliar tqq_vline (colunas, linha, area e combinacao: linha
+' Linha de valor na media (opcao vline; empilhadas, area e combinacao: media dos totais; agrupadas e linha: media de todos os valores
+' plotados; Mekko (unidades): media ponderada pela largura). Ligar: refaz a serie auxiliar tqq_vline (colunas, linha, area e combinacao: linha
 ' sobre a coluna VLine do bloco; barras: XY no grupo secundario, X = VLine e Y = Pos, do centro da 1a faixa ao da ultima), tracejada
 ' cinza de 1 pt, sem marcadores, fora da legenda, com o rotulo "Média N" (ligado a celula do ultimo ponto) a direita (colunas) ou acima
-' (barras). A media e FORMULA do bloco (=AVERAGE(Total)): muda sozinha com os dados. Recusa (erro 7002) nos tipos sem o recurso (100%,
+' (barras). A media e FORMULA do bloco (=AVERAGE(Total), ou a media de todos os valores em agrupadas e linha): muda sozinha com os dados. Recusa (erro 7002) nos tipos sem o recurso (100%,
 ' cascata, Mekko (%), pizza, Gantt: Kinds_Supports "vline") e em bloco da Fase 1 (sem a coluna VLine). Nos tipos 100% a coluna VLine
 ' e NA() e NAO ha linha nem rotulo: um ponto NA() nao esconderia o rotulo (DisplayBlanksAs = xlZero o poe no zero com o texto da celula).
 ' Desligar: apaga a serie. Quem chama atualiza o grafico (Core_SafeRefresh).

@@ -33,13 +33,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - Aviso único quando linhas são inseridas ou removidas na tabela de origem (use Alterar dados).
 - Gráficos 100%: rótulos dos segmentos mostram a participação; o formato escolhido vale para os totais.
 - Rótulo do total em colunas empilhadas de sinais misturados no topo da parte positiva.
-- Faixa de opções: os itens do menu Espaço usavam ids que começavam por dígito, o que o Excel não aceita no `customUI14` (ele descarta a aba inteira, sem aviso); agora são `gap30` a `gap120`. Só afetava compilações internas anteriores a esta versão.
+- Faixa de opções: os itens da lista Espaço usavam ids que começavam por dígito, o que o Excel não aceita no `customUI14` (ele descarta a aba inteira, sem aviso); agora são `gap30` a `gap120`. Só afetava compilações internas anteriores a esta versão.
 
 ### Segurança
 - SHA-256 em VBA puro: o ThinQQ não inicia mais o `certutil`.
 - Ganchos de teste inertes em Release; downloads em `%TEMP%\ThinQQ`, fora do local confiável.
 
-## [1.0.0] - 2026-10-10
+## [1.0.0] - 2026-10-10 (não publicada)
 
 ### Adicionado
 - Gráficos: colunas empilhadas, agrupadas, 100% e linha; cascata com marcadores `e`, `t`, `=`, `total` e

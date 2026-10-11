@@ -118,25 +118,64 @@ if ($parsed) {
     }
     Check ($allKinds.Count -eq 17) "17 tipos de gráfico em modChartKinds.bas ($($allKinds.Count))"
     Check ($matrix.Count -eq 16) "16 recursos na matriz de capacidades de modChartKinds.bas ($($matrix.Count))"
-    # A matriz pode ser dividida em tabelas (mesma linha de tipo em cada uma): cada tipo aparece com todos os recursos, cada um uma vez
-    $rows = @($xml.SelectNodes('//tr[@data-kind]'))
-    $kindsInDoc = @($rows | ForEach-Object { $_.GetAttribute('data-kind') } | Sort-Object -Unique)
-    Check ($kindsInDoc.Count -eq $allKinds.Count -and @($allKinds | Where-Object { $kindsInDoc -notcontains $_ }).Count -eq 0) "matriz do tutorial: uma linha por tipo ($($kindsInDoc.Count) de $($allKinds.Count))"
-    $badCells = @()
-    foreach ($k in $kindsInDoc) {
-        if ($allKinds -notcontains $k) { $badCells += "tipo desconhecido '$k'"; continue }
-        $kindRows = @($rows | Where-Object { $_.GetAttribute('data-kind') -eq $k })
+    # Rótulo de cada recurso: Kinds_FeatureLabel (modChartKinds.bas) ou, nos que ela não cobre, o controle da faixa que o aciona
+    $featureLabel = @{}
+    foreach ($m in [regex]::Matches($kindsSrc, 'Case "(?<f>[a-z0-9]+)":\s*Kinds_FeatureLabel = "(?<l>[^"]*)"')) { $featureLabel[$m.Groups['f'].Value] = $m.Groups['l'].Value }
+    foreach ($f in $matrix.Keys) {
+        if ($featureLabel.ContainsKey($f)) { continue }
+        $node = switch ($f) {
+            'lineend'   { $ribbon.SelectSingleNode("//*[local-name()='item'][@id='lineend']") }
+            'samescale' { $ribbon.SelectSingleNode("//*[@id='btnSameScale']") }
+            default     { $ribbon.SelectSingleNode("//*[@tag='$f']") }
+        }
+        if ($node) { $featureLabel[$f] = $node.GetAttribute('label') }
+    }
+    Check (@($matrix.Keys | Where-Object { -not $featureLabel.ContainsKey($_) }).Count -eq 0) 'todo recurso da matriz tem rótulo no código ou na faixa'
+    # A matriz pode ser dividida em tabelas (class="mx"). O recurso de cada coluna vem do CABEÇALHO (th data-f), que precisa mostrar o rótulo
+    # da faixa; a célula é associada ao recurso pela posição da coluna, e não por um atributo próprio (um atributo por célula podia
+    # contradizer o cabeçalho visível sem que o teste visse).
+    $tables = @($xml.SelectNodes("//table[contains(concat(' ', normalize-space(@class), ' '), ' mx ')]"))
+    Check ($tables.Count -ge 1) "tutorial tem tabelas da matriz de capacidades ($($tables.Count))"
+    $badCells = @(); $seenFeature = @{}; $cellText = @{}; $kindsInDoc = @{}
+    foreach ($tb in $tables) {
+        $heads = @($tb.SelectNodes('thead/tr/th[@data-f]'))
+        if (@($tb.SelectNodes('thead/tr/th')).Count -ne $heads.Count + 1) { $badCells += 'cabeçalho com coluna sem data-f (só a 1.ª, "Tipo", fica sem)' }
+        foreach ($h in $heads) {
+            $f = $h.GetAttribute('data-f')
+            $shown = ($h.InnerText -replace '\s+', ' ').Trim()
+            if (-not $matrix.ContainsKey($f)) { $badCells += "cabeçalho com recurso desconhecido '$f'" }
+            elseif ($shown -ne $featureLabel[$f]) { $badCells += "cabeçalho '$shown' está marcado como '$f', cujo rótulo na faixa é '$($featureLabel[$f])'" }
+            if ($seenFeature.ContainsKey($f)) { $badCells += "recurso '$f' aparece em mais de uma coluna" }
+            $seenFeature[$f] = $true
+        }
+        foreach ($row in @($tb.SelectNodes('tbody/tr[@data-kind]'))) {
+            $k = $row.GetAttribute('data-kind')
+            if ($allKinds -notcontains $k) { $badCells += "tipo desconhecido '$k'"; continue }
+            $kindsInDoc[$k] = $true
+            $kindNode = $ribbon.SelectSingleNode("//*[local-name()='button'][@tag='$k']")
+            $rowShown = ($row.SelectSingleNode("th[@scope='row']").InnerText -replace '\s+', ' ').Trim()
+            if ($kindNode -and $rowShown -ne $kindNode.GetAttribute('label')) { $badCells += "linha '$rowShown' está marcada como '$k', cujo rótulo na faixa é '$($kindNode.GetAttribute('label'))'" }
+            $cells = @($row.SelectNodes('td'))
+            if ($cells.Count -ne $heads.Count) { $badCells += "${k}: $($cells.Count) células para $($heads.Count) colunas"; continue }
+            for ($i = 0; $i -lt $cells.Count; $i++) {
+                $key = "$k/$($heads[$i].GetAttribute('data-f'))"
+                if ($cellText.ContainsKey($key)) { $badCells += "$key duplicada" }
+                $cellText[$key] = ($cells[$i].InnerText -replace '\s+', ' ').Trim()
+            }
+        }
+    }
+    Check ($kindsInDoc.Count -eq $allKinds.Count -and @($allKinds | Where-Object { -not $kindsInDoc.ContainsKey($_) }).Count -eq 0) "matriz do tutorial: uma linha por tipo ($($kindsInDoc.Count) de $($allKinds.Count))"
+    Check (@($matrix.Keys | Where-Object { -not $seenFeature.ContainsKey($_) }).Count -eq 0) 'matriz do tutorial: uma coluna por recurso'
+    foreach ($k in $allKinds) {
         foreach ($f in $matrix.Keys) {
-            $cells = @($kindRows | ForEach-Object { $_.SelectNodes("td[@data-f='$f']") } | Where-Object { $_ })
-            if ($cells.Count -ne 1) { $badCells += "$k/$f com $($cells.Count) célula(s)"; continue }
-            $txt = ($cells[0].InnerText -replace '\s+', ' ').Trim()
+            $txt = $cellText["$k/$f"]
             $want = ($matrix[$f] -contains $k)
             if ($f -eq 'legend' -and $want -and ($k -eq 'waterfall' -or $k -eq 'barwaterfall')) { $ok = ($txt -like 'Várias*') }   # só com várias séries
             elseif ($want) { $ok = ($txt -eq 'Sim') } else { $ok = ($txt -eq [string][char]0x2014) }
             if (-not $ok) { $badCells += "$k/$f='$txt' (código: $want)" }
         }
     }
-    Check ($badCells.Count -eq 0) "matriz do tutorial confere com Kinds_Supports: $($badCells -join '; ')"
+    Check ($badCells.Count -eq 0) "matriz do tutorial confere com Kinds_Supports e com os rótulos da faixa: $($badCells -join '; ')"
 }
 $cssExternal = [regex]::Matches($html, 'url\(\s*["'']?(https?:)?//|@import') | Measure-Object
 Check ($cssExternal.Count -eq 0) 'CSS sem url() externa nem @import'
@@ -198,24 +237,28 @@ Check ($readme -notmatch 'ficam para a Fase 2') 'README sem a limitação "ficam
 
 # ---- mensagens que o tutorial cita: precisam existir no tutorial E no código do core (texto exato)
 $coreSrc = (Get-ChildItem (Join-Path $RepoRoot 'src\core') -Recurse -Include '*.bas', '*.vba' | ForEach-Object { Read-Utf8 $_.FullName }) -join "`n"
+# Frases completas (as que não têm parte variável) e, nas que têm, os trechos fixos: antes só se conferia o começo da frase.
 $messages = @(
-    'A seta de diferença não está disponível para gráficos 100%',
-    'A seta de diferença não está disponível para este tipo de gráfico',
-    'A seta CAGR não está disponível para este tipo de gráfico',
-    'O colchete só está disponível em gráficos Gantt',
-    'A cascata aceita no máximo 6 séries',
-    'A combinação precisa de pelo menos 2 colunas de valores',
-    'Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas',
-    'Gantt: a tabela precisa de 3 colunas: atividade, início e fim (datas)',
-    'Gantt: a coluna de início não tem datas válidas',
+    'A seta de diferença não está disponível para gráficos 100%.',
+    'A seta de diferença não está disponível para este tipo de gráfico.',
+    'A seta CAGR não está disponível para este tipo de gráfico.',
+    'O colchete só está disponível em gráficos Gantt.',
+    'A cascata aceita no máximo 6 séries.',
+    'A combinação precisa de pelo menos 2 colunas de valores: as primeiras viram colunas empilhadas e a última vira linha.',
+    'Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas.',
+    'Gantt: a tabela precisa de 3 colunas: atividade, início e fim (datas). Deixe o fim vazio para um marco.',
+    'Gantt: a coluna de início não tem datas válidas (use células de data, não texto).',
+    'Rótulos no fim da linha só existem em gráficos de linha e combinação.',
+    'Mesma escala: selecione dois ou mais gráficos do ThinQQ (ou nenhum, para usar todos os gráficos da planilha).',
+    'Mesma escala: são necessários dois ou mais gráficos com escala livre (100%, Mekko (%), pizza e Gantt não entram).',
+    'Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use ''Mesma escala'' de novo ou ''Escala automática''.',
+    'A tabela de origem mudou de tamanho. Use ''Alterar dados'' para reconstruir o gráfico (ou reinsira o gráfico).',
+    'O gráfico precisa de pelo menos 2 categorias.',
+    'O gráfico precisa de pelo menos 1 atividade.',
     'não se aplica a este tipo de gráfico',
-    'Rótulos no fim da linha só existem em gráficos de linha e combinação',
-    'Mesma escala: selecione dois ou mais gráficos do ThinQQ',
-    'Mesma escala: são necessários dois ou mais gráficos com escala livre',
-    'Os dados deste gráfico passaram do máximo da escala fixa',
-    'A tabela de origem mudou de tamanho',
-    'mostra só a primeira coluna de valores',
-    'O gráfico precisa de pelo menos 2 categorias'
+    'mostra só a primeira coluna de valores (',
+    '). As outras ',
+    ' coluna(s) da tabela foram ignoradas.'
 )
 foreach ($msg in $messages) {
     Check ($html -match [regex]::Escape($msg)) "tutorial cita a mensagem '$msg'"
