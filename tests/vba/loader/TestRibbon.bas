@@ -94,11 +94,12 @@ Public Sub Test_Ribbon_Xml_HasAllCallbacks()
     xml = Transport_ReadTextFile(RepoPath() & "\src\loader\ribbon\customUI14.xml")
     names = Array("Rx_OnLoad", "Rx_OnInsert", "Rx_GetEnabled", "Rx_OnToggle", "Rx_GetPressed", "Rx_OnDropdown", _
                   "Rx_GetSelectedId", "Rx_OnAnnotation", "Rx_OnRemoveAnnotations", "Rx_OnRefresh", "Rx_OnChangeSource", _
-                  "Rx_OnSamples", "Rx_OnTutorial", "Rx_OnCheckUpdates", "Rx_OnSettings", "Rx_OnAbout")
+                  "Rx_OnSamples", "Rx_OnTutorial", "Rx_OnCheckUpdates", "Rx_OnSettings", "Rx_OnAbout", "Rx_OnSameScale", "Rx_OnResetScale")
     For i = LBound(names) To UBound(names)
         AssertTrue InStr(xml, names(i)) > 0, "callback ausente no XML: " & names(i)
     Next
     AssertTrue InStr(xml, "tag=""waterfall""") > 0
+    AssertTrue InStr(xml, "tag=""gantt""") > 0
     AssertTrue InStr(xml, "tag=""numfmt""") > 0
 End Sub
 
@@ -126,13 +127,19 @@ Public Sub Test_Ribbon_Callbacks_ExistWithRightSignature()
     AssertTrue count >= 30, "poucos callbacks verificados: " & count
 End Sub
 
+' Ids unicos E validos: o id de todo controle e de todo item segue o padrao de ID de XML (comeca por letra ou "_"; so letras, digitos e "_").
+' Um id invalido (ex.: o item "30" do dropdown Espaco, na Fase 1) faz o Excel descartar a faixa ThinQQ INTEIRA, em silencio (medido abrindo o
+' customUI14 num xlsx minimo: com os ids "30", "50", "80" e "120" a aba nao aparece; com "gap30" etc. aparece).
 Public Sub Test_Ribbon_ControlIds_Unique()
-    Dim d As Object, n As Object, seen As Object, id As String
+    Dim d As Object, n As Object, seen As Object, id As String, re As Object
     Set d = LoadRibbon()
     Set seen = CreateObject("Scripting.Dictionary")
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = "^[A-Za-z_][A-Za-z0-9_]*$"
     For Each n In d.SelectNodes("//*[@id]")
         id = n.Attributes.getNamedItem("id").Text
         AssertFalse seen.Exists(id), "id duplicado: " & id
+        AssertTrue re.Test(id), "id invalido (o Excel descarta a aba inteira, em silencio): '" & id & "'"
         seen.Add id, 1
     Next
     AssertTrue seen.Count > 20
@@ -155,28 +162,83 @@ Public Sub Test_Ribbon_Dropdowns_ItemsMatchCoreOptions()
     AssertTrue Not dd Is Nothing
     For Each it In dd.SelectNodes("u:item")
         v = it.Attributes.getNamedItem("id").Text
+        AssertEqual "gap", Left$(v, 3), "o id do item de gap e 'gap' + numero (id de XML nao comeca por digito): " & v
+        v = Rx_OptionValueFor("gap", v)
         AssertTrue IsNumeric(v), "item de gap nao numerico: " & v
         AssertTrue CLng(v) >= 0 And CLng(v) <= 500, "gap fora de 0..500: " & v
     Next
-    AssertEqual 3, d.SelectNodes("//u:dropDown").Length
+    AssertEqual "30,50,80,120", Replace(ItemIds(dd), "gap", "")
+    AssertEqual 4, d.SelectNodes("//u:dropDown").Length
 End Sub
 
+' Toda tag da faixa existe no core REAL (loader e core de teste abertos juntos): tipo de grafico = Kinds_IsValid, toggle e dropdown =
+' recurso conhecido da matriz (Kinds_FeatureLabel), anotacao = recurso suportado por algum tipo (Kinds_Supports). As contagens e as listas
+' fixas ficam em Test_Ribbon_Menus_Structure e Test_Ribbon_Toggles_And_Dropdowns_Phase2.
 Public Sub Test_Ribbon_Tags_MatchCoreKeys()
-    Dim d As Object, n As Object, t As String
+    Dim d As Object, n As Object, t As String, k As Object, found As Boolean
     Set d = LoadRibbon()
-    AssertEqual 5, d.SelectNodes("//u:button[@onAction='Rx_OnInsert']").Length
+    AssertEqual 17, d.SelectNodes("//u:button[@onAction='Rx_OnInsert']").Length
     For Each n In d.SelectNodes("//u:button[@onAction='Rx_OnInsert']")
         t = n.Attributes.getNamedItem("tag").Text
-        AssertTrue InStr(",stacked,clustered,stacked100,waterfall,line,", "," & t & ",") > 0, "kind invalido: " & t
+        AssertTrue CBool(Loader_RunCore("Kinds_IsValid", t)), "tipo desconhecido do core: " & t
     Next
-    AssertEqual 3, d.SelectNodes("//u:toggleButton").Length
-    For Each n In d.SelectNodes("//u:toggleButton")
+    For Each n In d.SelectNodes("//u:toggleButton | //u:dropDown")
         t = n.Attributes.getNamedItem("tag").Text
-        AssertTrue InStr(",totals,labels,connectors,", "," & t & ",") > 0, "toggle key invalida: " & t
+        AssertTrue Len(CStr(Loader_RunCore("Kinds_FeatureLabel", t))) > 0, "recurso desconhecido do core: " & t
     Next
     For Each n In d.SelectNodes("//u:button[@onAction='Rx_OnAnnotation']")
         t = n.Attributes.getNamedItem("tag").Text
-        AssertTrue InStr(",cagr,diff,", "," & t & ",") > 0, "annotation kind invalido: " & t
+        found = False
+        For Each k In d.SelectNodes("//u:button[@onAction='Rx_OnInsert']")
+            If CBool(Loader_RunCore("Kinds_Supports", k.Attributes.getNamedItem("tag").Text, t)) Then found = True: Exit For
+        Next
+        AssertTrue found, "nenhum tipo suporta a anotacao " & t
+    Next
+End Sub
+
+' Menus (customUI14): 5 menus de insercao com os 17 botoes + "Mais opcoes" e "Setas". Um atributo invalido em filho de menu faz o Excel
+' descartar a aba inteira, sem aviso: nenhum filho de menu leva 'size'.
+Public Sub Test_Ribbon_Menus_Structure()
+    Dim d As Object, m As Object, kids As Object, n As Object, t As String
+    Set d = LoadRibbon()
+    AssertEqual 7, d.SelectNodes("//u:menu").Length, "5 menus de insercao + Mais opcoes + Setas"
+    AssertEqual 5, d.SelectNodes("//u:group[@id='grpInsert']/u:menu[@size='large']").Length
+    AssertEqual 0, d.SelectNodes("//u:menu/*[@size]").Length, "filho de menu com 'size' (invalido: o Excel descarta a aba inteira sem aviso)"
+    For Each m In d.SelectNodes("//u:group[@id='grpInsert']/u:menu")
+        Set kids = m.SelectNodes("u:button")
+        AssertTrue kids.Length >= 2, "menu " & m.Attributes.getNamedItem("id").Text & " com poucos itens"
+        For Each n In kids
+            AssertEqual "Rx_OnInsert", n.Attributes.getNamedItem("onAction").Text
+            t = n.Attributes.getNamedItem("tag").Text
+            AssertTrue InStr(",stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,gantt,pie,doughnut,", "," & t & ",") > 0, "kind invalido: " & t
+        Next
+    Next
+    AssertEqual 17, d.SelectNodes("//u:button[@onAction='Rx_OnInsert']").Length
+    AssertTrue d.SelectSingleNode("//u:menu[@id='mnuMore']/@getEnabled") Is Nothing, "Mais opcoes contem botoes sempre ativos"
+    AssertEqual 4, d.SelectNodes("//u:menu[@id='mnuMore']/u:toggleButton").Length
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnSameScale'][@onAction='Rx_OnSameScale']") Is Nothing
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnResetScale'][@onAction='Rx_OnResetScale']") Is Nothing
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuArrows']/u:button[@tag='bracket']") Is Nothing
+    AssertEqual "Rx_GetEnabled", d.SelectSingleNode("//u:menu[@id='mnuArrows']").Attributes.getNamedItem("getEnabled").Text
+End Sub
+
+Public Sub Test_Ribbon_Toggles_And_Dropdowns_Phase2()
+    Dim d As Object, n As Object, t As String
+    Set d = LoadRibbon()
+    AssertEqual 7, d.SelectNodes("//u:toggleButton").Length
+    For Each n In d.SelectNodes("//u:toggleButton")
+        t = n.Attributes.getNamedItem("tag").Text
+        AssertTrue InStr(",totals,labels,connectors,ind100,vline,secondary,pieout,", "," & t & ",") > 0, "toggle invalido: " & t
+        AssertEqual "Rx_GetEnabled", n.Attributes.getNamedItem("getEnabled").Text, "toggle sem getEnabled: " & t
+        AssertEqual "Rx_GetPressed", n.Attributes.getNamedItem("getPressed").Text
+    Next
+    AssertEqual 4, d.SelectNodes("//u:dropDown").Length
+    AssertEqual "right,none,lineend", ItemIds(d.SelectSingleNode("//u:dropDown[@tag='legend']"))
+    ' T11: so cagr, diff e bracket chegam ao core (Core_AddAnnotation ignora em silencio qualquer outra tag)
+    AssertEqual 3, d.SelectNodes("//u:button[@onAction='Rx_OnAnnotation']").Length
+    For Each n In d.SelectNodes("//u:button[@onAction='Rx_OnAnnotation']")
+        t = n.Attributes.getNamedItem("tag").Text
+        AssertTrue InStr(",cagr,diff,bracket,", "," & t & ",") > 0, "annotation kind invalido: " & t
     Next
 End Sub
 
@@ -228,20 +290,32 @@ Public Sub Test_Ribbon_AllCallbacks_HaveErrorContainment()
     AssertTrue n >= 14, "poucos callbacks Rx_ encontrados: " & n
 End Sub
 
-' Atualizar (btnRefresh) fica sempre habilitado de proposito (atualizacao da pasta de trabalho inteira);
-' os demais controles do grupo "Grafico selecionado" dependem de haver grafico selecionado.
+' Atualizar (btnRefresh) e "Mais opcoes" (mnuMore: contem Mesma escala e Escala automatica, sempre ativas) ficam sempre habilitados de
+' proposito; os demais controles do grupo "Grafico selecionado" dependem do grafico selecionado. Dentro de mnuMore, os 4 toggles tem
+' getEnabled e os 2 botoes de escala nao.
 Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
-    Dim d As Object, n As Object, c As Long
+    Dim d As Object, n As Object, c As Long, id As String
     Set d = LoadRibbon()
     For Each n In d.SelectNodes("//u:group[@id='grpChart']/*[not(self::u:separator)]")
-        If n.Attributes.getNamedItem("id").Text = "btnRefresh" Then
-            AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "btnRefresh deve ficar sempre habilitado"
+        id = n.Attributes.getNamedItem("id").Text
+        If id = "btnRefresh" Or id = "mnuMore" Then
+            AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, id & " deve ficar sempre habilitado"
         Else
-            AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "sem getEnabled: " & n.Attributes.getNamedItem("id").Text
+            AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "sem getEnabled: " & id
         End If
         c = c + 1
     Next
     AssertTrue c >= 10
+    For Each n In d.SelectNodes("//u:menu[@id='mnuMore']/u:toggleButton")
+        AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "toggle de Mais opcoes sem getEnabled: " & n.Attributes.getNamedItem("id").Text
+    Next
+    For Each n In d.SelectNodes("//u:menu[@id='mnuMore']/u:button")
+        AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "botao de escala deve ficar sempre ativo: " & n.Attributes.getNamedItem("id").Text
+    Next
+    ' Setas: cada seta consulta a matriz pela propria tag; "Remover setas" so exige um grafico (sem tag)
+    For Each n In d.SelectNodes("//u:menu[@id='mnuArrows']/u:button")
+        AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "seta sem getEnabled: " & n.Attributes.getNamedItem("id").Text
+    Next
 End Sub
 
 ' Sem core com Core_InsertSamples (Tarefa 15) o botao nao pode bloquear nem propagar erro.
@@ -251,4 +325,131 @@ End Sub
 
 Public Sub Test_Ribbon_TutorialUrl_IsGithubPages()
     AssertEqual "https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html", TUTORIAL_URL
+End Sub
+
+' ---------------------------------------------------------------------------------------------------------------------
+' Habilitacao por capacidade (usa o core de teste aberto junto com o loader)
+' ---------------------------------------------------------------------------------------------------------------------
+
+' Tres tabelas na mesma planilha, bem separadas: pizza (A1:B5), cascata de uma serie (A20:B23) e cascata de duas series (A40:C43).
+Private Function CapabilityFixture(wb As Workbook) As Worksheet
+    Dim ws As Worksheet
+    Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:B1").Value = Array("Categoria", "Valor")
+    ws.Range("A2:B2").Value = Array("A", 10): ws.Range("A3:B3").Value = Array("B", 20)
+    ws.Range("A4:B4").Value = Array("C", 30): ws.Range("A5:B5").Value = Array("D", 40)
+    ws.Range("A20:B20").Value = Array("Etapa", "Loja")
+    ws.Range("A21:B21").Value = Array("Inicio", 100): ws.Range("A22:B22").Value = Array("Ajuste", -30): ws.Range("A23:B23").Value = Array("Fim", "e")
+    ws.Range("A40:C40").Value = Array("Etapa", "Loja", "Online")
+    ws.Range("A41:C41").Value = Array("Inicio", 100, 50): ws.Range("A42:C42").Value = Array("Ajuste", -30, 10): ws.Range("A43:C43").Value = Array("Fim", "e", "e")
+    Set CapabilityFixture = ws
+End Function
+
+' Insere pelo core o grafico da tabela e o deixa selecionado; depois faz o que o evento de selecao do core faz
+' (Watchers_NotifySelection -> Loader_InvalidateRibbon): o cache da faixa NAO e zerado diretamente pelo teste.
+Private Sub InsertAndSelect(ws As Worksheet, addr As String, kind As String)
+    ws.Range(addr).Select
+    Loader_RunCore "Core_Insert", kind
+    Loader_RunCore "Watchers_NotifySelection"
+End Sub
+
+Private Sub EnabledCleanup()
+    On Error Resume Next
+    Rx_TestSetSupportsProc ""
+    Loader_RunCore "Watchers_Stop"
+    Loader_InvalidateRibbon
+End Sub
+
+' A matriz de capacidades vale por grafico: pizza (Totais/Conectores/Espaco/Setas cinza; Rotulos fora ativo), cascata de uma serie (sem
+' legenda) e de duas (com legenda). Cada troca de grafico passa pelo evento de selecao do core, que zera o cache do ciclo: sem isso o
+' resultado do grafico anterior ficaria valendo. Sem tag basta haver grafico; celula selecionada: nada habilitado.
+Public Sub Test_Ribbon_Enabled_FollowsCapabilityOfSelectedChart()
+    Dim wb As Workbook, ws As Worksheet, en As Long, ed As String, t As Variant
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set ws = CapabilityFixture(wb)
+    Loader_RunCore "Watchers_SetLoader", ThisWorkbook.Name
+    ws.Range("A1").Select
+    Loader_InvalidateRibbon
+    For Each t In Array("totals", "labels", "pieout", "legend", "cagr", "bracket", "")
+        AssertFalse Rx_IsEnabledFor(CStr(t)), "celula selecionada: '" & t & "' deveria estar desabilitado"
+    Next
+    InsertAndSelect ws, "A1:B5", "pie"
+    For Each t In Array("totals", "connectors", "gap", "cagr", "diff", "bracket", "ind100", "vline", "secondary")
+        AssertFalse Rx_IsEnabledFor(CStr(t)), "pizza: '" & t & "' deveria estar desabilitado"
+    Next
+    For Each t In Array("labels", "numfmt", "palette", "legend", "pieout", "")
+        AssertTrue Rx_IsEnabledFor(CStr(t)), "pizza: '" & t & "' deveria estar habilitado"
+    Next
+    InsertAndSelect ws, "A20:B23", "waterfall"
+    For Each t In Array("connectors", "gap", "cagr", "diff", "labels", "")
+        AssertTrue Rx_IsEnabledFor(CStr(t)), "cascata: '" & t & "' deveria estar habilitado (cache da pizza nao pode valer)"
+    Next
+    For Each t In Array("totals", "pieout", "bracket", "ind100", "vline", "secondary", "legend")
+        AssertFalse Rx_IsEnabledFor(CStr(t)), "cascata de uma serie: '" & t & "' deveria estar desabilitado"
+    Next
+    InsertAndSelect ws, "A40:C43", "waterfall"
+    AssertTrue Rx_IsEnabledFor("legend"), "cascata com duas series tem legenda"
+    AssertFalse Rx_IsEnabledFor("pieout")
+    ws.Range("A1").Select
+    Loader_RunCore "Watchers_NotifySelection"
+    AssertFalse Rx_IsEnabledFor("legend"), "de volta a uma celula"
+    AssertFalse Rx_IsEnabledFor("")
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    EnabledCleanup
+    On Error Resume Next
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+' Core sem Core_Supports (versao 1.0.0): Loader_RunCore devolve Empty e a faixa volta ao comportamento da Fase 1 (habilitado quando ha grafico).
+Public Sub Test_Ribbon_Enabled_FallsBackToHasChart_WhenCoreLacksSupports()
+    Dim wb As Workbook, ws As Worksheet, en As Long, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set ws = CapabilityFixture(wb)
+    InsertAndSelect ws, "A1:B5", "pie"
+    AssertFalse Rx_IsEnabledFor("totals"), "pre-condicao: o core novo recusa Totais na pizza"
+    Rx_TestSetSupportsProc "Core_SupportsNaoExiste"
+    Loader_InvalidateRibbon
+    AssertTrue Rx_IsEnabledFor("totals"), "core antigo: com grafico, habilitado como na Fase 1"
+    AssertTrue Rx_IsEnabledFor("pieout")
+    AssertTrue Rx_IsEnabledFor("")
+    ws.Range("A1").Select
+    Loader_InvalidateRibbon
+    AssertFalse Rx_IsEnabledFor("totals"), "core antigo, sem grafico: desabilitado"
+    AssertFalse Rx_IsEnabledFor("")
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    EnabledCleanup
+    On Error Resume Next
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+' Sem grafico (ou sem opcao gravada) cada lista mostra o seu padrao; a legenda comeca em "Direita".
+Public Sub Test_Ribbon_SelectedId_DefaultsWithoutChart()
+    Dim wb As Workbook
+    Set wb = NewTempWorkbook()
+    AssertEqual "right", Rx_SelectedIdFor("legend")
+    AssertEqual "int", Rx_SelectedIdFor("numfmt")
+    AssertEqual "padrao", Rx_SelectedIdFor("palette")
+    AssertEqual "gap50", Rx_SelectedIdFor("gap"), "o item de Espaco e 'gap' + valor"
+    AssertEqual "120", Rx_OptionValueFor("gap", "gap120"), "o core recebe so o numero"
+    AssertEqual "dec1", Rx_OptionValueFor("numfmt", "dec1"), "os demais dropdowns usam o proprio id"
+    CloseTemp wb
+End Sub
+
+' Mesma escala e Escala automatica chegam ao core mesmo sem grafico (o core avisa o que fez; no build de teste o aviso so e registrado).
+Public Sub Test_Ribbon_ScaleButtons_ReachCore_WithoutBlocking()
+    Dim wb As Workbook
+    Set wb = NewTempWorkbook()
+    Loader_RunCore "Core_ClearLastNotice"
+    Rx_OnSameScale Nothing
+    AssertTrue InStr(CStr(Loader_RunCore("Core_LastNotice")), "Mesma escala") > 0, "Core_SameScale nao foi chamado: " & CStr(Loader_RunCore("Core_LastNotice"))
+    Loader_RunCore "Core_ClearLastNotice"
+    Rx_OnResetScale Nothing
+    AssertTrue InStr(CStr(Loader_RunCore("Core_LastNotice")), "Escala automática") > 0, "Core_ResetScale nao foi chamado: " & CStr(Loader_RunCore("Core_LastNotice"))
+    CloseTemp wb
 End Sub

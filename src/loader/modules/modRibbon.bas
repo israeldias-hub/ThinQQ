@@ -3,12 +3,29 @@ Option Explicit
 Private mRibbon As IRibbonUI
 Private mHasChart As Boolean        ' cache de Core_HasChart por ciclo de Invalidate
 Private mHasChartValid As Boolean
+Private mSupports As Object         ' cache de Core_Supports por ciclo de Invalidate: Scripting.Dictionary tag -> Boolean
+Private mSupportsMissing As Boolean ' o core nao tem Core_Supports (versao 1.0.0) ou nao esta carregado: vale ate o fim do ciclo
+Private mSupportsProc As String     ' gancho de teste (Rx_TestSetSupportsProc); vazio = "Core_Supports"
 Public Const TUTORIAL_URL As String = "https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html"
 
 Public Sub Rx_OnLoad(ribbon As IRibbonUI)
     On Error Resume Next
     Set mRibbon = ribbon
+    ResetRibbonCaches
+End Sub
+
+' Zera os caches do ciclo de Invalidate (Core_HasChart e Core_Supports por tag). Cada ciclo le o tipo do grafico selecionado de novo.
+Private Sub ResetRibbonCaches()
     mHasChartValid = False
+    mSupportsMissing = False
+    Set mSupports = Nothing
+End Sub
+
+' Gancho de teste: troca o nome do procedimento de capacidade (simula um core 1.0.0, sem Core_Supports). So existe no build de Teste.
+Public Sub Rx_TestSetSupportsProc(procName As String)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mSupportsProc = procName
+    ResetRibbonCaches
 End Sub
 
 ' Unico ponto de MsgBox do modulo: em build de Teste apenas registra (nunca bloqueia).
@@ -30,9 +47,37 @@ Private Function HasChartCached() As Boolean
     HasChartCached = mHasChart
 End Function
 
+' Capacidade do grafico selecionado para a tag (matriz do core: Core_Supports). O resultado fica num Dictionary por ciclo de Invalidate:
+' a faixa chama Rx_GetEnabled uma vez por controle e o core so e consultado uma vez por tag. A matriz depende do TIPO do grafico (e, na
+' cascata, do numero de series): o cache nasce vazio a cada Loader_InvalidateRibbon, que o core dispara em toda mudanca de selecao
+' (Watchers_NotifySelection) e que os comandos que trocam o grafico (inserir, dados, opcoes) tambem chamam. Core sem Core_Supports
+' (Loader_RunCore devolve Empty): cai no comportamento antigo, "ha grafico selecionado" (HasChartCached), e nao insiste no resto do ciclo.
+Private Function SupportsCached(tag As String) As Boolean
+    Dim v As Variant, proc As String
+    If mSupports Is Nothing Then Set mSupports = CreateObject("Scripting.Dictionary")
+    If mSupports.Exists(tag) Then SupportsCached = CBool(mSupports(tag)): Exit Function
+    v = Empty
+    If Not mSupportsMissing Then
+        proc = mSupportsProc
+        If Len(proc) = 0 Then proc = "Core_Supports"
+        v = Loader_RunCore(proc, tag)
+        If IsEmpty(v) Then mSupportsMissing = True
+    End If
+    If IsEmpty(v) Then SupportsCached = HasChartCached() Else SupportsCached = CBool(v)
+    mSupports.Add tag, SupportsCached
+End Function
+
+' Habilitacao de um controle pela tag: com tag, a capacidade do grafico selecionado; sem tag (Remover setas, Alterar dados, o menu Setas),
+' basta haver um grafico ThinQQ selecionado. Nunca propaga erro (False em duvida).
+Public Function Rx_IsEnabledFor(tag As String) As Boolean
+    On Error Resume Next
+    If Len(tag) > 0 Then Rx_IsEnabledFor = SupportsCached(tag) Else Rx_IsEnabledFor = HasChartCached()
+    If Err.Number <> 0 Then Rx_IsEnabledFor = False
+End Function
+
 Public Sub Loader_InvalidateRibbon()
     On Error Resume Next
-    mHasChartValid = False
+    ResetRibbonCaches
     If Not mRibbon Is Nothing Then mRibbon.Invalidate
 End Sub
 
@@ -47,12 +92,13 @@ End Function
 Public Sub Rx_OnInsert(control As IRibbonControl)
     On Error Resume Next
     If CoreOrWarn() Then Loader_RunCore "Core_Insert", control.Tag
+    Loader_InvalidateRibbon                 ' o grafico novo fica selecionado: o tipo mudou
 End Sub
 
 Public Sub Rx_GetEnabled(control As IRibbonControl, ByRef enabled)
     On Error Resume Next
     enabled = False
-    enabled = HasChartCached()
+    enabled = Rx_IsEnabledFor(control.Tag)
 End Sub
 
 Public Sub Rx_OnToggle(control As IRibbonControl, pressed As Boolean)
@@ -69,23 +115,37 @@ End Sub
 
 Public Sub Rx_OnDropdown(control As IRibbonControl, selectedId As String, selectedIndex As Integer)
     On Error Resume Next
-    If CoreOrWarn() Then Loader_RunCore "Core_SetOption", control.Tag, selectedId
+    If CoreOrWarn() Then Loader_RunCore "Core_SetOption", control.Tag, Rx_OptionValueFor(control.Tag, selectedId)
     Loader_InvalidateRibbon
 End Sub
 
+' Valor da opcao que o core recebe para o item escolhido. Os itens do dropdown Espaco se chamam "gap30".."gap120" (um id de XML nao pode
+' comecar por digito: com "30" o Excel descarta a aba inteira, em silencio); os demais dropdowns usam o proprio id.
+Public Function Rx_OptionValueFor(tag As String, itemId As String) As String
+    If tag = "gap" And Left$(itemId, 3) = "gap" Then Rx_OptionValueFor = Mid$(itemId, 4) Else Rx_OptionValueFor = itemId
+End Function
+
+' Item selecionado do dropdown da tag: a opcao gravada no grafico ou, sem opcao (grafico antigo, core sem a opcao), o padrao do item.
+Public Function Rx_SelectedIdFor(tag As String) As String
+    Dim v As Variant, s As String
+    On Error Resume Next
+    v = Loader_RunCore("Core_GetOption", tag)
+    If Not IsEmpty(v) Then s = CStr(v)
+    If Len(s) = 0 Then
+        Select Case tag
+            Case "numfmt": s = "int"
+            Case "palette": s = "padrao"
+            Case "gap": s = "50"
+            Case "legend": s = "right"
+        End Select
+    End If
+    If tag = "gap" And Len(s) > 0 Then s = "gap" & s       ' id do item do dropdown Espaco (ver Rx_OptionValueFor)
+    Rx_SelectedIdFor = s
+End Function
+
 Public Sub Rx_GetSelectedId(control As IRibbonControl, ByRef itemId)
     On Error Resume Next
-    Dim v As Variant
-    v = Loader_RunCore("Core_GetOption", control.Tag)
-    If IsEmpty(v) Or Len(CStr(v)) = 0 Then
-        Select Case control.Tag
-            Case "numfmt": itemId = "int"
-            Case "palette": itemId = "padrao"
-            Case "gap": itemId = "50"
-        End Select
-    Else
-        itemId = CStr(v)
-    End If
+    itemId = Rx_SelectedIdFor(control.Tag)
 End Sub
 
 Public Sub Rx_OnAnnotation(control As IRibbonControl)
@@ -107,6 +167,20 @@ End Sub
 Public Sub Rx_OnChangeSource(control As IRibbonControl)
     On Error Resume Next
     If CoreOrWarn() Then Loader_RunCore "Core_ChangeSource"
+    Loader_InvalidateRibbon                 ' novos dados podem mudar o numero de series (legenda da cascata)
+End Sub
+
+' Mesma escala e Escala automatica valem sem grafico selecionado (o core avisa o que fez): os botoes ficam sempre ativos.
+Public Sub Rx_OnSameScale(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then Loader_RunCore "Core_SameScale"
+    Loader_InvalidateRibbon
+End Sub
+
+Public Sub Rx_OnResetScale(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then Loader_RunCore "Core_ResetScale"
+    Loader_InvalidateRibbon
 End Sub
 
 Public Sub Rx_OnSamples(control As IRibbonControl)

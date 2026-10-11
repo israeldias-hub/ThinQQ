@@ -34,7 +34,7 @@ function Add-Captions($node) {
 foreach ($f in @('src\loader\forms\frmUpdate.json', 'src\core\forms\frmAnnotation.json')) {
     Add-Captions ((Read-Utf8 (Join-Path $RepoRoot $f)) | ConvertFrom-Json)
 }
-Check ($known.Count -ge 40) "rótulos conhecidos carregados ($($known.Count))"
+Check ($known.Count -ge 60) "rótulos conhecidos carregados ($($known.Count))"
 Check ($known.Contains('Colunas empilhadas') -and $known.Contains('Pular esta versão') -and $known.Contains('OK')) 'faixa e formulários presentes no conjunto'
 
 # ---- tutorial
@@ -43,7 +43,7 @@ $html = Read-Utf8 $tutorialPath
 $bytes = (Get-Item $tutorialPath).Length
 Check ($html -notmatch 'THINQQ-TUTORIAL-STUB') 'tutorial sem marcador de esqueleto'
 Check ($bytes -ge 2000) "tutorial com tamanho mínimo ($bytes bytes)"
-Check ($bytes -le 61440) "tutorial com até 60 KB ($bytes bytes)"
+Check ($bytes -le 122880) "tutorial com até 120 KB ($bytes bytes)"
 Check ($html -match '<html lang="pt-BR">' -and $html -match 'name="viewport"') 'idioma pt-BR e viewport'
 Check ($html -match 'prefers-color-scheme:\s*dark' -and $html -match '@media print') 'modo escuro e impressão'
 Check ($html -match 'class="skip"' -and $html -match '<nav[^>]*aria-label' -and $html -match '<main') 'link de pular, nav e main'
@@ -56,10 +56,13 @@ Check $parsed 'tutorial é XML bem formado (tags balanceadas)'
 
 if ($parsed) {
     $ui = @($xml.SelectNodes("//*[contains(concat(' ', normalize-space(@class), ' '), ' ui ')]") | ForEach-Object { ($_.InnerText -replace '\s+', ' ').Trim() } | Sort-Object -Unique)
-    Check ($ui.Count -ge 30) "tutorial cita muitos controles ($($ui.Count) rótulos distintos)"
+    Check ($ui.Count -ge 45) "tutorial cita muitos controles ($($ui.Count) rótulos distintos)"
     foreach ($l in $ui) { Check ($known.Contains($l)) "rótulo do tutorial existe na interface: '$l'" }
-    # Todos os rótulos da faixa de opções (exceto itens de lista) aparecem no tutorial
-    foreach ($n in $ribbon.SelectNodes('//*[self::button or self::toggleButton or self::dropDown or self::group or self::tab]')) {
+    # Todos os rótulos da faixa de opções (exceto itens de lista) aparecem no tutorial: botões, toggles, listas, menus, grupos e a aba.
+    # O customUI tem namespace padrão: o XPath precisa de local-name() (a forma 'self::button' não casa nenhum nó; já houve esse buraco).
+    $ctlNodes = @($ribbon.SelectNodes("//*[local-name()='button' or local-name()='toggleButton' or local-name()='dropDown' or local-name()='menu' or local-name()='group' or local-name()='tab']"))
+    Check ($ctlNodes.Count -ge 40) "faixa: controles encontrados pelo XPath com local-name() ($($ctlNodes.Count))"
+    foreach ($n in $ctlNodes) {
         $l = $n.GetAttribute('label')
         Check ($ui -contains $l) "tutorial documenta o controle '$l'"
     }
