@@ -115,6 +115,7 @@ Public Function Stacked_Insert(ws As Worksheet, data As clsChartData, kind As St
     Stacked_SetLabels cht, True
     Stacked_SetTotals cht, Kinds_Supports(kind, "totals")
     Stacked_SetConnectors cht, False
+    If Kinds_Supports(kind, "ind100") Then Deco_SetInd100 cht, True        ' indicador 100%: ligado por padrao nos graficos 100%
     Set Stacked_Insert = co
     Exit Function
 Fail:

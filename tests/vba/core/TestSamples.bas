@@ -43,7 +43,7 @@ Public Sub Test_Samples_Layout_NoOverlap()
     CloseTemp wb
 End Sub
 
-' O 100% nao tem seta de diferenca; a cascata que cruza o zero tem totais 'e'.
+' O 100% nao tem seta de diferenca (so o indicador 100%, que Ann_ShapeCount nao conta); a cascata que cruza o zero tem totais 'e'.
 Public Sub Test_Samples_Content()
     Dim wb As Workbook, ws As Worksheet, co As ChartObject, nWf As Long, found100 As Boolean, crossing As Boolean, body As Range, i As Long
     Dim sr As Series, n As Long, oneSeries As Long, cg As Shape, tl As Series
@@ -87,7 +87,8 @@ End Sub
 Private Function Ann_ShapeCount(cht As Chart) As Long
     Dim shp As Shape
     For Each shp In cht.Shapes
-        If Left$(shp.Name, Len(ANN_PREFIX)) = ANN_PREFIX Then Ann_ShapeCount = Ann_ShapeCount + 1
+        ' o indicador 100% (tqq_ann_ind100 e o rotulo) nao e anotacao do usuario: o 100% dos exemplos nasce com ele
+        If Left$(shp.Name, Len(ANN_PREFIX)) = ANN_PREFIX And Left$(shp.Name, Len(ANN_PREFIX & "ind100")) <> ANN_PREFIX & "ind100" Then Ann_ShapeCount = Ann_ShapeCount + 1
     Next
 End Function
 

@@ -127,6 +127,7 @@ Public Function Area_Insert(ws As Worksheet, data As clsChartData, kind As Strin
     Style_ApplySeriesColors cht, "padrao"
     Area_SetLabels cht, True
     Area_SetTotals cht, True
+    If Kinds_Supports(kind, "ind100") Then Deco_SetInd100 cht, True        ' indicador 100%: ligado por padrao na area 100%
     Set Area_Insert = co
     Exit Function
 Fail:

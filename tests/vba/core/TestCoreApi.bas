@@ -111,6 +111,14 @@ Public Sub Test_Core_Refresh_CleansOrphans()
     Teardown wb
 End Sub
 
+' Formas de seta de diferenca (tqq_ann_diff*): o 100% tem tambem o indicador 100% (tqq_ann_ind100*), que nao conta.
+Private Function CountDiffShapes(cht As Chart) As Long
+    Dim i As Long
+    For i = 1 To cht.Shapes.Count
+        If Left$(cht.Shapes(i).Name, Len("tqq_ann_diff")) = "tqq_ann_diff" Then CountDiffShapes = CountDiffShapes + 1
+    Next
+End Function
+
 Public Sub Test_Core_AddAnnotation_Diff_On100Chart_NoThrow()
     Dim wb As Workbook, ws As Worksheet, cht As Chart
     Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
@@ -119,7 +127,8 @@ Public Sub Test_Core_AddAnnotation_Diff_On100Chart_NoThrow()
     Set cht = Core_ActiveChart()
     AssertTrue Not cht Is Nothing
     Core_AddAnnotation "diff", 1, 3
-    AssertEqual 0, cht.Shapes.Count, "seta de diferença não deve ser criada em 100%"
+    AssertEqual 0, CountDiffShapes(cht), "seta de diferença não deve ser criada em 100%"
+    AssertEqual 2, cht.Shapes.Count, "o 100% so tem o indicador (tique e rotulo)"
     Teardown wb
 End Sub
 

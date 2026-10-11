@@ -167,6 +167,10 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
             If fam = "waterfall" Then Ann_SetWaterfallConnectors c, value Else Stacked_SetConnectors c, value
         Case "secondary"
             Combo_SetSecondary c, value                 ' so a combinacao (nos demais tipos nao faz nada nem grava a opcao)
+        Case "ind100"
+            Deco_SetInd100 c, value                     ' recusa (7002) fora dos 100% e Mekko (%): Core_SetToggle mostra o aviso
+        Case "vline"
+            Deco_SetValueLine c, value                  ' recusa (7002) nos tipos sem linha de valor ou em grafico antigo
     End Select
 End Sub
 
@@ -327,6 +331,105 @@ Fail:
     Errors_Handle "Core_RemoveAnnotations"
 End Sub
 
+' Graficos ThinQQ que o usuario tem em maos: os ThinQQ de uma selecao de VARIOS objetos (Ctrl+clique; Selection e "DrawingObjects" e
+' Selection.ShapeRange lista as formas) ou, senao, o grafico ThinQQ ativo. Colecao vazia sem nenhum. Nunca propaga erro.
+Public Function Core_SelectedCharts() As Collection
+    On Error Resume Next
+    Dim out As Collection, c As Chart, sr As Object, i As Long, sh As Object, co As ChartObject
+    Set out = New Collection
+    Set Core_SelectedCharts = out
+    If TypeName(Selection) = "DrawingObjects" Then
+        Set sr = Selection.ShapeRange
+        If Not sr Is Nothing Then
+            For i = 1 To sr.Count
+                Set sh = sr.Item(i)
+                If sh.HasChart Then
+                    Set co = Nothing
+                    Set co = sh.Parent.ChartObjects(sh.Name)
+                    If Not co Is Nothing Then
+                        If Registry_IsThinQQChart(co.Chart) Then out.Add co.Chart
+                    End If
+                End If
+                Err.Clear
+            Next
+        End If
+    End If
+    Err.Clear
+    If out.Count > 0 Then Exit Function
+    Set c = Core_ActiveChart()
+    If Not c Is Nothing Then out.Add c
+End Function
+
+' Todos os graficos ThinQQ da planilha ativa (colecao vazia sem planilha). Nunca propaga erro.
+Private Function SheetThinQQCharts() As Collection
+    Dim out As Collection, co As ChartObject, ws As Object
+    Set out = New Collection
+    Set SheetThinQQCharts = out
+    On Error Resume Next
+    Set ws = ActiveSheet
+    If ws Is Nothing Then Exit Function
+    If TypeName(ws) <> "Worksheet" Then Exit Function
+    For Each co In ws.ChartObjects
+        If Left$(co.Name, Len(ID_PREFIX)) = ID_PREFIX Then
+            If Registry_IsThinQQChart(co.Chart) Then out.Add co.Chart
+        End If
+        Err.Clear
+    Next
+End Function
+
+' Mesma escala: os graficos ThinQQ selecionados (dois ou mais) ou, com menos de dois selecionados, TODOS os da planilha ativa (o botao
+' fica sempre habilitado e diz o que fez). Aplica a uniao das escalas (Deco_SameScale) e informa quantos receberam e quantos foram
+' ignorados pelo tipo (100%, Mekko (%), pizza e Gantt nao tem escala livre). A escala fica fixa: quem mudar muito os dados usa de novo.
+Public Sub Core_SameScale()
+    On Error GoTo Fail
+    Dim coll As Collection, n As Long, skipped As Long, msg As String
+    Set coll = Core_SelectedCharts()
+    If coll.Count < 2 Then Set coll = SheetThinQQCharts()
+    If coll.Count < 2 Then
+        Core_Notify "Mesma escala: selecione dois ou mais gráficos do ThinQQ (ou nenhum, para usar todos os gráficos da planilha).", vbInformation
+        Exit Sub
+    End If
+    n = Deco_SameScale(coll, skipped)
+    If n < 2 Then
+        Core_Notify "Mesma escala: são necessários dois ou mais gráficos com escala livre (100%, Mekko (%), pizza e Gantt não entram).", vbInformation
+        Exit Sub
+    End If
+    msg = "Mesma escala aplicada a " & n & " gráfico(s)."
+    If skipped > 0 Then msg = msg & " " & skipped & " ignorado(s): tipo sem escala livre (100%, Mekko (%), pizza, Gantt)."
+    Core_Notify msg, vbInformation
+    Exit Sub
+Fail:
+    Errors_Handle "Core_SameScale"
+End Sub
+
+' Escala automatica: devolve ao automatico o eixo de valores do grafico ThinQQ ativo ou dos selecionados (sem nenhum, de todos os da
+' planilha ativa, como a Mesma escala) e limpa a escala gravada. Informa quantos graficos foram restaurados.
+Public Sub Core_ResetScale()
+    On Error GoTo Fail
+    Dim coll As Collection, c As Variant, cht As Chart, n As Long
+    Set coll = Core_SelectedCharts()
+    If coll.Count = 0 Then Set coll = SheetThinQQCharts()
+    If coll.Count = 0 Then
+        Core_Notify "Escala automática: selecione um gráfico do ThinQQ (ou nenhum, para usar todos os gráficos da planilha).", vbInformation
+        Exit Sub
+    End If
+    For Each c In coll
+        Set cht = c
+        If Kinds_Supports(Registry_ChartType(cht), "samescale") Then
+            Deco_ResetScale cht
+            n = n + 1
+        End If
+    Next
+    If n = 0 Then
+        Core_Notify "Escala automática: o gráfico não tem escala livre (100%, Mekko (%), pizza, Gantt).", vbInformation
+    Else
+        Core_Notify "Escala automática restaurada em " & n & " gráfico(s).", vbInformation
+    End If
+    Exit Sub
+Fail:
+    Errors_Handle "Core_ResetScale"
+End Sub
+
 ' True quando o bloco do gráfico (uma linha de fórmula por categoria) não tem o mesmo número de categorias
 ' que o gráfico mostra agora: linhas inseridas/removidas na tabela de origem ajustam as referências diretas
 ' das séries (e as categorias), mas não o bloco. Nunca propaga erro (False em dúvida).
@@ -374,6 +477,8 @@ End Sub
 Public Sub Core_SafeRefresh(cht As Chart)
     On Error Resume Next
     NotifySourceMismatchOnce cht
+    Deco_ApplyFixedScale cht                         ' mesma escala: os dados mudaram e o eixo automatico recalculou; reaplica a escala gravada
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Escala" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Labels_RefreshPositions cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Labels" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     ' barras: a auxiliar XY usa o eixo X secundario (se o Excel o criou); mantem-no alinhado ao eixo de valores primario
@@ -468,6 +573,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     ApplyToggle nc, "labels", Registry_GetOption(nc, "labels", "1") = "1"
     ApplyToggle nc, "connectors", Registry_GetOption(nc, "connectors", "0") = "1"
     ApplyToggle nc, "secondary", Registry_GetOption(nc, "secondary", "0") = "1"      ' so a combinacao: a escolha do usuario, nao o padrao pelos dados novos
+    ReapplySavedDecorations nc                  ' linha de valor, indicador 100% e mesma escala: a escolha salva do usuario, nao o padrao do Insert
     ReapplySavedLegend nc                       ' depois dos toggles: "fim da linha" depende dos rotulos ligados
     oldCo.Delete
     ' A partir daqui o gráfico antigo não existe mais: nada pode apagar o novo. Falhas só são registradas.
@@ -507,6 +613,19 @@ Fail:
         Errors_HandleErr "Core_RebuildFromRange", en, ed
     End If
 End Function
+
+' Reaplica as decoracoes que o usuario tinha (as opcoes foram copiadas do grafico antigo para o novo): o Insert do novo grafico criou o
+' PADRAO (indicador 100% ligado nos 100%, sem linha de valor, eixo automatico) e a opcao salva e uma ESCOLHA, nao o estado real: um
+' indicador desligado pelo usuario continua desligado, a linha de valor ligada volta e a escala fixa (vmin/vmax, Mesma escala) e reaplicada
+' ao eixo (os dados novos nao a mudam: quem quer outra escala usa Mesma escala de novo). Opcao sem a chave: o padrao (indicador ligado,
+' linha de valor desligada). So nos tipos com o recurso. Propaga erros (Core_RebuildFromRange descarta o grafico novo e mantem o antigo).
+Private Sub ReapplySavedDecorations(nc As Chart)
+    Dim kind As String
+    kind = Registry_ChartType(nc)
+    If Kinds_Supports(kind, "ind100") Then Deco_SetInd100 nc, (Registry_GetOption(nc, "ind100", "1") <> "0")
+    If Kinds_Supports(kind, "vline") Then Deco_SetValueLine nc, (Registry_GetOption(nc, "vline", "0") = "1")
+    Deco_ApplyFixedScale nc
+End Sub
 
 ' Reaplica a opção de legenda que o usuário tinha (copiada do gráfico antigo para o novo pelas opções): a opção salva é uma
 ' ESCOLHA do usuário, não o estado real. O Insert do novo gráfico criou a legenda padrão (à direita, ou nenhuma na cascata de

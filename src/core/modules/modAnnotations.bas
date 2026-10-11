@@ -5,6 +5,7 @@ Private mRefreshing As Boolean
 Private mLastError As String
 Private Const ANN_ARROW_GAP As Double = 10      ' do fim da barra/topo da coluna ate a ponta da seta de CAGR
 Private Const ANN_TOTALS_EXTRA As Double = 18   ' afastamento extra (minimo) da seta de CAGR com os totais ligados; nas colunas, calibrado para a ALTURA do rotulo do total
+Private Const ANN_IND100 As String = "tqq_ann_ind100"     ' nome da linha do indicador 100% (o rotulo e ANN_IND100 & "_lbl")
 Private Const ANN_AUTO_SLACK As Double = 18     ' folga que o eixo com maximo automatico deixa depois da maior barra (~5% da escala, medida em graficos de ~460 pt)
 
 Public Function Ann_TryCagr(startVal As Double, endVal As Double, periods As Double, ByRef rate As Double) As Boolean
@@ -280,15 +281,54 @@ Public Sub Ann_SetWaterfallConnectors(cht As Chart, turnOn As Boolean)
     Ann_Refresh cht
 End Sub
 
+' Remove as setas (e, com includeConnectors, os conectores da cascata). O indicador 100% (tqq_ann_ind100 e o rotulo) NUNCA e
+' removido aqui: e um alternador proprio (Ann_AddInd100 / Ann_RemoveInd100, ligado por Deco_SetInd100).
 Public Sub Ann_RemoveAll(cht As Chart, Optional includeConnectors As Boolean = False)
     Dim i As Long, nm As String
     For i = cht.Shapes.Count To 1 Step -1
         nm = cht.Shapes(i).Name
-        If Left$(nm, Len(ANN_PREFIX)) = ANN_PREFIX Then
+        If Left$(nm, Len(ANN_PREFIX)) = ANN_PREFIX And Left$(nm, Len(ANN_IND100)) <> ANN_IND100 Then
             If includeConnectors Or Left$(nm, Len(ANN_PREFIX & "conn_")) <> ANN_PREFIX & "conn_" Then cht.Shapes(i).Delete
         End If
     Next
 End Sub
+
+' Indicador 100%: um tique no nivel 100% do eixo de valores (tqq_ann_ind100, 1 pt, kind=ind100) e o rotulo "100%" (tqq_ann_ind100_lbl,
+' kind=label;owner=tqq_ann_ind100) fora da area de plotagem: a esquerda nas colunas e areas, em cima nas barras. Ann_Refresh posiciona
+' (Ann_LayoutInd100). Fica aqui porque Ann_NewName/Ann_AddLabel sao privadas deste modulo. Se as formas ja existem nao cria de novo.
+' Recusa (7002) fora dos tipos com o recurso (a matriz de tipos: Kinds_Supports "ind100"). Quem chama (Deco_SetInd100) abre a folga
+' e chama Ann_Refresh.
+Public Function Ann_AddInd100(cht As Chart) As Shape
+    Dim ln As Shape, lbl As Shape
+    If Not Kinds_Supports(Registry_ChartType(cht), "ind100") Then Err.Raise vbObjectError + 7002, "Ann_AddInd100", "O indicador 100% só existe em gráficos 100% e Mekko (%)."
+    Set ln = Ann_Shape(cht, ANN_IND100)
+    If ln Is Nothing Then
+        Set ln = cht.Shapes.AddLine(0, 0, 10, 0)
+        ln.Name = ANN_IND100
+        ln.AlternativeText = "kind=ind100"
+        ln.Line.ForeColor.RGB = RGB(89, 89, 89)
+        ln.Line.Weight = 1
+    End If
+    If Ann_Shape(cht, ANN_IND100 & "_lbl") Is Nothing Then
+        Ann_AddLabel cht, ANN_IND100
+        Set lbl = cht.Shapes(ANN_IND100 & "_lbl")
+        lbl.TextFrame2.TextRange.Text = "100%"
+        lbl.TextFrame2.TextRange.Font.Bold = msoFalse
+        lbl.Fill.Visible = msoFalse
+        lbl.Line.Visible = msoFalse
+    End If
+    Set Ann_AddInd100 = ln
+End Function
+
+' Apaga as duas formas do indicador 100% (nada a fazer se nao existem).
+Public Sub Ann_RemoveInd100(cht As Chart)
+    Dim sfx As Variant, s As Shape
+    For Each sfx In Array("_lbl", "")
+        Set s = Ann_Shape(cht, ANN_IND100 & sfx)
+        If Not s Is Nothing Then s.Delete
+    Next
+End Sub
+
 
 ' Reposiciona todas as anotações e reescreve os textos. Seguro para chamar em eventos: cada forma é isolada
 ' (um erro em uma não impede as outras e fica registrado em Ann_LastError); formas inválidas são ocultadas.
@@ -321,6 +361,20 @@ Public Sub Ann_Refresh(cht As Chart)
                 If valid Then
                     On Error Resume Next
                     Ann_LayoutOne cht, shp, kind, fromIdx, toIdx, values, tops, fmt
+                    If Err.Number <> 0 Then
+                        mLastError = "Ann_Refresh " & nm & " " & Err.Number & " " & Err.Description
+                        Errors_Log mLastError
+                        Err.Clear
+                    End If
+                    On Error GoTo Done
+                End If
+            ElseIf kind = "ind100" Then
+                ' indicador 100%: valido so nos tipos com o recurso (senao oculto); a posicao segue o PlotArea e a escala atuais
+                valid = Kinds_Supports(chartKind, "ind100")
+                Ann_SetShapeVisible cht, nm, valid
+                If valid Then
+                    On Error Resume Next
+                    Ann_LayoutInd100 cht, shp
                     If Err.Number <> 0 Then
                         mLastError = "Ann_Refresh " & nm & " " & Err.Number & " " & Err.Description
                         Errors_Log mLastError
@@ -485,6 +539,25 @@ Private Sub Ann_LayoutConn(cht As Chart, shp As Shape, i As Long, j As Long, top
         y = Geom_ChartValCoord(cht, tops(i))
         Ann_MoveLine shp, Geom_ChartCatCoord(cht, i) + half, y, Geom_ChartCatCoord(cht, j) - half, y
     End If
+End Sub
+
+' Indicador 100%: o tique no nivel 100% do eixo de valores. Colunas e areas: tique de (InsideLeft - 8, y) a (InsideLeft - 1, y), rotulo
+' a esquerda dele; barras: x = fim da barra 100%, tique logo acima da area de plotagem (InsideTop - 8 a - 1), rotulo centrado acima.
+' Deco_EnsureIndicatorRoom abre a folga para o rotulo caber; o Ann_ClampShape so atua se nao coube.
+Private Sub Ann_LayoutInd100(cht As Chart, ln As Shape)
+    Dim lbl As Shape, v As Double
+    v = Geom_ChartValCoord(cht, 1)
+    Set lbl = Ann_Shape(cht, ln.Name & "_lbl")
+    With cht.PlotArea
+        If Geom_ChartIsHorizontal(cht) Then
+            Ann_MoveLine ln, v, .InsideTop - 8, v, .InsideTop - 1
+            If Not lbl Is Nothing Then lbl.Left = v - lbl.Width / 2: lbl.Top = .InsideTop - 10 - lbl.Height
+        Else
+            Ann_MoveLine ln, .InsideLeft - 8, v, .InsideLeft - 1, v
+            If Not lbl Is Nothing Then lbl.Left = .InsideLeft - 10 - lbl.Width: lbl.Top = v - lbl.Height / 2
+        End If
+    End With
+    If Not lbl Is Nothing Then Ann_ClampShape cht, lbl
 End Sub
 
 Private Sub Ann_LayoutOne(cht As Chart, shp As Shape, kind As String, fromIdx As Long, toIdx As Long, values() As Double, tops() As Double, fmt As String)

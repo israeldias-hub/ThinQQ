@@ -171,7 +171,9 @@ Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
     End If
     Labels_ApplyCellFormat cht, totFmt
     For Each s In cht.SeriesCollection
-        If s.HasDataLabels And Not Labels_IsSourceFormatSeries(cht, s) Then      ' a linha da combinacao segue o formato da celula
+        If s.Name = "tqq_vline" Then
+            ' linha de valor: o rotulo so existe no ultimo ponto e mostra o texto da celula VLine (formato proprio: Deco_ApplyVLineFormat)
+        ElseIf s.HasDataLabels And Not Labels_IsSourceFormatSeries(cht, s) Then      ' a linha da combinacao segue o formato da celula
             If s.Name = "tqq_total" Then useFmt = totFmt Else useFmt = segFmt
             Style_AssignNumberFormat s.DataLabels, useFmt
             ' rótulos ligados a células (por ponto) guardam formato próprio

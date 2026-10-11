@@ -307,6 +307,7 @@ Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
             body.Cells(2, Area_ValCol(blk, j)).Resize(n, 1).NumberFormatLocal = segFmt
         Next
     End If
+    If Registry_GetOption(cht, "vline", "0") = "1" Then Deco_ApplyVLineFormat cht     ' a media da linha de valor ("Média N") segue o formato dos numeros (ligar a linha ja grava o formato)
     Exit Sub
 Fail:
     Errors_Log "Labels_ApplyCellFormat" & vbTab & Err.Number & vbTab & Err.Description
