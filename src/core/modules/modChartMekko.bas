@@ -6,10 +6,13 @@ Option Explicit
 ' L (borda esquerda, y = valor), C (centro, y = valor), R (borda direita, y = valor) e R0 (borda direita, y = 0). A descida a zero com
 ' largura nula, somada a borda branca das areas (1,5 pt), desenha o separador entre colunas encostadas (sem espaco, como no think-cell).
 ' Bloco (corpo): linha 1 = cabecalhos; 5n linhas; colunas (S = numero de series de dados):
-'  1 X | 2 Categoria (so em C; vazia se a coluna tem largura 0) | 3 W (largura, so em C) | 4 Total (so em C) | 5..4+S Y_j (altura da faixa j:
+'  1 X | 2 Categoria (so em C; vazia se a coluna nao tem largura no eixo, X_R = X_L, ou se o nome da origem esta em branco) | 3 W (largura,
+'  so em C) | 4 Total (so em C; no percentual, so os valores positivos: um negativo entra como 0 nas areas) | 5..4+S Y_j (altura da faixa j:
 '  participacao no percentual, valor nas unidades; 0 em L0/R0) | 5+S..4+2S Lbl_j (meio da faixa j, so em C; NA() nas demais) |
-'  5+2S..4+3S LblVal_j (texto do rotulo: Y_j, ou 0 se a coluna tem largura 0) | 5+3S TotPos (topo: 1 ou Total) | 6+3S TotLbl (largura em %
-'  ou Total) | 7+3S CatPos (0) | 8+3S VLine (unidades: media dos Totais ponderada por W; NA() no percentual).
+'  5+2S..4+3S LblVal_j (texto do rotulo: Y_j, ou 0 se a coluna nao tem largura no eixo) | 5+3S TotPos (topo: 1 ou Total) | 6+3S TotLbl
+'  (largura em % ou Total; 0 sem largura no eixo) | 7+3S CatPos (0) | 8+3S VLine (unidades: media dos Totais ponderada por W; NA() no
+'  percentual). "Sem largura no eixo" (X_R <= X_L) inclui a coluna minuscula que arredonda a 0 na resolucao de 0,1% (MK_SPAN), nao so W = 0:
+'  sem isso ela mostraria o nome e os rotulos empilhados sobre a borda das vizinhas.
 ' Rotulos: series auxiliares de LINHA invisivel no mesmo eixo de datas, com valor so nas linhas C. Um ponto NA() NAO esconde o rotulo
 ' (DisplayBlanksAs = xlZero: o Excel o poe no zero com o texto da celula; medido na Tarefa 4), entao Mekko_LinkLabels liga so os pontos
 ' C e apaga o rotulo dos demais um a um; nada escreve depois propriedades de rotulo no nivel da SERIE (escrever DataLabels.* recria os
@@ -83,7 +86,7 @@ End Sub
 Public Function Mekko_BuildBlock(wb As Workbook, id As String, data As clsChartData, kind As String) As Range
     Dim blk As Range, body As Range, n As Long, ns As Long, m As Long, units As Boolean, i As Long, j As Long, rc As Long, r As Long
     Dim firstCol As Long, wAll As String, tAll As String, wt As String, prevSum As String, curSum As String, wAddr As String, totAddr As String
-    Dim srcAddr As String, catAddr As String, xLeft As String, yAddr As String, rowCells As Range
+    Dim srcAddr As String, catAddr As String, xLeft As String, yAddr As String, rowCells As Range, vis As String
     If Kinds_Family(kind) <> "mekko" Then Err.Raise 5, "Mekko_BuildBlock", "Tipo de Mekko desconhecido: " & kind
     Mekko_CheckData data, kind
     units = (kind = "mekkounits")
@@ -111,8 +114,14 @@ Public Function Mekko_BuildBlock(wb As Workbook, id As String, data As clsChartD
     For i = 1 To n
         rc = 1 + Mekko_CenterRow(i)                  ' linha C no corpo; L0 = rc - 2, L = rc - 1, R = rc + 1, R0 = rc + 2
         Set rowCells = data.Source.Cells(i + 1, firstCol + 1).Resize(1, ns)
-        body.Cells(rc, MK_COL_TOTAL).Formula = "=AGGREGATE(9,6," & Mid$(ChartData_ExternalAddress(rowCells), 2) & ")"     ' ignora erros e texto
+        If units Then
+            body.Cells(rc, MK_COL_TOTAL).Formula = "=AGGREGATE(9,6," & Mid$(ChartData_ExternalAddress(rowCells), 2) & ")"     ' ignora erros e texto
+        Else
+            ' percentual: so os positivos (SUMIF ignora texto, vazio e erro): um negativo entra como 0 nas areas (Core_Insert avisa)
+            body.Cells(rc, MK_COL_TOTAL).Formula = "=SUMIF(" & Mid$(ChartData_ExternalAddress(rowCells), 2) & ","">0"")"
+        End If
         totAddr = body.Cells(rc, MK_COL_TOTAL).Address(False, False)
+        vis = body.Cells(rc + 1, MK_COL_X).Address(False, False) & ">" & body.Cells(rc - 1, MK_COL_X).Address(False, False)     ' X_R > X_L: a coluna tem largura no eixo
         If units Then
             ' largura: numero positivo; texto, vazio, erro, zero e negativo valem 0 (IF aninhado: AND avaliaria os dois lados e propagaria #N/D)
             srcAddr = Mid$(ChartData_ExternalAddress(data.Source.Cells(i + 1, 2)), 2)
@@ -122,7 +131,8 @@ Public Function Mekko_BuildBlock(wb As Workbook, id As String, data As clsChartD
         End If
         wAddr = body.Cells(rc, MK_COL_W).Address(False, False)
         catAddr = Mid$(ChartData_ExternalAddress(data.Source.Cells(i + 1, 1)), 2)
-        body.Cells(rc, MK_COL_CAT).Formula = "=IF(" & wAddr & ">0," & catAddr & ","""")"     ' coluna de largura 0: sem nome solto sobre as vizinhas
+        ' coluna sem largura no eixo: sem nome solto sobre as vizinhas; nome em branco: "" (a referencia a celula vazia daria 0)
+        body.Cells(rc, MK_COL_CAT).Formula = "=IF(" & vis & ",IF(ISBLANK(" & catAddr & "),""""," & catAddr & "),"""")"
         ' o rotulo ligado mostra o TEXTO da celula: o formato da categoria de origem (data, ano) vem junto (Range.NumberFormat: o codigo como esta)
         If Not IsNull(data.Source.Cells(i + 1, 1).NumberFormat) Then body.Cells(rc, MK_COL_CAT).NumberFormat = data.Source.Cells(i + 1, 1).NumberFormat
         ' X: bordas e centro pelas somas acumuladas das larguras (W so nas linhas C: a faixa do inicio do corpo ate a linha C anterior)
@@ -145,7 +155,7 @@ Public Function Mekko_BuildBlock(wb As Workbook, id As String, data As clsChartD
                 body.Cells(rc, Mekko_YCol(j)).Formula = "=IF(ISNUMBER(" & srcAddr & ")," & srcAddr & ",0)"
             Else
                 ' participacao; linha de total zero: 0 (sem #DIV/0!)
-                body.Cells(rc, Mekko_YCol(j)).Formula = "=IF(" & totAddr & "=0,0,IF(ISNUMBER(" & srcAddr & ")," & srcAddr & ",0)/" & totAddr & ")"
+                body.Cells(rc, Mekko_YCol(j)).Formula = "=IF(" & totAddr & "=0,0,MAX(0,IF(ISNUMBER(" & srcAddr & ")," & srcAddr & ",0))/" & totAddr & ")"
             End If
             yAddr = body.Cells(rc, Mekko_YCol(j)).Address(False, False)
             body.Cells(rc - 2, Mekko_YCol(j)).Formula = "=0"
@@ -153,14 +163,14 @@ Public Function Mekko_BuildBlock(wb As Workbook, id As String, data As clsChartD
             body.Cells(rc + 1, Mekko_YCol(j)).Formula = "=" & yAddr
             body.Cells(rc + 2, Mekko_YCol(j)).Formula = "=0"
             body.Cells(rc, Mekko_LblCol(blk, j)).Formula = "=SUM(" & body.Cells(rc, Mekko_YCol(1)).Address(False, False) & ":" & yAddr & ")-" & yAddr & "/2"
-            body.Cells(rc, Mekko_LblValCol(blk, j)).Formula = "=IF(" & wAddr & ">0," & yAddr & ",0)"      ' coluna de largura 0: rotulo vazio (secao de zero)
+            body.Cells(rc, Mekko_LblValCol(blk, j)).Formula = "=IF(" & vis & "," & yAddr & ",0)"      ' coluna sem largura no eixo: rotulo vazio (secao de zero)
         Next
         If units Then
             body.Cells(rc, Mekko_TotPosCol(blk)).Formula = "=" & totAddr
-            body.Cells(rc, Mekko_TotLblCol(blk)).Formula = "=IF(" & wAddr & ">0," & totAddr & ",0)"
+            body.Cells(rc, Mekko_TotLblCol(blk)).Formula = "=IF(" & vis & "," & totAddr & ",0)"
         Else
             body.Cells(rc, Mekko_TotPosCol(blk)).Formula = "=1"
-            body.Cells(rc, Mekko_TotLblCol(blk)).Formula = "=IF(" & wt & "=0,0," & wAddr & "/" & wt & ")"     ' largura da coluna (% do total geral)
+            body.Cells(rc, Mekko_TotLblCol(blk)).Formula = "=IF(" & vis & ",IF(" & wt & "=0,0," & wAddr & "/" & wt & "),0)"     ' largura da coluna (% do total geral)
         End If
         body.Cells(rc, Mekko_CatPosCol(blk)).Formula = "=0"
     Next
@@ -278,38 +288,62 @@ End Sub
 ' labelCells, com o formato (fmt = codigo de Style_NumberFormat; "" = sem formato, o texto da celula como esta), a posicao, a fonte
 ' de 9 pt na cor dada e o negrito; os demais pontos ficam SEM rotulo (um ponto NA() mostraria o rotulo no zero). Cada ponto e isolado:
 ' um erro e registrado e os demais continuam.
+' Desempenho (30 colunas x 6 series = 150 pontos por auxiliar; medido na Tarefa 15b: inserir 8,4 s -> 2,6 s, desligar e religar os rotulos
+' 15,4 s -> 2,7 s): os rotulos da serie sao apagados de uma vez (HasDataLabels = False) e so os n pontos C ganham rotulo (antes: 5n rotulos criados e
+' 4n apagados um a um), as celulas sao lidas em bloco, e durante o laco nem a tela e redesenhada nem os eventos rodam (cada escrita num
+' rotulo dispara o Calculate do grafico e o observador chamaria Core_SafeRefresh a cada ponto; quem chama atualiza o grafico uma vez no fim).
 Public Sub Mekko_LinkLabels(s As Series, valueCells As Range, labelCells As Range, fmt As String, pos As Long, fontColor As Long, Optional bold As Boolean = False)
-    Dim r As Long, m As Long, linkIt As Boolean
+    Dim r As Long, m As Long, linkIt As Boolean, vPos As Variant, vTxt As Variant, prevSU As Boolean, prevEv As Boolean, dl As DataLabel
+    Dim en As Long, es As String, ed As String
     m = valueCells.Rows.Count
     If Len(fmt) > 0 Then labelCells.NumberFormatLocal = Style_LocalizeCode(fmt)       ' o rotulo ligado mostra o TEXTO da celula
-    s.HasDataLabels = True
+    vPos = BlockValues(valueCells): vTxt = BlockValues(labelCells)
+    prevSU = Application.ScreenUpdating: prevEv = Application.EnableEvents
+    Application.ScreenUpdating = False: Application.EnableEvents = False
+    On Error GoTo Fail
+    s.HasDataLabels = False
     For r = 1 To m
-        linkIt = Not IsError(valueCells.Cells(r, 1).Value)
-        If linkIt Then linkIt = Not IsError(labelCells.Cells(r, 1).Value)
-        On Error Resume Next
+        linkIt = Not IsError(vPos(r, 1))
+        If linkIt Then linkIt = Not IsError(vTxt(r, 1))
         If linkIt Then
-            With s.Points(r)
-                .HasDataLabel = True
-                .DataLabel.Formula = Block_Ref(labelCells.Cells(r, 1))
-                If Len(fmt) > 0 Then Style_AssignNumberFormat .DataLabel, fmt
-                .DataLabel.Position = pos
-                .DataLabel.Font.Size = 9
-                .DataLabel.Font.Bold = bold
-                .DataLabel.Font.Color = fontColor
-            End With
-        Else
-            s.Points(r).HasDataLabel = False
+            On Error Resume Next
+            s.Points(r).HasDataLabel = True
+            Set dl = s.Points(r).DataLabel
+            dl.Formula = Block_Ref(labelCells.Cells(r, 1))
+            If Len(fmt) > 0 Then Style_AssignNumberFormat dl, fmt
+            dl.Position = pos
+            dl.Font.Size = 9
+            dl.Font.Bold = bold
+            dl.Font.Color = fontColor
+            If Err.Number <> 0 Then Errors_Log "Mekko_LinkLabels" & vbTab & s.Name & " ponto " & r & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+            On Error GoTo Fail
         End If
-        If Err.Number <> 0 Then Errors_Log "Mekko_LinkLabels" & vbTab & s.Name & " ponto " & r & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
-        On Error GoTo 0
     Next
+    Application.EnableEvents = prevEv: Application.ScreenUpdating = prevSU
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Application.EnableEvents = prevEv: Application.ScreenUpdating = prevSU
+    Err.Raise en, es, ed
 End Sub
+
+' Valores de uma coluna de celulas como matriz (1..m, 1..1), lidos de uma vez (Value2; uma celula so tambem vira matriz).
+Private Function BlockValues(cells As Range) As Variant
+    Dim one(1 To 1, 1 To 1) As Variant
+    If cells.Cells.Count = 1 Then
+        one(1, 1) = cells.Value2
+        BlockValues = one
+    Else
+        BlockValues = cells.Value2
+    End If
+End Function
 
 ' Rotulos de segmento: uma auxiliar tqq_lbl_j por serie, com os pontos em Lbl_j (meio da faixa, so em C) e o rotulo ligado a LblVal_j
 ' (participacao no percentual, valor nas unidades), centrado, fonte por contraste com a faixa. Formato dos segmentos
 ' (Labels_SegmentFormat: pct0/pct1 no percentual, numfmt nas unidades). Desligar apaga as auxiliares.
 Public Sub Mekko_SetLabels(cht As Chart, turnOn As Boolean)
     Dim s As Series, blk As Range, body As Range, m As Long, ns As Long, j As Long, i As Long, fmt As String, posCells As Range
+    Dim prevSU As Boolean, prevEv As Boolean, en As Long, es As String, ed As String
     If Not turnOn Then
         For i = cht.SeriesCollection.Count To 1 Step -1
             Set s = cht.SeriesCollection(i)
@@ -323,6 +357,9 @@ Public Sub Mekko_SetLabels(cht As Chart, turnOn As Boolean)
     m = body.Rows.Count - 1
     ns = Mekko_SeriesCount(blk)
     fmt = Labels_SegmentFormat(cht)
+    prevSU = Application.ScreenUpdating: prevEv = Application.EnableEvents
+    Application.ScreenUpdating = False: Application.EnableEvents = False      ' uma auxiliar por serie: sem redesenho nem refresh por evento a cada uma
+    On Error GoTo Fail
     For j = 1 To ns
         Set posCells = body.Cells(2, Mekko_LblCol(blk, j)).Resize(m, 1)
         Set s = Chart_FindSeries(cht, "tqq_lbl_" & j)
@@ -330,7 +367,13 @@ Public Sub Mekko_SetLabels(cht As Chart, turnOn As Boolean)
         Mekko_LinkLabels s, posCells, body.Cells(2, Mekko_LblValCol(blk, j)).Resize(m, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(Style_DataSeriesColor(cht, j))
     Next
     Chart_HideHelperLegendEntries cht
+    Application.EnableEvents = prevEv: Application.ScreenUpdating = prevSU
     Registry_SetOption cht, "labels", "1"
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Application.EnableEvents = prevEv: Application.ScreenUpdating = prevSU
+    Err.Raise en, es, ed
 End Sub
 
 ' Totais no topo de cada coluna: a auxiliar tqq_total em TotPos (1 no percentual; o Total nas unidades) com o rotulo ligado a TotLbl (a

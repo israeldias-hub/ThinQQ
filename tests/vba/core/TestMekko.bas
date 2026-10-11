@@ -390,3 +390,89 @@ Public Sub Test_Core_RebuildFromRange_Mekko_ReappliesSavedOptions()
     Watchers_Stop
     CloseTemp wb
 End Sub
+
+' --- Tarefa 15b ---
+
+' Mekko (%) com nome de categoria em branco, uma coluna minuscula (largura que arredonda a 0 no eixo de 0,1%: X_R = X_L) e um valor NEGATIVO:
+' o nome em branco aparece em branco (nunca "0"); a coluna minuscula nao mostra nome, total nem segmentos soltos sobre as vizinhas; o negativo
+' entra como 0 nas areas (participacoes e largura so com os positivos: Leste 15, -5, 5 -> 75%, 0%, 25%, largura 20) e o usuario e avisado.
+Private Function EdgeFixture(wb As Workbook) As Range
+    Dim ws As Worksheet
+    Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:D1").Value = Array("Regiao", "Eletro", "Moveis", "Tintas")
+    ws.Range("A2:D2").Value = Array("Sul", 40, 10, 5)
+    ws.Range("B3:D3").Value = Array(20, 10, 15)                       ' nome em branco
+    ws.Range("A4:D4").Value = Array("Norte", 0.01, 0, 0)              ' coluna minuscula
+    ws.Range("A5:D5").Value = Array("Leste", 15, -5, 5)               ' negativo
+    ws.Range("A6:D6").Value = Array("Oeste", 12, 8, 4)
+    Set EdgeFixture = ws.Range("A1:D6")
+End Function
+
+Public Sub Test_Mekko_BlankName_TinyColumn_NegativesClampedToZero()
+    Dim wb As Workbook, rng As Range, cht As Chart, body As Range, s As Variant, wt As Double, it As Double, ih As Double, dl As DataLabel
+    Set wb = NewTempWorkbook(): Set rng = EdgeFixture(wb)
+    rng.Select
+    Core_ClearLastNotice
+    Core_Insert "mekko"
+    Set cht = Core_ActiveChart()
+    AssertEqual "mekko", Registry_ChartType(cht)
+    Set body = Block_Body(Registry_Block(cht))
+    ' nome em branco: a celula e o rotulo vazios
+    AssertEqual "", Chart_FindSeries(cht, "tqq_cat").Points(C(2) - 1).DataLabel.Text, "nome em branco nao vira 0"
+    AssertEqual "Sul", Chart_FindSeries(cht, "tqq_cat").Points(C(1) - 1).DataLabel.Text
+    ' coluna minuscula: X_R = X_L e nenhum rotulo solto
+    AssertEqual body.Cells(C(3) - 1, MK_COL_X).Value, body.Cells(C(3) + 1, MK_COL_X).Value, "pre-condicao: largura 0 no eixo"
+    For Each s In Array("tqq_cat", "tqq_total", "tqq_lbl_1", "tqq_lbl_2", "tqq_lbl_3")
+        AssertEqual "", Chart_FindSeries(cht, CStr(s)).Points(C(3) - 1).DataLabel.Text, CStr(s) & " da coluna minuscula vazio"
+    Next
+    ' negativo: participacoes e largura so com os positivos
+    AssertAlmost 0.75, CDbl(body.Cells(C(4), Mekko_YCol(1)).Value), 0.000001, "Leste Eletro 15/20"
+    AssertAlmost 0, CDbl(body.Cells(C(4), Mekko_YCol(2)).Value), 0.000001, "Leste Moveis -5 -> 0"
+    AssertAlmost 0.25, CDbl(body.Cells(C(4), Mekko_YCol(3)).Value), 0.000001, "Leste Tintas 5/20"
+    AssertAlmost 20, CDbl(body.Cells(C(4), MK_COL_W).Value), 0.000001, "largura de Leste = soma dos positivos"
+    AssertEqual "", Chart_FindSeries(cht, "tqq_lbl_2").Points(C(4) - 1).DataLabel.Text, "segmento negativo sem rotulo"
+    AssertEqual Format$(0.75, "0%"), Chart_FindSeries(cht, "tqq_lbl_1").Points(C(4) - 1).DataLabel.Text
+    wt = 55 + 45 + 0.01 + 20 + 24
+    AssertEqual Format$(20 / wt, "0%"), Chart_FindSeries(cht, "tqq_total").Points(C(4) - 1).DataLabel.Text, "largura de Leste em % do total"
+    ' geometria (regra de tres no eixo 0..1 e na area interna REAIS): o meio da faixa de Tintas em Leste fica em 0,75 + 0,25/2
+    ForceLayout cht
+    it = cht.PlotArea.InsideTop: ih = cht.PlotArea.InsideHeight
+    Set dl = Chart_FindSeries(cht, "tqq_lbl_3").Points(C(4) - 1).DataLabel
+    AssertAlmost it + ih * (1 - 0.875), dl.Top + dl.Height / 2, 3, "Tintas de Leste entre 75% e 100%"
+    AssertTrue InStr(Core_LastNotice(), "negativos") > 0, "aviso dos negativos: " & Core_LastNotice()
+    ' religar os rotulos (Mekko_LinkLabels apaga todos de uma vez e liga so os pontos C, sem eventos durante o laco): so os pontos C tem rotulo
+    ' e os eventos do Excel voltam ligados
+    Core_SetToggle "labels", False
+    Core_SetToggle "labels", True
+    AssertTrue Application.EnableEvents, "eventos religados"
+    AssertNoStrayLabels cht, "religados"
+    AssertEqual Format$(0.75, "0%"), Chart_FindSeries(cht, "tqq_lbl_1").Points(C(4) - 1).DataLabel.Text, "rotulo religado com o texto"
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' Mekko (unidades): nome em branco e largura minuscula (0,01 num total de 110,01) tambem sem "0" nem rotulos soltos; sem aviso de negativos
+' (nas unidades os valores sao plotados como estao).
+Public Sub Test_MekkoUnits_BlankName_TinyWidth()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, body As Range, s As Variant
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:D1").Value = Array("Regiao", "Largura", "Eletro", "Moveis")
+    ws.Range("A2:D2").Value = Array("Sul", 50, 40, 10)
+    ws.Range("B3:D3").Value = Array(30, 20, 10)
+    ws.Range("A4:D4").Value = Array("Norte", 0.01, 10, 10)
+    ws.Range("A5:D5").Value = Array("Leste", 30, 15, 5)
+    ws.Range("A1:D5").Select
+    Core_ClearLastNotice
+    Core_Insert "mekkounits"
+    Set cht = Core_ActiveChart()
+    Set body = Block_Body(Registry_Block(cht))
+    AssertEqual "", Chart_FindSeries(cht, "tqq_cat").Points(C(2) - 1).DataLabel.Text, "nome em branco nao vira 0"
+    AssertEqual body.Cells(C(3) - 1, MK_COL_X).Value, body.Cells(C(3) + 1, MK_COL_X).Value, "pre-condicao: largura 0 no eixo"
+    For Each s In Array("tqq_cat", "tqq_total", "tqq_lbl_1", "tqq_lbl_2")
+        AssertEqual "", Chart_FindSeries(cht, CStr(s)).Points(C(3) - 1).DataLabel.Text, CStr(s) & " da coluna minuscula vazio"
+    Next
+    AssertEqual "Leste", Chart_FindSeries(cht, "tqq_cat").Points(C(4) - 1).DataLabel.Text
+    AssertEqual 0, Core_NoticeCount(), "sem aviso: " & Core_LastNotice()
+    Watchers_Stop
+    CloseTemp wb
+End Sub

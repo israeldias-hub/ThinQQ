@@ -125,6 +125,7 @@ Public Sub Core_Insert(kind As String)
     co.Select
     Core_SafeRefresh co.Chart
     NotifyPieIgnoredColumns kind, data
+    NotifyMekkoNegatives kind, data
     Exit Sub
 Fail:
     en = Err.Number: ed = Err.Description
@@ -148,6 +149,18 @@ Private Sub NotifyPieIgnoredColumns(kind As String, data As clsChartData)
     If Kinds_Family(kind) <> "pie" Then Exit Sub
     If data.SeriesCount < 2 Then Exit Sub
     Core_Notify "A " & IIf(kind = "doughnut", "rosca", "pizza") & " mostra só a primeira coluna de valores (" & data.SeriesName(1) & "). As outras " & (data.SeriesCount - 1) & " coluna(s) da tabela foram ignoradas.", vbInformation
+End Sub
+
+' Mekko (%): as areas so mostram participacoes positivas; valores negativos da tabela entram como zero (Mekko_BuildBlock). Avisa depois de
+' criar (informativo, como NotifyPieIgnoredColumns; no build de teste so registra). Nunca propaga erro.
+Private Sub NotifyMekkoNegatives(kind As String, data As clsChartData)
+    Dim j As Long, n As Long
+    On Error Resume Next
+    If kind <> "mekko" Then Exit Sub
+    For j = 1 To data.SeriesCount
+        n = n + Application.WorksheetFunction.CountIf(data.SeriesValueCells(j), "<0")
+    Next
+    If n > 0 Then Core_Notify "Mekko (%): os valores negativos da tabela entram como zero (as áreas mostram só as partes positivas).", vbInformation
 End Sub
 
 Public Function Core_GetToggle(key As String) As Boolean
@@ -703,6 +716,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     If Err.Number <> 0 Then Errors_Log "Core_RebuildFromRange/final" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Core_SafeRefresh nc
     NotifyPieIgnoredColumns kind, data
+    NotifyMekkoNegatives kind, data
     Core_RebuildFromRange = True
     Exit Function
 FailNew:
