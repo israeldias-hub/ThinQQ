@@ -664,3 +664,72 @@ Public Sub Test_Core_ApplyPendingLoader_BusyGuard_SkipsReentrantCall()
 Fail:
     PendingFail
 End Sub
+
+' ---- C1: vida do bloco por referencia (copias e graficos movidos para planilha de grafico) ----
+
+Private Function SeriesSum(s As Series) As Double
+    Dim v As Variant, i As Long
+    v = s.Values
+    For i = LBound(v) To UBound(v)
+        SeriesSum = SeriesSum + Util_ToDouble(v(i))
+    Next
+End Function
+
+Public Sub Test_Core_Cleanup_DuplicatedChart_KeepsBlockAfterOriginalDeleted()
+    Dim wb As Workbook, ws As Worksheet, dup As Object, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "waterfall"
+    Set dup = ws.ChartObjects(1).Duplicate
+    ws.ChartObjects(2).Name = "Gráfico 2"       ' como o Excel nomeia uma cópia colada (o Duplicate por código mantém o nome)
+    AssertEqual 2, ws.ChartObjects.Count
+    ws.ChartObjects(1).Delete          ' o original (nome tqq_<id>) some; a copia continua apontando para o bloco
+    AssertEqual 1, ws.ChartObjects.Count
+    AssertEqual 1, TqqNameCount(wb), "bloco ainda existe antes da limpeza"
+    Core_Refresh
+    AssertEqual 1, TqqNameCount(wb), "o bloco da copia nao pode ser apagado"
+    Set cht = ws.ChartObjects(1).Chart
+    AssertTrue SeriesSum(Chart_FindSeries(cht, "tqq_uppos")) > 0, "a copia continua com dados"
+    ' inserir outro grafico tambem aciona a limpeza
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    AssertEqual 2, TqqNameCount(wb), "copia + novo grafico"
+    AssertTrue SeriesSum(Chart_FindSeries(cht, "tqq_uppos")) > 0, "a copia continua com dados apos novo Insert"
+    Teardown wb
+End Sub
+
+Public Sub Test_Core_Cleanup_ChartMovedToChartSheet_KeepsBlock()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, ch2 As Chart
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "waterfall"
+    Set cht = ws.ChartObjects(1).Chart
+    cht.Location Where:=xlLocationAsNewSheet, Name:="GrafSheet"
+    AssertEqual 0, ws.ChartObjects.Count
+    AssertEqual 1, wb.Charts.Count
+    Core_Refresh
+    AssertEqual 1, TqqNameCount(wb), "bloco do grafico movido preservado"
+    Set ch2 = wb.Charts(1)
+    AssertTrue SeriesSum(Chart_FindSeries(ch2, "tqq_uppos")) > 0, "dados preservados"
+    ws.Activate
+    ws.Range("A1:C5").Select
+    Core_Insert "clustered"
+    AssertEqual 1, TqqNameCount(wb) - 1, "novo bloco + bloco movido"
+    AssertTrue SeriesSum(Chart_FindSeries(wb.Charts(1), "tqq_uppos")) > 0, "dados preservados apos Insert"
+    Teardown wb
+End Sub
+
+Public Sub Test_Core_Cleanup_DeletedChart_StillRemovedWhenOtherChartsExist()
+    Dim wb As Workbook, ws As Worksheet
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "waterfall"
+    ws.Range("A1:C5").Select
+    Core_Insert "waterfall"
+    AssertEqual 2, TqqNameCount(wb)
+    ws.ChartObjects(1).Delete
+    Core_Refresh
+    AssertEqual 1, TqqNameCount(wb), "so o bloco do grafico excluido sai"
+    AssertTrue SeriesSum(Chart_FindSeries(ws.ChartObjects(1).Chart, "tqq_uppos")) > 0
+    Teardown wb
+End Sub

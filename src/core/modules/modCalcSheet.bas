@@ -122,10 +122,77 @@ Public Function Block_Body(blk As Range) As Range
     Set Block_Body = blk.Offset(1, 0).Resize(blk.Rows.Count - 1, blk.Columns.Count)
 End Function
 
+' Fórmulas (Series.Formula) de TODOS os gráficos da pasta: gráficos embutidos de cada planilha (inclusive dentro de
+' grupos de formas) e planilhas de gráfico. Uma cópia de gráfico ThinQQ, ou um gráfico movido para planilha de
+' gráfico, não tem mais o nome "tqq_<id>", mas continua apontando para o bloco: a vida do bloco é decidida por referência.
+Private Function AllSeriesFormulas(wb As Workbook) As String
+    Dim ws As Worksheet, sh As Object, gi As Object, co As Object, acc As String
+    On Error Resume Next
+    For Each ws In wb.Worksheets
+        For Each sh In ws.Shapes
+            If sh.Type = 6 Then                         ' msoGroup
+                For Each gi In sh.GroupItems
+                    If gi.HasChart Then acc = acc & ChartFormulas(gi.Chart)
+                Next
+            ElseIf sh.HasChart Then
+                acc = acc & ChartFormulas(sh.Chart)
+            End If
+        Next
+    Next
+    For Each co In wb.Charts
+        acc = acc & ChartFormulas(co)
+    Next
+    AllSeriesFormulas = acc
+End Function
+
+Private Function ChartFormulas(ch As Object) As String
+    Dim s As Object, acc As String
+    On Error Resume Next
+    For Each s In ch.SeriesCollection
+        acc = acc & vbLf & s.Formula
+    Next
+    ChartFormulas = acc
+End Function
+
+' Faixas da planilha _ThinQQ citadas no texto de fórmulas (referências de outras pastas, "[x]_ThinQQ", são ignoradas).
+Private Function ReferencedCalcRanges(txt As String, calc As Worksheet) As Collection
+    Dim refs As New Collection, p As Long, q As Long, addr As String, ch As String
+    p = InStr(1, txt, CALC_SHEET, vbTextCompare)
+    Do While p > 0
+        q = p + Len(CALC_SHEET)
+        If Mid$(txt, q, 1) = "'" Then q = q + 1
+        If Mid$(txt, q, 1) = "!" And Mid$(txt, IIf(p > 1, p - 1, 1), 1) <> "]" Then
+            q = q + 1
+            addr = ""
+            Do While q <= Len(txt)
+                ch = Mid$(txt, q, 1)
+                If ch Like "[A-Za-z0-9$:]" Then addr = addr & ch: q = q + 1 Else Exit Do
+            Loop
+            If Len(addr) > 0 Then
+                On Error Resume Next
+                refs.Add calc.Range(addr)
+                On Error GoTo 0
+            End If
+        End If
+        p = InStr(q, txt, CALC_SHEET, vbTextCompare)
+    Loop
+    Set ReferencedCalcRanges = refs
+End Function
+
+Private Function AnyIntersect(refs As Collection, blk As Range) As Boolean
+    Dim r As Variant
+    For Each r In refs
+        If Not Application.Intersect(r, blk) Is Nothing Then AnyIntersect = True: Exit Function
+    Next
+End Function
+
 ' Remove blocos cujo gráfico não existe mais. Retorna quantos removeu.
 ' Só considera nomes "tqq_*" cujo destino é um bloco da planilha _ThinQQ (meta A = id).
+' Um bloco está vivo se existe um gráfico nomeado "tqq_<id>" OU se alguma série de qualquer gráfico da pasta
+' referencia uma célula do bloco (cópias e gráficos movidos para planilha de gráfico).
 Public Function CalcSheet_Cleanup(wb As Workbook) As Long
     Dim i As Long, nm As Name, id As String, removed As Long, rng As Range
+    Dim refs As Collection, haveRefs As Boolean
     For i = wb.Names.Count To 1 Step -1
         Set nm = wb.Names(i)
         If Left$(nm.Name, Len(ID_PREFIX)) = ID_PREFIX Then
@@ -138,8 +205,14 @@ Public Function CalcSheet_Cleanup(wb As Workbook) As Long
                 If rng.Worksheet.Name = CALC_SHEET Then
                     If CStr(rng.Cells(1, 1).Value) = id Then
                         If Registry_FindChartObject(wb, id) Is Nothing Then
-                            CalcSheet_DeleteBlock wb, id
-                            removed = removed + 1
+                            If Not haveRefs Then
+                                Set refs = ReferencedCalcRanges(AllSeriesFormulas(wb), rng.Worksheet)
+                                haveRefs = True
+                            End If
+                            If Not AnyIntersect(refs, rng) Then
+                                CalcSheet_DeleteBlock wb, id
+                                removed = removed + 1
+                            End If
                         End If
                     End If
                 End If

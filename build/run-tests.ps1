@@ -2,6 +2,7 @@ param(
     [ValidateSet('loader','core','all')] [string]$Target = 'all',
     [switch]$NoBuild,
     [switch]$LoaderSwap,     # tambem roda tests/ps/Test-LoaderSwap.ps1 (Excel real; monta Release em dist; ~30 s)
+    [string]$Filter = '',    # so roda testes cujo 'Modulo.Teste' contem este texto (iteracao rapida; pula as suites PowerShell)
     [int]$TimeoutSec = 600   # watchdog da execução no Excel: mata o Excel iniciado aqui se não terminar (saída 2)
 )
 . "$PSScriptRoot\lib\Build-Common.ps1"
@@ -45,6 +46,7 @@ if ($node) {
 }
 
 
+if ($Filter) { $env:TQQ_TEST_FILTER = $Filter } else { Remove-Item Env:\TQQ_TEST_FILTER -ErrorAction SilentlyContinue }
 $totalFailed = 0; $noTests = $false; $timedOut = $false; $compileFailed = $false
 $xl = New-ExcelApp
 $wd = Start-ExcelWatchdog $xl $TimeoutSec
@@ -88,6 +90,12 @@ try {
         if ($xp -gt 0) { Stop-Process -Id $xp -Force -ErrorAction SilentlyContinue }
     } else { Close-ExcelApp $xl }
     if ($server) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
+}
+if ($Filter) {
+    Write-Host "Filtro '$Filter' ativo: suites PowerShell puladas"
+    if ($compileFailed) { exit 3 }
+    if ($timedOut) { exit 2 }
+    if ($totalFailed -gt 0) { exit 1 } else { exit 0 }
 }
 if (-not $timedOut) {
     Write-Host '=== vba-lint ==='

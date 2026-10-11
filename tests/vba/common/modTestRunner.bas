@@ -4,7 +4,8 @@ Option Explicit
 Private mPassed As Long, mFailed As Long, mLog As String
 
 Public Function RunAllTests(outputPath As String) As Long
-    Dim comp As Object, cm As Object, line As Long, procName As String, kind As Long, lastProc As String
+    Dim comp As Object, cm As Object, line As Long, procName As String, kind As Long, lastProc As String, filt As String
+    filt = Environ$("TQQ_TEST_FILTER")
     mPassed = 0: mFailed = 0: mLog = ""
     For Each comp In ThisWorkbook.VBProject.VBComponents
         If comp.Type = 1 And Left$(comp.Name, 4) = "Test" Then    ' 1 = vbext_ct_StdModule
@@ -14,7 +15,9 @@ Public Function RunAllTests(outputPath As String) As Long
                 procName = cm.ProcOfLine(line, kind)
                 If procName <> lastProc Then
                     lastProc = procName
-                    If Left$(procName, 5) = "Test_" Then RunOne comp.Name, procName
+                    If Left$(procName, 5) = "Test_" Then
+                        If Len(filt) = 0 Or InStr(1, comp.Name & "." & procName, filt, vbTextCompare) > 0 Then RunOne comp.Name, procName
+                    End If
                 End If
             Next
         End If
