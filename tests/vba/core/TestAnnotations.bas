@@ -347,3 +347,21 @@ Public Sub Test_Ann_CategoryData_EmptyAndShortSeries()
     AssertAlmost 140, v(4), 0.001, "serie curta conta como zero, sem erro"
     CloseTemp wb
 End Sub
+
+' Com os totais ligados, a linha do CAGR passa acima dos rotulos dos totais (posicao real do rotulo no grafico).
+Public Sub Test_Ann_Cagr_ClearsTotalLabels_WhenTotalsOn()
+    Dim wb As Workbook, cht As Chart, ln As Shape, s As Series, i As Long, lineYAtPoint As Double, labelTop As Double
+    Set wb = NewTempWorkbook(): Set cht = StackedFixture(wb)
+    AssertEqual "1", Registry_GetOption(cht, "totals", "0")
+    Set ln = Ann_AddCagr(cht, 1, 4)
+    Set s = Chart_FindSeries(cht, "tqq_total")
+    ' linha sobe para a direita (VerticalFlip): inicio em ln.Top + ln.Height, fim em ln.Top
+    lineYAtPoint = ln.Top + ln.Height
+    labelTop = s.Points(1).DataLabel.Top
+    AssertTrue lineYAtPoint <= labelTop - 8, "inicio da linha do CAGR acima do rotulo do total 1: linha=" & lineYAtPoint & " rotulo=" & labelTop
+    lineYAtPoint = ln.Top
+    labelTop = s.Points(4).DataLabel.Top
+    AssertTrue lineYAtPoint <= labelTop - 8, "fim da linha do CAGR acima do rotulo do total 4: linha=" & lineYAtPoint & " rotulo=" & labelTop
+    AssertTrue ln.Top >= 0, "linha dentro do grafico"
+    CloseTemp wb
+End Sub

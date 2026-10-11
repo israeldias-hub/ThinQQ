@@ -85,10 +85,25 @@ Public Function Ann_AddCagr(cht As Chart, fromIdx As Long, toIdx As Long) As Sha
         .EndArrowheadLength = msoArrowheadShort: .EndArrowheadWidth = msoArrowheadNarrow
     End With
     Ann_AddLabel cht, nm
+    Ann_EnsureHeadroom cht
     Ann_Refresh cht
     Set Ann_AddCagr = ln
 End Function
 
+' Com os totais ligados, abre espaço acima da área de plotagem para a seta de CAGR e seu rótulo passarem
+' acima dos rótulos dos totais (mesmo quando a coluna mais alta quase toca o topo do eixo). Só aumenta.
+Private Sub Ann_EnsureHeadroom(cht As Chart)
+    Dim need As Double, delta As Double
+    On Error Resume Next
+    If Registry_GetOption(cht, "totals", "0") <> "1" Then Exit Sub
+    need = 52
+    delta = need - cht.PlotArea.InsideTop
+    If delta > 0 Then
+        cht.PlotArea.Height = cht.PlotArea.Height - delta
+        cht.PlotArea.Top = cht.PlotArea.Top + delta
+    End If
+    If Err.Number <> 0 Then Errors_Log "Ann_EnsureHeadroom" & vbTab & Err.Number & vbTab & Err.Description
+End Sub
 Public Function Ann_AddDifference(cht As Chart, fromIdx As Long, toIdx As Long) As Shape
     Dim nm As String, ln As Shape, lvl As Shape
     If Registry_ChartType(cht) = "stacked100" Then Err.Raise vbObjectError + 7001, "Ann_AddDifference", "A seta de diferença não está disponível para gráficos 100%."
@@ -243,10 +258,15 @@ End Function
 
 Private Sub Ann_LayoutCagr(cht As Chart, ln As Shape, fromIdx As Long, toIdx As Long, values() As Double, tops() As Double, fmt As String)
     Dim x1 As Double, x2 As Double, y1 As Double, y2 As Double, lbl As Shape, rate As Double, txt As String
-    Dim body As Range, periods As Double
+    Dim body As Range, periods As Double, extra As Double
     x1 = Geom_ChartCategoryCenterX(cht, fromIdx): x2 = Geom_ChartCategoryCenterX(cht, toIdx)
-    y1 = Geom_ChartValueToY(cht, tops(fromIdx)) - 10
-    y2 = Geom_ChartValueToY(cht, tops(toIdx)) - 10
+    ' Com os totais ligados, o rótulo do total ocupa o espaço logo acima da coluna: a seta sobe um pouco mais.
+    If Registry_GetOption(cht, "totals", "0") = "1" Then extra = 18
+    y1 = Geom_ChartValueToY(cht, tops(fromIdx)) - 10 - extra
+    y2 = Geom_ChartValueToY(cht, tops(toIdx)) - 10 - extra
+    ' fica dentro do gráfico, com espaço para o rótulo da seta acima da linha
+    If y1 < 22 Then y1 = 22
+    If y2 < 22 Then y2 = 22
     Ann_MoveLine ln, x1, y1, x2, y2
     Set body = Block_Body(Registry_Block(cht))
     periods = Geom_Periods(body.Cells(fromIdx + 1, 1).Value, body.Cells(toIdx + 1, 1).Value, fromIdx, toIdx)

@@ -21,7 +21,7 @@ Repositório: <https://github.com/israeldias-hub/ThinQQ>
 
 ## Instalação (usuários)
 
-Requisitos: Excel do Office 16.0 (2016, 2019, 2021 ou Microsoft 365) para Windows, 32 ou 64 bits.
+Requisitos: Excel do Office 16.0 (2016, 2019, 2021 ou Microsoft 365) para Windows. O código não faz chamadas à API do Windows (nenhuma instrução `Declare`), então é compatível com 32 e 64 bits por construção; os testes automatizados rodaram apenas em Excel 32 bits.
 
 1. Baixe `ThinQQ-x.y.z.zip` da página de [Releases](https://github.com/israeldias-hub/ThinQQ/releases) e descompacte a pasta inteira.
 2. Feche o Excel e dê dois cliques em `Instalar-ThinQQ.cmd`.
@@ -81,6 +81,8 @@ O botão ThinQQ > Tutorial abre o `tutorial.html` da versão instalada; se ele n
 <https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html>. Para essa página existir, habilite uma vez
 em Settings > Pages > "Deploy from a branch", branch `main`, pasta `/docs`.
 
+Atenção: o Pages publica a pasta `/docs` inteira, inclusive `docs/superpowers` (especificação e plano). Se isso não for desejado, mova o tutorial para uma pasta própria (por exemplo `site/`), aponte o Pages para ela e ajuste `TUTORIAL_URL` em `src/loader/modules/modRibbon.bas` e o caminho em `build/release.ps1`.
+
 ## Arquitetura
 
 - **Loader** (`ThinQQ.xlam`): faixa de opções (`customUI14.xml`), inicialização, atualizador e configurações
@@ -112,7 +114,7 @@ Especificação: `docs/superpowers/specs/2026-10-10-thinqq-design.md`. Plano da 
 
 ## Limitações conhecidas
 
-- Somente Excel para Windows, Office 16.0; sem Mac nem Excel na web.
+- Somente Excel para Windows, Office 16.0; sem Mac nem Excel na web. A compatibilidade com Excel 64 bits é por construção (sem `Declare`), ainda não verificada em teste.
 - Cascata vertical com uma série. Barras horizontais, Mekko, Gantt e pizza ficam para a Fase 2.
 - A seta de diferença não existe em gráficos 100%.
 - Os eventos que reposicionam as setas só disparam com o gráfico visível; Atualizar refaz o layout.
@@ -120,4 +122,4 @@ Especificação: `docs/superpowers/specs/2026-10-10-thinqq-design.md`. Plano da 
 
 ## Licença
 
-Todos os direitos reservados.
+Nenhuma licença de código aberto foi escolhida: todos os direitos reservados. O repositório não tem arquivo `LICENSE`; para permitir o uso por terceiros, o autor precisa escolher e adicionar uma licença.

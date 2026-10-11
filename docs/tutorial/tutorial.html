@@ -64,7 +64,7 @@ body {
   line-height: 1.6;
 }
 a { color: var(--link); text-underline-offset: 2px; }
-a:focus-visible, summary:focus-visible, .tw:focus-visible {
+a:focus-visible, summary:focus-visible, .tw:focus-visible, .rb-body:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
   border-radius: 3px;
@@ -90,14 +90,14 @@ a:focus-visible, summary:focus-visible, .tw:focus-visible {
 .top p { margin: 10px 0 28px; max-width: 46ch; color: #d6e2f7; font-size: 1.1rem; }
 
 /* Maquete da faixa de opções */
-.ribbon { margin: 0; background: #f3f3f3; color: #252525; border-radius: 8px; overflow: hidden; border: 1px solid #c9c9c9; box-shadow: 0 10px 28px rgba(0, 0, 0, .35); font-size: .8125rem; line-height: 1.25; }
+.ribbon { max-width: 100%; margin: 0; background: #f3f3f3; color: #252525; border-radius: 8px; overflow: hidden; border: 1px solid #c9c9c9; box-shadow: 0 10px 28px rgba(0, 0, 0, .35); font-size: .8125rem; line-height: 1.25; }
 .rb-tabs { display: flex; gap: 2px; padding: 6px 10px 0; background: #217346; overflow-x: auto; }
 .rb-tabs span { padding: 5px 12px; color: #fff; white-space: nowrap; border-radius: 4px 4px 0 0; }
 .rb-tabs span.on { background: #f3f3f3; color: #217346; font-weight: 700; }
-.rb-body { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px 0; padding: 8px 6px 6px; }
-.rb-group { display: flex; flex-direction: column; justify-content: space-between; padding: 0 10px; border-right: 1px solid #d0d0d0; min-width: max-content; }
+.rb-body { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px 0; padding: 8px 6px 6px; overflow-x: auto; max-width: 100%; }
+.rb-group { display: flex; flex-direction: column; justify-content: space-between; padding: 0 10px; border-right: 1px solid #d0d0d0; max-width: 100%; }
 .rb-group:last-child { border-right: 0; }
-.rb-btns { display: flex; gap: 4px; align-items: flex-start; }
+.rb-btns { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-start; }
 .rb-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 74px; padding: 4px 2px; text-align: center; border-radius: 3px; }
 .rb-btn.sm { flex-direction: row; width: auto; gap: 6px; padding: 2px 4px; text-align: left; }
 .rb-btn.off { opacity: .45; }
@@ -170,6 +170,7 @@ details > div { padding: 12px 16px 2px; }
 
 footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align: center; color: var(--muted); font-size: .92rem; }
 
+@media (max-width: 480px) { .ui { white-space: normal; } .rb-btn.sm .ui { white-space: normal; } .rb-btn { width: 68px; } }
 @media (max-width: 900px) {
   .wrap { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .toc { position: static; max-height: none; }
@@ -178,8 +179,14 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   .top { padding: 32px 16px 28px; }
 }
 @media print {
-  :root { --bg: #fff; --panel: #fff; --ink: #000; --muted: #333; --line: #bbb; --soft: #f1f1f1; --link: #000; --ui-bg: #eee; --ui-ink: #000; }
-  body { font-size: 11pt; }
+  :root {
+    --bg: #fff; --panel: #fff; --soft: #f1f1f1; --ink: #000; --muted: #333; --line: #999;
+    --navy: #000; --blue: #000; --sky: #999; --link: #000;
+    --warn-bg: #fff; --warn-ink: #000; --warn-line: #000;
+    --ok-bg: #fff; --ok-ink: #000; --ok-line: #000;
+    --ui-bg: #eee; --ui-ink: #000; --focus: #000; --grid: transparent;
+  }
+  body { font-size: 11pt; background: #fff; color: #000; }
   .top { background: none; color: #000; padding: 0 0 12px; border-bottom: 2px solid #000; }
   .top p, .cap { color: #000; }
   .ribbon { box-shadow: none; }
@@ -187,10 +194,15 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   .wrap { display: block; padding: 12px 0; }
   section { break-inside: auto; margin-bottom: 24px; }
   h2, h3, .tw, details { break-inside: avoid; break-after: avoid; }
+  .tw, .rb-body { overflow: visible; }
+  ol.steps > li::before { background: #000; color: #fff; }
   details > div { display: block; }
-  a { text-decoration: none; }
+  a { color: #000; text-decoration: underline; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .85em; overflow-wrap: anywhere; }
 }
-</style>
+@media print {
+  details::details-content { content-visibility: visible; display: block; }
+}</style>
 </head>
 <body>
 <a class="skip" href="#conteudo">Ir para o conteúdo</a>
@@ -204,7 +216,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <div class="rb-tabs" aria-hidden="true">
         <span>Arquivo</span><span>Início</span><span>Inserir</span><span class="on"><span class="ui">ThinQQ</span></span><span>Dados</span>
       </div>
-      <div class="rb-body">
+      <div class="rb-body" tabindex="0" role="region" aria-label="Faixa de opções ThinQQ (em telas estreitas, role para os lados)">
         <div class="rb-group">
           <div class="rb-btns">
             <div class="rb-btn"><span class="ic"><i style="height:90%"></i><i style="height:60%"></i><i style="height:35%"></i></span><span class="ui">Colunas empilhadas</span></div>
@@ -308,9 +320,9 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <h2 id="h-dados">Como preparar os dados</h2>
   <ul>
     <li><strong>Cabeçalho e categorias:</strong> a primeira linha traz os nomes das séries e a primeira coluna traz as categorias (anos, meses, etapas). A célula do canto superior esquerdo pode ficar vazia ou ter um título.</li>
-    <li><strong>Células vazias, texto ou erro contam como zero.</strong> Um <code>n/d</code> no meio dos valores não impede o gráfico: aquele ponto vale 0. Em empilhadas, um erro como <code>#N/D</code> é ignorado no total.</li>
+    <li><strong>Células vazias, com erro ou com texto contam como zero.</strong> Um <code>n/d</code> no meio dos valores não impede o gráfico: aquele ponto vale 0. Em empilhadas, um erro como <code>#N/D</code> é ignorado no total. Números guardados como texto (alinhados à esquerda, com triângulo verde) também valem 0: converta-os para número.</li>
     <li><strong>Números negativos</strong> descem abaixo do eixo; o total negativo fica com o rótulo abaixo da coluna.</li>
-    <li><strong>Marcador <code>e</code> (só cascata):</strong> no lugar do valor, <code>e</code>, <code>t</code>, <code>=</code>, <code>total</code> ou <code>subtotal</code> (maiúsculas, minúsculas e espaços ao redor não importam) desenha uma barra de total calculada.</li>
+    <li><strong>Marcador <code>e</code> (só cascata):</strong> no lugar do valor, <code>e</code>, <code>t</code>, <code>total</code> ou <code>subtotal</code> (maiúsculas, minúsculas e espaços ao redor não importam) desenha uma barra de total calculada. O marcador <code>=</code> também vale, mas o Excel o toma por fórmula: digite <code>'=</code> com apóstrofo antes. Na dúvida, use <code>e</code>.</li>
     <li><strong>Várias áreas ou planilha protegida:</strong> selecione uma única região contígua. Em planilha protegida o ThinQQ pede que você a desproteja antes de inserir.</li>
     <li><strong>Nomes de planilha</strong> com espaços ou apóstrofos (como <code>Plano 'A' 2026</code>) funcionam normalmente.</li>
   </ul>
@@ -390,7 +402,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
 <section id="atualizar" aria-labelledby="h-atualizar">
   <h2 id="h-atualizar">Atualizações</h2>
-  <p>Ao abrir o Excel, o ThinQQ consulta a fonte de atualização no máximo uma vez por dia. Se houver versão nova, abre uma janela com as novidades e os botões <span class="ui">Atualizar agora</span> e <span class="ui">Depois</span>. Na verificação automática há também <span class="ui">Pular esta versão</span>, que silencia o aviso até sair uma versão mais nova. A atualização é baixada, conferida e aplicada sem reiniciar o Excel.</p>
+  <p>Ao abrir o Excel, o ThinQQ consulta a fonte de atualização no máximo uma vez por dia. Se houver versão nova, abre uma janela com as novidades e os botões <span class="ui">Atualizar agora</span> e <span class="ui">Depois</span>. Na verificação automática há também <span class="ui">Pular esta versão</span>, que silencia o aviso até sair uma versão mais nova. O núcleo é baixado, conferido e aplicado na hora, sem reiniciar o Excel. Se a versão traz um carregador novo, ele é trocado logo em seguida (em poucos segundos), também sem reiniciar. Se a troca do carregador falhar, a versão anterior continua funcionando, o ThinQQ avisa e tenta de novo na próxima vez que você abrir o Excel.</p>
   <ul>
     <li><span class="ui">Verificar atualizações</span> consulta na hora, sem esperar o próximo dia, e informa também quando você já está na versão mais recente.</li>
     <li><span class="ui">Configurações</span> mostra a fonte de atualização e permite trocá-la: o endereço (<code>https://...</code>) do <code>manifest.json</code>, ou o caminho de uma pasta ou arquivo, inclusive de rede ou de uma pasta do OneDrive/Teams sincronizada. Variáveis como <code>%USERPROFILE%</code> funcionam. Deixe em branco para voltar à fonte padrão (o repositório do ThinQQ no GitHub).</li>
@@ -457,7 +469,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </details>
   <details>
     <summary>O ThinQQ envia meus dados para algum lugar?</summary>
-    <div><p>Não. A única conexão é a consulta ao manifesto de atualização (um arquivo de texto com números de versão e endereços), na fonte que você configurou.</p></div>
+    <div><p>Não. Os dados das suas planilhas nunca saem do computador. O ThinQQ só se conecta à internet (ou à pasta de rede configurada) em três situações: na consulta diária ao manifesto de atualização (um arquivo de texto com números de versão e endereços), ao baixar os arquivos quando você atualiza e, se não houver tutorial instalado, ao abrir o tutorial online no navegador.</p></div>
   </details>
 </section>
 
@@ -483,5 +495,20 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 <footer>
   <p>ThinQQ 1.0.0. Dúvidas e sugestões: abra uma <a href="https://github.com/israeldias-hub/ThinQQ/issues">issue no GitHub</a>.</p>
 </footer>
+<script>
+(function () {
+  var list = [], was = [];
+  function openAll() {
+    list = Array.prototype.slice.call(document.querySelectorAll('details'));
+    was = list.map(function (d) { return d.open; });
+    list.forEach(function (d) { d.open = true; });
+  }
+  function restore() {
+    list.forEach(function (d, i) { d.open = was[i]; });
+  }
+  window.addEventListener('beforeprint', openAll);
+  window.addEventListener('afterprint', restore);
+})();
+</script>
 </body>
 </html>

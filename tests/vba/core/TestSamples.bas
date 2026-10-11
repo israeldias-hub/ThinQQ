@@ -46,6 +46,7 @@ End Sub
 ' O 100% nao tem seta de diferenca; a cascata que cruza o zero tem totais 'e'.
 Public Sub Test_Samples_Content()
     Dim wb As Workbook, ws As Worksheet, co As ChartObject, nWf As Long, found100 As Boolean, crossing As Boolean, body As Range, i As Long
+    Dim sr As Series, n As Long, oneSeries As Long, cg As Shape, tl As Series
     Set wb = Samples_Create()
     Set ws = wb.Worksheets("Exemplos")
     For Each co In ws.ChartObjects
@@ -65,8 +66,21 @@ Public Sub Test_Samples_Content()
     AssertEqual 2, nWf
     AssertTrue crossing, "falta a cascata que cruza o zero"
     AssertEqual "e", LCase$(ws.Range("B111").Value)
+    ' exemplo 1: a linha do CAGR passa acima dos rotulos dos totais da primeira e da ultima coluna
+    Set cg = ws.ChartObjects(1).Chart.Shapes("tqq_ann_cagr_1")
+    Set tl = Chart_FindSeries(ws.ChartObjects(1).Chart, "tqq_total")
+    AssertTrue cg.Top + cg.Height <= tl.Points(1).DataLabel.Top - 8, "CAGR do exemplo 1 sobre o total da 1a coluna"
+    AssertTrue cg.Top <= tl.Points(4).DataLabel.Top - 8, "CAGR do exemplo 1 sobre o total da ultima coluna"
     AssertEqual "e", LCase$(ws.Range("B113").Value)
-    AssertFalse ws.ChartObjects(4).Chart.HasTitle, "grafico de 1 serie sem titulo"
+    oneSeries = 0
+    For Each co In ws.ChartObjects
+        n = 0
+        For Each sr In co.Chart.SeriesCollection
+            If Not Style_IsHelperSeries(sr) Then n = n + 1
+        Next
+        If n = 1 Then oneSeries = oneSeries + 1: AssertFalse co.Chart.HasTitle, "grafico de 1 serie sem titulo: " & co.Name
+    Next
+    AssertTrue oneSeries >= 1, "deve haver ao menos um exemplo de 1 serie"
     CloseTemp wb
 End Sub
 
@@ -79,29 +93,37 @@ End Function
 
 ' Sem efeito colateral em outra pasta; falha no meio fecha a pasta de exemplos e propaga o erro.
 Public Sub Test_Samples_Failure_ClosesWorkbook_NoSideEffects()
-    Dim other As Workbook, before As Long, sheetsBefore As Long, errNum As Long
+    Dim other As Workbook, before As Long, sheetsBefore As Long, errNum As Long, en As Long, es As String, ed As String
     Set other = NewTempWorkbook()
     other.Worksheets(1).Range("A1").Value = "intacto"
     before = Application.Workbooks.Count
     sheetsBefore = other.Sheets.Count
+    On Error GoTo Cleanup1                       ' o gancho global nunca pode vazar para os proximos testes
     Util_FailAfterBlockForTest = True
     On Error Resume Next
     Samples_Create
     errNum = Err.Number
-    On Error GoTo 0
+    On Error GoTo Cleanup1
     Util_FailAfterBlockForTest = False
     AssertTrue errNum <> 0, "esperava erro"
     AssertEqual before, Application.Workbooks.Count
     AssertEqual sheetsBefore, other.Sheets.Count
     AssertEqual "intacto", other.Worksheets(1).Range("A1").Value
     CloseTemp other
+    Exit Sub
+Cleanup1:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailAfterBlockForTest = False
+    CloseTemp other
+    Err.Raise en, es, ed
 End Sub
 
 ' Core_InsertSamples nunca propaga erro (mesmo com falha) e deixa ScreenUpdating como estava.
 Public Sub Test_Core_InsertSamples_NeverRaises()
-    Dim before As Long, su As Boolean
+    Dim before As Long, su As Boolean, en As Long, es As String, ed As String
     su = Application.ScreenUpdating
     before = Application.Workbooks.Count
+    On Error GoTo Cleanup2
     Util_FailAfterBlockForTest = True
     Core_InsertSamples
     Util_FailAfterBlockForTest = False
@@ -112,4 +134,10 @@ Public Sub Test_Core_InsertSamples_NeverRaises()
     AssertEqual "Exemplos", ActiveSheet.Name
     Watchers_Stop                    ' desfaz os observadores criados por Core_InsertSamples (estado global)
     CloseTemp ActiveWorkbook
+    Exit Sub
+Cleanup2:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailAfterBlockForTest = False
+    Watchers_Stop
+    Err.Raise en, es, ed
 End Sub

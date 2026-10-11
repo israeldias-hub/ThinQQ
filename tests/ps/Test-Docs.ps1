@@ -76,7 +76,15 @@ if ($parsed) {
         }
     }
     Check ($bad.Count -eq 0) "sem recursos externos (src/href http só em <a> para o repositório): $($bad -join '; ')"
-    Check ($xml.SelectNodes('//script|//link|//img|//iframe|//object|//embed|//video|//audio|//source').Count -eq 0) 'sem script/link/img/iframe'
+    Check ($xml.SelectNodes('//link|//img|//iframe|//object|//embed|//video|//audio|//source').Count -eq 0) 'sem link/img/iframe/object/embed/video/audio/source'
+    # Único script permitido: o inline que abre os <details> ao imprimir (sem src, sem rede, sem eval)
+    $scripts = @($xml.SelectNodes('//script'))
+    Check ($scripts.Count -eq 1) 'exatamente um script inline'
+    if ($scripts.Count -eq 1) {
+        $js = $scripts[0].InnerText
+        Check (-not $scripts[0].HasAttribute('src') -and $js -match 'beforeprint' -and $js -match 'afterprint') 'script sem src, tratando beforeprint/afterprint'
+        Check ($js -notmatch 'http|fetch|XMLHttpRequest|WebSocket|import|eval|Function\(|document\.write|location|cookie|localStorage') 'script sem rede, eval nem armazenamento'
+    }
     foreach ($a in $xml.SelectNodes('//a[starts-with(@href,"#")]')) {
         $id = $a.GetAttribute('href').Substring(1)
         if ($xml.SelectSingleNode("//*[@id='$id']") -eq $null) { Check $false "âncora #$id existe" }
@@ -87,6 +95,11 @@ if ($parsed) {
 }
 $cssExternal = [regex]::Matches($html, 'url\(\s*["'']?(https?:)?//|@import') | Measure-Object
 Check ($cssExternal.Count -eq 0) 'CSS sem url() externa nem @import'
+
+# Impressão: variáveis de tema restauradas e URLs externas visíveis no papel; details abertos
+$printCss = ''; if ($html -match '(?s)@media print \{\s*:root \{(?<v>[^}]*)\}') { $printCss = $Matches['v'] }
+foreach ($v in '--navy', '--blue', '--warn-bg', '--warn-ink', '--warn-line', '--ok-bg', '--ok-ink', '--ok-line', '--bg', '--ink', '--link', '--ui-bg') { Check ($printCss -match [regex]::Escape($v + ':')) "impressão redefine $v" }
+Check ($html -match 'a\[href\^="http"\]::after') 'impressão mostra a URL dos links externos'
 
 # ---- README, LEIA-ME: caminhos de menu "ThinQQ > Rótulo" existem
 $sorted = @($known | Sort-Object { -$_.Length })
