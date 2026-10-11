@@ -1,0 +1,1 @@
+• Primeira versão: colunas empilhadas, agrupadas, 100% e linha; cascata com subtotais "e"; totais, rótulos vivos, conectores; setas de CAGR e diferença; paletas e formatos; exemplos e tutorial; atualização automática.

@@ -1,0 +1,46 @@
+﻿ThinQQ - gráficos de apresentação para Excel
+============================================
+
+INSTALAÇÃO AUTOMÁTICA
+1. Descompacte o ZIP inteiro em uma pasta (não execute de dentro do ZIP).
+2. Feche o Excel.
+3. Dê dois cliques em "Instalar-ThinQQ.cmd". Se o Windows perguntar, clique em "Executar".
+4. Abra o Excel: a aba "ThinQQ" aparece na faixa de opções.
+
+INSTALAÇÃO MANUAL (se o script for bloqueado)
+1. Crie a pasta %LOCALAPPDATA%\ThinQQ (cole esse caminho na barra de endereços do Explorador).
+2. Copie ThinQQ.xlam para essa pasta e ThinQQ.core.xlam para %LOCALAPPDATA%\ThinQQ\versions\<versão>\
+   (a versão está no manifest.json, ex.: versions\1.0.0\). Copie tutorial.html para a mesma pasta da versão.
+3. Em cada arquivo .xlam: botão direito > Propriedades > marque "Desbloquear" > OK.
+4. Excel > Arquivo > Opções > Central de Confiabilidade > Configurações > Locais Confiáveis >
+   Adicionar novo local: %LOCALAPPDATA%\ThinQQ, marcando "Subpastas também são confiáveis".
+5. Excel > Arquivo > Opções > Suplementos > Gerenciar: Suplementos do Excel > Ir... > Procurar >
+   escolha %LOCALAPPDATA%\ThinQQ\ThinQQ.xlam > OK.
+
+ATUALIZAÇÕES
+O ThinQQ verifica novas versões ao abrir o Excel (1x por dia) e avisa. Use ThinQQ > Verificar
+atualizações para forçar. A fonte pode ser alterada em ThinQQ > Configurações.
+
+COMO MUDAR A FONTE DE ATUALIZAÇÃO
+- Pelo Excel: ThinQQ > Configurações > endereço do manifest.json (link https:// ou pasta/arquivo de rede).
+- Ao instalar: powershell -ExecutionPolicy Bypass -File install.ps1 -UpdateSource "\servidor\ThinQQ\manifest.json"
+  Uma fonte já configurada é mantida ao reinstalar, a menos que você informe -UpdateSource.
+
+PROBLEMAS COMUNS
+- "Macros bloqueadas" / a aba ThinQQ não aparece: feche o Excel e rode o instalador de novo (ele
+  desbloqueia os arquivos e cria o Local Confiável). Se for manual, repita os passos 3 e 4 acima.
+  Arquivos baixados da internet ficam bloqueados até serem desbloqueados (Propriedades > Desbloquear).
+- "Feche o Excel antes de instalar": encerre todas as janelas do Excel (veja também o Gerenciador de
+  Tarefas) e tente de novo.
+- "Pacote corrompido ou adulterado": o ZIP foi alterado ou baixado incompleto; baixe novamente.
+- A política da empresa pode bloquear macros em pastas do usuário; nesse caso, fale com a TI.
+
+RECUPERAÇÃO DE UMA ATUALIZAÇÃO DO LOADER QUE FALHOU
+Se o Excel abrir sem a aba ThinQQ logo após uma atualização do loader, feche o Excel, vá até
+%LOCALAPPDATA%\ThinQQ, apague (ou renomeie) ThinQQ.xlam e renomeie ThinQQ.xlam.bak para ThinQQ.xlam.
+Se não houver .bak, reinstale com Instalar-ThinQQ.cmd.
+
+DESINSTALAÇÃO
+Feche o Excel e execute: powershell -ExecutionPolicy Bypass -File uninstall.ps1
+Isso remove o registro do suplemento, o Local Confiável, as configurações e a pasta
+%LOCALAPPDATA%\ThinQQ. Use -KeepFiles para manter os arquivos.
