@@ -13,7 +13,7 @@
 - [ ] Publicar o conteúdo do repositório no GitHub.
 - [ ] Gerar os arquivos com `release.ps1` e publicar a release `v1.1.0` (a primeira publicada: a 1.0.0 nunca saiu) com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`).
 - [ ] Fazer commit de `release/manifest.json` e de `version.json` na `main`.
-- [ ] Limpeza de privacidade antes de publicar: `docs/superpowers/**` traz caminhos locais (`C:\Users\<usuário>\...`), números de processo e detalhes da máquina do autor; troque por `%USERPROFILE%` e `<repo>` antes de tornar o repositório ou o Pages públicos.
+- [ ] Privacidade antes de publicar: os arquivos versionados já foram limpos e `tests/ps/Test-Privacy.ps1` falha se um caminho de perfil do Windows, um id de máquina ou um e-mail corporativo voltar; falta decidir o histórico do Git (autor e e-mail dos commits e o texto antigo dos arquivos): publicar um repositório novo a partir do estado atual ou reescrever o histórico (veja o README, "Antes de distribuir").
 - [ ] Habilitar o GitHub Pages (Settings > Pages > `main` / `/docs`). Atenção: o Pages por branch só serve `/` ou `/docs` e publica tudo sob `docs/`, inclusive `docs/superpowers`; mover o tutorial para outra subpasta de `docs/` não reduz isso. Para publicar só o tutorial, use um workflow do GitHub Actions que envie só a pasta do tutorial (mantendo `tutorial/tutorial.html`) ou tire a especificação e os planos de `docs/`.
 - [ ] Verificar a atualização a partir de um perfil limpo.
 - [ ] Ativar autenticação em dois fatores na conta do GitHub: quem controla a `main` e os assets controla o código nas máquinas dos colegas (a assinatura de código é da Fase 3).

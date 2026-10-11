@@ -35,7 +35,7 @@
 ## Estrutura de arquivos
 
 ```
-ThinkQQ/
+<repo>/
 ├── .gitignore
 ├── README.md
 ├── CHANGELOG.md

@@ -54,7 +54,7 @@ do que cada tipo aceita, as mensagens do ThinQQ e os limites conhecidos.
 - [ ] Publicar o conteúdo do repositório no GitHub (`israeldias-hub/ThinQQ`).
 - [ ] Gerar os arquivos com `build/release.ps1` e publicar a release **v1.1.0** com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`).
 - [ ] Fazer commit de `release/manifest.json` (com URLs reais) e de `version.json` (já em `{ "loader": "1.1.0", "core": "1.1.0" }`) na `main`.
-- [ ] **Limpeza de privacidade antes de publicar** (o repositório ou o Pages): os arquivos de especificação e plano (`docs/superpowers/**`) trazem caminhos locais (`C:\Users\<usuário>\...`), números de processo e detalhes da máquina do autor. Troque por `%USERPROFILE%` e `<repo>` e confira que nada disso ficou em outros arquivos; o histórico do Git guarda o texto antigo, então decida se publica o histórico ou um repositório novo.
+- [ ] **Privacidade antes de publicar** (o repositório ou o Pages): os arquivos versionados já foram limpos (caminhos de perfil do Windows, ids de máquina, PIDs do Excel do autor e e-mail corporativo) e `tests/ps/Test-Privacy.ps1` (rodado por `build/run-tests.ps1`) falha se algum voltar. O que sobra é o **histórico do Git**: o autor e o e-mail dos commits e o texto antigo dos arquivos continuam nos commits antigos. Para publicar só o estado atual, crie um repositório novo a partir da árvore de trabalho (`git archive HEAD`); para manter o histórico, reescreva-o antes de publicar (`git filter-repo --mailmap <arquivo>` troca nome e e-mail dos autores; `git filter-repo --replace-text <arquivo>` troca o texto antigo; instale o `git-filter-repo`, rode numa cópia e confira com `git log --format='%an <%ae>'` e `git grep` no histórico).
 - [ ] Habilitar o GitHub Pages para o tutorial online (veja "Tutorial online (GitHub Pages)": pela pasta `/docs`, tudo o que está em `docs/` fica público, inclusive a especificação e o plano em `docs/superpowers`).
 - [ ] Verificar a verificação de atualização a partir de um perfil limpo (usuário do Windows novo ou máquina sem o ThinQQ): instalar uma versão anterior (como a 1.1.0 é a primeira publicada, use um ensaio local com uma versão menor) e conferir que o aviso de atualização aparece e atualiza.
 - [ ] Ativar autenticação em dois fatores na conta do GitHub (veja Segurança abaixo).
@@ -107,6 +107,7 @@ pwsh build/run-tests.ps1 -Target core -NoBuild                    # só o core, 
 pwsh build/run-tests.ps1 -LoaderSwap                              # + teste de troca do loader em Excel real
 pwsh build/run-tests.ps1 -Target core -Filter "TestBars|TestGantt" -TimeoutSec 240   # só os testes cujo Modulo.Teste contém o texto (pula as suítes PowerShell)
 pwsh tests/ps/Test-Docs.ps1                                       # só a consistência da documentação (tutorial, README, CHANGELOG, faixa)
+pwsh tests/ps/Test-Privacy.ps1                                    # só a privacidade: nenhum arquivo versionado com caminho de perfil, id de máquina ou e-mail corporativo
 ```
 
 Os testes VBA ficam em `tests/vba/core` e `tests/vba/loader` (`Test*.bas`, importados pelo build sem registro manual).
@@ -155,7 +156,7 @@ O botão ThinQQ > Tutorial abre o `tutorial.html` da versão instalada; se ele n
 <https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html>. Para essa página existir, habilite uma vez
 em Settings > Pages > "Deploy from a branch", branch `main`, pasta `/docs`.
 
-Atenção: o Pages por branch só serve a raiz (`/`) ou a pasta `/docs`, então mover o tutorial para outra subpasta de `docs/` (como `docs/tutorial-site`) **não** reduz o que é publicado: com `/docs`, tudo sob `docs/` vai ao ar, inclusive `docs/superpowers` (especificação e plano). Para publicar só o tutorial há duas saídas: (1) publicar por um workflow do GitHub Actions (Settings > Pages > Source: GitHub Actions) que envie apenas a pasta do tutorial, mantendo o caminho `tutorial/tutorial.html` para que `TUTORIAL_URL` em `src/loader/modules/modRibbon.bas` continue valendo; ou (2) tirar a especificação e os planos de `docs/` (por exemplo para `design/`) e manter o Pages em `/docs`. Em qualquer caso, faça antes a limpeza de privacidade da checklist acima.
+Atenção: o Pages por branch só serve a raiz (`/`) ou a pasta `/docs`, então mover o tutorial para outra subpasta de `docs/` (como `docs/tutorial-site`) **não** reduz o que é publicado: com `/docs`, tudo sob `docs/` vai ao ar, inclusive `docs/superpowers` (especificação e plano). Para publicar só o tutorial há duas saídas: (1) publicar por um workflow do GitHub Actions (Settings > Pages > Source: GitHub Actions) que envie apenas a pasta do tutorial, mantendo o caminho `tutorial/tutorial.html` para que `TUTORIAL_URL` em `src/loader/modules/modRibbon.bas` continue valendo; ou (2) tirar a especificação e os planos de `docs/` (por exemplo para `design/`) e manter o Pages em `/docs`. Em qualquer caso, confira antes o item de privacidade da checklist acima (o histórico do Git).
 
 ## Arquitetura
 

@@ -24,7 +24,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - Faixa de opções reorganizada em menus por família de gráfico; os controles do grupo Gráfico selecionado só ficam ativos nos tipos que os aceitam, e o que não se aplica avisa em vez de falhar. Mais opções fica ativo mesmo sem gráfico selecionado, por causa de Mesma escala e Escala automática.
 - Cascata: uma tabela com várias colunas de valores passa a gerar várias séries (antes só a primeira coluna era usada), e `e` na primeira linha com um número na última passa a calcular o primeiro total para trás (antes o primeiro total ficava em zero).
 - Totais, antes só nas colunas empilhadas e 100%, também valem em barras, áreas, combinação e Mekko; Remover setas também apaga os colchetes do Gantt.
-- Desenvolvimento: o log dos builds de teste (core e loader) vai para `%TEMP%\ThinQQ-test-logs`, e não para a pasta do usuário.
+- Desenvolvimento: o log dos builds de teste (core e loader) vai para `%TEMP%\ThinQQ-test-logs`, e não para a pasta do usuário, e os builds de teste do loader não criam mais `%LOCALAPPDATA%\ThinQQ` (só as pastas de `%TEMP%`).
+- Desenvolvimento: `tests/ps/Test-Privacy.ps1` (rodado por `build/run-tests.ps1`) falha se um arquivo versionado trouxer caminho de perfil do Windows, id de máquina ou e-mail corporativo.
 
 ### Corrigido
 - Copiar um gráfico ou movê-lo para uma planilha de gráfico não apaga mais os dados: a limpeza de blocos decide pelas referências das séries e dos rótulos ligados (inclusive em gráficos 100% sem totais e em gráficos dentro de grupos de formas) e, se algum gráfico não puder ser lido, não apaga nada.
