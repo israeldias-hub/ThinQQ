@@ -245,7 +245,7 @@ Public Sub Core_AddAnnotation(kind As String, Optional fromIdx As Long = 0, Opti
     Exit Sub
 Fail:
     If Err.Number = vbObjectError + 7001 Then
-        ' Seta de diferença em gráfico 100%: aviso ao usuário, não é falha.
+        ' Seta (CAGR/diferença) em tipo que não a suporta (recusa da matriz de tipos): aviso ao usuário, não é falha.
         Core_Notify Err.Description, vbInformation
     Else
         Errors_Handle "Core_AddAnnotation(" & kind & ")"

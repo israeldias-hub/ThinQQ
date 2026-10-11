@@ -387,12 +387,12 @@ End Sub
 ' ---------- Tarefa 2: barras horizontais (fixture crua, sem depender da Tarefa 3) ----------
 
 ' Grafico de barras cru registrado como barstacked: bloco com categorias e totais, uma serie, estilo base.
-Private Function RawBarFixture(wb As Workbook) As Chart
+Private Function RawBarFixture(wb As Workbook, Optional kind As String = "barstacked", Optional chartType As Long = xlBarStacked) As Chart
     Dim ws As Worksheet, blk As Range, body As Range, co As ChartObject, s As Series, i As Long
     Set ws = wb.Worksheets(1): ws.Name = "Dados"
     ws.Range("A1:B1").Value = Array("Cat", "Valor")
     ws.Range("A2:B2").Value = Array("a", 10): ws.Range("A3:B3").Value = Array("b", 25): ws.Range("A4:B4").Value = Array("c", 40)
-    Set blk = CalcSheet_AllocateBlock(wb, "geo001", "barstacked", "'Dados'!$A$1:$B$4", 4, 4)
+    Set blk = CalcSheet_AllocateBlock(wb, "geo001", kind, "'Dados'!$A$1:$B$4", 4, 4)
     Set body = Block_Body(blk)
     body.Cells(1, 1).Value = "Categoria": body.Cells(1, 2).Value = "Total"
     For i = 1 To 3
@@ -403,11 +403,25 @@ Private Function RawBarFixture(wb As Workbook) As Chart
     co.Name = ID_PREFIX & "geo001"
     Set s = co.Chart.SeriesCollection.NewSeries
     s.Name = "=Dados!$B$1": s.Values = "=Dados!$B$2:$B$4": s.XValues = "=Dados!$A$2:$A$4"
-    co.Chart.ChartType = xlBarStacked
+    co.Chart.ChartType = chartType
     Style_ApplyBase co.Chart
     Registry_SetOption co.Chart, "numfmt", "int"
     Set RawBarFixture = co.Chart
 End Function
+
+' Borda livre a direita (valores reais do Excel): a da area do grafico ou, com legenda a direita, a borda esquerda dela.
+Private Function RightObstacle(cht As Chart) As Double
+    RightObstacle = cht.ChartArea.Width
+    If cht.HasLegend Then
+        If cht.Legend.Position = xlLegendPositionRight Then RightObstacle = cht.Legend.Left
+    End If
+End Function
+
+' Rotulo do CAGR em barras: a direita da ponta da seta e dentro da borda livre.
+Private Sub AssertCagrLabelClear(cht As Chart, ln As Shape, lbl As Shape, tag As String)
+    AssertTrue lbl.Left >= ln.Left + ln.Width + 2, tag & ": rotulo a direita da ponta da seta (rotulo L=" & lbl.Left & ", ponta=" & (ln.Left + ln.Width) & ")"
+    AssertTrue lbl.Left + lbl.Width <= RightObstacle(cht) + 0.5, tag & ": rotulo dentro da borda livre (direita do rotulo=" & (lbl.Left + lbl.Width) & ", borda=" & RightObstacle(cht) & ")"
+End Sub
 
 Public Sub Test_Geom_ChartCoords_HorizontalChart()
     Dim wb As Workbook, cht As Chart, ax As Axis, il As Double, it As Double, iw As Double, ih As Double
@@ -458,25 +472,51 @@ Public Sub Test_Ann_Diff_Horizontal_BelowLastBar()
 End Sub
 
 Public Sub Test_Ann_Refusals_ByKind()
-    Dim wb As Workbook, cht As Chart, en As Long, ed As String
+    Dim wb As Workbook, cht As Chart, en As Long, ed As String, n0 As Long
     Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    n0 = cht.Shapes.Count
     Registry_Block(cht).Cells(1, 2).Value = "pie"            ' finge outro tipo: a recusa vem da matriz
     On Error Resume Next
     Ann_AddCagr cht, 1, 3
     en = Err.Number: ed = Err.Description: Err.Clear
     AssertEqual vbObjectError + 7001, en
     AssertEqual "A seta CAGR não está disponível para este tipo de gráfico.", ed
+    AssertEqual n0, cht.Shapes.Count, "a recusa do CAGR nao cria forma"
     Ann_AddDifference cht, 1, 3
     en = Err.Number: ed = Err.Description: Err.Clear
     On Error GoTo 0
     AssertEqual vbObjectError + 7001, en
     AssertEqual "A seta de diferença não está disponível para este tipo de gráfico.", ed
+    AssertEqual n0, cht.Shapes.Count, "a recusa da diferenca nao cria forma"
     Registry_Block(cht).Cells(1, 2).Value = "barstacked100"
     On Error Resume Next
     Ann_AddDifference cht, 1, 3
-    ed = Err.Description: Err.Clear
+    en = Err.Number: ed = Err.Description: Err.Clear
     On Error GoTo 0
+    AssertEqual vbObjectError + 7001, en
     AssertEqual "A seta de diferença não está disponível para gráficos 100%.", ed
+    AssertEqual n0, cht.Shapes.Count, "a recusa em 100% nao cria forma"
+    CloseTemp wb
+End Sub
+
+' O texto "gráficos 100%" e dos tipos 100% de colunas/barras/area; o Mekko (e demais) recebe a mensagem generica.
+Public Sub Test_Ann_Refusals_DiffMessage_100PercentOnlyForColumnBarAreaKinds()
+    Dim wb As Workbook, cht As Chart, ed As String, k As Variant, n0 As Long
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    n0 = cht.Shapes.Count
+    For Each k In Array("stacked100", "barstacked100", "area100", "mekko", "mekkounits", "gantt", "pie", "doughnut")
+        Registry_Block(cht).Cells(1, 2).Value = k
+        On Error Resume Next
+        Ann_AddDifference cht, 1, 3
+        ed = Err.Description: Err.Clear
+        On Error GoTo 0
+        If k = "stacked100" Or k = "barstacked100" Or k = "area100" Then
+            AssertEqual "A seta de diferença não está disponível para gráficos 100%.", ed, CStr(k)
+        Else
+            AssertEqual "A seta de diferença não está disponível para este tipo de gráfico.", ed, CStr(k)
+        End If
+    Next
+    AssertEqual n0, cht.Shapes.Count, "nenhuma recusa cria forma"
     CloseTemp wb
 End Sub
 
@@ -581,7 +621,7 @@ Public Sub Test_Ann_EnsureRoom_Horizontal_RightRoomAndOnlyGrows()
     Dim wb As Workbook, cht As Chart, ln As Shape, w0 As Double
     Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
     Set ln = Ann_AddCagr(cht, 1, 3)
-    AssertTrue cht.ChartArea.Width - (cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth) >= 59.5, "folga a direita para a seta e o rotulo do CAGR"
+    AssertTrue RightObstacle(cht) - (cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth) >= 59.5, "folga a direita (ate a borda livre) para a seta e o rotulo do CAGR"
     AssertTrue cht.ChartArea.Height - (cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight) < 30, "sem seta de diferenca nada e reservado embaixo"
     cht.PlotArea.Width = cht.PlotArea.Width - 100          ' folga maior que a necessaria
     w0 = cht.PlotArea.InsideWidth
@@ -590,5 +630,140 @@ Public Sub Test_Ann_EnsureRoom_Horizontal_RightRoomAndOnlyGrows()
     Set ln = Ann_AddDifference(cht, 1, 3)
     AssertAlmost w0, cht.PlotArea.InsideWidth, 0.5, "a seta de diferenca so mexe na altura"
     AssertTrue cht.ChartArea.Height - (cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight) >= 33.5, "34 pt abaixo com a seta de diferenca"
+    CloseTemp wb
+End Sub
+
+' Seta de diferenca sozinha nao reserva folga a direita (so o CAGR precisa dela).
+Public Sub Test_Ann_EnsureRoom_Horizontal_DiffAloneKeepsRightSide()
+    Dim wb As Workbook, cht As Chart, ln As Shape, r0 As Double
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    r0 = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth         ' borda direita da area interna (o Excel desloca a esquerda ao fixar a altura)
+    Set ln = Ann_AddDifference(cht, 1, 3)
+    AssertAlmost r0, cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth, 0.5, "diferenca sem CAGR nao move a borda direita da area de plotagem"
+    AssertTrue cht.ChartArea.Height - (cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight) >= 33.5, "mas reserva 34 pt abaixo"
+    CloseTemp wb
+End Sub
+
+' ---------- CAGR em barras: pior caso (a maior barra termina no fim do eixo) e legenda ----------
+
+' (a) eixo com maximo fixo igual ao maior valor: a barra 3 (40) termina na borda direita da area interna.
+Public Sub Test_Ann_Cagr_Horizontal_FixedMaxAtLongestBar_LabelClearOfArrow()
+    Dim wb As Workbook, cht As Chart, ln As Shape, pt As Point
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    cht.Axes(xlValue).MinimumScale = 0: cht.Axes(xlValue).MaximumScale = 40
+    Set ln = Ann_AddCagr(cht, 1, 3)
+    Set pt = cht.SeriesCollection(1).Points(3)
+    AssertAlmost cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth, pt.Left + pt.Width, 0.6, "premissa: a barra mais longa termina no fim do eixo"
+    AssertAlmost pt.Left + pt.Width + 10, ln.Left + ln.Width, 1.5, "ponta da seta 10 pt depois da barra"
+    AssertCagrLabelClear cht, ln, cht.Shapes("tqq_ann_cagr_1_lbl"), "maximo fixo"
+    AssertTrue RightObstacle(cht) - (cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth) >= 79.5, "folga cheia (80 pt) quando a barra pode terminar no fim do eixo"
+    CloseTemp wb
+End Sub
+
+' (a2) o mesmo sem legenda: a borda livre e a da area do grafico.
+Public Sub Test_Ann_Cagr_Horizontal_FixedMaxAtLongestBar_NoLegend()
+    Dim wb As Workbook, cht As Chart, ln As Shape
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    cht.HasLegend = False
+    cht.Axes(xlValue).MinimumScale = 0: cht.Axes(xlValue).MaximumScale = 40
+    Set ln = Ann_AddCagr(cht, 1, 3)
+    AssertAlmost cht.ChartArea.Width, RightObstacle(cht), 0.001, "sem legenda a borda livre e a do grafico"
+    AssertCagrLabelClear cht, ln, cht.Shapes("tqq_ann_cagr_1_lbl"), "sem legenda"
+    CloseTemp wb
+End Sub
+
+' (b) com os totais ligados a seta se afasta 18 pt a mais; o rotulo continua livre.
+Public Sub Test_Ann_Cagr_Horizontal_FixedMaxAtLongestBar_TotalsOn()
+    Dim wb As Workbook, cht As Chart, ln As Shape, pt As Point
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    Registry_SetOption cht, "totals", "1"
+    cht.Axes(xlValue).MinimumScale = 0: cht.Axes(xlValue).MaximumScale = 40
+    Set ln = Ann_AddCagr(cht, 1, 3)
+    Set pt = cht.SeriesCollection(1).Points(3)
+    AssertAlmost pt.Left + pt.Width + 10 + 18, ln.Left + ln.Width, 1.5, "totais ligados: ponta 18 pt mais longe"
+    AssertCagrLabelClear cht, ln, cht.Shapes("tqq_ann_cagr_1_lbl"), "maximo fixo com totais"
+    AssertTrue RightObstacle(cht) - (cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth) >= 97.5, "folga cheia + 18 pt dos totais"
+    CloseTemp wb
+End Sub
+
+' (a3) rotulo largo (CAGR de quatro digitos inteiros): a folga usa a largura medida do rotulo, nao um valor fixo.
+Public Sub Test_Ann_Cagr_Horizontal_WideLabel_MeasuredWidthDrivesRoom()
+    Dim wb As Workbook, cht As Chart, ln As Shape, lbl As Shape, ws As Worksheet
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb): Set ws = wb.Worksheets("Dados")
+    ws.Range("B2").Value = 1: ws.Range("B3").Value = 10: ws.Range("B4").Value = 4000000       ' CAGR de 1 a 3 = +199.900,0%
+    cht.Axes(xlValue).MinimumScale = 0: cht.Axes(xlValue).MaximumScale = 4000000
+    Set ln = Ann_AddCagr(cht, 1, 3)
+    Set lbl = cht.Shapes("tqq_ann_cagr_1_lbl")
+    AssertTrue lbl.Width > 75, "premissa: rotulo largo (largura=" & lbl.Width & ")"
+    AssertCagrLabelClear cht, ln, lbl, "rotulo largo"
+    CloseTemp wb
+End Sub
+
+' (c) barras 100%: todas terminam no fim do eixo (100%). Fixture crua com tipo nativo xlBarStacked100 e bloco barstacked100
+' (a Tarefa 3 pode trocar por Stacked_Insert(..., "barstacked100")).
+Public Sub Test_Ann_Cagr_Horizontal_100Percent_LabelClearOfArrow()
+    Dim wb As Workbook, cht As Chart, ln As Shape, pt As Point
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb, "barstacked100", xlBarStacked100)
+    Set ln = Ann_AddCagr(cht, 1, 3)
+    Set pt = cht.SeriesCollection(1).Points(3)
+    AssertAlmost cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth, pt.Left + pt.Width, 0.6, "premissa: 100% termina no fim do eixo"
+    AssertEqual "CAGR +100,0%", cht.Shapes("tqq_ann_cagr_1_lbl").TextFrame2.TextRange.Text      ' totais brutos 10 -> 40
+    AssertCagrLabelClear cht, ln, cht.Shapes("tqq_ann_cagr_1_lbl"), "barras 100%"
+    CloseTemp wb
+End Sub
+
+' Legenda a direita (o padrao de Stacked_Insert): a seta e o rotulo ficam a esquerda dela (valores reais da legenda).
+Public Sub Test_Ann_Cagr_Horizontal_RightLegend_ArrowAndLabelLeftOfLegend()
+    Dim wb As Workbook, cht As Chart, ln As Shape, lbl As Shape
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    AssertTrue cht.HasLegend And cht.Legend.Position = xlLegendPositionRight, "premissa: legenda a direita"
+    Set ln = Ann_AddCagr(cht, 1, 3)
+    Set lbl = cht.Shapes("tqq_ann_cagr_1_lbl")
+    AssertTrue ln.Left + ln.Width <= cht.Legend.Left, "ponta da seta antes da legenda (ponta=" & (ln.Left + ln.Width) & ", legenda=" & cht.Legend.Left & ")"
+    AssertTrue lbl.Left + lbl.Width <= cht.Legend.Left + 0.5, "rotulo antes da legenda (direita do rotulo=" & (lbl.Left + lbl.Width) & ", legenda=" & cht.Legend.Left & ")"
+    AssertTrue lbl.Left >= ln.Left + ln.Width + 2, "rotulo a direita da ponta"
+    AssertTrue cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth <= cht.Legend.Left - 59.5, "a area de plotagem deixa 60 pt ate a legenda"
+    CloseTemp wb
+End Sub
+
+' Legenda embaixo com seta de diferenca: a seta e o rotulo ficam acima da legenda.
+Public Sub Test_Ann_Diff_Horizontal_BottomLegend_ArrowAndLabelAboveLegend()
+    Dim wb As Workbook, cht As Chart, ln As Shape, lbl As Shape
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb)
+    cht.Legend.Position = xlLegendPositionBottom
+    AssertTrue cht.Legend.Top > cht.ChartArea.Height / 2, "premissa: legenda na metade de baixo (topo=" & cht.Legend.Top & ")"
+    Set ln = Ann_AddDifference(cht, 1, 3)
+    Set lbl = cht.Shapes("tqq_ann_diff_1_lbl")
+    AssertTrue ln.Top < cht.Legend.Top, "seta acima da legenda (seta=" & ln.Top & ", legenda=" & cht.Legend.Top & ")"
+    AssertTrue lbl.Top + lbl.Height <= cht.Legend.Top + 0.5, "rotulo acima da legenda (base do rotulo=" & (lbl.Top + lbl.Height) & ", legenda=" & cht.Legend.Top & ")"
+    AssertTrue lbl.Top >= ln.Top + 4, "rotulo abaixo da seta"
+    AssertTrue cht.Legend.Top - (cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight) >= 33.5, "34 pt livres entre a area de plotagem e a legenda"
+    CloseTemp wb
+End Sub
+
+' Cobertura da reconstrucao de conectores por familia (barwaterfall): o grafico de colunas serve so para contar formas;
+' a cascata horizontal real chega na Tarefa 5.
+Public Sub Test_Ann_Refresh_RebuildsConnectors_ForBarWaterfallFamily()
+    Dim wb As Workbook, cht As Chart
+    Set wb = NewTempWorkbook(): Set cht = WaterfallFixture(wb)
+    Registry_Block(cht).Cells(1, 2).Value = "barwaterfall"
+    AssertEqual 3, CountPrefix(cht, "tqq_ann_conn_")
+    cht.Shapes("tqq_ann_conn_2").Delete
+    Ann_Refresh cht
+    AssertEqual 3, CountPrefix(cht, "tqq_ann_conn_"), "barwaterfall reconstroi os conectores faltantes"
+    CloseTemp wb
+End Sub
+
+' Combinacao com menos de 2 series nao auxiliares: a unica serie conta (nao ha linha para excluir).
+Public Sub Test_Ann_CategoryData_Combo_SingleSeries_IncludesIt()
+    Dim wb As Workbook, cht As Chart, ws As Worksheet, s As Series, v() As Double, t() As Double
+    Set wb = NewTempWorkbook(): Set cht = RawBarFixture(wb): Set ws = wb.Worksheets("Dados")
+    Registry_Block(cht).Cells(1, 2).Value = "combo"
+    Ann_GetCategoryData cht, v, t
+    AssertAlmost 10, v(1), 0.001, "serie unica entra": AssertAlmost 40, v(3), 0.001, "serie unica entra": AssertAlmost 25, t(2), 0.001
+    ws.Range("E1:E4").Value = Application.Transpose(Array("aux", 100, 100, 100))
+    Set s = cht.SeriesCollection.NewSeries: s.Name = "tqq_total": s.Values = "=Dados!$E$2:$E$4": s.XValues = "=Dados!$A$2:$A$4"
+    Ann_GetCategoryData cht, v, t
+    AssertAlmost 10, v(1), 0.001, "auxiliar nao conta como serie de coluna nem como linha": AssertAlmost 40, v(3), 0.001
     CloseTemp wb
 End Sub
