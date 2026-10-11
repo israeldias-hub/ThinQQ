@@ -92,6 +92,16 @@ Public Function Labels_MaxTotalWidth(cht As Chart) As Double
     Labels_MaxTotalWidth = best
 End Function
 
+' Combinação: a série de LINHA mostra o formato da própria célula de origem (NumberFormatLinked), não o numfmt do gráfico.
+' O numfmt é um só para o gráfico e vale para as colunas e os totais (milhares); a linha costuma estar em outra unidade
+' (percentual sobre colunas de milhares) e com o numfmt "int" mostraria "0" para 0,42. Quem quiser outro formato muda a
+' célula. Falso em qualquer outro tipo e nas séries auxiliares.
+Public Function Labels_IsSourceFormatSeries(cht As Chart, s As Series) As Boolean
+    If Style_IsHelperSeries(s) Then Exit Function
+    If s.ChartType <> xlLine And s.ChartType <> xlLineMarkers Then Exit Function
+    Labels_IsSourceFormatSeries = (Registry_ChartType(cht) = "combo")
+End Function
+
 ' Formato (código neutro de Style_NumberFormat) dos rótulos de segmento. Em 100% os segmentos mostram a
 ' PARTICIPAÇÃO (valor / total da linha): pct0 sempre, pct1 só quando o usuário escolhe pct1. Nos demais, numfmt.
 Public Function Labels_SegmentFormat(cht As Chart) As String
@@ -162,7 +172,7 @@ End Function
 ' Rótulos ligados a células (Formula = célula da planilha _ThinQQ) exibem o TEXTO da célula, então o formato
 ' numérico precisa estar também na célula (gravado por NumberFormatLocal, como nos rótulos: o texto exibido segue os separadores do Excel).
 Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
-    Dim blk As Range, body As Range, col As Long, n As Long, kind As String, nPart As Long, j As Long, nSeries As Long
+    Dim blk As Range, body As Range, col As Long, n As Long, kind As String, nPart As Long, j As Long, nSeries As Long, segFmt As String
     On Error GoTo Fail
     Set blk = Registry_Block(cht)
     If blk Is Nothing Then Exit Sub
@@ -188,6 +198,14 @@ Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
     If Kinds_Family(kind) = "stacked" And Kinds_Is100(kind) Then
         nPart = PartColumnCount(body)
         If nPart > 0 Then body.Cells(2, 4).Resize(n, nPart).NumberFormatLocal = Style_LocalizeCode(Labels_SegmentFormat(cht))
+    End If
+    ' area: a coluna Total (col 2, acima) e as colunas Val_j (rotulos de segmento: o valor; em area100, a participacao, com o
+    ' formato dos segmentos). A familia "combo" e a empilhada (col 2; sem Part, ela nao e 100%).
+    If Kinds_Family(kind) = "area" Then
+        segFmt = Style_LocalizeCode(Labels_SegmentFormat(cht))
+        For j = 1 To Area_SeriesCount(blk)
+            body.Cells(2, Area_ValCol(blk, j)).Resize(n, 1).NumberFormatLocal = segFmt
+        Next
     End If
     Exit Sub
 Fail:

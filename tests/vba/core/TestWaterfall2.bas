@@ -266,13 +266,47 @@ Public Sub Test_Waterfall_LegendSupport_FollowsSeriesCount()
     Set cht = Core_ActiveChart()
     AssertEqual 1, Waterfall_SeriesCount(cht)
     AssertFalse Core_Supports("legend"): AssertFalse cht.HasLegend
-    AssertEqual "none", Registry_GetOption(cht, "legend"), "a opcao copiada do grafico de 2 series e realinhada"
+    AssertEqual "right", Registry_GetOption(cht, "legend"), "a escolha salva (da legenda de 2 series) fica: a cascata de 1 serie nao tem legenda, mas a preferencia nao se perde"
     AssertTrue Core_RebuildFromRange(cht, ws.Range("A1:C6"))
     Set cht = Core_ActiveChart()
     AssertTrue Core_Supports("legend"): AssertTrue cht.HasLegend
     AssertEqual "right", Registry_GetOption(cht, "legend")
     AssertEqual 2, cht.Legend.LegendEntries.Count, "legenda so com Loja e Online"
     AssertFalse Core_ChartSourceMismatch(cht)
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' A legenda "nenhuma" escolhida numa cascata de varias series e uma ESCOLHA: "Alterar dados" a reaplica, e ela sobrevive a
+' passar por uma tabela de 1 serie (sem legenda possivel) e voltar a varias (carry-over da Tarefa 4: antes a legenda voltava).
+Public Sub Test_Waterfall_Rebuild_KeepsLegendNoneChoice_AcrossSingleSeriesAndBack()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = MultiFixture(wb).Source.Worksheet
+    ws.Range("A1:C6").Select
+    Core_Insert "waterfall"
+    Set cht = Core_ActiveChart()
+    AssertTrue cht.HasLegend
+    Core_SetOption "legend", "none"
+    AssertFalse cht.HasLegend: AssertEqual "none", Core_GetOption("legend")
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("A1:C6"))
+    Set cht = Core_ActiveChart()
+    AssertFalse cht.HasLegend, "a escolha 'nenhuma' volta a valer na reconstrucao"
+    AssertEqual "none", Registry_GetOption(cht, "legend")
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("A1:B6"))
+    Set cht = Core_ActiveChart()
+    AssertFalse Core_Supports("legend"): AssertEqual "none", Registry_GetOption(cht, "legend"), "1 serie: a escolha fica gravada"
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("A1:C6"))
+    Set cht = Core_ActiveChart()
+    AssertTrue Core_Supports("legend")
+    AssertFalse cht.HasLegend, "de volta a varias series a escolha 'nenhuma' continua valendo"
+    Core_SetOption "legend", "right"
+    AssertTrue cht.HasLegend: AssertEqual 2, cht.Legend.LegendEntries.Count
+    Core_ClearLastNotice
+    ws.Range("A1:B6").Select
+    Core_Insert "waterfall"
+    Core_SetOption "legend", "right"
+    AssertTrue InStr(Core_LastNotice(), "não se aplica") > 0, "cascata de 1 serie: legenda recusada com aviso: " & Core_LastNotice()
+    AssertFalse Core_ActiveChart().HasLegend
     Watchers_Stop
     CloseTemp wb
 End Sub

@@ -1080,3 +1080,21 @@ Public Sub Test_Core_Insert_Waterfall_PersistsN_And_LegacyChartWithoutN()
     AssertTrue Core_ChartSourceMismatch(cht), "sem n: linha inserida ainda e detectada"
     Teardown wb
 End Sub
+
+' A opcao de legenda: o "fim da linha" so existe em linha e combinacao e a recusa (7002) nao persiste a opcao; "none"
+' desliga a legenda; o toggle "secondary" so vale na combinacao.
+Public Sub Test_Core_Legend_And_Secondary_Options()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    Core_ClearLastNotice
+    Core_SetOption "legend", "lineend"
+    AssertEqual "Rótulos no fim da linha só existem em gráficos de linha e combinação.", Core_LastNotice()
+    AssertEqual "right", Core_GetOption("legend"), "nao persiste"
+    Core_SetOption "legend", "none"
+    AssertFalse Core_ActiveChart().HasLegend
+    Core_SetToggle "secondary", True
+    AssertFalse Core_GetToggle("secondary"), "secondary so em combinacao"
+    Teardown wb
+End Sub

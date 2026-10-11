@@ -226,6 +226,19 @@ Public Sub Chart_SyncSecondaryX(cht As Chart)
     Err.Clear
 End Sub
 
+' Depois de uma mudanca posterior a criacao (legenda ligada/desligada, formato numerico dos rotulos, redimensionamento do
+' grafico), a folga que o Insert deu aos totais (barras), as setas e o rotulo "nome valor" do fim da linha so valia para o estado
+' do momento: reexecuta as tres contas. So reduz a area de plotagem; sem nada disso ligado nao faz nada. Nunca propaga erro (so registra).
+Public Sub Chart_EnsureRoomAfterChange(cht As Chart)
+    On Error Resume Next
+    Stacked_EnsureRoomAfterChange cht
+    If Err.Number <> 0 Then Errors_Log "Chart_EnsureRoomAfterChange/totais" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Ann_EnsureRoomAfterChange cht
+    If Err.Number <> 0 Then Errors_Log "Chart_EnsureRoomAfterChange/setas" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Deco_EnsureLineEndRoom cht
+    If Err.Number <> 0 Then Errors_Log "Chart_EnsureRoomAfterChange/fim da linha" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+End Sub
+
 ' Remove da legenda toda entrada de serie auxiliar (tqq_*). Idempotente e correta com varias auxiliares.
 ' Legenda sem entrada removida OU parcialmente removida (uma auxiliar nova entrou numa legenda que ja tinha
 ' outras removidas) e religada preservando posicao e fonte; depois cada entrada tqq_* e apagada do maior indice

@@ -62,6 +62,7 @@ Public Function Kinds_Supports(kind As String, feature As String, Optional serie
         Case "palette":    list = allKinds
         Case "gap":        list = "stacked,clustered,stacked100,barstacked,barclustered,barstacked100,waterfall,barwaterfall,combo,gantt"
         Case "legend":     list = Replace(allKinds, ",gantt", "")      ' waterfall/barwaterfall: so com varias series (abaixo)
+        Case "lineend":    list = "line,combo"                         ' legenda "nome no fim da linha" (Deco_SetLegend)
         Case "ind100":     list = "stacked100,barstacked100,area100,mekko"
         Case "vline":      list = "stacked,clustered,line,barstacked,barclustered,area,combo,mekkounits"
         Case "secondary":  list = "combo"
@@ -100,6 +101,10 @@ Public Function Kinds_Insert(ws As Worksheet, data As clsChartData, kind As Stri
             Set Kinds_Insert = Stacked_Insert(ws, data, kind)
         Case "waterfall"
             Set Kinds_Insert = Waterfall_Insert(ws, data, kind)
+        Case "area"
+            Set Kinds_Insert = Area_Insert(ws, data, kind)
+        Case "combo"
+            Set Kinds_Insert = Combo_Insert(ws, data)
         Case Else
             Err.Raise vbObjectError + 7200, "Kinds_Insert", "Este tipo de gráfico ainda não está disponível nesta versão: " & kind
     End Select

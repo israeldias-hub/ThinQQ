@@ -132,6 +132,7 @@ Private Sub Ann_EnsureRoom(cht As Chart)
         End If
     Else
         If Registry_GetOption(cht, "totals", "0") <> "1" Then Exit Sub
+        If Ann_CountPrefix(cht, ANN_PREFIX & "cagr_") = 0 Then Exit Sub        ' só a seta de CAGR precisa da folga acima
         need = 52
         delta = need - cht.PlotArea.InsideTop
         If delta > 0 Then
@@ -140,6 +141,14 @@ Private Sub Ann_EnsureRoom(cht As Chart)
         End If
     End If
     If Err.Number <> 0 Then Errors_Log "Ann_EnsureRoom" & vbTab & Err.Number & vbTab & Err.Description
+End Sub
+
+' Reexecuta a folga das setas depois de uma mudança posterior à criação (legenda, formato numérico dos rótulos, tamanho do
+' gráfico): Ann_EnsureRoom só roda ao inserir a seta, e a legenda ligada depois, um rótulo de total mais largo ou um gráfico
+' redimensionado podem deixar a seta e o rótulo sob a legenda ou fora da folga. Só reduz a área de plotagem. Sem setas não faz nada.
+Public Sub Ann_EnsureRoomAfterChange(cht As Chart)
+    If Ann_CountPrefix(cht, ANN_PREFIX & "cagr_") + Ann_CountPrefix(cht, ANN_PREFIX & "diff_") = 0 Then Exit Sub
+    Ann_EnsureRoom cht
 End Sub
 
 ' Afastamento extra da seta de CAGR quando os totais estão ligados (definição única: layout e folga usam a mesma).

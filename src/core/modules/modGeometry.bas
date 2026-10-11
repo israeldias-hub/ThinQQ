@@ -115,8 +115,9 @@ Public Function Geom_ChartValCoord(cht As Chart, v As Double) As Double
 End Function
 
 Public Function Geom_ChartBarHalfWidth(cht As Chart) As Double
-    Dim gap As Double
-    If Registry_ChartType(cht) = "line" Then Exit Function    ' linha: sem barras, ancora no ponto
+    Dim gap As Double, kind As String
+    kind = Registry_ChartType(cht)
+    If kind = "line" Or kind = "area" Or kind = "area100" Then Exit Function    ' linha e area: sem barras, ancora no ponto
     gap = 50
     On Error Resume Next
     gap = cht.ChartGroups(1).GapWidth

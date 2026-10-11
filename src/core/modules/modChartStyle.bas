@@ -34,6 +34,19 @@ Public Function Style_ContrastFont(rgbValue As Long) As Long
     If lum < 0.55 Then Style_ContrastFont = RGB(255, 255, 255) Else Style_ContrastFont = RGB(64, 64, 64)
 End Function
 
+' Eixo de valores invisivel mas presente (a geometria das anotacoes le a escala dele): sem grade, marcas, rotulos e linha.
+' Usado pelo eixo primario (Style_ApplyBase) e pelo eixo secundario da combinacao (Combo_SetSecondary).
+Public Sub Style_HideValueAxis(ax As Axis)
+    With ax
+        .HasMajorGridlines = False
+        .HasMinorGridlines = False
+        .MajorTickMark = xlTickMarkNone
+        .MinorTickMark = xlTickMarkNone
+        .TickLabelPosition = xlTickLabelPositionNone
+        .Format.Line.Visible = msoFalse
+    End With
+End Sub
+
 ' Gráficos de pizza/rosca não têm eixos: o bloco de eixos é pulado. Em barras (empilhadas, agrupadas, 100%) o eixo de categorias
 ' fica invertido para a primeira categoria aparecer no topo (como no think-cell).
 Public Sub Style_ApplyBase(cht As Chart)
@@ -54,14 +67,7 @@ Public Sub Style_ApplyBase(cht As Chart)
         .PlotArea.Format.Line.Visible = msoFalse
         If isPie Then Exit Sub
         .HasAxis(xlValue) = True
-        With .Axes(xlValue)
-            .HasMajorGridlines = False
-            .HasMinorGridlines = False
-            .MajorTickMark = xlTickMarkNone
-            .MinorTickMark = xlTickMarkNone
-            .TickLabelPosition = xlTickLabelPositionNone
-            .Format.Line.Visible = msoFalse
-        End With
+        Style_HideValueAxis .Axes(xlValue)
         ' Categorias de data: o Excel escolheria eixo de tempo (posições proporcionais às datas); a geometria das
         ' anotações assume uma fatia por categoria, então força eixo de texto.
         On Error Resume Next
@@ -79,9 +85,16 @@ Public Sub Style_ApplyBase(cht As Chart)
     End With
 End Sub
 
-Public Sub Style_ApplySeriesColors(cht As Chart, paletteName As String)
-    Dim pal As Variant, s As Series, k As Long, c As Variant
+' Cores das series de dados (as auxiliares tqq_* nao mudam). Series de area: preenchimento da paleta e borda branca que
+' separa as faixas; a espessura da borda (pt) vem de borderWeight (> 0) ou, sem ele, da opcao "border" do grafico (padrao
+' 1 pt). Ficar na OPCAO e nao so no parametro e o que faz uma troca de paleta (ApplyOption "palette") manter a borda de
+' um grafico que usa outra espessura (o Mekko, na Tarefa 9, grava border=1.5); o parametro, quando informado, nao persiste.
+Public Sub Style_ApplySeriesColors(cht As Chart, paletteName As String, Optional borderWeight As Double = 0)
+    Dim pal As Variant, s As Series, k As Long, c As Variant, bw As Double
     pal = Style_Palette(paletteName)
+    bw = borderWeight
+    If bw <= 0 Then bw = Val(Registry_GetOption(cht, "border", "1"))
+    If bw <= 0 Then bw = 1
     For Each s In cht.SeriesCollection
         If Not Style_IsHelperSeries(s) Then
             c = pal(k Mod 6)
@@ -91,6 +104,11 @@ Public Sub Style_ApplySeriesColors(cht As Chart, paletteName As String)
                 s.MarkerStyle = xlMarkerStyleCircle
                 s.MarkerSize = 5
                 Style_SetColor s.Format.Fill.ForeColor, c
+            ElseIf Style_IsAreaType(s.ChartType) Then
+                Style_SetColor s.Format.Fill.ForeColor, c
+                s.Format.Line.Visible = msoTrue
+                s.Format.Line.ForeColor.RGB = RGB(255, 255, 255)
+                s.Format.Line.Weight = bw
             Else
                 Style_SetColor s.Format.Fill.ForeColor, c
                 s.Format.Line.Visible = msoFalse
@@ -100,6 +118,21 @@ Public Sub Style_ApplySeriesColors(cht As Chart, paletteName As String)
         End If
     Next
 End Sub
+
+Public Function Style_IsAreaType(chartType As Long) As Boolean
+    Style_IsAreaType = (chartType = xlArea Or chartType = xlAreaStacked Or chartType = xlAreaStacked100)
+End Function
+
+' Cor (RGB) de preenchimento atual da j-esima serie de dados (a j-esima nao auxiliar); 0 se nao existe.
+Public Function Style_DataSeriesColor(cht As Chart, j As Long) As Long
+    Dim s As Series, k As Long
+    For Each s In cht.SeriesCollection
+        If Not Style_IsHelperSeries(s) Then
+            k = k + 1
+            If k = j Then Style_DataSeriesColor = CLng(s.Format.Fill.ForeColor.RGB): Exit Function
+        End If
+    Next
+End Function
 
 Public Function Style_NumberFormat(key As String) As String
     Select Case key
@@ -122,7 +155,7 @@ Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
     End If
     Labels_ApplyCellFormat cht, totFmt
     For Each s In cht.SeriesCollection
-        If s.HasDataLabels Then
+        If s.HasDataLabels And Not Labels_IsSourceFormatSeries(cht, s) Then      ' a linha da combinacao segue o formato da celula
             If s.Name = "tqq_total" Then useFmt = totFmt Else useFmt = segFmt
             Style_AssignNumberFormat s.DataLabels, useFmt
             ' rótulos ligados a células (por ponto) guardam formato próprio

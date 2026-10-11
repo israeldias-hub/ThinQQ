@@ -330,21 +330,10 @@ Private Sub RefreshSegmentLabelColors(cht As Chart)
     For j = 1 To ns
         Set ls = Chart_FindSeries(cht, "tqq_lbl_" & j)
         If Not ls Is Nothing Then
-            If ls.HasDataLabels Then ls.DataLabels.Font.Color = Style_ContrastFont(DataSeriesColor(cht, j))
+            If ls.HasDataLabels Then ls.DataLabels.Font.Color = Style_ContrastFont(Style_DataSeriesColor(cht, j))
         End If
     Next
 End Sub
-
-' Cor (RGB) atual da j-esima serie de dados (a nao auxiliar de ordem j).
-Private Function DataSeriesColor(cht As Chart, j As Long) As Long
-    Dim s As Series, k As Long
-    For Each s In cht.SeriesCollection
-        If Not Style_IsHelperSeries(s) Then
-            k = k + 1
-            If k = j Then DataSeriesColor = CLng(s.Format.Fill.ForeColor.RGB): Exit Function
-        End If
-    Next
-End Function
 
 ' Rotulos: S = 1 como na Fase 1 (tqq_lbl em LabelPos, ligado a LabelVal). S > 1: um auxiliar tqq_lbl_j por serie
 ' (em M_j, o meio do segmento, rotulo ligado a D_j, posicao central, fonte por contraste com a cor da serie) e tqq_lbl
@@ -371,7 +360,7 @@ Public Sub Waterfall_SetLabels(cht As Chart, turnOn As Boolean)
         For j = 1 To ns
             Set s = Chart_FindSeries(cht, "tqq_lbl_" & j)
             If s Is Nothing Then Set s = Chart_AddHelperSeries(cht, "tqq_lbl_" & j, body.Cells(2, Waterfall_SeriesCol(j, "M")).Resize(n, 1), posCol)
-            Labels_LinkPoints s, body.Cells(2, Waterfall_SeriesCol(j, "D")).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(DataSeriesColor(cht, j)), horiz
+            Labels_LinkPoints s, body.Cells(2, Waterfall_SeriesCol(j, "D")).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(Style_DataSeriesColor(cht, j)), horiz
         Next
     End If
     Set s = Chart_FindSeries(cht, "tqq_lbl")

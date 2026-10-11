@@ -145,15 +145,28 @@ End Function
 
 ' Aplica o toggle no gráfico informado (sem depender da seleção). Propaga erros.
 Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
-    Dim kind As String
+    Dim kind As String, fam As String
     kind = Registry_ChartType(c)
+    fam = Kinds_Family(kind)
     Select Case key
         Case "totals"
-            If Kinds_Family(kind) <> "waterfall" Then Stacked_SetTotals c, value
+            If fam = "area" Then
+                Area_SetTotals c, value
+            ElseIf fam <> "waterfall" Then
+                Stacked_SetTotals c, value              ' inclui a combinacao (so os totais das colunas)
+            End If
         Case "labels"
-            If Kinds_Family(kind) = "waterfall" Then Waterfall_SetLabels c, value Else Stacked_SetLabels c, value
+            If fam = "waterfall" Then
+                Waterfall_SetLabels c, value
+            ElseIf fam = "area" Then
+                Area_SetLabels c, value
+            Else
+                Stacked_SetLabels c, value              ' inclui a combinacao
+            End If
         Case "connectors"
-            If Kinds_Family(kind) = "waterfall" Then Ann_SetWaterfallConnectors c, value Else Stacked_SetConnectors c, value
+            If fam = "waterfall" Then Ann_SetWaterfallConnectors c, value Else Stacked_SetConnectors c, value
+        Case "secondary"
+            Combo_SetSecondary c, value                 ' so a combinacao (nos demais tipos nao faz nada nem grava a opcao)
     End Select
 End Sub
 
@@ -169,6 +182,11 @@ Private Function ValidateOption(key As String, value As String) As String
             Select Case value
                 Case "padrao", "cinza", "tema"
                 Case Else: ValidateOption = "Paleta desconhecida: " & value
+            End Select
+        Case "legend"
+            Select Case value
+                Case "right", "none", "lineend"
+                Case Else: ValidateOption = "Opção de legenda desconhecida: " & value
             End Select
         Case "gap"
             If Not IsNumeric(value) Then
@@ -186,12 +204,23 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
     Dim msg As String
     msg = ValidateOption(key, value)
     If Len(msg) > 0 Then Err.Raise vbObjectError + 7100, "Core", msg
+    If key = "legend" Then
+        ' A legenda valida, aplica e SO ENTAO grava (Deco_SetLegend): uma recusa (7002) nao pode deixar legend=lineend gravado.
+        ' As demais opcoes gravam antes de despachar porque o despacho le a opcao do registro (ex.: numfmt, em Labels_SegmentFormat).
+        Deco_SetLegend c, value
+        Exit Sub
+    End If
     Registry_SetOption c, key, value
     Select Case key
         Case "numfmt"
             Style_ApplyNumberFormat c, Style_NumberFormat(value)
+            Chart_EnsureRoomAfterChange c               ' rotulos de total mais largos: refaz a folga dos totais e das setas
         Case "palette"
-            If Kinds_Family(Registry_ChartType(c)) = "waterfall" Then Waterfall_ApplyColors c, value Else Style_ApplySeriesColors c, value
+            Select Case Kinds_Family(Registry_ChartType(c))
+                Case "waterfall": Waterfall_ApplyColors c, value
+                Case "area": Area_ApplyColors c, value
+                Case Else: Style_ApplySeriesColors c, value
+            End Select
         Case "gap"
             c.ChartGroups(1).GapWidth = CLng(Val(value))
     End Select
@@ -206,7 +235,11 @@ Public Sub Core_SetToggle(key As String, value As Boolean)
     Core_SafeRefresh c
     Exit Sub
 Fail:
-    Errors_Handle "Core_SetToggle(" & key & ")"
+    If Err.Number = vbObjectError + 7002 Then
+        Core_Notify Err.Description, vbInformation       ' recusa de decoracao/opcao (erro 7002): aviso, nao e falha; nada e gravado
+    Else
+        Errors_Handle "Core_SetToggle(" & key & ")"
+    End If
 End Sub
 
 Public Function Core_GetOption(key As String) As String
@@ -228,11 +261,19 @@ Public Sub Core_SetOption(key As String, value As String)
         Core_Notify "Espaço entre colunas não se aplica a gráficos de linha.", vbInformation
         Exit Sub
     End If
+    If key = "gap" And Not Kinds_Supports(Registry_ChartType(c), "gap") Then
+        Core_Notify "Espaço entre colunas não se aplica a este tipo de gráfico.", vbInformation
+        Exit Sub
+    End If
     ApplyOption c, key, value
     Core_SafeRefresh c
     Exit Sub
 Fail:
-    Errors_Handle "Core_SetOption(" & key & ")"
+    If Err.Number = vbObjectError + 7002 Then
+        Core_Notify Err.Description, vbInformation       ' recusa (ex.: "fim da linha" fora de linha/combinacao): aviso, nao e falha
+    Else
+        Errors_Handle "Core_SetOption(" & key & ")"
+    End If
 End Sub
 
 Public Sub Core_AddAnnotation(kind As String, Optional fromIdx As Long = 0, Optional toIdx As Long = 0)
@@ -418,22 +459,20 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     On Error GoTo FailNew
     Registry_Block(nc).Cells(1, 4).Value = opts
     Registry_SetOption nc, "n", CStr(data.CategoryCount)     ' as opções antigas trazem o n da tabela anterior
-    ' Cascata: a legenda existe só com várias séries, e o número de séries pode ter mudado com a nova tabela: a opção
-    ' "legend" copiada do gráfico antigo é realinhada com a legenda que o novo gráfico realmente tem.
-    If Kinds_Family(kind) = "waterfall" Then
-        If nc.HasLegend <> (Registry_GetOption(nc, "legend", "") = "right") Then Registry_SetOption nc, "legend", IIf(nc.HasLegend, "right", "none")
-    End If
     ApplyOption nc, "numfmt", Registry_GetOption(nc, "numfmt", "int")
     ApplyOption nc, "palette", Registry_GetOption(nc, "palette", "padrao")
     If Len(Registry_GetOption(nc, "gap", "")) > 0 Then ApplyOption nc, "gap", Registry_GetOption(nc, "gap", "")
     ApplyToggle nc, "totals", Registry_GetOption(nc, "totals", "0") = "1"
     ApplyToggle nc, "labels", Registry_GetOption(nc, "labels", "1") = "1"
     ApplyToggle nc, "connectors", Registry_GetOption(nc, "connectors", "0") = "1"
+    ApplyToggle nc, "secondary", Registry_GetOption(nc, "secondary", "0") = "1"      ' so a combinacao: a escolha do usuario, nao o padrao pelos dados novos
+    ReapplySavedLegend nc                       ' depois dos toggles: "fim da linha" depende dos rotulos ligados
     oldCo.Delete
     ' A partir daqui o gráfico antigo não existe mais: nada pode apagar o novo. Falhas só são registradas.
     On Error Resume Next
     CalcSheet_Cleanup wb
     co.Left = l: co.Top = t: co.Width = w: co.Height = h
+    Chart_EnsureRoomAfterChange nc              ' a folga dos totais (barras) vale para o tamanho do momento: refaz no tamanho final
     Application.ScreenUpdating = prevSU
     Watchers_Rehook
     If Not ActiveSheet Is Nothing Then
@@ -457,9 +496,36 @@ FailNew:
     Errors_HandleErr "Core_RebuildFromRange", en, ed
     Exit Function
 Fail:
+    en = Err.Number: ed = Err.Description
     Application.ScreenUpdating = prevSU
-    Errors_Handle "Core_RebuildFromRange"
+    If en >= vbObjectError + 6007 And en <= vbObjectError + 6099 Then
+        ' Erro de validação dos dados da nova tabela (6007 cascata, 6008 combinação, ...): aviso, não é falha; o gráfico antigo fica.
+        Core_Notify ed, vbExclamation
+    Else
+        Errors_HandleErr "Core_RebuildFromRange", en, ed
+    End If
 End Function
+
+' Reaplica a opção de legenda que o usuário tinha (copiada do gráfico antigo para o novo pelas opções): a opção salva é uma
+' ESCOLHA do usuário, não o estado real. O Insert do novo gráfico criou a legenda padrão (à direita, ou nenhuma na cascata de
+' uma série); aqui "none"/"lineend" voltam a valer. Tipo sem legenda possível (cascata de uma série, Gantt): a escolha salva
+' fica como está (o gráfico não tem legenda; se a tabela voltar a ter várias séries, a escolha volta a valer). Sem opção salva
+' (gráfico sem a chave), fica o estado que o Insert produziu e a opção passa a refleti-lo. Nunca propaga erro (registra).
+Private Sub ReapplySavedLegend(nc As Chart)
+    Dim mode As String
+    On Error GoTo Fail
+    mode = Registry_GetOption(nc, "legend", "")
+    If Len(mode) = 0 Then
+        If nc.HasLegend Then Registry_SetOption nc, "legend", "right"
+        Exit Sub
+    End If
+    If Not Kinds_SupportsChart(nc, "legend") Then Exit Sub
+    If mode = "lineend" And Not Kinds_Supports(Registry_ChartType(nc), "lineend") Then mode = "right"
+    Deco_SetLegend nc, mode
+    Exit Sub
+Fail:
+    Errors_Log "ReapplySavedLegend" & vbTab & Err.Number & vbTab & Err.Description
+End Sub
 
 ' Substitui o arquivo do loader (registrado em PendingLoaderPath) e o recarrega.
 ' Executado via OnTime a partir do core, para que nenhum codigo do loader esteja na pilha.
