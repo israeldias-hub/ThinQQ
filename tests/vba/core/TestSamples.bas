@@ -30,6 +30,9 @@ Public Sub Test_Samples_BothSheets()
     AssertEqual "Exemplos", wb.ActiveSheet.Name, "a primeira planilha continua ativa"
     AssertEqual "Exemplos", wb.Worksheets(1).Name
     AssertEqual wb.Worksheets("Exemplos").Index + 1, wb.Worksheets("Exemplos 2").Index, "a segunda planilha vem logo depois da primeira"
+    AssertEqual wb.Name, ActiveWorkbook.Name, "a pasta de exemplos fica ativa"
+    AssertEqual "Range", TypeName(Selection), "a selecao e uma celula (nao um grafico)"
+    AssertEqual "$A$1", Selection.Address, "A1 selecionada na primeira planilha"
     CheckSheet1Create wb
     CheckSheet1Layout wb
     CheckSheet1Content wb
@@ -180,7 +183,8 @@ Private Sub CheckSheet2KindsAndFeatures(wb As Workbook)
     v = vl.Values
     AssertAlmost Application.WorksheetFunction.Sum(ws.Range("B213:D216")) / 4, CDbl(v(LBound(v))), 0.000001, "17: valor da linha de valor"
     Set c1 = ws.ChartObjects(12).Chart: Set c2 = ws.ChartObjects(13).Chart
-    AssertEqual c1.Axes(xlValue).MaximumScale, c2.Axes(xlValue).MaximumScale, "18: mesma escala"
+    AssertEqual c1.Axes(xlValue).MaximumScale, c2.Axes(xlValue).MaximumScale, "18: mesma escala (maximo)"
+    AssertEqual c1.Axes(xlValue).MinimumScale, c2.Axes(xlValue).MinimumScale, "18: mesma escala (minimo)"
     AssertTrue Len(Registry_GetOption(c1, "vmax")) > 0
     AssertEqual ws.ChartObjects(12).Top, ws.ChartObjects(13).Top
 End Sub
@@ -204,36 +208,40 @@ Private Sub CheckSheet2Layout(wb As Workbook)
     Next
     AssertEqual "7) ", Left$(CStr(ws.Cells(1, 1).Value), 3), "numeracao continua a da primeira planilha"
     AssertEqual "18) ", Left$(CStr(ws.Cells(232, 1).Value), 4)
-    AssertEqual 18, ws.Columns("A").ColumnWidth, "largura da coluna A"
-    AssertEqual 14, ws.Columns("B").ColumnWidth, "largura da coluna B"
+    ' ColumnWidth depende do DPI e da fonte padrao (o Excel arredonda a largura em pixels): tolerancia de meio caractere
+    AssertAlmost 18, ws.Columns("A").ColumnWidth, 0.5, "largura da coluna A"
+    AssertAlmost 14, ws.Columns("B").ColumnWidth, 0.5, "largura da coluna B"
 End Sub
 
-' Texto realmente exibido em alguns rotulos, com expectativas derivadas dos dados e da localidade do Excel.
+' Texto realmente exibido em alguns rotulos. As expectativas vem das CELULAS da tabela e da localidade (Format$ usa o separador de milhar, o
+' sinal e o percentual do Windows, que o Excel usa por padrao), nunca de literais pt-BR.
 Private Sub CheckSheet2Labels(wb As Workbook)
-    Dim ws As Worksheet, cht As Chart, ts As String, txt As String
+    Dim ws As Worksheet, cht As Chart, txt As String, sub1 As Double, endV As Double, ebitda As Double
     Set ws = wb.Worksheets("Exemplos 2")
-    ts = Application.International(xlThousandsSeparator)
-    ' 7: totais das barras empilhadas (10+5, 25+10, 40+20)
+    ' 7: totais das barras empilhadas (Loja + Online de Sul e de Norte; tabela A2:C5)
     Set cht = ws.ChartObjects(1).Chart
-    AssertEqual "15", Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Text, "7: total do Sul"
-    AssertEqual "60", Chart_FindSeries(cht, "tqq_total").Points(3).DataLabel.Text, "7: total do Norte"
-    ' 8: cascata com 2 series: subtotal 130 (70 + 60) e fim -90
+    AssertEqual Format$(ws.Range("B3").Value + ws.Range("C3").Value, "#,##0"), Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Text, "7: total do Sul"
+    AssertEqual Format$(ws.Range("B5").Value + ws.Range("C5").Value, "#,##0"), Chart_FindSeries(cht, "tqq_total").Points(3).DataLabel.Text, "7: total do Norte"
+    ' 8: cascata com 2 series (A23:C28): subtotal = Inicio + Ajuste das duas series; fim = subtotal + Queda das duas series
     Set cht = ws.ChartObjects(2).Chart
-    AssertEqual "130", Chart_FindSeries(cht, "tqq_lbl").Points(3).DataLabel.Text, "8: subtotal"
-    AssertEqual "-90", Chart_FindSeries(cht, "tqq_lbl").Points(5).DataLabel.Text, "8: fim"
-    ' 9: cascata horizontal: receita 1.200, EBITDA 250 (1200-700-250), lucro 170 (250-80)
+    sub1 = ws.Range("B24").Value + ws.Range("B25").Value + ws.Range("C24").Value + ws.Range("C25").Value
+    endV = sub1 + ws.Range("B27").Value + ws.Range("C27").Value
+    AssertEqual Format$(sub1, "#,##0"), Chart_FindSeries(cht, "tqq_lbl").Points(3).DataLabel.Text, "8: subtotal"
+    AssertEqual Format$(endV, "#,##0"), Chart_FindSeries(cht, "tqq_lbl").Points(5).DataLabel.Text, "8: fim"
+    ' 9: cascata horizontal (A44:B50): receita; EBITDA = receita + custos + despesas; lucro = EBITDA + impostos
     Set cht = ws.ChartObjects(3).Chart
-    AssertEqual "1" & ts & "200", Chart_FindSeries(cht, "tqq_lbl").Points(1).DataLabel.Text, "9: receita"
-    AssertEqual "250", Chart_FindSeries(cht, "tqq_lbl").Points(4).DataLabel.Text, "9: EBITDA"
-    AssertEqual "170", Chart_FindSeries(cht, "tqq_lbl").Points(6).DataLabel.Text, "9: lucro"
-    ' 14: pizza com rotulos fora mostra nome e valor da primeira fatia
+    ebitda = ws.Range("B45").Value + ws.Range("B46").Value + ws.Range("B47").Value
+    AssertEqual Format$(ws.Range("B45").Value, "#,##0"), Chart_FindSeries(cht, "tqq_lbl").Points(1).DataLabel.Text, "9: receita"
+    AssertEqual Format$(ebitda, "#,##0"), Chart_FindSeries(cht, "tqq_lbl").Points(4).DataLabel.Text, "9: EBITDA"
+    AssertEqual Format$(ebitda + ws.Range("B49").Value, "#,##0"), Chart_FindSeries(cht, "tqq_lbl").Points(6).DataLabel.Text, "9: lucro"
+    ' 14: pizza com rotulos fora mostra nome e valor da primeira fatia (A149:B152)
     Set cht = ws.ChartObjects(8).Chart
     txt = cht.SeriesCollection(1).Points(1).DataLabel.Text
-    AssertTrue InStr(txt, "Eletro") > 0 And InStr(txt, "50") > 0, "14: rotulo da pizza: " & txt
-    ' 16: a margem da combinacao e mostrada como percentual (celula em 0%)
+    AssertTrue InStr(txt, CStr(ws.Range("A150").Value)) > 0 And InStr(txt, Format$(ws.Range("B150").Value, "#,##0")) > 0, "14: rotulo da pizza: " & txt
+    ' 16: a margem da combinacao e mostrada como percentual (celulas D192:D194 em 0%)
     Set cht = ws.ChartObjects(10).Chart
-    AssertEqual "42%", Chart_FindSeries(cht, "Margem").Points(1).DataLabel.Text, "16: margem de 2022"
-    AssertEqual "47%", Chart_FindSeries(cht, "Margem").Points(3).DataLabel.Text, "16: margem de 2024"
+    AssertEqual Format$(ws.Range("D192").Value, "0%"), Chart_FindSeries(cht, "Margem").Points(1).DataLabel.Text, "16: margem de 2022"
+    AssertEqual Format$(ws.Range("D194").Value, "0%"), Chart_FindSeries(cht, "Margem").Points(3).DataLabel.Text, "16: margem de 2024"
 End Sub
 
 ' Nenhuma celula das planilhas de exemplos (fora a _ThinQQ, onde NA() e intencional) tem valor de erro (#N/D, #DIV/0!...) e nenhum

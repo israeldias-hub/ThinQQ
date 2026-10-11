@@ -58,11 +58,16 @@ Private Sub CloseLeaked(baseline As String)
 End Sub
 
 Private Sub RunOne(moduleName As String, procName As String)
-    Dim baseline As String
+    Dim baseline As String, t0 As Double, secs As Double
     baseline = OpenBooks()
+    t0 = Timer
     RunOne2 moduleName, procName
     CloseLeaked baseline
     CleanupTempDirs
+    secs = Timer - t0
+    If secs < 0 Then secs = secs + 86400            ' passou da meia-noite
+    ' Linha de comentario do TAP com o tempo do teste (Str$ sempre usa o ponto decimal): run-tests.ps1 lista os mais lentos.
+    mLog = mLog & "# time " & moduleName & "." & procName & " " & Trim$(Str$(Round(secs, 2))) & vbLf
 End Sub
 
 Private Sub RunOne2(moduleName As String, procName As String)

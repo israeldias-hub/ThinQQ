@@ -250,11 +250,6 @@ End Sub
 
 ' --- Alem do brief: sondas da Tarefa 10 ---
 
-' Le a geometria real dos rotulos depois de um desenho (o Excel invisivel nao redesenha sozinho; ver TestMekko).
-Private Sub ForceLayout(cht As Chart)
-    cht.Export TempDir() & "\layout.png"
-End Sub
-
 ' Regra de tres sobre a area interna e a escala REAIS do grafico (independe das formulas do bloco): x de um numero de serie de data.
 Private Function XOf(cht As Chart, d As Double) As Double
     Dim ax As Axis

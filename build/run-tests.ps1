@@ -72,7 +72,14 @@ try {
         $failed = $xl.Run("'$($wb.Name)'!modTestRunner.RunAllTests", $out)
         Write-Host "=== $t ==="
         $tap = Get-Content $out
-        $tap
+        $tap | Where-Object { $_ -notmatch '^# time ' }        # as linhas "# time Modulo.Teste segundos" ficam so no arquivo .tap
+        $slow = @($tap | Where-Object { $_ -match '^# time \S+ [0-9.]+$' } | ForEach-Object {
+            $p = $_ -split ' '
+            [pscustomobject]@{ Name = $p[2]; Sec = [double]::Parse($p[3], [Globalization.CultureInfo]::InvariantCulture) } } | Sort-Object Sec -Descending)
+        if ($slow.Count -gt 0) {
+            Write-Host "--- $t : os 15 testes mais lentos (de $($slow.Count); soma $('{0:N1}' -f ($slow | Measure-Object Sec -Sum).Sum) s) ---"
+            $slow | Select-Object -First 15 | ForEach-Object { Write-Host ('{0,8:N2} s  {1}' -f $_.Sec, $_.Name) }
+        }
         $plan = $tap | Where-Object { $_ -match '^1\.\.(\d+)$' } | Select-Object -First 1
         if (-not $plan -or [int]($plan -replace '^1\.\.', '') -eq 0) {
             Write-Host "ERRO: nenhum teste encontrado em '$t'" -ForegroundColor Red

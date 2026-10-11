@@ -172,12 +172,6 @@ Private Function FixtureTotals(wb As Workbook, t1 As Double, t2 As Double, t3 As
     Set FixtureTotals = ChartData_FromRange(ws.Range("A1:C4"))
 End Function
 
-' O Excel so atualiza Left/Top dos rotulos de dados quando o grafico e desenhado: se a area de plotagem muda depois da
-' primeira leitura de um rotulo (a seta de CAGR reduz a area), DataLabel.Left devolve a posicao antiga. Exportar desenha.
-Private Sub RenderNow(cht As Chart)
-    cht.Export TempDir() & "\render.png"
-End Sub
-
 ' Equivalente horizontal de Test_Ann_Cagr_ClearsTotalLabels_WhenTotalsOn (colunas): com os totais ligados, as pontas da
 ' seta de CAGR ficam depois do fim REAL do rotulo do total (Left + Width do DataLabel) de cada categoria, inclusive com
 ' totais de 4 e 7 digitos (o afastamento de 18 pt foi calibrado para a ALTURA do rotulo das colunas).
@@ -189,7 +183,7 @@ Public Sub Test_Bars_Cagr_ClearsTotalLabels_WhenTotalsOn()
         Set wb = NewTempWorkbook(): Set d = FixtureTotals(wb, CDbl(sc(0)), CDbl(sc(1)), CDbl(sc(2)))
         Set cht = Stacked_Insert(d.Source.Worksheet, d, "barstacked").Chart
         Set ln = Ann_AddCagr(cht, 1, 3)
-        RenderNow cht
+        ForceLayout cht
         Set tot = Chart_FindSeries(cht, "tqq_total")
         If ln.HorizontalFlip = msoTrue Then xb = ln.Left + ln.Width: xe = ln.Left Else xb = ln.Left: xe = ln.Left + ln.Width
         rf = tot.Points(1).DataLabel.Left + tot.Points(1).DataLabel.Width
@@ -359,7 +353,7 @@ Public Sub Test_Bars_TotalLabels_StayLeftOfLegend()
             cht.Axes(xlValue, xlPrimary).MaximumScale = 60       ' a maior barra termina no fim do eixo
             Stacked_SetTotals cht, True
         End If
-        RenderNow cht
+        ForceLayout cht
         Set tot = Chart_FindSeries(cht, "tqq_total")
         For i = 1 To 3
             r = tot.Points(i).DataLabel.Left + tot.Points(i).DataLabel.Width

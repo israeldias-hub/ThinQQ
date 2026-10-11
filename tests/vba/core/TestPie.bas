@@ -23,12 +23,6 @@ Private Function Radius(cht As Chart) As Double
     Radius = IIf(cht.PlotArea.InsideWidth < cht.PlotArea.InsideHeight, cht.PlotArea.InsideWidth, cht.PlotArea.InsideHeight) / 2
 End Function
 
-' O Excel so atualiza Left/Top/Width/Height de um DataLabel depois de RENDERIZAR o grafico: depois de mudar a posicao do rotulo os valores
-' lidos continuam os antigos (medido: iguais aos de dentro apos ligar os rotulos fora) ate um Export. Toda leitura de geometria de rotulo passa por aqui.
-Private Sub ForceLayout(cht As Chart)
-    cht.Export TempDir() & "\layout.png"
-End Sub
-
 Private Sub Teardown(wb As Workbook)
     Watchers_Stop
     CloseTemp wb

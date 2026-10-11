@@ -45,6 +45,13 @@ Public Function TempDir() As String
     TempDir = p
 End Function
 
+' Forca o desenho do grafico: o Excel so atualiza Left/Top/Width/Height de um DataLabel (e a area de plotagem que a seta de CAGR reduz)
+' depois de RENDERIZAR o grafico; antes disso a leitura devolve os valores antigos (medido: iguais aos de dentro apos ligar os rotulos
+' fora, ate um Export). Toda leitura de geometria de rotulo depois de mudar o layout passa por aqui.
+Public Sub ForceLayout(cht As Chart)
+    cht.Export TempDir() & "\layout.png"
+End Sub
+
 ' Raiz do repositório (o .xlam de teste fica em <repo>\dist).
 Public Function RepoPath() As String
     Dim fso As Object

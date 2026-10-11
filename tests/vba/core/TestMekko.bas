@@ -211,11 +211,6 @@ End Sub
 ' Alem do brief (carry-overs da Tarefa 9)
 ' ---------------------------------------------------------------------------------------------------------------------
 
-' A geometria de um rotulo de dados lida depois de mudar o layout pode ser a antiga ate o grafico ser desenhado (Tarefa 8): exportar desenha.
-Private Sub ForceLayout(cht As Chart)
-    cht.Export TempDir() & "\layout.png"
-End Sub
-
 ' So os pontos C (3, 8, 13, ...) das auxiliares tem rotulo: um ponto NA() com rotulo mostraria "0" no zero (medido).
 Private Sub AssertNoStrayLabels(cht As Chart, tag As String)
     Dim nm As Variant, s As Series, r As Long
