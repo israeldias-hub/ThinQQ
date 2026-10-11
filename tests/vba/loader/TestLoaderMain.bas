@@ -131,13 +131,19 @@ End Sub
 ' EnsureDir da raiz (le o proprio projeto VBA, como Test_Ribbon_AllCallbacks_HaveErrorContainment).
 Public Sub Test_EnsureFolders_TestBuildWithoutRootOverride_DoesNotCreateLocalAppDataFolders()
     Dim fso As Object, realRoot As String, existed As Boolean, cm As Object, code As String, pGuard As Long, pRoot As Long
+    Dim hadVersions As Boolean, hadLogs As Boolean
     Set fso = CreateObject("Scripting.FileSystemObject")
     Loader_SetRootOverride ""
     realRoot = Loader_Root()
     AssertEqual Environ$("LOCALAPPDATA") & "\ThinQQ", realRoot, "sem raiz de teste a raiz e a do usuario"
+    ' SO LEITURA da pasta real do usuario: existencia antes e depois (nada e criado nem apagado aqui)
     existed = fso.FolderExists(realRoot)
+    hadVersions = fso.FolderExists(realRoot & "\versions")
+    hadLogs = fso.FolderExists(realRoot & "\logs")
     Loader_EnsureFolders
     If Not existed Then AssertFalse fso.FolderExists(realRoot), "EnsureFolders criou a raiz REAL do usuario em build Test"
+    AssertEqual hadVersions, fso.FolderExists(realRoot & "\versions"), "EnsureFolders mudou a existencia de versions na raiz REAL em build Test"
+    AssertEqual hadLogs, fso.FolderExists(realRoot & "\logs"), "EnsureFolders mudou a existencia de logs na raiz REAL em build Test"
     AssertTrue fso.FolderExists(Loader_LogDir()), "a pasta de log de teste (em %TEMP%) existe"
     AssertTrue fso.FolderExists(Loader_TmpDir()), "a pasta de downloads (em %TEMP%) existe"
     Set cm = ThisWorkbook.VBProject.VBComponents("modLoaderMain").CodeModule
