@@ -1,6 +1,5 @@
 Attribute VB_Name = "modTransport"
 Option Explicit
-Private Const SHA_TIMEOUT_SEC As Long = 60
 Private Const HTTP_TIMEOUT_TEXT_SEC As Long = 20
 Private Const HTTP_TIMEOUT_FILE_SEC As Long = 120
 ' Acesso a manifesto/arquivos por HTTP(S) (MSXML2.XMLHTTP, respeita proxy do usuário) ou por caminho (UNC/local).
@@ -61,43 +60,10 @@ Public Sub Transport_WriteTextFile(path As String, text As String)
     stm.Close
 End Sub
 
-' SHA-256 via certutil (nativo do Windows). SHA256Managed por COM exige .NET 3.5, ausente em muitas maquinas.
-' Usa WScript.Shell.Exec (sem arquivo temporario, sem cmd.exe, entao & e espacos no caminho sao seguros)
-' com espera limitada: se passar de SHA_TIMEOUT_SEC o processo e encerrado.
-
+' SHA-256 do arquivo (hex minusculo) em VBA puro (modSha256): sem processo filho. Levanta erro se o arquivo nao
+' puder ser lido; nunca devolve texto vazio.
 Public Function Transport_Sha256File(path As String) As String
-    Dim stm As Object, sh As Object, proc As Object, txt As String, lines() As String
-    Dim ln As String, i As Long, deadline As Double
-    Set stm = CreateObject("ADODB.Stream")
-    stm.Type = 1: stm.Open: stm.LoadFromFile path     ' levanta erro se o arquivo nao existe
-    If stm.Size = 0 Then
-        stm.Close
-        Transport_Sha256File = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        Exit Function
-    End If
-    stm.Close
-    Set sh = CreateObject("WScript.Shell")
-    Set proc = sh.Exec("certutil -hashfile """ & path & """ SHA256")
-    deadline = CDbl(Now) * 86400 + SHA_TIMEOUT_SEC
-    Do While proc.Status = 0
-        If CDbl(Now) * 86400 > deadline Then
-            On Error Resume Next
-            proc.Terminate
-            On Error GoTo 0
-            Err.Raise vbObjectError + 1004, "Transport", "Tempo esgotado ao calcular SHA-256 de " & path
-        End If
-        DoEvents
-    Loop
-    txt = proc.StdOut.ReadAll
-    lines = Split(Replace(txt, vbCr, ""), vbLf)
-    For i = LBound(lines) To UBound(lines)
-        ln = LCase$(Replace(Trim$(lines(i)), " ", ""))
-        If Len(ln) = 64 And IsHex(ln) Then
-            Transport_Sha256File = ln
-            Exit Function
-        End If
-    Next
-    Err.Raise vbObjectError + 1003, "Transport", "Falha ao calcular SHA-256 de " & path
+    Transport_Sha256File = Sha256_File(path)
 End Function
 
 ' GET assincrono com prazo: um servidor travado nao congela o Excel.
@@ -139,12 +105,4 @@ Private Function BytesToUtf8(data() As Byte) As String
     stm.Position = 0: stm.Type = 2: stm.Charset = "utf-8"
     BytesToUtf8 = stm.ReadText(-1)
     stm.Close
-End Function
-
-Private Function IsHex(s As String) As Boolean
-    Dim i As Long
-    For i = 1 To Len(s)
-        If InStr("0123456789abcdef", Mid$(s, i, 1)) = 0 Then Exit Function
-    Next
-    IsHex = True
 End Function

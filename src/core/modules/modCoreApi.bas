@@ -425,7 +425,7 @@ End Function
 ' Substitui o arquivo do loader (registrado em PendingLoaderPath) e o recarrega.
 ' Executado via OnTime a partir do core, para que nenhum codigo do loader esteja na pilha.
 ' Seguranca: o caminho pendente vem do registro, entao o SHA-256 gravado pelo atualizador
-' (PendingLoaderSha256) e recalculado aqui (certutil, Util_Sha256File) sobre a copia <alvo>.new, ou seja, os bytes
+' (PendingLoaderSha256) e recalculado aqui (Util_Sha256File, SHA-256 em VBA puro) sobre a copia <alvo>.new, ou seja, os bytes
 ' verificados sao os bytes instalados; divergencia => descarta o arquivo.
 ' Atomicidade: .new pronto e verificado ANTES de fechar o loader; depois de fechado, o alvo vira .bak (renomeacao:
 ' um arquivo aberto no Excel nao pode ser copiado) e o .new vira o alvo. Qualquer falha restaura o .bak, recarrega o

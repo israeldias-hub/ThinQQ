@@ -75,25 +75,11 @@ Public Function Util_CellLabel(c As Range) As String
     Util_CellLabel = s
 End Function
 
-' SHA-256 (hex minusculo) de um arquivo via certutil. Retorna "" em qualquer falha (quem chama trata como nao verificado).
-' Duplica de proposito o Transport_Sha256File do loader: o core nao depende de codigo do loader ao trocar o loader.
+' SHA-256 (hex minusculo) de um arquivo, em VBA puro (modSha256; sem processo filho). Retorna "" em qualquer falha
+' (arquivo ausente/ilegivel): quem chama trata como nao verificado.
 Public Function Util_Sha256File(path As String) As String
-    Dim sh As Object, proc As Object, lines() As String, ln As String, i As Long, deadline As Double
     On Error GoTo Fail
-    If Len(Dir(path)) = 0 Then Exit Function
-    If FileLen(path) = 0 Then Exit Function
-    Set sh = CreateObject("WScript.Shell")
-    Set proc = sh.Exec("certutil -hashfile """ & path & """ SHA256")
-    deadline = CDbl(Now) * 86400 + 60
-    Do While proc.Status = 0
-        If CDbl(Now) * 86400 > deadline Then proc.Terminate: Exit Function
-        DoEvents
-    Loop
-    lines = Split(Replace(proc.StdOut.ReadAll, vbCr, ""), vbLf)
-    For i = LBound(lines) To UBound(lines)
-        ln = LCase$(Replace(Trim$(lines(i)), " ", ""))
-        If Len(ln) = 64 And Not ln Like "*[!0-9a-f]*" Then Util_Sha256File = ln: Exit Function
-    Next
+    Util_Sha256File = Sha256_File(path)
     Exit Function
 Fail:
     Util_Sha256File = ""

@@ -12,6 +12,17 @@ $bad3 = @('    x = "a" & _')
 Check ((Test-VbaSourceLines $bad3 'bad3.bas').Count -eq 1) 'pega _ no fim do arquivo'
 $good = @('    x = "a" & _', '        "b"', "    y = ""texto com  _ dentro"" ' comentario com _ e mais", '    z = "aspas "" _ x"', '    my_var = 1')
 Check ((Test-VbaSourceLines $good 'good.bas').Count -eq 0) 'ignora _ em string, comentario e identificador'
+$arrow = [string][char]0x2192
+Check ((Test-VbaCp1252Lines @("' seta $arrow aqui") 'arrow.bas').Count -eq 1) 'M13: pega caractere fora do cp1252 (seta)'
+$okChars = -join ([char[]](0xE7, 0xE3, 0xE9, 0x201C, 0x201D, 0x2014, 0x20AC))
+Check ((Test-VbaCp1252Lines @("' acentos e pontuacao: $okChars") 'ok.bas').Count -eq 0) 'M13: aceita acentos e pontuacao tipografica do cp1252'
+$tw = Join-Path ([IO.Path]::GetTempPath()) ('tqq_twin_' + [guid]::NewGuid().ToString('N'))
+foreach ($d in 'src\loader\modules', 'src\core\modules', 'tests\vba\loader', 'tests\vba\core') { New-Item -ItemType Directory -Force (Join-Path $tw $d) | Out-Null }
+foreach ($p in 'src\loader\modules\modSha256.bas', 'src\core\modules\modSha256.bas', 'tests\vba\loader\TestSha256.bas', 'tests\vba\core\TestSha256.bas') { Set-Content (Join-Path $tw $p) 'x' }
+Check ((Test-VbaTwinFiles $tw).Count -eq 0) 'gemeos identicos passam'
+Set-Content (Join-Path $tw 'src\core\modules\modSha256.bas') 'y'
+Check ((Test-VbaTwinFiles $tw).Count -eq 1) 'gemeos divergentes falham'
+Remove-Item -LiteralPath $tw -Recurse -Force
 $real = Test-VbaLint $RepoRoot
 $real | ForEach-Object { Write-Host $_ }
 Check ($real.Count -eq 0) 'fontes reais sem erros de continuacao de linha'
