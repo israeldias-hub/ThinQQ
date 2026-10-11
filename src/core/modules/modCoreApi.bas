@@ -7,6 +7,9 @@ Private mLastNotice As String      ' última mensagem de Core_Notify (usada pelo
 Private mNoticeCount As Long        ' chamadas a Core_Notify desde Core_ClearLastNotice (testes)
 Private mMismatchSeen As Collection ' ids de gráficos já avisados de tabela de origem com outro tamanho
 Private mClipSeen As Collection     ' ids de gráficos já avisados de dados acima da escala fixa (Mesma escala)
+Private mTestFamily As String       ' gancho de teste: familia de despacho forcada (so no build Test); "" = a familia real do tipo
+' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
+Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,"
 
 ' Última mensagem enviada ao usuário por Core_Notify ("" se nenhuma). Gancho de teste (inofensivo em Release).
 Public Function Core_LastNotice() As String
@@ -168,13 +171,16 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
     If Not Kinds_Supports(kind, key) Then
         Err.Raise vbObjectError + 7002, "Core", "'" & Kinds_FeatureLabel(key) & "' não se aplica a este tipo de gráfico."
     End If
-    fam = Kinds_Family(kind)
+    fam = DispatchFamily(c)
+    ' Cada familia tem o seu Case: uma familia sem Case (a matriz diz que o tipo suporta, o despacho nao sabe fazer) e recusada com o aviso 7002,
+    ' nunca despachada para o padrao da Fase 1 (colunas), que mexeria no grafico errado.
     Select Case key
         Case "totals"
             Select Case fam
                 Case "area": Area_SetTotals c, value
                 Case "mekko": Mekko_SetTotals c, value
-                Case Else: Stacked_SetTotals c, value       ' colunas, barras (empilhadas e 100%) e a combinacao (so os totais das colunas)
+                Case "stacked", "combo": Stacked_SetTotals c, value     ' colunas, barras (empilhadas e 100%) e a combinacao (so os totais das colunas)
+                Case Else: RefuseUndispatched key, c, fam
             End Select
         Case "labels"
             Select Case fam
@@ -183,10 +189,15 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
                 Case "mekko": Mekko_SetLabels c, value
                 Case "gantt": Gantt_SetLabels c, value
                 Case "pie": Pie_SetLabels c, value
-                Case Else: Stacked_SetLabels c, value       ' colunas, barras, linha e a combinacao
+                Case "stacked", "combo": Stacked_SetLabels c, value     ' colunas, barras, linha e a combinacao
+                Case Else: RefuseUndispatched key, c, fam
             End Select
         Case "connectors"
-            If fam = "waterfall" Then Ann_SetWaterfallConnectors c, value Else Stacked_SetConnectors c, value
+            Select Case fam
+                Case "waterfall": Ann_SetWaterfallConnectors c, value
+                Case "stacked", "combo": Stacked_SetConnectors c, value
+                Case Else: RefuseUndispatched key, c, fam
+            End Select
         Case "ind100"
             Deco_SetInd100 c, value
         Case "vline"
@@ -196,6 +207,18 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
         Case "pieout"
             Pie_SetOutside c, value
     End Select
+End Sub
+
+' Familia de despacho do grafico (a do tipo; o gancho de teste Core_TestSetFamilyOverride a substitui).
+Private Function DispatchFamily(c As Chart) As String
+    If Len(mTestFamily) > 0 Then DispatchFamily = mTestFamily Else DispatchFamily = Kinds_Family(Registry_ChartType(c))
+End Function
+
+' O despacho nao tem a familia do tipo para este recurso (a matriz de capacidades e o despacho divergiram: tipo novo na matriz sem Case aqui):
+' registra a divergencia no log e recusa com 7002 (o mesmo aviso de "nao se aplica"), em vez de cair no padrao de outra familia.
+Private Sub RefuseUndispatched(key As String, c As Chart, fam As String)
+    Errors_Log "despacho sem familia" & vbTab & key & vbTab & Registry_ChartType(c) & vbTab & fam
+    Err.Raise vbObjectError + 7002, "Core", "'" & Kinds_FeatureLabel(key) & "' não se aplica a este tipo de gráfico."
 End Sub
 
 ' Valida o valor de uma opção. Retorna "" se válido, senão a mensagem de erro.
@@ -239,7 +262,7 @@ End Function
 ' Aplica a opção no gráfico informado (sem depender da seleção). Valida o valor e consulta a matriz de capacidades ANTES de gravar: opção que
 ' o tipo não tem (gap, legenda da cascata de uma série e do Gantt, formato do Gantt) => erro 7002 e nada é gravado. Propaga erros.
 Private Sub ApplyOption(c As Chart, key As String, value As String)
-    Dim msg As String
+    Dim msg As String, fam As String
     msg = ValidateOption(key, value)
     If Len(msg) > 0 Then Err.Raise vbObjectError + 7100, "Core", msg
     If Not Kinds_SupportsChart(c, key) Then Err.Raise vbObjectError + 7002, "Core", OptionNotApplicableText(key)
@@ -249,19 +272,25 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
         Deco_SetLegend c, value
         Exit Sub
     End If
+    fam = DispatchFamily(c)
+    ' paleta: a familia sem despacho e recusada ANTES de gravar (a recusa 7002 nunca deixa a opcao gravada)
+    If key = "palette" Then
+        If InStr(PALETTE_FAMILIES, "," & fam & ",") = 0 Then RefuseUndispatched key, c, fam
+    End If
     Registry_SetOption c, key, value
     Select Case key
         Case "numfmt"
             Style_ApplyNumberFormat c, Style_NumberFormat(value)       ' despacha por familia (pizza: Pie_ApplyNumberFormat; Mekko: Mekko_ApplyNumberFormat)
             Chart_EnsureRoomAfterChange c               ' rotulos de total mais largos: refaz a folga dos totais e das setas
         Case "palette"
-            Select Case Kinds_Family(Registry_ChartType(c))
+            Select Case fam
                 Case "waterfall": Waterfall_ApplyColors c, value
                 Case "area": Area_ApplyColors c, value
                 Case "pie": Pie_ApplyColors c, value           ' cores por fatia (Style_ApplyPointColors) e fonte dos rotulos por contraste
                 Case "mekko": Mekko_ApplyColors c, value        ' separadores de 1,5 pt e contraste dos rotulos (por ponto)
                 Case "gantt": Gantt_ApplyColors c, value        ' barras pal(1) e marcos pal(0) (as series do Gantt sao todas tqq_*)
-                Case Else: Style_ApplySeriesColors c, value
+                Case "stacked", "combo": Style_ApplySeriesColors c, value
+                Case Else: RefuseUndispatched key, c, fam       ' (inalcancavel: PALETTE_FAMILIES ja recusou antes de gravar)
             End Select
         Case "gap"
             c.ChartGroups(1).GapWidth = CLng(Val(value))
@@ -314,13 +343,15 @@ End Sub
 ' categorias e o formulário): tipo sem a anotação => erro 7001 com a mensagem do tipo (Ann_RefusalText), mostrada como aviso sem abrir formulário
 ' (uma pizza ou um Gantt de uma linha recebem a mensagem do tipo, não "pelo menos 2 categorias"). Depois valem as regras de índices: o colchete
 ' vale sobre UMA atividade (de = até): exige n >= 1 e de <= até; as setas exigem n >= 2 e de < até. Índices fora da regra abrem o formulário.
-' Tipo de anotação desconhecido sai em silêncio (como as chaves desconhecidas de Core_SetToggle).
+' Tipo de anotação desconhecido sai sem aviso ao usuário, mas fica registrado no log (as chaves desconhecidas de Core_SetToggle saem sem registro).
 Public Sub Core_AddAnnotation(kind As String, Optional fromIdx As Long = 0, Optional toIdx As Long = 0)
     On Error GoTo Fail
     Dim c As Chart, n As Long, refusal As String, isBracket As Boolean
     Select Case kind
         Case "cagr", "diff", "bracket"
-        Case Else: Exit Sub
+        Case Else
+            Errors_Log "Core_AddAnnotation: tipo de anotacao desconhecido (ignorado)" & vbTab & kind       ' sem aviso ao usuario; a faixa so envia cagr, diff e bracket
+            Exit Sub
     End Select
     Set c = Core_ActiveChart()
     If c Is Nothing Then Exit Sub
@@ -755,6 +786,14 @@ End Sub
 Public Sub Core_TestSetApplyBusy(value As Boolean)
     If BUILD_CONFIG <> "Test" Then Exit Sub     ' gancho de teste: inerte em Release
     mApplyBusy = value
+End Sub
+
+' Gancho de teste: forca a familia de despacho de ApplyToggle/ApplyOption (simula uma divergencia entre a matriz de capacidades e o despacho:
+' um tipo que a matriz aceita mas cuja familia nao tem Case). "" desfaz. Inerte em Release.
+Public Sub Core_TestSetFamilyOverride(fam As String)
+    On Error Resume Next
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestFamily = fam
 End Sub
 
 Private Sub ApplyPendingLoaderImpl()

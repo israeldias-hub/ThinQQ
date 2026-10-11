@@ -63,8 +63,7 @@ Public Function Pie_Insert(ws As Worksheet, data As clsChartData, kind As String
     Registry_SetOption cht, "legend", "right"
     If Kinds_Supports(kind, "pieout") Then Registry_SetOption cht, "pieout", "0"
     Style_ApplyPointColors cht, "padrao"
-    Pie_ApplyLegend cht
-    Pie_SetLabels cht, True
+    Pie_SetLabels cht, True                          ' liga os rotulos e aplica a regra da legenda (Pie_ApplyLegend)
     Set Pie_Insert = co
     Exit Function
 Fail:

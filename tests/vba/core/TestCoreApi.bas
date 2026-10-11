@@ -1153,6 +1153,54 @@ Private Function AnnotationShapeCount(c As Chart) As Long
     Next
 End Function
 
+' Leituras defensivas (uma propriedade que o Excel recusa para o tipo de grupo/serie vale False; nunca dentro de uma condicao de If).
+Private Function GroupHasSeriesLines(g As ChartGroup) As Boolean
+    On Error Resume Next
+    GroupHasSeriesLines = g.HasSeriesLines
+End Function
+
+Private Function SeriesIsSecondary(s As Series) As Boolean
+    On Error Resume Next
+    SeriesIsSecondary = (s.AxisGroup = xlSecondary)
+End Function
+
+Private Function SeriesHasLabels(s As Series) As Boolean
+    On Error Resume Next
+    SeriesHasLabels = s.HasDataLabels
+End Function
+
+' O ESTADO REAL do grafico (lido do Excel: series, grupos e formas; nunca as opcoes gravadas) depois de o teste ligar todo recurso que o tipo
+' suporta e desligar Rotulos e Indicador 100%: totais (serie tqq_total), rotulos (nenhuma serie de dados com rotulo e nenhuma auxiliar
+' tqq_lbl*), conectores (linhas de serie dos grupos empilhados; na cascata, as formas tqq_ann_conn_*), eixo secundario (a linha do combo),
+' linha de valor (tqq_vline) e indicador 100% (formas). Vale antes E depois de "Alterar dados".
+Private Sub AssertRealState(c As Chart, kind As String, tag As String)
+    Dim s As Series, g As ChartGroup, i As Long, labelsOn As Boolean, sec As Boolean, conn As Boolean
+    For Each s In c.SeriesCollection
+        If Style_IsHelperSeries(s) Then
+            If Left$(s.Name, 7) = "tqq_lbl" Then labelsOn = True
+        Else
+            If SeriesHasLabels(s) Then labelsOn = True
+            If SeriesIsSecondary(s) Then sec = True
+        End If
+    Next
+    If Kinds_Family(kind) = "waterfall" Then
+        For i = 1 To c.Shapes.Count
+            If Left$(c.Shapes(i).Name, Len(ANN_PREFIX & "conn_")) = ANN_PREFIX & "conn_" Then conn = True
+        Next
+    Else
+        For Each g In c.ChartGroups
+            If GroupHasSeriesLines(g) Then conn = True
+        Next
+    End If
+    ' (na cascata tqq_total sao as barras de total do proprio grafico, nao o alternador Totais)
+    If Kinds_Family(kind) <> "waterfall" Then AssertEqual Kinds_Supports(kind, "totals"), Not Chart_FindSeries(c, "tqq_total") Is Nothing, tag & ": totais (serie tqq_total)"
+    AssertFalse labelsOn, tag & ": rotulos desligados pelo usuario continuam desligados (serie com rotulo ou tqq_lbl*)"
+    AssertEqual Kinds_Supports(kind, "connectors"), conn, tag & ": conectores"
+    AssertEqual Kinds_Supports(kind, "secondary"), sec, tag & ": eixo secundario"
+    AssertEqual Kinds_Supports(kind, "vline"), Not Chart_FindSeries(c, "tqq_vline") Is Nothing, tag & ": linha de valor"
+    AssertFalse Ann_HasInd100(c), tag & ": indicador 100% desligado pelo usuario continua desligado"
+End Sub
+
 ' Todo tipo: insere pela API, exercita cada toggle/opcao conforme a matriz (suportado = funciona; nao suportado = aviso,
 ' nada persiste), reconstroi mantendo o tipo e as opcoes, e aceita/recusa setas pela matriz.
 Public Sub Test_Core_AllKinds_InsertTogglesOptionsRebuild()
@@ -1204,22 +1252,24 @@ Public Sub Test_Core_AllKinds_InsertTogglesOptionsRebuild()
             AssertEqual "Espaço entre colunas não se aplica a este tipo de gráfico.", Core_LastNotice(), kind & "/gap"
             AssertTrue Core_GetOption("gap") <> "80", kind & "/gap nao persiste"
         End If
-        If Kinds_Supports(kind, "legend") Then Core_SetOption "legend", "none": AssertFalse c.HasLegend, kind & "/legend"
+        If Kinds_SupportsChart(c, "legend") Then Core_SetOption "legend", "none": AssertFalse c.HasLegend, kind & "/legend"      ' (a cascata: so com varias series)
         ' escolhas do usuario DIFERENTES do padrao do Insert (rotulos e indicador 100% desligados): "Alterar dados" as mantem
         For Each ch In Array("labels", "ind100")
             If Kinds_Supports(kind, CStr(ch)) Then Core_SetToggle CStr(ch), False
         Next
         before = ChoicesSnapshot()
+        AssertRealState c, kind, kind & ": antes de Alterar dados"
         Core_ClearLastNotice
         AssertTrue Core_RebuildFromRange(c, rng), kind & ": rebuild (" & Core_LastNotice() & ")"
         Set c = Core_ActiveChart()
         AssertEqual kind, Registry_ChartType(c), kind & ": tipo apos rebuild"
         AssertEqual before, ChoicesSnapshot(), kind & ": opcoes persistidas apos rebuild"
+        AssertRealState c, kind, kind & ": apos Alterar dados"          ' o estado REAL do grafico novo, nao so as opcoes copiadas
         If Kinds_Supports(kind, "numfmt") Then AssertEqual "dec1", Core_GetOption("numfmt"), kind & ": numfmt apos rebuild"
         AssertEqual "cinza", Core_GetOption("palette"), kind & ": paleta apos rebuild"
         If Kinds_Supports(kind, "vline") Then AssertTrue Not Chart_FindSeries(c, "tqq_vline") Is Nothing, kind & ": linha de valor apos rebuild"
         If Kinds_Supports(kind, "ind100") Then AssertFalse Ann_HasInd100(c), kind & ": indicador desligado pelo usuario continua desligado"
-        If Kinds_Supports(kind, "legend") Then AssertFalse c.HasLegend, kind & ": legenda 'nenhuma' apos rebuild"
+        If Kinds_SupportsChart(c, "legend") Then AssertFalse c.HasLegend, kind & ": legenda 'nenhuma' apos rebuild"
         AssertEqual 1, TqqNameCount(wb), kind & ": um bloco"
         Core_ClearLastNotice
         Core_AddAnnotation "cagr", 1, 2
@@ -1363,4 +1413,140 @@ Public Sub Test_Core_SetOption_UnsupportedByMatrix_NoticeNotPersisted()
         AssertTrue Core_GetOption(key) <> val, kind & "/" & key & ": nao persiste (" & Core_GetOption(key) & ")"
         Teardown wb
     Next
+End Sub
+
+' ---------------------------------------------------------------------------------------------------------------------
+' Tarefa 15: auditoria do core, divergencia matriz x despacho, anotacao desconhecida, estado real da pizza
+' ---------------------------------------------------------------------------------------------------------------------
+
+' Toda funcao publica Core_* de modCoreApi tem "On Error" antes da primeira linha executavel (o loader chama o core por Application.Run: um erro
+' nao tratado la viraria o dialogo "Depurar/Finalizar" do VBA na tela do usuario). Le o codigo do proprio projeto (precisa de "Confiar no acesso
+' ao modelo de objeto do projeto VBA", como o Test_Ribbon_AllCallbacks_HaveErrorContainment). Excecoes de proposito: getters e setters puros
+' (nada que possa falhar) e Core_ApplyPendingLoader (a guarda de reentrada "If mApplyBusy Then Exit Sub" vem antes do On Error; o corpo roda em
+' ApplyPendingLoaderImpl, com On Error GoTo Fail).
+Public Sub Test_Core_AllPublicApi_HaveErrorContainment()
+    Dim cm As Object, lines() As String, i As Long, j As Long, ln As String, nm As String, t As String, n As Long, p As Long, skipList As String
+    skipList = ",Core_Ping,Core_Version,Core_LoaderPath,Core_LastNotice,Core_NoticeCount,Core_ClearLastNotice,Core_TestSetApplyBusy,Core_ApplyPendingLoader,"
+    Set cm = ThisWorkbook.VBProject.VBComponents("modCoreApi").CodeModule
+    lines = Split(Replace(cm.Lines(1, cm.CountOfLines), vbCr, ""), vbLf)
+    For i = 0 To UBound(lines)
+        ln = Trim$(lines(i))
+        If Left$(ln, 16) = "Public Function " Or Left$(ln, 11) = "Public Sub " Then
+            p = InStr(ln, "Core_")
+            If p > 0 Then
+                nm = Mid$(ln, p, InStr(p, ln & "(", "(") - p)
+                If InStr(skipList, "," & nm & ",") = 0 Then
+                    For j = i + 1 To UBound(lines)
+                        t = Trim$(lines(j))
+                        If Len(t) > 0 And Left$(t, 1) <> "'" And Left$(t, 4) <> "Dim " Then
+                            AssertTrue Left$(t, 8) = "On Error", "sem On Error antes da 1a linha executavel em " & nm & " (achei: " & t & ")"
+                            Exit For
+                        End If
+                    Next
+                    n = n + 1
+                End If
+            End If
+        End If
+    Next
+    AssertTrue n >= 22, "poucas funcoes Core_ verificadas: " & n
+End Sub
+
+' Conteudo do log do build Test (vazio se nao existe).
+Private Function TestLogText() As String
+    Dim p As String, f As Integer
+    p = Errors_LogDir() & "\thinqq.log"
+    If Len(Dir(p)) = 0 Then Exit Function
+    f = FreeFile
+    Open p For Binary Access Read As #f
+    TestLogText = Space$(LOF(f))
+    Get #f, , TestLogText
+    Close #f
+End Function
+
+' Matriz e despacho divergem (a matriz aceita o recurso, a familia de despacho nao tem Case): o comando e recusado com o aviso 7002 (e a
+' divergencia vai para o log), NADA e gravado nem alterado no grafico; antes caia no padrao da Fase 1 (colunas) e mexia no grafico errado.
+' Gancho de teste Core_TestSetFamilyOverride forca uma familia sem despacho. O mesmo comando sem o gancho funciona.
+Public Sub Test_Core_DispatchDrift_RefusedWithNotice_NothingChanged()
+    Dim wb As Workbook, ws As Worksheet, c As Chart, key As Variant, en As Long, es As String, ed As String, logLen As Long, sTotals As Boolean, sPalette As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    FixtureFor(ws, "stacked").Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    AssertTrue Core_GetToggle("totals") And Core_GetToggle("labels"), "premissa: totais e rotulos ligados"
+    sPalette = Core_GetOption("palette")
+    logLen = Len(TestLogText())
+    On Error GoTo Cleanup
+    Core_TestSetFamilyOverride "inexistente"
+    For Each key In Array("totals", "labels", "connectors")
+        Core_ClearLastNotice
+        Core_SetToggle CStr(key), False
+        AssertEqual "'" & Kinds_FeatureLabel(CStr(key)) & "' não se aplica a este tipo de gráfico.", Core_LastNotice(), key & ": aviso 7002"
+        AssertEqual 1, Core_NoticeCount(), key & ": um aviso"
+    Next
+    AssertTrue Core_GetToggle("totals") And Core_GetToggle("labels"), "nada foi gravado: totais e rotulos continuam ligados"
+    AssertFalse Chart_FindSeries(c, "tqq_total") Is Nothing, "a serie de totais continua no grafico"
+    AssertTrue c.SeriesCollection(1).HasDataLabels, "os rotulos continuam ligados"
+    Core_ClearLastNotice
+    Core_SetOption "palette", "cinza"
+    AssertEqual "'Paleta' não se aplica a este tipo de gráfico.", Core_LastNotice(), "palette: aviso 7002"
+    AssertEqual sPalette, Core_GetOption("palette"), "palette: recusa antes de gravar"
+    AssertTrue InStr(Mid$(TestLogText(), logLen + 1), "despacho sem familia") > 0, "a divergencia vai para o log"
+    Core_TestSetFamilyOverride ""
+    ' sem o gancho a familia real despacha normalmente
+    Core_ClearLastNotice
+    Core_SetOption "palette", "cinza"
+    AssertEqual "cinza", Core_GetOption("palette"), "sem o gancho a paleta vale"
+    Core_SetToggle "totals", False
+    AssertFalse Core_GetToggle("totals"), "sem o gancho o toggle vale"
+    AssertTrue Chart_FindSeries(c, "tqq_total") Is Nothing, "sem o gancho a serie de totais sai"
+    AssertEqual 0, Core_NoticeCount(), "sem avisos"
+    Teardown wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Core_TestSetFamilyOverride ""
+    Teardown wb
+    Err.Raise en, es, ed
+End Sub
+
+' Tipo de anotacao desconhecido (a faixa so envia cagr, diff e bracket): sem aviso ao usuario, sem forma criada, mas a linha vai para o log.
+Public Sub Test_Core_AddAnnotation_UnknownKind_LoggedNoNotice()
+    Dim wb As Workbook, ws As Worksheet, c As Chart, logLen As Long, shapesBefore As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    FixtureFor(ws, "stacked").Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    shapesBefore = AnnotationShapeCount(c)
+    Core_ClearLastNotice
+    logLen = Len(TestLogText())
+    Core_AddAnnotation "xyz", 1, 2
+    AssertEqual 0, Core_NoticeCount(), "sem aviso ao usuario"
+    AssertEqual shapesBefore, AnnotationShapeCount(c), "nenhuma forma criada"
+    AssertTrue InStr(Mid$(TestLogText(), logLen + 1), "tipo de anotacao desconhecido") > 0, "registrado no log"
+    AssertTrue InStr(Mid$(TestLogText(), logLen + 1), "xyz") > 0, "o log traz o nome do tipo"
+    Teardown wb
+End Sub
+
+' "Alterar dados" na pizza com rotulos fora: o grafico NOVO tem de ter, de verdade, os rotulos fora (posicao, nome da categoria, linhas de
+' chamada) e nenhuma legenda; o estado real, nao so a opcao copiada. (No teste de todos os tipos os rotulos ficam desligados e a posicao
+' dos rotulos nao e observavel.)
+Public Sub Test_Core_RebuildFromRange_Pie_KeepsOutsideLabelsAsRealState()
+    Dim wb As Workbook, ws As Worksheet, rng As Range, c As Chart, s As Series
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    Set rng = FixtureFor(ws, "pie")
+    rng.Select
+    Core_Insert "pie"
+    Core_SetToggle "pieout", True
+    Set c = Core_ActiveChart()
+    Set s = c.SeriesCollection(1)
+    AssertEqual xlLabelPositionOutsideEnd, s.DataLabels.Position, "premissa: rotulos fora"
+    AssertTrue Core_RebuildFromRange(c, rng), "rebuild (" & Core_LastNotice() & ")"
+    Set c = Core_ActiveChart()
+    Set s = c.SeriesCollection(1)
+    AssertTrue s.HasDataLabels, "rotulos ligados"
+    AssertEqual xlLabelPositionOutsideEnd, s.DataLabels.Position, "rotulos fora apos Alterar dados"
+    AssertTrue s.DataLabels.ShowCategoryName, "nome da categoria nos rotulos fora"
+    AssertTrue s.HasLeaderLines, "linhas de chamada"
+    AssertFalse c.HasLegend, "sem legenda enquanto os rotulos fora (com os nomes) estao ligados"
+    Teardown wb
 End Sub
