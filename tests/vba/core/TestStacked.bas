@@ -240,3 +240,25 @@ Public Sub Test_Stacked_LabelContrast_FollowsFill()
     AssertEqual RGB(64, 64, 64), cht.SeriesCollection(5).DataLabels.Font.Color
     CloseTemp wb
 End Sub
+
+' M9: sinais mistos: o rotulo do total fica no topo da pilha positiva, mas mostra o total liquido.
+Public Sub Test_Stacked_MixedSign_TotalLabelAtPositiveExtent()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, body As Range, tot As Series
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Mista"
+    ws.Range("A1:C1").Value = Array("Ano", "Ganho", "Perda")
+    ws.Range("A2:C2").Value = Array(2022, 10, -4)
+    ws.Range("A3:C3").Value = Array(2023, -3, -2)
+    ws.Range("A4:C4").Value = Array(2024, 0, 0)
+    Set d = ChartData_FromRange(ws.Range("A1:C4"))
+    Set cht = Stacked_Insert(ws, d, "stacked").Chart
+    Set body = Block_Body(Registry_Block(cht))
+    AssertEqual 6, body.Cells(2, 2).Value, "total liquido"
+    AssertEqual 10, body.Cells(2, 3).Value, "posicao = extensao positiva"
+    AssertEqual -5, body.Cells(3, 3).Value, "so negativos: extensao negativa"
+    AssertEqual 0, body.Cells(4, 3).Value
+    Set tot = Chart_FindSeries(cht, "tqq_total")
+    AssertEqual "6", tot.Points(1).DataLabel.Text, "o rotulo mostra o liquido"
+    AssertEqual xlLabelPositionAbove, tot.Points(1).DataLabel.Position
+    AssertEqual xlLabelPositionBelow, tot.Points(2).DataLabel.Position, "tudo negativo: abaixo"
+    CloseTemp wb
+End Sub

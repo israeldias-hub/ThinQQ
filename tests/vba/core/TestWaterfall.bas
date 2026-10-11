@@ -267,7 +267,10 @@ Public Sub Test_Waterfall_Insert_ColorsAndLabelFormat()
     Set body = Block_Body(Registry_Block(cht))
     AssertEqual -150, body.Cells(3, WF_COL_LABELVAL).Value
     Set lbl = Chart_FindSeries(cht, "tqq_lbl")
-    AssertEqual "#,##0;-#,##0;", lbl.Points(2).DataLabel.NumberFormat, "formato com sinal de menos, zero vazio"
+    ' O getter NumberFormat do rotulo ora devolve o codigo neutro, ora o localizado (depende do estado do Excel na
+    ' suite completa); o que importa e o texto exibido (testes Rendered/RenderedText), entao aceita as duas formas.
+    AssertTrue lbl.Points(2).DataLabel.NumberFormat = "#,##0;-#,##0;" Or lbl.Points(2).DataLabel.NumberFormat = Style_LocalizeCode("#,##0;-#,##0;"), "formato com sinal de menos, zero vazio"
+    AssertEqual "-150", Replace(Replace(lbl.Points(2).DataLabel.Text, Application.International(xlThousandsSeparator), ""), ChrW(160), ""), "texto exibido do rotulo negativo"
     AssertEqual xlLabelPositionBelow, lbl.Points(2).DataLabel.Position
     CloseTemp wb
 End Sub

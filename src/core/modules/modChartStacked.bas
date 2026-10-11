@@ -1,21 +1,36 @@
 Attribute VB_Name = "modChartStacked"
 Option Explicit
 ' Colunas empilhadas / agrupadas / 100% / linha.
-' Bloco (corpo): linha 1 = cabeçalhos; colunas: 1 Categoria | 2 Total | 3 TotalPos (=Total, ou 1 no 100%).
+' Bloco (corpo): linha 1 = cabeçalhos; colunas: 1 Categoria | 2 Total | 3 TotalPos | (só 100%) 4.. Participação de cada série.
+' TotalPos = posição plotada do rótulo do total: em empilhadas é a extensão positiva da pilha (soma dos valores > 0;
+' o RÓTULO continua mostrando o total líquido da coluna 2; sem valores positivos, a extensão negativa); em 100% é 1.
+' Participação = valor / total da linha (0 se o total é 0 ou a célula não é número).
 
 Public Function Stacked_BuildBlock(wb As Workbook, id As String, data As clsChartData, kind As String) As Range
-    Dim blk As Range, body As Range, i As Long, rowCells As Range
-    Set blk = CalcSheet_AllocateBlock(wb, id, kind, Mid$(ChartData_ExternalAddress(data.Source), 2), data.CategoryCount + 1, 3)
+    Dim blk As Range, body As Range, i As Long, j As Long, rowCells As Range, srcAddr As String, totAddr As String
+    Set blk = CalcSheet_AllocateBlock(wb, id, kind, Mid$(ChartData_ExternalAddress(data.Source), 2), data.CategoryCount + 1, 3 + IIf(kind = "stacked100", data.SeriesCount, 0))
     Set body = Block_Body(blk)
     body.Cells(1, 1).Value = "Categoria": body.Cells(1, 2).Value = "Total": body.Cells(1, 3).Value = "TotalPos"
+    If kind = "stacked100" Then
+        For j = 1 To data.SeriesCount: body.Cells(1, 3 + j).Value = "Part" & j: Next
+    End If
     For i = 1 To data.CategoryCount
         body.Cells(i + 1, 1).Formula = ChartData_ExternalAddress(data.Source.Cells(i + 1, 1))
         Set rowCells = data.Source.Cells(i + 1, 2).Resize(1, data.SeriesCount)
         body.Cells(i + 1, 2).Formula = "=AGGREGATE(9,6," & Mid$(ChartData_ExternalAddress(rowCells), 2) & ")"   ' ignora erros (#N/A) e texto
         If kind = "stacked100" Then
             body.Cells(i + 1, 3).Formula = "=1"
-        Else
+            totAddr = body.Cells(i + 1, 2).Address(False, False)
+            For j = 1 To data.SeriesCount
+                srcAddr = Mid$(ChartData_ExternalAddress(data.Source.Cells(i + 1, 1 + j)), 2)
+                body.Cells(i + 1, 3 + j).Formula = "=IF(AND(ISNUMBER(" & srcAddr & ")," & totAddr & "<>0)," & srcAddr & "/" & totAddr & ",0)"
+            Next
+        ElseIf kind = "clustered" Or kind = "line" Then
             body.Cells(i + 1, 3).Formula = "=" & body.Cells(i + 1, 2).Address(False, False)
+        Else
+            ' empilhada: posição do total = extensão positiva da pilha (com sinais mistos o total líquido ficaria dentro da pilha)
+            srcAddr = Mid$(ChartData_ExternalAddress(rowCells), 2)
+            body.Cells(i + 1, 3).Formula = "=IF(SUMIF(" & srcAddr & ","">0"")>0,SUMIF(" & srcAddr & ","">0""),SUMIF(" & srcAddr & ",""<0""))"
         End If
     Next
     Set Stacked_BuildBlock = blk
@@ -96,17 +111,21 @@ Public Sub Stacked_SetTotals(cht As Chart, turnOn As Boolean)
         s.MarkerStyle = xlMarkerStyleNone
     End If
     Stacked_HideTotalLegendEntry cht
-    fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
+    fmt = Labels_TotalFormat(cht)
     Labels_LinkPoints s, body.Cells(2, 2).Resize(n, 1), fmt
+    Labels_RefreshPositions cht                    ' acima/abaixo pela posição plotada (TotalPos)
     s.DataLabels.Font.Bold = True
     Registry_SetOption cht, "totals", "1"
 End Sub
 
 Public Sub Stacked_SetLabels(cht As Chart, turnOn As Boolean)
-    Dim s As Series, fmt As String
-    fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
+    Dim s As Series, fmt As String, j As Long, body As Range, n As Long, is100 As Boolean
+    fmt = Labels_SegmentFormat(cht)
+    is100 = (Registry_ChartType(cht) = "stacked100")
+    If is100 Then Set body = Block_Body(Registry_Block(cht)): n = body.Rows.Count - 1
     For Each s In cht.SeriesCollection
         If Not Style_IsHelperSeries(s) Then
+            j = j + 1
             s.HasDataLabels = turnOn
             If turnOn Then
                 With s.DataLabels
@@ -124,6 +143,8 @@ Public Sub Stacked_SetLabels(cht As Chart, turnOn As Boolean)
                         .Font.Color = Style_ContrastFont(s.Format.Fill.ForeColor.RGB)
                     End If
                 End With
+                ' 100%: o rótulo do segmento é a participação (coluna de participação do bloco), não o valor absoluto
+                If is100 Then Labels_LinkPoints s, body.Cells(2, 3 + j).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
             End If
         End If
     Next

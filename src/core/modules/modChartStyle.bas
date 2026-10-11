@@ -103,14 +103,20 @@ Public Function Style_NumberFormat(key As String) As String
 End Function
 
 Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
-    Dim s As Series, i As Long
-    Labels_ApplyCellFormat cht, fmt
+    Dim s As Series, i As Long, segFmt As String, totFmt As String, useFmt As String
+    segFmt = fmt: totFmt = fmt
+    If Registry_ChartType(cht) = "stacked100" Then
+        ' 100%: segmentos mostram participação (pct0/pct1); numfmt vale para os totais absolutos
+        segFmt = Labels_SegmentFormat(cht): totFmt = Labels_TotalFormat(cht)
+    End If
+    Labels_ApplyCellFormat cht, totFmt
     For Each s In cht.SeriesCollection
         If s.HasDataLabels Then
-            Style_AssignNumberFormat s.DataLabels, fmt
+            If s.Name = "tqq_total" Then useFmt = totFmt Else useFmt = segFmt
+            Style_AssignNumberFormat s.DataLabels, useFmt
             ' rótulos ligados a células (por ponto) guardam formato próprio
             For i = 1 To s.Points.Count
-                If s.Points(i).HasDataLabel Then Style_AssignNumberFormat s.Points(i).DataLabel, fmt
+                If s.Points(i).HasDataLabel Then Style_AssignNumberFormat s.Points(i).DataLabel, useFmt
             Next
         End If
     Next

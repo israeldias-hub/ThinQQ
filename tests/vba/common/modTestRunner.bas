@@ -16,7 +16,7 @@ Public Function RunAllTests(outputPath As String) As Long
                 If procName <> lastProc Then
                     lastProc = procName
                     If Left$(procName, 5) = "Test_" Then
-                        If Len(filt) = 0 Or InStr(1, comp.Name & "." & procName, filt, vbTextCompare) > 0 Then RunOne comp.Name, procName
+                        If FilterMatches(filt, comp.Name & "." & procName) Then RunOne comp.Name, procName
                     End If
                 End If
             Next
@@ -25,6 +25,18 @@ Public Function RunAllTests(outputPath As String) As Long
     mLog = mLog & "1.." & (mPassed + mFailed) & vbLf & "# passed " & mPassed & " failed " & mFailed & vbLf
     WriteText outputPath, mLog
     RunAllTests = mFailed
+End Function
+
+' Filtro de iteracao rapida (variavel TQQ_TEST_FILTER): trechos separados por "|"; vazio = todos.
+Private Function FilterMatches(filt As String, fullName As String) As Boolean
+    Dim parts() As String, i As Long
+    If Len(filt) = 0 Then FilterMatches = True: Exit Function
+    parts = Split(filt, "|")
+    For i = LBound(parts) To UBound(parts)
+        If Len(parts(i)) > 0 Then
+            If InStr(1, fullName, parts(i), vbTextCompare) > 0 Then FilterMatches = True: Exit Function
+        End If
+    Next
 End Function
 
 Private Function OpenBooks() As String

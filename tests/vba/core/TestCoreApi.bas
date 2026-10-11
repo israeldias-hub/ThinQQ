@@ -799,3 +799,56 @@ End Sub
 Public Sub Test_Core_SourceMismatch_Stacked_RowInserted_NoticedOnce()
     CheckMismatch "stacked"
 End Sub
+
+' ---- I4: graficos 100% rotulam os segmentos com a participacao ----
+
+Private Function Fixture100(wb As Workbook) As Chart
+    Dim ws As Worksheet
+    Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:D1").Value = Array("Ano", "Sul", "Sudeste", "Nordeste")
+    ws.Range("A2:D2").Value = Array(2022, 10, 20, 5)
+    ws.Range("A3:D3").Value = Array(2023, "n/d", 30, 10)
+    ws.Range("A4:D4").Value = Array(2024, 0, 0, 0)
+    ws.Range("A1:D4").Select
+    Core_Insert "stacked100"
+    Set Fixture100 = Core_ActiveChart()
+End Function
+
+Public Sub Test_Core_Stacked100_SegmentLabels_ShowShare()
+    Dim wb As Workbook, cht As Chart, tot As Series, d As String, body As Range
+    d = Application.International(xlDecimalSeparator)
+    Set wb = NewTempWorkbook()
+    Set cht = Fixture100(wb)
+    AssertEqual "29%", cht.SeriesCollection(1).Points(1).DataLabel.Text, "10/35"
+    AssertEqual "57%", cht.SeriesCollection(2).Points(1).DataLabel.Text, "20/35"
+    AssertEqual "14%", cht.SeriesCollection(3).Points(1).DataLabel.Text, "5/35"
+    Set tot = Chart_FindSeries(cht, "tqq_total")
+    AssertEqual "35", tot.Points(1).DataLabel.Text, "o total continua absoluto"
+    AssertEqual xlLabelPositionCenter, cht.SeriesCollection(1).Points(1).DataLabel.Position
+    ' texto vira 0 (rotulo vazio pelo formato) sem erros; participacao das demais usa o total sem o texto (40)
+    Set body = Block_Body(Registry_Block(cht))
+    AssertEqual 0, body.Cells(3, 4).Value, "texto = participacao 0"
+    AssertEqual "", cht.SeriesCollection(1).Points(2).DataLabel.Text, "zero oculto"
+    AssertEqual "75%", cht.SeriesCollection(2).Points(2).DataLabel.Text, "30/40"
+    ' total 0: sem #DIV/0!
+    AssertEqual 0, body.Cells(4, 4).Value
+    AssertFalse IsError(body.Cells(4, 5).Value), "linha de total zero nao gera #DIV/0!"
+    Teardown wb
+End Sub
+
+Public Sub Test_Core_Stacked100_NumFmt_AppliesToTotals_Pct1ToShares()
+    Dim wb As Workbook, cht As Chart, tot As Series, d As String
+    d = Application.International(xlDecimalSeparator)
+    Set wb = NewTempWorkbook()
+    Set cht = Fixture100(wb)
+    Set tot = Chart_FindSeries(cht, "tqq_total")
+    Core_SetOption "numfmt", "dec1"
+    AssertEqual "35" & d & "0", tot.Points(1).DataLabel.Text, "dec1 vale para os totais"
+    AssertEqual "29%", cht.SeriesCollection(1).Points(1).DataLabel.Text, "participacao continua pct0"
+    Core_SetOption "numfmt", "pct1"
+    AssertEqual "28" & d & "6%", cht.SeriesCollection(1).Points(1).DataLabel.Text, "pct1 = participacao com uma casa"
+    AssertEqual "35", tot.Points(1).DataLabel.Text, "totais continuam absolutos (inteiro) com pct1"
+    Core_SetOption "numfmt", "int"
+    AssertEqual "29%", cht.SeriesCollection(1).Points(1).DataLabel.Text, "volta a pct0"
+    Teardown wb
+End Sub
