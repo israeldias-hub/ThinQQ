@@ -12,6 +12,7 @@ Private mTestFamily As String       ' gancho de teste: familia de despacho forca
 Private mLastConfirm As String      ' ultima pergunta de Core_Confirm (usada pelos testes)
 Private mTestRoundDec As Variant    ' gancho de teste: respostas do Arredondar intervalo no build Test (Core_TestSetRoundRangeAnswers)
 Private mTestRoundDest As Range
+Private mTestBreakAnswer As Variant  ' gancho de teste: resposta do InputBox do Corte de eixo no build Test (Core_TestSetAxisBreakAnswer)
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
 Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,"
 
@@ -530,16 +531,29 @@ Public Sub Core_SameScale()
     End If
     n = Deco_SameScale(coll, skipped)
     If n < 2 Then
-        Core_Notify "Mesma escala: são necessários dois ou mais gráficos com escala livre (100%, Mekko (%), pizza e Gantt não entram).", vbInformation
+        msg = "Mesma escala: são necessários dois ou mais gráficos com escala livre (100%, Mekko (%), pizza e Gantt não entram)."
+        If AnyAxisBreak(coll) Then msg = msg & " Gráficos com corte de eixo também ficam de fora."
+        Core_Notify msg, vbInformation
         Exit Sub
     End If
     msg = "Mesma escala aplicada a " & n & " gráfico(s)."
     If skipped > 0 Then msg = msg & " " & skipped & " ignorado(s): tipo sem escala livre (100%, Mekko (%), pizza, Gantt)."
+    If AnyAxisBreak(coll) Then msg = msg & " Gráficos com corte de eixo também ficam de fora."
     Core_Notify msg, vbInformation
     Exit Sub
 Fail:
     Errors_Handle "Core_SameScale"
 End Sub
+
+' True se algum grafico da colecao tem corte de eixo (Mesma escala o ignora: o aviso diz por que). False em qualquer duvida.
+Private Function AnyAxisBreak(coll As Collection) As Boolean
+    Dim c As Variant, cht As Chart
+    On Error Resume Next
+    For Each c In coll
+        Set cht = c
+        If Len(Registry_GetOption(cht, "vbreak", "")) > 0 Then AnyAxisBreak = True: Exit Function
+    Next
+End Function
 
 ' Escala automatica: devolve ao automatico o eixo de valores do grafico ThinQQ ativo ou dos selecionados (sem nenhum, de todos os da
 ' planilha ativa, como a Mesma escala) e limpa a escala gravada. So os graficos com a escala fixa do ThinQQ (Deco_ResetScale): um eixo ajustado
@@ -623,6 +637,69 @@ Fail:
     Else
         Errors_Handle "Core_RoundRange"
     End If
+End Sub
+
+' Corte de eixo: pede o valor (sugestao: Break_Suggest) e aplica (Core_SetAxisBreakAt). Tipo sem corte: aviso antes de perguntar. Valor <= 0:
+' o aviso do limite (remover e Core_RemoveAxisBreak). Em build Test sai antes do InputBox; a resposta pode vir do gancho
+' Core_TestSetAxisBreakAnswer (uso unico, consumido logo na entrada: nao vaza para a chamada seguinte em nenhum caminho).
+Public Sub Core_SetAxisBreak()
+    On Error GoTo Fail
+    Dim c As Chart, v As Variant, ans As Variant
+    ans = mTestBreakAnswer: mTestBreakAnswer = Empty
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Sub
+    If Not Kinds_SupportsChart(c, "break") Then
+        Core_Notify Kinds_NotApplicableText("break"), vbInformation
+        Exit Sub
+    End If
+    If BUILD_CONFIG = "Test" Then
+        If IsEmpty(ans) Then Exit Sub                     ' build Test: sem InputBox (modal travaria o Excel invisivel)
+        v = ans
+    Else
+        v = Application.InputBox("Corte de eixo: valor onde o eixo é cortado (as colunas acima dele ficam cortadas e o total continua no rótulo):", APP_NAME, CStr(Break_Suggest(c)), Type:=1)
+    End If
+    If VarType(v) = vbBoolean Then Exit Sub               ' Cancelar
+    If Not IsNumeric(v) Then v = 0
+    If CDbl(v) <= 0 Then
+        Core_Notify BREAK_ERR_LIMIT, vbInformation
+        Exit Sub
+    End If
+    Core_SetAxisBreakAt CDbl(v)
+    Exit Sub
+Fail:
+    Errors_Handle "Core_SetAxisBreak"
+End Sub
+
+' Aplica o corte em limit no grafico ativo (limit <= 0 remove). Recusas (tipo sem corte, limite fora de 0 < limit < maior topo): aviso, nada
+' gravado.
+Public Sub Core_SetAxisBreakAt(limit As Double)
+    On Error GoTo Fail
+    Dim c As Chart
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Sub
+    Break_Set c, limit
+    Core_SafeRefresh c
+    Exit Sub
+Fail:
+    If Err.Number = vbObjectError + 7002 Or Err.Number = vbObjectError + 7003 Then
+        Core_Notify Err.Description, vbInformation       ' recusa (tipo sem corte, limite invalido): aviso, nada gravado
+    Else
+        Errors_Handle "Core_SetAxisBreakAt"
+    End If
+End Sub
+
+' Remove o corte de eixo do grafico ativo (sem corte: nada).
+Public Sub Core_RemoveAxisBreak()
+    On Error GoTo Fail
+    Dim c As Chart
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Sub
+    If Len(Registry_GetOption(c, "vbreak", "")) = 0 Then Exit Sub
+    Break_Remove c
+    Core_SafeRefresh c
+    Exit Sub
+Fail:
+    Errors_Handle "Core_RemoveAxisBreak"
 End Sub
 
 ' True quando o bloco do gráfico (uma linha de fórmula por categoria) não tem o mesmo número de categorias
@@ -724,6 +801,8 @@ Public Sub Core_SafeRefresh(cht As Chart)
     NotifySourceMismatchOnce cht
     Deco_ApplyFixedScale cht                         ' mesma escala: os dados mudaram e o eixo automatico recalculou; reaplica a escala gravada
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Escala" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Break_RefreshAfterDataChange cht                 ' corte de eixo: maximo fixo, folga do total, rotulos dos segmentos e marcas
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Break" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     NotifyScaleClippedOnce cht
     Labels_RefreshPositions cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Labels" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
@@ -821,6 +900,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     Registry_Block(nc).Cells(1, 4).Value = opts
     Registry_SetOption nc, "n", CStr(data.CategoryCount)     ' as opções antigas trazem o n da tabela anterior
     If Len(Registry_GetOption(nc, "thinlbl", "")) > 0 Then Registry_SetOption nc, "thinlbl", ""      ' rotulos finos escondidos: pontos do grafico antigo
+    If Len(Registry_GetOption(nc, "brklbl", "")) > 0 Then Registry_SetOption nc, "brklbl", ""        ' rotulos ocultos pelo corte de eixo: idem
     ReapplyOptions nc                           ' formato, paleta, espaco, alternadores, escala fixa e legenda: as ESCOLHAS salvas do usuario
     oldCo.Delete
     ' A partir daqui o gráfico antigo não existe mais: nada pode apagar o novo. Falhas só são registradas.
@@ -885,6 +965,7 @@ Private Sub ReapplyOptions(nc As Chart)
         End If
     Next
     Deco_ApplyFixedScale nc
+    Break_TryReapply nc                         ' corte de eixo (vbreak): coluna LblPos, eixo, rotulos e marcas no grafico novo; nunca propaga erro
     ReapplyLegend nc
 End Sub
 
@@ -951,6 +1032,14 @@ Public Sub Core_TestSetRoundRangeAnswers(dec As Variant, dest As Range)
     If BUILD_CONFIG <> "Test" Then Exit Sub
     mTestRoundDec = dec
     Set mTestRoundDest = dest
+End Sub
+
+' Gancho de teste: a resposta do InputBox do Corte de eixo para a PROXIMA chamada de Core_SetAxisBreak (uso unico; False = Cancelar; Empty
+' desarma). Inerte em Release.
+Public Sub Core_TestSetAxisBreakAnswer(answer As Variant)
+    On Error Resume Next
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestBreakAnswer = answer
 End Sub
 
 Private Sub ApplyPendingLoaderImpl()

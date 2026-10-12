@@ -284,6 +284,8 @@ Public Sub Chart_EnsureRoomAfterChange(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Chart_EnsureRoomAfterChange/mekko" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Gantt_EnsureRoom cht                          ' Gantt: folga acima da area interna para a escala de datas (os colchetes: nas setas, acima)
     If Err.Number <> 0 Then Errors_Log "Chart_EnsureRoomAfterChange/gantt" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Break_EnsureRoom cht                          ' corte de eixo: folga para o rotulo do total da coluna cortada (sem corte nao faz nada)
+    If Err.Number <> 0 Then Errors_Log "Chart_EnsureRoomAfterChange/corte" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
 End Sub
 
 ' Remove da legenda toda entrada de serie auxiliar (tqq_*). Idempotente e correta com varias auxiliares.

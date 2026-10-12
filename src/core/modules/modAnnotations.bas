@@ -6,6 +6,7 @@ Private mLastError As String
 Private Const ANN_ARROW_GAP As Double = 10      ' do fim da barra/topo da coluna ate a ponta da seta de CAGR
 Private Const ANN_TOTALS_EXTRA As Double = 18   ' afastamento extra (minimo) da seta de CAGR com os totais ligados; nas colunas, calibrado para a ALTURA do rotulo do total
 Private Const ANN_IND100 As String = "tqq_ann_ind100"     ' nome da linha do indicador 100% (o rotulo e ANN_IND100 & "_lbl")
+Private Const ANN_BREAK As String = "tqq_ann_break_"      ' prefixo das marcas do corte de eixo (modAxisBreak; posicionadas por Ann_LayoutBreak)
 Private Const ANN_AUTO_SLACK As Double = 18     ' folga que o eixo com maximo automatico deixa depois da maior barra (~5% da escala, medida em graficos de ~460 pt)
 Private Const ANN_BRACKET As String = "tqq_ann_bracket_"  ' prefixo dos colchetes do Gantt (linha nm; tiques nm_t1/nm_t2; rotulo nm_lbl)
 Private Const ANN_BRACKET_Y0 As Double = 25     ' linha do 1o colchete: 25 pt acima da area interna; os tiques de 5 pt param 20 pt acima, livres
@@ -60,7 +61,7 @@ End Function
 ' Séries mais curtas que n contam como zero; com n = 0 devolve arrays 0..0.
 Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef tops() As Double)
     Dim kind As String, n As Long, i As Long, k As Long, s As Series, vals As Variant, v As Double, ends() As Double
-    Dim nSeries As Long, lastIdx As Long, cum() As Double, algebraic As Boolean, bb As Range
+    Dim nSeries As Long, lastIdx As Long, cum() As Double, algebraic As Boolean, bb As Range, lim As Double
     kind = Registry_ChartType(cht)
     n = Geom_ChartCategoryCount(cht)
     If n = 0 Then
@@ -124,6 +125,12 @@ Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef top
                 For i = 1 To n: tops(i) = 1: Next
             End If
     End Select
+    lim = Break_Limit(cht)                          ' corte de eixo: o topo plotado para na borda do corte (as setas ancoram ali)
+    If lim > 0 Then
+        For i = 1 To n
+            If tops(i) > lim Then tops(i) = lim
+        Next
+    End If
 End Sub
 
 Private Function Ann_SeriesValue(s As Series, i As Long) As Double
@@ -362,13 +369,13 @@ Public Sub Ann_SetWaterfallConnectors(cht As Chart, turnOn As Boolean)
     Ann_Refresh cht
 End Sub
 
-' Remove as setas (e, com includeConnectors, os conectores da cascata). O indicador 100% (tqq_ann_ind100 e o rotulo) NUNCA e
-' removido aqui: e um alternador proprio (Ann_AddInd100 / Ann_RemoveInd100, ligado por Deco_SetInd100).
+' Remove as setas (e, com includeConnectors, os conectores da cascata). O indicador 100% (tqq_ann_ind100 e o rotulo) e as marcas do corte
+' de eixo (tqq_ann_break_*) NUNCA sao removidos aqui: sao recursos proprios (Deco_SetInd100; Break_Set/Break_Remove).
 Public Sub Ann_RemoveAll(cht As Chart, Optional includeConnectors As Boolean = False)
     Dim i As Long, nm As String
     For i = cht.Shapes.Count To 1 Step -1
         nm = cht.Shapes(i).Name
-        If Left$(nm, Len(ANN_PREFIX)) = ANN_PREFIX And Left$(nm, Len(ANN_IND100)) <> ANN_IND100 Then
+        If Left$(nm, Len(ANN_PREFIX)) = ANN_PREFIX And Left$(nm, Len(ANN_IND100)) <> ANN_IND100 And Left$(nm, Len(ANN_BREAK)) <> ANN_BREAK Then
             If includeConnectors Or Left$(nm, Len(ANN_PREFIX & "conn_")) <> ANN_PREFIX & "conn_" Then cht.Shapes(i).Delete
         End If
     Next
@@ -473,6 +480,24 @@ Public Sub Ann_Refresh(cht As Chart)
                     On Error GoTo Done
                 End If
                 Ann_SetShapeVisible cht, nm, valid
+            ElseIf kind = "break" Then
+                ' marca do corte de eixo (3 linhas por categoria cortada): valida so com o corte gravado e a categoria existente; falha no layout = oculta.
+                ' No meio de Labels_LinkPoints (cada rotulo ligado dispara um refresh) fica como esta: quem liga faz o refresh final
+                If Labels_IsLinking() Then GoTo NextShape
+                fromIdx = Val(Ann_ParseParam(shp.AlternativeText, "cat"))
+                valid = Kinds_Supports(chartKind, "break") And Len(Registry_GetOption(cht, "vbreak", "")) > 0 And fromIdx >= 1 And fromIdx <= n
+                If valid Then
+                    On Error Resume Next
+                    valid = Ann_LayoutBreak(cht, shp, fromIdx)
+                    If Err.Number <> 0 Then
+                        valid = False
+                        mLastError = "Ann_Refresh " & nm & " " & Err.Number & " " & Err.Description
+                        Errors_Log mLastError
+                        Err.Clear
+                    End If
+                    On Error GoTo Done
+                End If
+                If shp.Visible <> IIf(valid, msoTrue, msoFalse) Then shp.Visible = IIf(valid, msoTrue, msoFalse)
             ElseIf kind = "ind100" Then
                 ' indicador 100%: valido so nos tipos com o recurso (senao oculto); a posicao segue o PlotArea e a escala atuais
                 valid = Kinds_Supports(chartKind, "ind100")
@@ -489,6 +514,7 @@ Public Sub Ann_Refresh(cht As Chart)
                 End If
             End If
         End If
+NextShape:
     Next
 Done:
     mRefreshing = False
@@ -545,6 +571,41 @@ Private Sub Ann_MoveLine(ln As Shape, x1 As Double, y1 As Double, x2 As Double, 
     ln.Height = Abs(y2 - y1)
     If (ln.HorizontalFlip = msoTrue) <> (x2 < x1) Then ln.Flip msoFlipHorizontal
     If (ln.VerticalFlip = msoTrue) <> (y2 < y1) Then ln.Flip msoFlipVertical
+End Sub
+
+' Marca de corte: duas linhas diagonais (partes "a" e "b", cinzas de 1 pt, 4 pt uma da outra) atravessando a coluna (ou barra) cortada 8 pt
+' para dentro da borda do corte, e a branca de 3 pt ("w", atras) entre elas, que apaga o preenchimento: cinza | faixa branca | cinza. Colunas:
+' de (c - meia - 3, y + 3) a (c + meia + 3, y - 3) com y = valor(limite) + 8 (+2 na branca, +4 na "b"); barras: de (x - 3, c - meia - 3) a
+' (x + 3, c + meia + 3) com x = valor(limite) - 8 (-2 na branca, -4 na "b"). Extensao no sentido das categorias: Break_MarkExtent (a coluna
+' inteira; nas agrupadas, so os pontos cortados). False se nao ha o que marcar (a forma fica oculta).
+Private Function Ann_LayoutBreak(cht As Chart, shp As Shape, cat As Long) As Boolean
+    Dim part As String, lim As Double, half As Double, c As Double, v As Double, off As Double
+    part = Ann_ParseParam(shp.AlternativeText, "part")
+    lim = Break_Limit(cht)
+    If cat < 1 Or lim <= 0 Then Exit Function
+    If Not Break_MarkExtent(cht, cat, c, half) Then Exit Function
+    v = Geom_ChartValCoord(cht, lim)
+    Select Case part
+        Case "b": off = 4
+        Case "w": off = 2
+        Case Else: off = 0
+    End Select
+    If Geom_ChartIsHorizontal(cht) Then
+        Ann_MoveLineIfMoved shp, v - 8 - 3 - off, c - half - 3, v - 8 + 3 - off, c + half + 3
+    Else
+        Ann_MoveLineIfMoved shp, c - half - 3, v + 8 + 3 + off, c + half + 3, v + 8 - 3 + off
+    End If
+    Ann_LayoutBreak = True
+End Function
+
+' Ann_MoveLine so quando a linha nao esta ja em (x1,y1)-(x2,y2) (tolerancia 0,05 pt): as marcas do corte sao reposicionadas a cada refresh, e
+' cada gravacao de forma custa (medido: ~15 ms por forma; um religar de 300 rotulos dispara 300 refreshes).
+Private Sub Ann_MoveLineIfMoved(ln As Shape, x1 As Double, y1 As Double, x2 As Double, y2 As Double)
+    Const TOL As Double = 0.05
+    If Abs(ln.Left - IIf(x1 < x2, x1, x2)) <= TOL And Abs(ln.Top - IIf(y1 < y2, y1, y2)) <= TOL And Abs(ln.Width - Abs(x2 - x1)) <= TOL And Abs(ln.Height - Abs(y2 - y1)) <= TOL Then
+        If (ln.HorizontalFlip = msoTrue) = (x2 < x1) And (ln.VerticalFlip = msoTrue) = (y2 < y1) Then Exit Sub
+    End If
+    Ann_MoveLine ln, x1, y1, x2, y2
 End Sub
 
 Private Function Ann_SignedFormat(fmt As String) As String

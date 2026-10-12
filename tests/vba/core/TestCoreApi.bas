@@ -1158,7 +1158,7 @@ End Function
 ' mostra se alguma escolha foi sobrescrita pelo estado real do grafico novo (ex.: indicador 100% desligado voltando ligado).
 Private Function ChoicesSnapshot() As String
     Dim k As Variant
-    For Each k In Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum", "numfmt", "palette", "gap", "legend", "n")
+    For Each k In Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum", "vbreak", "numfmt", "palette", "gap", "legend", "n")
         ChoicesSnapshot = ChoicesSnapshot & k & "=" & Core_GetOption(CStr(k)) & ";"
     Next
 End Function

@@ -137,7 +137,7 @@ Fail:
 End Function
 
 Public Sub Stacked_SetTotals(cht As Chart, turnOn As Boolean)
-    Dim s As Series, blk As Range, body As Range, n As Long, fmt As String, kind As String
+    Dim s As Series, blk As Range, body As Range, n As Long, fmt As String, kind As String, pc As Long
     kind = Registry_ChartType(cht)
     Set s = Chart_FindSeries(cht, "tqq_total")
     If turnOn Then
@@ -151,12 +151,13 @@ Public Sub Stacked_SetTotals(cht As Chart, turnOn As Boolean)
     Set blk = Registry_Block(cht)
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
+    pc = Block_FindCol(blk, "LblPos"): If pc = 0 Then pc = 3       ' corte de eixo (modAxisBreak): a posicao plotada para no corte
     If s Is Nothing Then
         If Kinds_IsHorizontal(kind) Then
-            ' barras: auxiliar XY no grupo secundário, X = TotalPos (fim da pilha) e Y = Pos (centro da faixa da categoria)
-            Set s = Chart_AddHelperSeries(cht, "tqq_total", body.Cells(2, 3).Resize(n, 1), body.Cells(2, Stacked_PosCol(blk)).Resize(n, 1))
+            ' barras: auxiliar XY no grupo secundário, X = TotalPos (fim da pilha; LblPos com o corte) e Y = Pos (centro da faixa da categoria)
+            Set s = Chart_AddHelperSeries(cht, "tqq_total", body.Cells(2, pc).Resize(n, 1), body.Cells(2, Stacked_PosCol(blk)).Resize(n, 1))
         Else
-            Set s = Chart_AddHelperSeries(cht, "tqq_total", body.Cells(2, 3).Resize(n, 1))
+            Set s = Chart_AddHelperSeries(cht, "tqq_total", body.Cells(2, pc).Resize(n, 1))
         End If
     End If
     Chart_HideHelperLegendEntries cht
@@ -164,7 +165,7 @@ Public Sub Stacked_SetTotals(cht As Chart, turnOn As Boolean)
     Labels_LinkPoints s, body.Cells(2, 2).Resize(n, 1), fmt, , , Kinds_IsHorizontal(kind)
     Labels_RefreshPositions cht                    ' acima/abaixo (barras: direita/esquerda) pela posição plotada (TotalPos)
     s.DataLabels.Font.Bold = True
-    If Kinds_IsHorizontal(kind) Then Stacked_EnsureTotalsRoom cht, body.Cells(2, 3).Resize(n, 1)
+    If Kinds_IsHorizontal(kind) Then Stacked_EnsureTotalsRoom cht, body.Cells(2, pc).Resize(n, 1)
     Registry_SetOption cht, "totals", "1"
 End Sub
 
@@ -192,18 +193,24 @@ End Sub
 ' Reexecuta a folga dos totais em barras depois de uma mudança posterior à criação (formato numérico mais largo, legenda
 ' ligada, gráfico redimensionado); ver Stacked_EnsureTotalsRoom. Sem totais ligados ou fora das barras não faz nada.
 Public Sub Stacked_EnsureRoomAfterChange(cht As Chart)
-    Dim blk As Range, body As Range, n As Long
+    Dim blk As Range, body As Range, n As Long, pc As Long
     If Registry_GetOption(cht, "totals", "0") <> "1" Then Exit Sub
     If Not Kinds_IsHorizontal(Registry_ChartType(cht)) Then Exit Sub
     If Chart_FindSeries(cht, "tqq_total") Is Nothing Then Exit Sub
     Set blk = Registry_Block(cht)
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
-    Stacked_EnsureTotalsRoom cht, body.Cells(2, 3).Resize(n, 1)
+    pc = Block_FindCol(blk, "LblPos"): If pc = 0 Then pc = 3       ' corte de eixo: o total plotado para no corte
+    Stacked_EnsureTotalsRoom cht, body.Cells(2, pc).Resize(n, 1)
 End Sub
 
 Public Sub Stacked_SetLabels(cht As Chart, turnOn As Boolean)
     Dim s As Series, fmt As String, j As Long, body As Range, n As Long, is100 As Boolean, blk As Range, rc As Long, rs As Boolean
+    Dim brk As Boolean, skip As String, en As Long, es As String, ed As String
+    ' corte de eixo (modAxisBreak): o rotulo LIGADO a uma celula num ponto inteiro acima do maximo fixo recusa a cor da fonte (1004, medido);
+    ' esses pontos nao sao ligados (Break_CutPointList) e Break_SyncLabels, no fim (tambem no erro), oculta-os e poe o atravessado na base
+    brk = turnOn And Break_Limit(cht) > 0
+    On Error GoTo Fail
     fmt = Labels_SegmentFormat(cht)
     is100 = Kinds_Is100(Registry_ChartType(cht))
     rs = (Registry_GetOption(cht, "roundsum", "0") = "1")
@@ -241,16 +248,28 @@ Public Sub Stacked_SetLabels(cht As Chart, turnOn As Boolean)
                 ' 100%: a participação (coluna de participação do bloco), não o valor absoluto
                 rc = 0
                 If rs Then rc = Round_RCol(blk, j)
+                skip = ""
+                If brk Then skip = Break_CutPointList(cht, j)
                 If rc > 0 Then
-                    Labels_LinkPoints s, body.Cells(2, rc).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
+                    Labels_LinkPoints s, body.Cells(2, rc).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB)), , skip
                 ElseIf is100 Then
-                    Labels_LinkPoints s, body.Cells(2, 3 + j).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
+                    Labels_LinkPoints s, body.Cells(2, 3 + j).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB)), , skip
                 End If
             End If
         End If
     Next
     Registry_SetOption cht, "labels", IIf(turnOn, "1", "0")
+    If Len(Registry_GetOption(cht, "brklbl", "")) > 0 Then Registry_SetOption cht, "brklbl", ""     ' corte de eixo: todos refeitos (a sincronizacao oculta de novo)
     Deco_ApplyLineEnd cht              ' legenda "nome no fim da linha": o último ponto segue mostrando o nome (também sem os rótulos)
+    If brk Then Break_SyncLabels cht
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If brk Then Break_SyncLabels cht
+    On Error GoTo 0
+    Err.Raise en, es, ed
 End Sub
 
 ' Linhas de série (conectores entre segmentos), em colunas e barras empilhadas e 100%. Grupos sem suporte

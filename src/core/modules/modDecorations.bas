@@ -509,10 +509,11 @@ Public Function Deco_SameScale(charts As Collection, ByRef skipped As Long) As L
     Next
 End Function
 
-' 1 = o grafico tem escala livre (Kinds_Supports "samescale"), 0 = nao tem (tipo), -1 = nao foi possivel ler o tipo (grafico invalido; registrado).
+' 1 = o grafico tem escala livre (Kinds_Supports "samescale"), 0 = nao tem (tipo, ou corte de eixo gravado: mesma escala e corte sao
+' excludentes), -1 = nao foi possivel ler o tipo (grafico invalido; registrado).
 Private Function FreeScaleKind(cht As Chart) As Long
     On Error GoTo Fail
-    FreeScaleKind = IIf(Kinds_Supports(Registry_ChartType(cht), "samescale"), 1, 0)
+    FreeScaleKind = IIf(Kinds_Supports(Registry_ChartType(cht), "samescale") And Len(Registry_GetOption(cht, "vbreak", "")) = 0, 1, 0)
     Exit Function
 Fail:
     Errors_Log "Deco_SameScale/tipo" & vbTab & Err.Number & vbTab & Err.Description

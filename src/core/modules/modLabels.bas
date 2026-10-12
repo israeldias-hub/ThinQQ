@@ -15,7 +15,9 @@ Private Const LINE_FMT_KEEP As String = "?"      ' Labels_ComboLineFormat: as ce
 ' erro e registrado e os demais pontos continuam ligados. Em ponto plotado o erro propaga (o Insert desfaz tudo).
 ' Enquanto liga (mLinking), SyncThinSegmentLabels nao mexe em rotulo nenhum: cada escrita dispara o Calculate do grafico e o refresh do
 ' observador, no meio de LinkOnePoint, apagaria o rotulo que esta sendo ligado.
-Public Sub Labels_LinkPoints(s As Series, valueCells As Range, numFmt As String, Optional fixedPos As Long = 0, Optional fontColor As Long = -1, Optional horizontal As Boolean = False)
+' skipPoints (",3,5,"): pontos deixados como estao (corte de eixo: o rotulo ligado de um ponto inteiro acima do maximo fixo recusa a cor da
+' fonte com 1004, medido; Break_SyncLabels os oculta).
+Public Sub Labels_LinkPoints(s As Series, valueCells As Range, numFmt As String, Optional fixedPos As Long = 0, Optional fontColor As Long = -1, Optional horizontal As Boolean = False, Optional skipPoints As String = "")
     Dim i As Long, n As Long, sheetRef As String, plotted As Variant, isNa As Boolean, en As Long, es As String, ed As String
     n = valueCells.Rows.Count
     mLinking = mLinking + 1
@@ -28,6 +30,9 @@ Public Sub Labels_LinkPoints(s As Series, valueCells As Range, numFmt As String,
     If Err.Number <> 0 Then Err.Clear: plotted = Empty
     On Error GoTo Fail
     For i = 1 To n
+        If Len(skipPoints) > 0 Then
+            If InStr(skipPoints, "," & i & ",") > 0 Then GoTo NextPoint
+        End If
         isNa = False
         If IsArray(plotted) Then
             If LBound(plotted) + i - 1 <= UBound(plotted) Then isNa = IsError(plotted(LBound(plotted) + i - 1)) Or IsEmpty(plotted(LBound(plotted) + i - 1))
@@ -40,6 +45,7 @@ Public Sub Labels_LinkPoints(s As Series, valueCells As Range, numFmt As String,
         Else
             LinkOnePoint s, i, sheetRef & valueCells.Cells(i, 1).Address(True, True), valueCells.Cells(i, 1).Value, numFmt, fixedPos, fontColor, horizontal
         End If
+NextPoint:
     Next
     mLinking = mLinking - 1
     Exit Sub
@@ -48,6 +54,12 @@ Fail:
     mLinking = mLinking - 1
     Err.Raise en, es, ed
 End Sub
+
+' True enquanto Labels_LinkPoints liga rotulos: cada gravacao dispara o Calculate do grafico e o refresh do observador, que nao deve mexer em
+' rotulos no meio da ligacao (SyncThinSegmentLabels e Break_RefreshAfterDataChange saem cedo; o refresh final de quem liga refaz).
+Public Function Labels_IsLinking() As Boolean
+    Labels_IsLinking = (mLinking > 0)
+End Function
 
 Private Sub LinkOnePoint(s As Series, i As Long, cellRef As String, v As Variant, numFmt As String, fixedPos As Long, fontColor As Long, horizontal As Boolean)
     With s.Points(i)
