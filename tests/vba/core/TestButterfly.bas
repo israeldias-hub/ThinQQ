@@ -506,3 +506,33 @@ Public Sub Test_Bfly_GapWriteError_StillKeepsTotalsRoom()
     Next
     Teardown wb
 End Sub
+
+' Tabela com uma barra fina em cada lado (linha x2) para os testes de rotulos finos.
+Private Function TinyFixture(wb As Workbook) As Worksheet
+    Dim ws As Worksheet
+    Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Faixa", "A", "B")
+    ws.Range("A2:C2").Value = Array("x1", 1500, 1300)
+    ws.Range("A3:C3").Value = Array("x2", 10, 20)
+    ws.Range("A4:C4").Value = Array("x3", 600, 700)
+    Set TinyFixture = ws
+End Function
+
+' Revisao 2: falha ao estimar a largura do texto de um ponto (gancho de teste): o ponto fica como esta (sem decidir com a largura do ponto
+' anterior) e nao vira "apagado pelo usuario"; sem a falha, a sincronizacao seguinte o oculta normalmente.
+Public Sub Test_Bfly_ThinSync_EstimateError_PointSkipped()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = TinyFixture(wb)
+    ws.Range("A1:C4").Select
+    Util_FailThinSyncForTest = "bfly-est:1.2"
+    Core_Insert "butterfly"
+    Util_FailThinSyncForTest = ""
+    Set cht = Core_ActiveChart()
+    AssertTrue Bfly_SideSeries(cht, 1).Points(2).HasDataLabel, "falha na estimativa: o ponto fica como estava"
+    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "o outro lado segue a regra"
+    AssertEqual "2.2", Registry_GetOption(cht, "thinlbl", "")
+    Core_SafeRefresh cht
+    AssertFalse Bfly_SideSeries(cht, 1).Points(2).HasDataLabel, "sem a falha, oculto"
+    AssertEqual "2.2,1.2", Registry_GetOption(cht, "thinlbl", ""), "e registrado como oculto pelo ThinQQ"
+    Teardown wb
+End Sub

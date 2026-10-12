@@ -429,16 +429,20 @@ Public Sub Bfly_SyncThinLabels(cht As Chart)
                 has = False
                 has = s.Points(i).HasDataLabel
                 If Err.Number = 0 And v > 0 Then
-                    txtW = Labels_EstimateWidth(Format$(v, sec))
-                    If has And v * ppu < txtW Then
-                        s.Points(i).HasDataLabel = False
-                        If Err.Number = 0 And Not mine Then list = list & key & ","
-                    ElseIf (Not has) And mine And v * ppu >= txtW Then
-                        s.Points(i).HasDataLabel = True
-                        FormatSideLabel s, i, fmt
-                        If Err.Number = 0 Then list = Replace(list, "," & key & ",", ",")
-                    ElseIf has And mine Then
-                        list = Replace(list, "," & key & ",", ",")      ' o rotulo voltou por outro caminho: deixa de ser "oculto pelo ThinQQ"
+                    txtW = 0                                    ' sem a largura do ponto anterior se a estimativa falhar
+                    Err.Clear
+                    txtW = SideTextWidth(v, sec, key)
+                    If Err.Number = 0 Then                      ' estimativa falhou: o ponto fica como esta nesta passada
+                        If has And v * ppu < txtW Then
+                            s.Points(i).HasDataLabel = False
+                            If Err.Number = 0 And Not mine Then list = list & key & ","
+                        ElseIf (Not has) And mine And v * ppu >= txtW Then
+                            s.Points(i).HasDataLabel = True
+                            FormatSideLabel s, i, fmt, key
+                            If Err.Number = 0 Then list = Replace(list, "," & key & ",", ",")
+                        ElseIf has And mine Then
+                            list = Replace(list, "," & key & ",", ",")      ' o rotulo voltou por outro caminho: deixa de ser "oculto pelo ThinQQ"
+                        End If
                     End If
                 End If
                 If Err.Number <> 0 Then Errors_Log "Bfly_SyncThinLabels" & vbTab & key & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
@@ -458,12 +462,19 @@ Done:
 End Sub
 
 ' Rotulo de um ponto de lado com o formato de Bfly_SetLabels (ao voltar depois de oculto por Bfly_SyncThinLabels). Propaga erros.
-Private Sub FormatSideLabel(s As Series, i As Long, fmt As String)
+Private Sub FormatSideLabel(s As Series, i As Long, fmt As String, key As String)
     With s.Points(i).DataLabel
         .ShowValue = True: .ShowSeriesName = False: .ShowCategoryName = False
         .Position = xlLabelPositionInsideEnd
         .Font.Size = 9
         .Font.Color = Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
     End With
+    BflyTestHook "fmt", key                          ' teste: falha no meio da formatacao (rotulo ja religado)
     Style_AssignNumberFormat s.Points(i).DataLabel, fmt
 End Sub
+
+' Largura estimada do texto do rotulo do lado (valor v na 1a secao do formato). key: o par lado.ponto (gancho de teste). Propaga erros.
+Private Function SideTextWidth(v As Double, sec As String, key As String) As Double
+    BflyTestHook "est", key
+    SideTextWidth = Labels_EstimateWidth(Format$(v, sec))
+End Function
