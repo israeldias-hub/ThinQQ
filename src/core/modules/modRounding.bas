@@ -14,6 +14,7 @@ Option Explicit
 Private Const RND_HDR_D As String = "RndD"
 Private Const RND_ERR_RANGE As String = "Selecione uma única coluna ou linha só com números (pelo menos 2)."
 Private Const AGG_PREFIX As String = "=AGGREGATE(9,6,"
+Private Const RND_ERR_SERIES As String = "As séries do gráfico não correspondem mais às colunas da tabela de origem; use 'Alterar dados' para reconstruí-lo."
 Public Const ROUND_MAX_CELLS As Long = 2000            ' Arredondar intervalo: limite de celulas (custo O(n^2) por recalculo)
 
 Public Function Round_Decimals(numfmtKey As String) As Long
@@ -73,9 +74,9 @@ Public Function Round_RCol(blk As Range, j As Long) As Long
 End Function
 
 ' Numero de colunas Rnd_j do bloco (Rnd1, Rnd2, ... seguidas); 0 sem as colunas.
-Private Function RoundColumnCount(blk As Range) As Long
-    Do While Round_RCol(blk, RoundColumnCount + 1) > 0
-        RoundColumnCount = RoundColumnCount + 1
+Public Function Round_ColumnCount(blk As Range) As Long
+    Do While Round_RCol(blk, Round_ColumnCount + 1) > 0
+        Round_ColumnCount = Round_ColumnCount + 1
     Loop
 End Function
 
@@ -107,7 +108,7 @@ End Sub
 ' colunas novas e devolve o nome tqq_<id> a faixa anterior antes de o erro seguir para o chamador.
 Public Function Round_EnsureColumns(cht As Chart) As Range
     Dim blk As Range, body As Range, wb As Workbook, id As String, kind As String, fam As String, is100 As Boolean, ns As Long, n As Long
-    Dim c0 As Long, i As Long, j As Long, r As Long, src As Range, refs() As String, f() As Variant, d As Long, w As Long
+    Dim c0 As Long, i As Long, j As Long, r As Long, src As Range, refs() As String, f() As Variant, d As Long, w As Long, cnt As Variant
     Dim vAddr As String, rowRng As String, partRng As String, target As String, dAddr As String, oldRef As String, extended As Boolean
     Dim en As Long, es As String, ed As String
     Set blk = Registry_Block(cht)
@@ -125,14 +126,22 @@ Public Function Round_EnsureColumns(cht As Chart) As Range
         Do While Block_FindCol(blk, "Part" & (ns + 1)) > 0
             ns = ns + 1
         Loop
-    Else
-        ns = Round_SeriesCount(cht)
+    ElseIf n >= 1 Then
+        ' empilhadas: as colunas da faixa da formula do Total (as que o Total soma), nao as series do grafico (uma serie apagada ou
+        ' reordenada a mao nao muda o que o alvo soma); reserva: as series de dados do grafico
+        ReDim refs(1 To n)
+        For i = 1 To n: refs(i) = StackedRowRef(body, i + 1): Next
+        If Len(refs(1)) > 0 Then
+            cnt = blk.Worksheet.Evaluate("COLUMNS(" & refs(1) & ")")
+            If Not IsError(cnt) Then
+                If IsNumeric(cnt) Then ns = CLng(cnt)
+            End If
+        End If
+        If ns < 1 Then ns = Round_SeriesCount(cht)
     End If
     If ns < 1 Or n < 1 Then Err.Raise vbObjectError + 7002, "Round_EnsureColumns", "O gráfico não tem séries de dados."
     If fam = "stacked" And Not is100 Then
-        ReDim refs(1 To n)
         For i = 1 To n
-            refs(i) = StackedRowRef(body, i + 1)
             If Len(refs(i)) = 0 Then
                 If src Is Nothing Then Set src = Block_SourceRange(cht)
                 If src Is Nothing Then Err.Raise vbObjectError + 7002, "Round_EnsureColumns", "Não foi possível ler a tabela de origem do gráfico. Use 'Alterar dados' para reconstruí-lo."
@@ -210,7 +219,7 @@ Public Sub Round_ApplyCellFormat(cht As Chart)
         If CStr(body.Cells(i, dcol).Formula) <> CStr(d) Then body.Cells(2, dcol).Resize(n, 1).Value = d: Exit For
     Next
     fmt = Style_LocalizeCode(Labels_SegmentFormat(cht))
-    For j = 1 To RoundColumnCount(blk)
+    For j = 1 To Round_ColumnCount(blk)
         rc = Round_RCol(blk, j)
         body.Cells(2, rc).Resize(n, 1).NumberFormatLocal = fmt
     Next
@@ -242,6 +251,9 @@ Public Sub Round_SetLabels(cht As Chart, turnOn As Boolean)
     prev = Registry_GetOption(cht, "roundsum", "0")
     If Not turnOn And prev <> "1" Then Registry_SetOption cht, "roundsum", "0": Exit Sub
     If turnOn Then Round_EnsureColumns cht                   ' desfaz a propria extensao se falhar; nada gravado
+    If turnOn And fam = "stacked" Then                       ' rotulo j -> Rnd_j pela ordem: com uma serie apagada a mao a ordem nao bate
+        If Round_SeriesCount(cht) <> Round_ColumnCount(Registry_Block(cht)) Then Err.Raise vbObjectError + 7002, "Round_SetLabels", RND_ERR_SERIES
+    End If
     On Error GoTo Fail
     Registry_SetOption cht, "roundsum", IIf(turnOn, "1", "0")
     recorded = True

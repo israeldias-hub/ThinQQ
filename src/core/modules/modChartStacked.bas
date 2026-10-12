@@ -211,6 +211,8 @@ Public Sub Stacked_SetLabels(cht As Chart, turnOn As Boolean)
         Set blk = Registry_Block(cht)
         If Not blk Is Nothing Then Set body = Block_Body(blk): n = body.Rows.Count - 1
     End If
+    ' rotulo j -> Rnd_j pela ordem das series: com uma serie apagada a mao depois de ligar, a ordem nao bate e os rotulos ficam como sem a opcao
+    If rs Then rs = (Round_ColumnCount(blk) = Round_SeriesCount(cht))
     For Each s In cht.SeriesCollection
         If Not Style_IsHelperSeries(s) Then
             j = j + 1

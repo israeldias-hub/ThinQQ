@@ -469,3 +469,41 @@ Public Sub Test_Round_TieWithFloatNoise_FirstColumnLoses()
     AssertEqual "0" & dec & "4", cht.SeriesCollection(2).Points(2).DataLabel.Text
     Teardown wb
 End Sub
+
+' Empilhadas: S vem das colunas que o Total soma (a faixa da formula do Total), nao das series do grafico. Uma serie apagada a mao antes de
+' ligar: recusa com aviso (rotulo j -> Rnd_j pela ordem nao bate), opcao nao gravada. Apagada depois de ligar: religar os rotulos volta aos
+' rotulos sem a opcao (nenhum rotulo ligado a coluna errada).
+Public Sub Test_Round_Stacked_SeriesDeletedByHand()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, blk As Range, cols As Long, j As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    Fixture(ws, Array(1.5, 1.5, 1.5, 10, 20, 30)).Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    cols = Registry_Block(cht).Columns.Count
+    cht.SeriesCollection(2).Delete
+    Core_ClearLastNotice
+    Core_SetToggle "roundsum", True
+    AssertEqual "As séries do gráfico não correspondem mais às colunas da tabela de origem; use 'Alterar dados' para reconstruí-lo.", Core_LastNotice()
+    AssertFalse Core_GetToggle("roundsum")
+    Set blk = Registry_Block(cht)
+    AssertEqual cols + 7, blk.Columns.Count, "3 colunas V/Rnd: as que o Total soma"
+    AssertTrue InStr(Block_Body(blk).Cells(2, Round_VCol(blk, 3)).Formula, ",1,3)") > 0, "V3 = 3a coluna da faixa do Total"
+    For j = 1 To 2
+        AssertTrue InStr(cht.SeriesCollection(j).Points(1).DataLabel.Formula, CALC_SHEET) = 0, "serie " & j & ": rotulo nativo"
+    Next
+    ws.ChartObjects(1).Delete
+    CalcSheet_Cleanup wb
+    Fixture(ws, Array(1.5, 1.5, 1.5, 10, 20, 30)).Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    Core_SetToggle "roundsum", True
+    AssertEqual "1", cht.SeriesCollection(1).Points(1).DataLabel.Text
+    cht.SeriesCollection(1).Delete
+    Core_SetToggle "labels", False
+    Core_SetToggle "labels", True
+    For j = 1 To 2
+        AssertTrue InStr(cht.SeriesCollection(j).Points(1).DataLabel.Formula, CALC_SHEET) = 0, "serie " & j & ": rotulo nativo depois de apagar uma serie"
+    Next
+    AssertEqual "2", cht.SeriesCollection(1).Points(1).DataLabel.Text, "1,5 nativo"
+    Teardown wb
+End Sub
