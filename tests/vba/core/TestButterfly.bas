@@ -486,3 +486,23 @@ Public Sub Test_Bfly_SameScale_TenfoldDisparity_SmallChartGapFits()
     AssertFalse Deco_ScaleClipped(c2), "sem corte na grande"
     Teardown wb
 End Sub
+
+' Revisao 2: um erro DEPOIS de gravar o vao (gancho de teste) sai do laco pelo caminho de erro; a folga dos totais ainda e refeita la.
+Public Sub Test_Bfly_GapWriteError_StillKeepsTotalsRoom()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, s As Series, i As Long, lbl As DataLabel
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("C4").Value = 895
+    Set cht = Bfly_Insert(ws, d).Chart
+    ws.Range("A4").Value = "Trinta a cinquenta e nove anos completos"
+    Util_FailThinSyncForTest = "bfly-gapwrite:1"
+    Core_SafeRefresh cht
+    Util_FailThinSyncForTest = ""
+    ForceLayout cht
+    AssertAlmost 1, Util_ToDouble(Registry_Block(cht).Cells(1, 5).Value), 0.000001, "o vao foi gravado antes da falha"
+    Set s = Chart_FindSeries(cht, "tqq_total")
+    For i = 1 To s.Points.Count
+        Set lbl = s.Points(i).DataLabel
+        AssertTrue lbl.Left + lbl.Width <= cht.Legend.Left + 0.5, "total " & i & " (" & lbl.Text & ") termina em " & (lbl.Left + lbl.Width) & " pt, antes da legenda (" & cht.Legend.Left & " pt)"
+    Next
+    Teardown wb
+End Sub
