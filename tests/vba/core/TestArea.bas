@@ -1326,3 +1326,76 @@ Public Sub Test_Combo_LineLabels_KeepFallbackFormat_AfterSourceSheetRenamed()
     Watchers_Stop
     CloseTemp wb
 End Sub
+
+' Onda A, item E: tabela da demonstracao (12 meses de B2C + B2B com a margem em % na linha). O padrao (totais e eixo secundario) punha a linha
+' sobre os rotulos dos totais. Agora a faixa da linha fica acima do MAIOR rotulo de total, conferida pela regra de tres nos eixos reais: o y de
+' cada ponto da linha (escala secundaria) mais o raio do marcador fica acima do topo medido (ForceLayout) de todos os rotulos de total. Dois
+' refresh nao mexem na escala (sem laco que cresce); colunas maiores continuam sob a linha.
+Private Function DemoComboFixture(wb As Workbook) As clsChartData
+    Dim ws As Worksheet, i As Long
+    Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:D1").Value = Array("Mês", "B2C", "B2B", "Margem")
+    For i = 1 To 12
+        ws.Cells(i + 1, 1).Value = DateSerial(2025, i, 1)
+        ws.Cells(i + 1, 2).Value = 20000 + i * 700 + (i Mod 3) * 900
+        ws.Cells(i + 1, 3).Value = 9000 + i * 350
+        ws.Cells(i + 1, 4).Value = 0.3 + (i Mod 4) * 0.008
+    Next
+    ws.Range("A2:A13").NumberFormat = "mmm/yy"
+    ws.Range("D2:D13").NumberFormat = "0.0%"
+    Set DemoComboFixture = ChartData_FromRange(ws.Range("A1:D13"))
+End Function
+
+Private Sub AssertLineAboveTotals(cht As Chart, tag As String)
+    Dim ln As Series, tot As Series, i As Long, v As Variant, topLbl As Double, y As Double
+    ForceLayout cht
+    Set ln = Combo_LineSeries(cht): Set tot = Chart_FindSeries(cht, "tqq_total")
+    topLbl = 1E+30
+    For i = 1 To tot.Points.Count
+        If tot.Points(i).HasDataLabel Then
+            If tot.Points(i).DataLabel.Top < topLbl Then topLbl = tot.Points(i).DataLabel.Top
+        End If
+    Next
+    v = ln.Values
+    For i = 1 To ln.Points.Count
+        y = ExpY(cht, CDbl(v(LBound(v) + i - 1)), xlSecondary)
+        AssertTrue y + 2.5 <= topLbl, tag & ": ponto " & i & " da linha (y=" & Format$(y, "0.0") & ") acima do maior rotulo de total (topo " & Format$(topLbl, "0.0") & ")"
+        AssertAlmost y, ln.Points(i).Top + ln.Points(i).Height / 2, 1.5, tag & ": marcador " & i & " na escala secundaria real"
+        AssertTrue ln.Points(i).DataLabel.Top >= -0.5, tag & ": rotulo da linha " & i & " dentro do grafico"
+    Next
+End Sub
+
+Public Sub Test_Combo_LineAboveTotals_DemoMonths()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ws As Worksheet, sx As Axis, px As Axis, a1 As Double, a2 As Double, a3 As Double, i As Long
+    Set wb = NewTempWorkbook(): Set d = DemoComboFixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("A1:D13").Select
+    Core_Insert "combo"
+    Set cht = Core_ActiveChart()
+    AssertEqual "1", Registry_GetOption(cht, "secondary"), "padrao: eixo secundario": AssertEqual "1", Registry_GetOption(cht, "totals"), "padrao: totais"
+    AssertLineAboveTotals cht, "insercao"
+    Set sx = cht.Axes(xlValue, xlSecondary): Set px = cht.Axes(xlValue, xlPrimary)
+    a1 = sx.MinimumScale: a2 = sx.MaximumScale: a3 = px.MaximumScale
+    Core_SafeRefresh cht
+    Core_SafeRefresh cht
+    AssertAlmost a1, sx.MinimumScale, 0.0000001, "estavel: minimo secundario": AssertAlmost a2, sx.MaximumScale, 0.0000001, "estavel: maximo secundario"
+    AssertAlmost a3, px.MaximumScale, 0.0001, "estavel: maximo primario"
+    For i = 2 To 13
+        ws.Cells(i, 2).Value = ws.Cells(i, 2).Value * 1.5
+    Next
+    ws.Range("D5").Value = 0.36
+    Core_SafeRefresh cht
+    AssertLineAboveTotals cht, "colunas maiores e margem nova"
+    AssertTrue px.MaximumScale > a3, "o maximo primario acompanha as colunas"
+    Core_SetToggle "totals", False
+    AssertTrue px.MaximumScaleIsAuto, "sem totais: escala primaria do Excel"
+    AssertTrue sx.MaximumScaleIsAuto, "sem totais: maximo secundario do Excel"
+    AssertEqual 0, sx.MinimumScale, "sem totais: o minimo 0 da Fase 2"
+    Core_SetToggle "totals", True
+    AssertLineAboveTotals cht, "totais de volta"
+    sx.MaximumScale = 1                                         ' o usuario fixa o maximo secundario
+    Core_SafeRefresh cht
+    AssertEqual 1, sx.MaximumScale, "maximo secundario do usuario fica"
+    AssertTrue px.MaximumScaleIsAuto, "e a folga das colunas sai"
+    Watchers_Stop
+    CloseTemp wb
+End Sub
