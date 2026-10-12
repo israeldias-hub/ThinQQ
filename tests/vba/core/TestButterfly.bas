@@ -261,3 +261,24 @@ Public Sub Test_Bfly_CategoryText_DateYearBlank()
     AssertEqual Format$(1500, "#,##0"), Bfly_SideSeries(cht, 1).Points(1).DataLabel.Text, "lado esquerdo absoluto com milhar"
     CloseTemp wb
 End Sub
+
+' Revisao 1 (importante): nome longo demais para o grafico (o vao em pontos nunca chega a largura interna). O vao tem teto (metade da area
+' interna) e o refresh repetido (Core_SafeRefresh roda a cada calculo) nao multiplica GapK a cada chamada.
+Public Sub Test_Bfly_NarrowLongName_GapCappedAndStable()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, blk As Range, k1 As Double, g As Double
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("A4").Value = "Trinta a cinquenta e nove anos completos"
+    Set cht = Bfly_Insert(ws, d).Chart
+    Set blk = Registry_Block(cht)
+    cht.Parent.Width = 220
+    Core_SafeRefresh cht
+    ForceLayout cht
+    k1 = Util_ToDouble(blk.Cells(1, 5).Value)
+    Core_SafeRefresh cht
+    ForceLayout cht
+    AssertAlmost k1, Util_ToDouble(blk.Cells(1, 5).Value), 0.000001, "GapK estavel entre dois refresh"
+    g = CDbl(Block_Body(blk).Cells(2, BF_COL_GAP).Value)
+    AssertTrue XOf(cht, g) - XOf(cht, -g) <= 0.5 * cht.PlotArea.InsideWidth + 1, "vao (" & (XOf(cht, g) - XOf(cht, -g)) & " pt) <= metade da area interna (" & cht.PlotArea.InsideWidth & " pt)"
+    AssertTrue XOf(cht, g) - XOf(cht, -g) > 0.25 * cht.PlotArea.InsideWidth, "o vao chega perto do teto (nome longo)"
+    Teardown wb
+End Sub

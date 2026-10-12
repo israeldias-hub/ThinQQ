@@ -27,6 +27,8 @@ Private Const BF_META_SYML As Long = 6
 Private Const BF_META_SYMR As Long = 7
 Private Const BF_META_SYMY As Long = 8
 Private Const BF_GAPK_MIN As Double = 0.15       ' vao minimo: 15% do maior valor de cada lado
+Private Const BF_GAPK_MAX As Double = 1          ' teto de GapK: com o eixo automatico o vao fica <= metade da area interna (Bfly_RefreshGap)
+Private Const BF_GAP_MAXFRAC As Double = 0.5     ' teto do vao em pontos: metade da largura interna da area de plotagem
 Private Const BF_LABEL_MARGIN As Double = 8      ' respiro (pt) alem da largura estimada do maior nome
 Private Const BF_ERR_COLS As String = "A borboleta precisa de exatamente 2 colunas de valores (lado esquerdo e lado direito)."
 Private mGapBusy As Boolean                      ' Bfly_RefreshGap grava uma celula: o evento Calculate do grafico reentra em Core_SafeRefresh
@@ -263,9 +265,14 @@ End Sub
 ' Vao central: GapK (meta E) x maior valor. O vao em pontos e medido na escala REAL do eixo (Geom_ChartValueToX) e comparado com a largura
 ' estimada do maior nome (Labels_EstimateWidth, que superestima de proposito) + margem: cresce se nao cabe (ate 3 passadas) e encolhe se
 ' sobra mais de 60%. So grava quando muda mais de 2% (gravar recalcula e dispara o Calculate do grafico, que reentra aqui: guarda mGapBusy).
+' Teto: o vao nunca passa de metade da area interna (BF_GAP_MAXFRAC); um nome mais largo que isso transborda a sua faixa (melhor que as barras
+' sumirem). Com o eixo automatico o maximo do eixo e >= Gap + maior valor (a auxiliar tqq_sym), entao o vao em pontos e <= largura x k / (k + 1):
+' com k = BF_GAPK_MAX = 1 ele ja e no maximo a metade. Sem o teto o ramo "cresce" dispararia em TODO refresh (o vao nunca alcanca a largura
+' interna) e GapK se multiplicaria a cada calculo. Nome que pede o teto com eixo automatico: k vai direto a BF_GAPK_MAX (estavel).
 ' Sem o ThinQQ, GapK fica fixo e o vao continua proporcional ao maximo. Nunca propaga erro.
 Public Sub Bfly_RefreshGap(cht As Chart)
     Dim blk As Range, body As Range, n As Long, i As Long, w As Double, lw As Double, need As Double, k As Double, k0 As Double, g As Double, gapPt As Double, pass As Long
+    Dim cap As Double, tgt As Double, capped As Boolean
     If mGapBusy Then Exit Sub
     mGapBusy = True
     On Error GoTo Done
@@ -277,6 +284,8 @@ Public Sub Bfly_RefreshGap(cht As Chart)
         If w > lw Then lw = w
     Next
     need = lw + BF_LABEL_MARGIN
+    cap = BF_GAP_MAXFRAC * cht.PlotArea.InsideWidth
+    If need > cap Then need = cap: capped = True
     k = Util_ToDouble(blk.Cells(1, BF_META_GAPK).Value)
     If k < BF_GAPK_MIN Then k = BF_GAPK_MIN
     k0 = k
@@ -286,13 +295,18 @@ Public Sub Bfly_RefreshGap(cht As Chart)
         gapPt = Geom_ChartValueToX(cht, g) - Geom_ChartValueToX(cht, -g)
         If gapPt <= 0 Then Exit For
         If gapPt < need - 0.5 Then
-            k = k * (need / gapPt) * 1.05
-        ElseIf gapPt > need * 1.6 And k > BF_GAPK_MIN Then
-            k = k * (need * 1.2 / gapPt)
-            If k < BF_GAPK_MIN Then k = BF_GAPK_MIN
+            tgt = need * 1.05
+            If tgt > cap Then tgt = cap
+        ElseIf (gapPt > need * 1.6 Or gapPt > cap + 0.5) And k > BF_GAPK_MIN Then
+            tgt = need * 1.2
+            If tgt > cap Then tgt = cap
         Else
             Exit For
         End If
+        k = k * tgt / gapPt
+        If capped And tgt = cap And cht.Axes(xlValue, xlPrimary).MaximumScaleIsAuto Then k = BF_GAPK_MAX
+        If k > BF_GAPK_MAX Then k = BF_GAPK_MAX
+        If k < BF_GAPK_MIN Then k = BF_GAPK_MIN
         If Abs(k - Util_ToDouble(blk.Cells(1, BF_META_GAPK).Value)) <= 0.02 * k Then Exit For
         blk.Cells(1, BF_META_GAPK).Value = k
     Next
