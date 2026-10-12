@@ -193,7 +193,7 @@ Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
     End If
     If Kinds_Family(Registry_ChartType(cht)) = "gantt" Then Exit Sub     ' Gantt: sem formato numerico (datas e texto; numfmt nao se aplica)
     If Kinds_Family(Registry_ChartType(cht)) = "scatter" Then Exit Sub   ' Dispersao/bolhas: sem formato numerico de serie (numfmt nao se aplica)
-    If Kinds_Family(Registry_ChartType(cht)) = "butterfly" Then Exit Sub ' Borboleta: a Tarefa 1 troca por Bfly_ApplyNumberFormat cht: Exit Sub
+    If Kinds_Family(Registry_ChartType(cht)) = "butterfly" Then Bfly_ApplyNumberFormat cht: Exit Sub   ' Borboleta: lado esquerdo absoluto, direito normal, totais (Bfly_ApplyNumberFormat)
     If Kinds_Family(Registry_ChartType(cht)) = "mekko" Then
         ' Mekko: segmentos com o formato dos segmentos (pct0/pct1 no percentual), totais pct0 no percentual (largura) e numfmt nas
         ' unidades; por ponto (as auxiliares tem pontos sem rotulo que a escrita no nivel da serie recriaria)

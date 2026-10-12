@@ -10,7 +10,7 @@ Private mClipSeen As Collection     ' ids de gráficos já avisados de dados aci
 Private mCopySeen As Collection     ' ids de gráficos já avisados de cópia em outra planilha (planilha copiada)
 Private mTestFamily As String       ' gancho de teste: familia de despacho forcada (so no build Test); "" = a familia real do tipo
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
-Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,"
+Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,"
 
 ' Última mensagem enviada ao usuário por Core_Notify ("" se nenhuma). Gancho de teste (inofensivo em Release).
 Public Function Core_LastNotice() As String
@@ -192,6 +192,7 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
             Select Case fam
                 Case "area": Area_SetTotals c, value
                 Case "mekko": Mekko_SetTotals c, value
+                Case "butterfly": Bfly_SetTotals c, value             ' borboleta: auxiliar XY tqq_total no fim da barra direita
                 Case "stacked", "combo": Stacked_SetTotals c, value     ' colunas, barras (empilhadas e 100%) e a combinacao (so os totais das colunas)
                 Case Else: RefuseUndispatched key, c, fam
             End Select
@@ -202,6 +203,7 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
                 Case "mekko": Mekko_SetLabels c, value
                 Case "gantt": Gantt_SetLabels c, value
                 Case "pie": Pie_SetLabels c, value
+                Case "butterfly": Bfly_SetLabels c, value             ' borboleta: rotulos nativos dos dois lados (esquerdo absoluto)
                 Case "stacked", "combo": Stacked_SetLabels c, value     ' colunas, barras, linha e a combinacao
                 Case Else: RefuseUndispatched key, c, fam
             End Select
@@ -293,6 +295,7 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
                 Case "pie": Pie_ApplyColors c, value           ' cores por fatia (Style_ApplyPointColors) e fonte dos rotulos por contraste
                 Case "mekko": Mekko_ApplyColors c, value        ' separadores de 1,5 pt e contraste dos rotulos (por ponto)
                 Case "gantt": Gantt_ApplyColors c, value        ' barras pal(1) e marcos pal(0) (as series do Gantt sao todas tqq_*)
+                Case "butterfly": Bfly_ApplyColors c, value     ' as duas series de dados; vaos invisiveis; contraste dos rotulos
                 Case "stacked", "combo": Style_ApplySeriesColors c, value
                 Case Else: RefuseUndispatched key, c, fam       ' (inalcancavel: PALETTE_FAMILIES ja recusou antes de gravar)
             End Select
@@ -645,6 +648,8 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Combo" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Pie_RefreshAfterDataChange cht                   ' pizza com rotulos fora: o nome acompanha a fatia que passou a ter (ou deixou de ter) valor
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Pie" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Bfly_RefreshAfterDataChange cht                  ' borboleta: o vao central acompanha o maior nome e o tamanho do grafico
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Bfly" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Gantt_RefreshScale cht                           ' Gantt: a escala calculada no bloco (unidade e intervalo) vai para o eixo; antes dos colchetes
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Gantt" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Ann_Refresh cht

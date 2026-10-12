@@ -1124,6 +1124,11 @@ Private Function FixtureFor(ws As Worksheet, kind As String) As Range
             ws.Range("A1:B1").Value = Array("Produto", "Vendas")
             ws.Range("A2:B2").Value = Array("Eletro", 50): ws.Range("A3:B3").Value = Array("Moveis", 30)
             Set FixtureFor = ws.Range("A1:B3")
+        Case "butterfly"
+            ws.Range("A1:C1").Value = Array("Faixa", "Mulheres", "Homens")
+            ws.Range("A2:C2").Value = Array("0-14", 120, 130): ws.Range("A3:C3").Value = Array("15-29", 200, 210)
+            ws.Range("A4:C4").Value = Array("30-59", 310, 290)
+            Set FixtureFor = ws.Range("A1:C4")
         Case Else
             ws.Range("A1:D1").Value = Array("Ano", "Sul", "Sudeste", "Nordeste")
             ws.Range("A2:D2").Value = Array(2022, 10, 20, 5): ws.Range("A3:D3").Value = Array(2023, 12, 22, 6)
@@ -1211,7 +1216,7 @@ Public Sub Test_Core_AllKinds_InsertTogglesOptionsRebuild()
     Dim kinds As Variant, toggles As Variant, k As Long, t As Long, wb As Workbook, ws As Worksheet, rng As Range, c As Chart, kind As String, key As String
     Dim before As String, ch As Variant
     kinds = Array("stacked", "clustered", "stacked100", "line", "waterfall", "barstacked", "barclustered", "barstacked100", "barwaterfall", _
-                  "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut")
+                  "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut", "butterfly")
     toggles = Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout")
     For k = LBound(kinds) To UBound(kinds)
         kind = kinds(k)
@@ -1623,7 +1628,7 @@ End Sub
 Public Sub Test_Core_Insert_NewKindsNotReady_NotifiesWithoutChart()
     Dim wb As Workbook, ws As Worksheet, k As Variant
     Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
-    For Each k In Array("butterfly", "scatter", "bubble")
+    For Each k In Array("scatter", "bubble")
         ws.Range("A1:C5").Select
         Core_ClearLastNotice
         Core_Insert CStr(k)

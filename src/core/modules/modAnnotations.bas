@@ -60,7 +60,7 @@ End Function
 ' Séries mais curtas que n contam como zero; com n = 0 devolve arrays 0..0.
 Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef tops() As Double)
     Dim kind As String, n As Long, i As Long, k As Long, s As Series, vals As Variant, v As Double, ends() As Double
-    Dim nSeries As Long, lastIdx As Long, cum() As Double, algebraic As Boolean
+    Dim nSeries As Long, lastIdx As Long, cum() As Double, algebraic As Boolean, bb As Range
     kind = Registry_ChartType(cht)
     n = Geom_ChartCategoryCount(cht)
     If n = 0 Then
@@ -78,6 +78,15 @@ Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef top
             For i = 1 To n
                 v = Ann_SeriesValue(cht.SeriesCollection(1), i)
                 values(i) = v: tops(i) = v
+            Next
+        Case "butterfly"
+            ' total (A + B) e a posicao do rotulo do total (Gap + B), lidos do bloco: Deco_ScaleClipped compara o topo com o maximo fixo
+            Set bb = Block_Body(Registry_Block(cht))
+            For i = 1 To n
+                If i <= bb.Rows.Count - 1 Then
+                    values(i) = Util_ToDouble(bb.Cells(i + 1, BF_COL_TOTAL).Value)
+                    tops(i) = Util_ToDouble(bb.Cells(i + 1, BF_COL_TOTALPOS).Value)
+                End If
             Next
         Case Else
             ' soma das series (stacked, stacked100, barstacked, barstacked100, area, area100, mekko, mekkounits); na combinacao a
