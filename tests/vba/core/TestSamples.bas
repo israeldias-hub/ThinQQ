@@ -20,8 +20,8 @@ Private Function ErrLogSize() As Long
     If Len(Dir(p)) > 0 Then ErrLogSize = FileLen(p)
 End Function
 
-' Uma unica pasta de exemplos para todas as verificacoes de conteudo (Samples_Create monta 19 graficos).
-Public Sub Test_Samples_BothSheets()
+' Uma unica pasta de exemplos para todas as verificacoes de conteudo (Samples_Create monta 27 graficos).
+Public Sub Test_Samples_AllSheets()
     Dim wb As Workbook, en As Long, es As String, ed As String, logBefore As Long, noticesBefore As Long
     logBefore = ErrLogSize()
     noticesBefore = Core_NoticeCount()
@@ -39,6 +39,9 @@ Public Sub Test_Samples_BothSheets()
     CheckSheet2KindsAndFeatures wb
     CheckSheet2Layout wb
     CheckSheet2Labels wb
+    CheckSheet3KindsAndFeatures wb
+    CheckSheet3Layout wb
+    CheckSheet3Labels wb
     CheckNoErrorsAnywhere wb
     AssertEqual logBefore, ErrLogSize(), "montar os exemplos nao registra erros no log"
     AssertEqual noticesBefore, Core_NoticeCount(), "montar os exemplos nao mostra avisos ao usuario (em Release seriam MsgBox)"
@@ -242,6 +245,78 @@ Private Sub CheckSheet2Labels(wb As Workbook)
     Set cht = ws.ChartObjects(10).Chart
     AssertEqual Format$(ws.Range("D192").Value, "0%"), Chart_FindSeries(cht, "Margem").Points(1).DataLabel.Text, "16: margem de 2022"
     AssertEqual Format$(ws.Range("D194").Value, "0%"), Chart_FindSeries(cht, "Margem").Points(3).DataLabel.Text, "16: margem de 2024"
+End Sub
+
+Private Function TitleRows3() As Variant
+    Dim r(0 To 7) As Long, k As Long
+    For k = 0 To 7: r(k) = 1 + 21 * k: Next
+    TitleRows3 = r
+End Function
+
+Private Function ExpectedKinds3() As Variant
+    ExpectedKinds3 = Array("butterfly", "scatter", "bubble", "stacked100", "stacked", "barstacked", "area", "scatter")
+End Function
+
+Private Sub CheckSheet3KindsAndFeatures(wb As Workbook)
+    Dim ws As Worksheet, co As ChartObject, ek As Variant, i As Long, c As Chart, blk As Range
+    Set ws = wb.Worksheets("Exemplos 3")
+    AssertEqual wb.Worksheets("Exemplos 2").Index + 1, ws.Index, "a terceira planilha vem logo depois da segunda"
+    AssertEqual 8, ws.ChartObjects.Count, "8 secoes, um grafico cada"
+    ek = ExpectedKinds3()
+    For Each co In ws.ChartObjects
+        AssertTrue Registry_IsThinQQChart(co.Chart), co.Name
+        i = i + 1
+        AssertEqual CStr(ek(i - 1)), Registry_ChartType(co.Chart), "tipo do grafico " & i & " de Exemplos 3"
+    Next
+    Set c = ws.ChartObjects(2).Chart
+    AssertEqual "1", Registry_GetOption(c, "trend"), "20: tendencia": AssertEqual "1", Registry_GetOption(c, "quad"), "20: quadrantes"
+    AssertEqual 2, c.SeriesCollection.Count, "20: dois grupos": AssertEqual 1, c.SeriesCollection(1).Trendlines.Count
+    AssertEqual xlAxisCrossesCustom, c.Axes(xlCategory).Crosses
+    AssertEqual xlBubble, ws.ChartObjects(3).Chart.ChartType, "21: bolhas"
+    Set c = ws.ChartObjects(4).Chart: Set blk = Registry_Block(c)
+    AssertEqual "1", Registry_GetOption(c, "roundsum"), "22: soma consistente": AssertTrue Round_RCol(blk, 3) > 0
+    Set c = ws.ChartObjects(5).Chart
+    AssertEqual "50", Registry_GetOption(c, "vbreak"), "23: corte em 50": AssertEqual 50, c.Axes(xlValue).MaximumScale
+    AssertTrue HasShape(c, "tqq_ann_break_3"), "23: marca de corte"
+    Set c = ws.ChartObjects(6).Chart
+    AssertEqual "50", Registry_GetOption(c, "vbreak"), "24: corte nas barras": AssertTrue HasShape(c, "tqq_ann_break_3")
+    AssertEqual "1", Registry_GetOption(ws.ChartObjects(7).Chart, "roundsum"), "25: area com soma consistente"
+    Set c = ws.ChartObjects(8).Chart
+    AssertEqual 1, c.SeriesCollection.Count, "26: sem grupo = uma serie": AssertEqual "1", Registry_GetOption(c, "quad")
+End Sub
+
+Private Sub CheckSheet3Layout(wb As Workbook)
+    Dim ws As Worksheet, i As Long, j As Long, tr As Variant, a As ChartObject, b As ChartObject
+    Set ws = wb.Worksheets("Exemplos 3")
+    tr = TitleRows3()
+    For i = 1 To ws.ChartObjects.Count
+        Set a = ws.ChartObjects(i)
+        AssertTrue a.Top >= ws.Cells(tr(i - 1), 1).Top, "grafico " & i & " acima do titulo da secao " & (i + 18)
+        If i < 8 Then AssertTrue a.Top + a.Height <= ws.Cells(tr(i), 1).Top, "grafico " & i & " invade a secao seguinte"
+        For j = i + 1 To ws.ChartObjects.Count
+            Set b = ws.ChartObjects(j)
+            AssertFalse a.Left < b.Left + b.Width And b.Left < a.Left + a.Width And a.Top < b.Top + b.Height And b.Top < a.Top + a.Height, "graficos " & i & " e " & j & " sobrepostos"
+        Next
+    Next
+    For i = 0 To 7
+        AssertTrue Len(CStr(ws.Cells(tr(i), 1).Value)) > 0, "titulo " & (i + 19)
+    Next
+    AssertEqual "19) ", Left$(CStr(ws.Cells(1, 1).Value), 4): AssertEqual "26) ", Left$(CStr(ws.Cells(148, 1).Value), 4)
+End Sub
+
+' Textos realmente exibidos (expectativas das celulas e da localidade).
+' (tabela do exemplo 19 em A2:C6: o cabecalho esta na linha 2, a 1a faixa na linha 3)
+Private Sub CheckSheet3Labels(wb As Workbook)
+    Dim ws As Worksheet, cht As Chart
+    Set ws = wb.Worksheets("Exemplos 3")
+    Set cht = ws.ChartObjects(1).Chart
+    AssertEqual Format$(ws.Range("B3").Value + ws.Range("C3").Value, "#,##0"), Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Text, "19: total da 1a faixa"
+    AssertEqual Format$(ws.Range("B3").Value, "#,##0"), Bfly_SideSeries(cht, 1).Points(1).DataLabel.Text, "19: lado esquerdo sem sinal"
+    AssertEqual "P1", ws.ChartObjects(2).Chart.SeriesCollection(1).Points(1).DataLabel.Text, "20: nome do ponto"
+    Set cht = ws.ChartObjects(4).Chart
+    AssertEqual Format$(0.34, "0%"), cht.SeriesCollection(1).Points(1).DataLabel.Text, "22: 34 + 33 + 33 (empate: a primeira coluna recebe o resto)"
+    AssertEqual Format$(0.33, "0%"), cht.SeriesCollection(3).Points(1).DataLabel.Text
+    AssertEqual Format$(230, "#,##0"), Chart_FindSeries(ws.ChartObjects(5).Chart, "tqq_total").Points(3).DataLabel.Text, "23: total real acima do corte"
 End Sub
 
 ' Nenhuma celula das planilhas de exemplos (fora a _ThinQQ, onde NA() e intencional) tem valor de erro (#N/D, #DIV/0!...) e nenhum

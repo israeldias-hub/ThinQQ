@@ -32,7 +32,7 @@ Repositório: <https://github.com/israeldias-hub/ThinQQ>
   Legenda (Direita, Nenhuma, Nome no fim da linha).
 - Mekko (%) e Mekko (unidades), Gantt (escala automática de semanas a anos, marcos, colchetes), Pizza e Rosca.
 - Linha de valor (média), Indicador 100% (ligado por padrão nos 100% e no Mekko (%)), Mesma escala e Escala automática.
-- 18 exemplos em duas planilhas (ThinQQ > Exemplos) e tutorial com uma seção por tipo.
+- 26 exemplos em três planilhas (ThinQQ > Exemplos) e tutorial com uma seção por tipo.
 
 ### Galeria de gráficos (1.1.0)
 
@@ -241,7 +241,7 @@ Os testes automáticos usam um Excel invisível; estas verificações precisam d
 22. Alterar dados em barras, Mekko e Gantt mantém o tipo e as opções; numa cascata de 1 para 2 colunas de valores, Legenda passa a ficar ativa sem clicar em outro gráfico.
 23. Estado dos controles por tipo: pizza (Totais, Conectores, Espaço e as três setas cinza; Rótulos fora da pizza ativo), rosca (Rótulos fora da pizza cinza), Gantt (Colchete (Gantt) ativo; Seta CAGR, Seta diferença, Formato e Legenda cinza), cascata de 1 série (Legenda cinza), Colunas 100% (Seta diferença cinza; Indicador 100% pressionado), linha (Totais, Conectores e Espaço cinza), combinação (Eixo secundário (linha) ativo), Mekko (%) (setas cinza).
 24. Trocar a seleção entre gráficos de tipos diferentes da mesma planilha, só clicando: a faixa muda sem outro gesto.
-25. ThinQQ > Exemplos abre uma pasta com duas planilhas; percorrer "Exemplos 2" e conferir cada gráfico contra o título.
+25. ThinQQ > Exemplos abre uma pasta com três planilhas; percorrer "Exemplos 2" e "Exemplos 3" e conferir cada gráfico contra o título.
 26. ThinQQ > Tutorial abre o tutorial novo (cinco menus na maquete, uma seção por tipo) e ThinQQ > Sobre mostra Loader 1.1.0 e Core 1.1.0 depois da instalação pelo ZIP.
 
 ## Limitações conhecidas

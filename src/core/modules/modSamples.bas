@@ -2,7 +2,8 @@ Attribute VB_Name = "modSamples"
 Option Explicit
 ' Pasta de exemplos: uma planilha "Exemplos" com seis tabelas e seus graficos, um abaixo do outro
 ' (titulo na coluna A, a cada 21 linhas; a tabela ao lado do grafico, que nasce 2 colunas depois da tabela), e uma segunda
-' planilha, "Exemplos 2", com os tipos e as decoracoes da Fase 2 (Samples_CreateSheet2).
+' planilha, "Exemplos 2", com os tipos e as decoracoes da Fase 2 (Samples_CreateSheet2), e uma terceira, "Exemplos 3", com os tipos e
+' recursos da Fase 3 (Samples_CreateSheet3).
 
 ' Escreve uma matriz de linhas (Array de Arrays) a partir de topLeft; a primeira linha vira cabecalho em negrito.
 Private Sub WriteTable(topLeft As Range, tbl As Variant)
@@ -146,6 +147,77 @@ Private Function Samples_CreateSheet2(wb As Workbook) As Worksheet
     Set Samples_CreateSheet2 = ws
 End Function
 
+' Terceira planilha ("Exemplos 3"): os tipos e recursos da Fase 3, 8 secoes (19 a 26) a cada 21 linhas, pelos mesmos caminhos do usuario.
+Private Function Samples_CreateSheet3(wb As Workbook) As Worksheet
+    Dim ws As Worksheet, d As clsChartData, co As ChartObject
+    Set ws = wb.Worksheets.Add(After:=wb.Worksheets("Exemplos 2"))
+    ws.Name = "Exemplos 3"
+    ws.Columns("A").ColumnWidth = 18
+    ws.Columns("B:F").ColumnWidth = 14
+
+    WriteTitle ws, 1, "19) Borboleta: duas séries espelhadas"
+    WriteTable ws.Range("A2"), Array(Array("Faixa", "Mulheres", "Homens"), Array("0-14", 120, 130), Array("15-29", 200, 210), Array("30-59", 310, 290), Array("60+", 90, 60))
+    Set d = ChartData_FromRange(ws.Range("A2:C6"))
+    Set co = Kinds_Insert(ws, d, "butterfly")
+    Settle co
+
+    WriteTitle ws, 22, "20) Dispersão por grupo, com tendência e quadrantes"
+    WriteTable ws.Range("A23"), Array(Array("Produto", "Preço", "Margem", "Grupo"), Array("P1", 10, 0.2, "A"), Array("P2", 20, 0.35, "B"), _
+                                      Array("P3", 30, 0.25, "A"), Array("P4", 40, 0.5, "B"), Array("P5", 25, 0.3, "A"), Array("P6", 35, 0.45, "B"))
+    ws.Range("C24:C29").NumberFormat = "0%"
+    Set d = ChartData_FromRange(ws.Range("A23:D29"))
+    Set co = Kinds_Insert(ws, d, "scatter")
+    Scatter_SetTrend co.Chart, True
+    Scatter_SetQuad co.Chart, True
+    Settle co
+
+    WriteTitle ws, 43, "21) Bolhas: tamanho = volume"
+    WriteTable ws.Range("A44"), Array(Array("Produto", "Preço", "Margem", "Volume", "Grupo"), Array("P1", 10, 0.2, 50, "A"), Array("P2", 20, 0.35, 120, "B"), _
+                                      Array("P3", 30, 0.25, 80, "A"), Array("P4", 40, 0.5, 20, "B"))
+    ws.Range("C45:C48").NumberFormat = "0%"
+    Set d = ChartData_FromRange(ws.Range("A44:E48"))
+    Set co = Kinds_Insert(ws, d, "bubble")
+    Settle co
+
+    WriteTitle ws, 64, "22) Colunas 100% com rótulos de soma consistente (34+33+33)"
+    WriteTable ws.Range("A65"), Array(Array("Ano", "S1", "S2", "S3"), Array(2024, 1, 1, 1), Array(2025, 2, 3, 5))
+    Set d = ChartData_FromRange(ws.Range("A65:D67"))
+    Set co = Kinds_Insert(ws, d, "stacked100")
+    Round_SetLabels co.Chart, True
+    Settle co
+
+    WriteTitle ws, 85, "23) Colunas empilhadas com corte de eixo em 50"
+    WriteTable ws.Range("A86"), Array(Array("Cat", "S1", "S2"), Array("a", 5, 5), Array("b", 10, 10), Array("c", 200, 30))
+    Set d = ChartData_FromRange(ws.Range("A86:C89"))
+    Set co = Kinds_Insert(ws, d, "stacked")
+    Break_Set co.Chart, 50
+    Settle co
+
+    WriteTitle ws, 106, "24) Barras empilhadas com corte de eixo"
+    WriteTable ws.Range("A107"), Array(Array("Cat", "S1", "S2"), Array("a", 5, 5), Array("b", 10, 10), Array("c", 200, 30))
+    Set d = ChartData_FromRange(ws.Range("A107:C110"))
+    Set co = Kinds_Insert(ws, d, "barstacked")
+    Break_Set co.Chart, 50
+    Settle co
+
+    WriteTitle ws, 127, "25) Área empilhada com soma consistente"
+    WriteTable ws.Range("A128"), Array(Array("Ano", "Sul", "Norte", "Leste"), Array(2024, 10.4, 10.4, 10.4), Array(2025, 1, 1, 1), Array(2026, 2.5, 2.5, 2.5))
+    Set d = ChartData_FromRange(ws.Range("A128:D131"))
+    Set co = Kinds_Insert(ws, d, "area")
+    Round_SetLabels co.Chart, True
+    Settle co
+
+    WriteTitle ws, 148, "26) Dispersão sem grupo, com quadrantes"
+    WriteTable ws.Range("A149"), Array(Array("Produto", "Preço", "Margem"), Array("P1", 10, 0.2), Array("P2", 20, 0.35), Array("P3", 30, 0.25), _
+                                       Array("P4", 40, 0.5), Array("P5", 25, 0.3), Array("P6", 35, 0.45))
+    ws.Range("C150:C155").NumberFormat = "0%"
+    Set d = ChartData_FromRange(ws.Range("A149:C155"))
+    Set co = Kinds_Insert(ws, d, "scatter")
+    Scatter_SetQuad co.Chart, True
+    Settle co
+    Set Samples_CreateSheet3 = ws
+End Function
+
 ' Cria uma pasta nova com os exemplos e a devolve (ativa, A1 selecionada). Nao toca em outras pastas.
 ' Se algo falhar, a pasta nova e fechada sem salvar e o erro original e propagado.
 Public Function Samples_Create() As Workbook
@@ -200,6 +272,7 @@ Public Function Samples_Create() As Workbook
     Waterfall_Insert ws, d
 
     Samples_CreateSheet2 wb
+    Samples_CreateSheet3 wb
     ws.Activate
     ws.Range("A1").Select
     Set Samples_Create = wb
