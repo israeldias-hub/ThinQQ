@@ -158,5 +158,10 @@ try {
     $none = Assert-TqqRibbonXml -Xml ($ns + '<button id="a" imageMso="Help"/></customUI>') -Mode Mso
     Check ($null -ne $none -and $none.Count -eq 0) 'Assert-TqqRibbonXml Mso valido: lista vazia'
     Check (@(Get-ChildItem $iconRoot -Directory -Filter 'thinqq_icons_*' -ErrorAction SilentlyContinue).Count -eq 0) 'revalidacao: nenhuma pasta temporaria de icones sobra'
-} finally { Remove-Item $tmpP -Recurse -Force -ErrorAction SilentlyContinue }
+} finally {
+    $PSDefaultParameterValues.Remove('Add-RibbonToPackage:IconTempRoot')   # rodada 1: o padrao nao vaza para o build Release seguinte (mesma sessao)
+    Remove-Item $tmpP -Recurse -Force -ErrorAction SilentlyContinue
+}
+Check (-not $PSDefaultParameterValues.ContainsKey('Add-RibbonToPackage:IconTempRoot')) 'padrao de IconTempRoot removido da sessao'
+Check (-not (Test-Path -LiteralPath $tmpP)) 'pasta tqq_pkg_* do teste removida'
 if ($script:fail -gt 0) { Write-Host "FALHAS ribbon-pacote: $script:fail"; exit 1 }
