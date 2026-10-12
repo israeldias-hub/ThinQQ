@@ -9,6 +9,7 @@ Private mMismatchSeen As Collection ' ids de gráficos já avisados de tabela de
 Private mClipSeen As Collection     ' ids de gráficos já avisados de dados acima da escala fixa (Mesma escala)
 Private mCopySeen As Collection     ' ids de gráficos já avisados de cópia em outra planilha (planilha copiada)
 Private mTestFamily As String       ' gancho de teste: familia de despacho forcada (so no build Test); "" = a familia real do tipo
+Private mLastConfirm As String      ' ultima pergunta de Core_Confirm (usada pelos testes)
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
 Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,"
 
@@ -24,6 +25,7 @@ End Function
 Public Sub Core_ClearLastNotice()
     mLastNotice = ""
     mNoticeCount = 0
+    mLastConfirm = ""
 End Sub
 
 Public Function Core_Ping() As String
@@ -67,6 +69,21 @@ Public Sub Core_Notify(msg As String, Optional style As VbMsgBoxStyle = vbInform
     If BUILD_CONFIG = "Test" Then Exit Sub
     MsgBox msg, style, APP_NAME
 End Sub
+
+' Pergunta Sim/Não ao usuário; True só com "Sim". Como Core_Notify, é o único ponto de MsgBox de pergunta do core: no build de teste só
+' registra e responde "Não" (um modal travaria o Excel invisível). Nunca propaga erro (falha = "Não").
+Public Function Core_Confirm(msg As String) As Boolean
+    On Error Resume Next
+    mLastConfirm = msg
+    Errors_Log "confirm" & vbTab & Replace(msg, vbLf, " | ")
+    If BUILD_CONFIG = "Test" Then Exit Function
+    Core_Confirm = (MsgBox(msg, vbQuestion + vbYesNo, APP_NAME) = vbYes)
+End Function
+
+' Última pergunta feita por Core_Confirm ("" se nenhuma desde Core_ClearLastNotice). Gancho de teste (inofensivo em Release).
+Public Function Core_LastConfirm() As String
+    Core_LastConfirm = mLastConfirm
+End Function
 
 Public Function Core_ActiveChart() As Chart
     Dim c As Chart
@@ -583,7 +600,7 @@ Public Sub Core_RoundRange()
     addr = out.Address(False, False)
     If Not out.Worksheet Is rng.Worksheet Then addr = "'" & Replace(out.Worksheet.Name, "'", "''") & "'!" & addr
     If Application.WorksheetFunction.CountA(out) > 0 Then
-        If MsgBox("As células " & addr & " já têm conteúdo. Substituir?", vbQuestion + vbYesNo, APP_NAME) <> vbYes Then Exit Sub
+        If Not Core_Confirm("As células " & addr & " já têm conteúdo. Substituir?") Then Exit Sub
     End If
     Round_WriteFormulas rng, dest.Cells(1, 1), CLng(dec)
     Core_Notify "Fórmulas de arredondamento com soma consistente gravadas em " & addr & ".", vbInformation

@@ -440,3 +440,12 @@ Public Sub Test_Round_WriteFormulas_MergedOrProtectedDest_Refuses()
     ws.Unprotect
     CloseTemp wb
 End Sub
+
+' Pergunta Sim/Nao do core (Core_Confirm): no build de teste so registra e responde Nao.
+Public Sub Test_Core_Confirm_TestBuild_AnswersNo()
+    Core_ClearLastNotice
+    AssertEqual "", Core_LastConfirm()
+    AssertFalse Core_Confirm("Substituir?"), "build Test: Nao"
+    AssertEqual "Substituir?", Core_LastConfirm()
+    AssertEqual "", Core_LastNotice(), "nao e um aviso"
+End Sub
