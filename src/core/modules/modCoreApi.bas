@@ -1249,7 +1249,7 @@ End Sub
 Private Sub CopyToPowerPointImpl(mode As String)
     On Error GoTo Fail
     Dim c As Chart, co As ChartObject, wb As Workbook, app As Object, slide As Object, shp As Object, msg As String, linked As Boolean
-    Dim en As Long, ed As String, presBefore As Long, created As Boolean
+    Dim en As Long, ed As String, created As Boolean, newPres As Object, linkState As Long
     Set c = Core_ActiveChart()
     If c Is Nothing Then Exit Sub
     If mode <> "image" And mode <> "chart" Then
@@ -1262,21 +1262,22 @@ Private Sub CopyToPowerPointImpl(mode As String)
         msg = Ppt_LinkedPrecheck(wb)
         If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
     End If
-    presBefore = -1
     Set app = Ppt_GetApp(True)
     created = Ppt_AppWasCreated()
     If app Is Nothing Then Core_Notify PPT_ERR_NOT_INSTALLED, vbExclamation: Exit Sub
-    presBefore = app.Presentations.Count
-    Set slide = Ppt_TargetSlide(app)
+    Set slide = Ppt_TargetSlide(app, newPres)        ' newPres: a apresentacao que ESTA chamada criou (Nothing se usou uma aberta)
+    linkState = -1
     If linked Then
         Set co = c.Parent
         Set shp = Ppt_PasteChart(co, slide)
         On Error Resume Next: Application.CutCopyMode = False: Err.Clear: On Error GoTo Fail    ' a colagem ja deu certo: cancelar a copia nao pode desfazer nada
+        linkState = Ppt_LinkState(shp)               ' o PowerPoint pode colar sem o vinculo: o aviso diz isso
     Else
         Set shp = Ppt_PasteImage(c, slide)
     End If
-    msg = "Gráfico copiado para o slide " & slide.SlideIndex & " de '" & slide.Parent.Name & "' como " & IIf(linked, "gráfico vinculado", "imagem") & "."
-    If linked And Not wb.Saved Then msg = msg & " " & PPT_NOTE_DIRTY
+    msg = Ppt_DoneText(CLng(slide.SlideIndex), CStr(slide.Parent.Name), linked, linkState)
+    If linked And linkState <> 0 And Not wb.Saved Then msg = msg & " " & PPT_NOTE_DIRTY
+    Ppt_TestHook "after"
     Core_Notify msg, vbInformation                   ' ANTES de ativar o PowerPoint: a caixa (Release) nao fica escondida atras dele
     If BUILD_CONFIG <> "Test" Then                   ' nos testes o PowerPoint do teste nao aparece nem rouba o foco
         On Error Resume Next
@@ -1291,17 +1292,15 @@ Fail:
     On Error GoTo -1
     On Error Resume Next
     Application.CutCopyMode = False
-    If Not app Is Nothing Then
-        ' desfaz o que esta chamada criou: a apresentacao nova (so se nao havia nenhuma) e o PowerPoint que ela abriu
-        If presBefore = 0 Then
-            If app.Presentations.Count = 1 Then
-                app.Presentations(1).Saved = -1
-                app.Presentations(1).Close
-            End If
-        End If
-        If created Then
-            If app.Presentations.Count = 0 Then app.Quit
-        End If
+    ' desfaz o que esta chamada criou, pelos objetos (nunca por indice: o usuario pode ter outras apresentacoes abertas): a forma colada,
+    ' a apresentacao nova e o PowerPoint que ela abriu (so se ficou sem apresentacoes)
+    If Not shp Is Nothing Then shp.Delete
+    If Not newPres Is Nothing Then
+        newPres.Saved = -1
+        newPres.Close
+    End If
+    If created And Not app Is Nothing Then
+        If app.Presentations.Count = 0 Then app.Quit
     End If
     On Error GoTo 0
     If Ppt_IsKnownFailure(en) Then

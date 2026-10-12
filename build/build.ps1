@@ -63,6 +63,7 @@ foreach ($t in $targets) {
             Get-ChildItem (Join-Path $RepoRoot 'tests\vba\common') -Filter *.bas | ForEach-Object { Import-VbaFile $vbproj $_.FullName }
             $tDir = Join-Path $RepoRoot "tests\vba\$t"
             if (Test-Path $tDir) { Get-ChildItem $tDir -Filter *.bas | ForEach-Object { Import-VbaFile $vbproj $_.FullName } }
+            if (Test-Path $tDir) { Get-ChildItem $tDir -Filter *.cls | ForEach-Object { Import-VbaFile $vbproj $_.FullName } }   # dubles de teste (classes)
             Write-TestDispatchModule -TestFiles @(Get-ChildItem $tDir -Filter *.bas -ErrorAction SilentlyContinue | ForEach-Object FullName) -OutPath $dispatch
             Import-VbaFile $vbproj $dispatch
         }
