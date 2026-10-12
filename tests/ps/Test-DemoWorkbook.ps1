@@ -30,7 +30,8 @@ try {
     # referencia ao suplemento (a pasta abre sem o ThinQQ e sem pedir para atualizar vinculos)
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $privPatterns = @(('(?<!\d)14' + '3272(?!\d)'), ('(?i)[a-z]:[\\/]+' + 'Us' + 'ers[\\/]+(?![<%$\{]|\.\.\.)[^\\/\s''"`<>]+'),
-                      ('(?i)quero-?' + 'quero\.[a-z]+'), ('(?i)israel\.' + 'dias@'), '(?i)absPath', '(?i)\.xlam')
+                      ('(?i)quero-?' + 'quero\.[a-z]+'), ('(?i)israel\.' + 'dias@'), '(?i)absPath', '(?i)\.xlam',
+                      '(?i)Casa\s*(&amp;|&|e)\s*Obra')         # nome antigo da rede (generico, pode coincidir com lojas reais): a pasta usa um nome claramente ficticio
     $privHits = @()
     $zip = [System.IO.Compression.ZipFile]::OpenRead($path)
     try {
@@ -54,7 +55,7 @@ try {
             }
         }
     } finally { $zip.Dispose() }
-    Check ($privHits.Count -eq 0) "partes XML sem id de maquina, caminho de perfil, e-mail, absPath nem .xlam ($($privHits -join ', '))"
+    Check ($privHits.Count -eq 0) "partes XML sem id de maquina, caminho de perfil, e-mail, absPath, .xlam nem o nome antigo da rede ($($privHits -join ', '))"
     $xl = New-ExcelApp
     $wd = Start-ExcelWatchdog $xl 240
     try {

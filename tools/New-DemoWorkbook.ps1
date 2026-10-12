@@ -29,7 +29,7 @@ New-Item -ItemType Directory -Force (Split-Path $OutFile -Parent) | Out-Null
 $script:seed = 20261011
 function Get-DemoRandom { $script:seed = ([int64]$script:seed * 1103515245 + 12345) % 2147483648; return [double]$script:seed / 2147483648 }
 
-$company = 'Casa & Obra Materiais'
+$company = 'Rede Demo ThinQQ - Materiais de Construção (fictícia)'      # nome claramente fictício (nenhuma empresa real)
 # Lojas (nomes e cidades inventados), na ordem das regiões. Size = porte relativo da loja.
 $stores = @(
     @{ Name = 'Aurora Centro';  City = 'Vila Aurora';    Region = 'Sudeste';      Size = 1.45; Open = [datetime]::new(2009, 3, 14) }
@@ -415,7 +415,7 @@ try {
     $idx.Tab.Color = 0x79531F
     $idx.Range('A1').Value2 = 'ThinQQ — pasta de demonstração'
     $idx.Range('A1').Font.Bold = $true; $idx.Range('A1').Font.Size = 16
-    $idx.Range('A2').Value2 = "$company é uma rede FICTÍCIA de materiais de construção, com $nS lojas em $($regions.Count) regiões; todos os números são inventados (gerados por script)."
+    $idx.Range('A2').Value2 = "$company: $nS lojas em $($regions.Count) regiões. Nenhuma empresa ou pessoa real; lojas, cidades e números são inventados (gerados por script)."
     $idx.Range('A3').Value2 = 'Clique no nome de um exemplo para ir ao gráfico; em cada exemplo, a célula A1 ("Voltar ao índice") traz você de volta. Os dados estão nas planilhas Dados, Lojas e Obras.'
     $idx.Range('A4').Value2 = 'Os gráficos são gráficos nativos do Excel e continuam ligados às tabelas: funcionam com ou sem o ThinQQ instalado (o ThinQQ só é preciso para criar ou ajustar).'
     $idx.Range('A2:A4').Font.Color = 0x404040

@@ -289,7 +289,7 @@ fórmulas em inglês via `.Formula`.
   `C:\temp` — em build Test `Core_Notify` só registra, o que impede um `MsgBox` de travar a automação — e chamadas à API real via
   `Application.Run` (`Core_Insert` com a seleção feita pelo script, `Core_SetToggle`, `Core_SetOption`, `Core_AddAnnotation`, `Core_SameScale`,
   `Core_SetAxisBreakAt`, `Round_WriteFormulas`); salva como `.xlsx` (sem macros). Dados fictícios determinísticos (gerador congruencial com
-  semente fixa): rede "Casa & Obra Materiais" (nome fictício) com 8 lojas em cidades/regiões diferentes, 8 departamentos, 24 meses de vendas,
+  semente fixa): rede "Rede Demo ThinQQ - Materiais de Construção (fictícia)" (nome claramente fictício) com 8 lojas em cidades/regiões diferentes, 8 departamentos, 24 meses de vendas,
   custo, margem, unidades, ticket médio, metas por loja, mix B2C/B2B e cronograma de obras/expansão (Gantt). Nenhuma pessoa, empresa real ou
   dado pessoal.
 - Um exemplo por funcionalidade visível (20 tipos + recursos: totais, rótulos, legenda nenhuma e nome no fim da linha, formato, espaço,
