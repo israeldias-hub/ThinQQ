@@ -385,16 +385,18 @@ Private Function ThinListRemove(list As String, key As String) As String
     ThinListRemove = Mid$(t, 2, Len(t) - 2)
 End Function
 
-' Fundo branco no rótulo que ficou sobre a própria barra (inside) e sem fundo nos demais; só escreve quando muda. Medido: o preenchimento
-' só passa a valer (Fill.Visible lido de volta True) depois de escrever a cor, mesmo que ela já seja o branco: as duas escritas vão juntas.
+' Fundo branco no rótulo que ficou sobre a própria barra (inside); fora dela, sem o branco. Só o branco é do ThinQQ: um rótulo sem
+' preenchimento que vai para dentro ganha o branco, e só um preenchimento branco é tirado quando o rótulo volta para fora; um preenchimento
+' de outra cor (escolhido pelo usuário) fica, dentro ou fora. Só escreve quando muda. Medido: o preenchimento só passa a valer (Fill.Visible
+' lido de volta True) depois de escrever a cor, mesmo que ela já seja o branco: as duas escritas vão juntas.
 Private Sub SyncLabelBackground(dl As DataLabel, inside As Boolean)
     If inside Then
-        If dl.Format.Fill.Visible <> msoTrue Or dl.Format.Fill.ForeColor.RGB <> RGB(255, 255, 255) Then
+        If dl.Format.Fill.Visible <> msoTrue Then
             dl.Format.Fill.Visible = msoTrue
             dl.Format.Fill.ForeColor.RGB = RGB(255, 255, 255)
         End If
     ElseIf dl.Format.Fill.Visible = msoTrue Then
-        dl.Format.Fill.Visible = msoFalse
+        If dl.Format.Fill.ForeColor.RGB = RGB(255, 255, 255) Then dl.Format.Fill.Visible = msoFalse
     End If
 End Sub
 

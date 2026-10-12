@@ -1280,3 +1280,37 @@ Public Sub Test_WaterfallMulti_UserDeletedSegmentLabel_StaysDeleted_ThinListPers
     Watchers_Stop
     CloseTemp wb
 End Sub
+
+' Revisao da 15b (menor 1): o fundo dos rotulos de ponta da cascata horizontal. O ThinQQ so liga o branco no rotulo que ele levou para dentro da
+' barra e so desliga o branco que ele mesmo pos; um preenchimento escolhido pelo usuario (num rotulo de fora ou num de dentro) fica.
+Public Sub Test_BarWaterfall_TipLabelBackground_KeepsUserFill()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, lbl As Series
+    Set wb = NewTempWorkbook(): Set ws = SingleFixture(wb).Source.Worksheet
+    ws.Range("A1:B7").Select
+    Core_Insert "barwaterfall"
+    Set cht = Core_ActiveChart()
+    Set lbl = Chart_FindSeries(cht, "tqq_lbl")
+    AssertEqual xlLabelPositionRight, lbl.Points(2).DataLabel.Position, "pre-condicao: -150 levado para dentro"
+    AssertEqual msoTrue, lbl.Points(2).DataLabel.Format.Fill.Visible, "pre-condicao: com o branco do ThinQQ"
+    With lbl.Points(1).DataLabel.Format.Fill                     ' o usuario pinta o rotulo "100" (fora da barra) de amarelo
+        .Visible = msoTrue
+        .ForeColor.RGB = RGB(255, 255, 0)
+    End With
+    With lbl.Points(2).DataLabel.Format.Fill                     ' e o "-150" (dentro da barra) de verde-claro
+        .Visible = msoTrue
+        .ForeColor.RGB = RGB(200, 255, 200)
+    End With
+    Core_SafeRefresh cht
+    Core_Refresh
+    AssertEqual msoTrue, lbl.Points(1).DataLabel.Format.Fill.Visible, "o preenchimento do usuario num rotulo de fora fica"
+    AssertEqual RGB(255, 255, 0), lbl.Points(1).DataLabel.Format.Fill.ForeColor.RGB
+    AssertEqual RGB(200, 255, 200), lbl.Points(2).DataLabel.Format.Fill.ForeColor.RGB, "o preenchimento do usuario num rotulo de dentro nao vira branco"
+    ' o branco do proprio ThinQQ ainda sai quando o rotulo volta para a esquerda
+    lbl.Points(2).DataLabel.Format.Fill.ForeColor.RGB = RGB(255, 255, 255)
+    ws.Range("B2").Value = 400
+    Core_SafeRefresh cht
+    AssertEqual xlLabelPositionLeft, lbl.Points(2).DataLabel.Position
+    AssertTrue lbl.Points(2).DataLabel.Format.Fill.Visible <> msoTrue, "o branco do ThinQQ sai"
+    Watchers_Stop
+    CloseTemp wb
+End Sub
