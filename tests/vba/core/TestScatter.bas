@@ -438,3 +438,30 @@ Public Sub Test_Scatter_Quad_FailMidway_RollsBack()
     AssertEqual "1", Registry_GetOption(cht, "quad")
     CloseTemp wb
 End Sub
+
+' Nomes de grupo que o Excel recusaria ou confundiria: "=x" (Series.Name o leria como formula: erro 1004, medido), "tqq_g" (seria tomada por
+' serie auxiliar) e um nome de 300 caracteres (literal de formula e Series.Name: no maximo 255, medido). O grafico nasce, cada ponto fica na sua
+' serie e a legenda (com tendencia) mostra os 4 grupos.
+Public Sub Test_Scatter_SpecialGroupNames_EqualsHelperPrefixLong()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ws As Worksheet, i As Long, k As Long, hits As Long, v As Variant, longName As String
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    longName = String(250, "a") & String(50, "b")
+    ws.Range("D2").Value = "'=x": ws.Range("D3").Value = "tqq_g": ws.Range("D4").Value = longName: ws.Range("D5").Value = "B"
+    Set cht = Scatter_Insert(ws, d, "scatter").Chart
+    AssertEqual 4, cht.SeriesCollection.Count: AssertEqual 4, Scatter_SeriesCount(cht), "nenhum grupo tomado por auxiliar"
+    AssertEqual " =x", cht.SeriesCollection(1).Name, "prefixo de espaco: o Excel nao le como formula"
+    AssertEqual " tqq_g", cht.SeriesCollection(2).Name
+    AssertEqual Left$(longName, 255), cht.SeriesCollection(3).Name, "nome limitado a 255 caracteres"
+    For i = 1 To 4
+        hits = 0
+        For k = 1 To 4
+            v = cht.SeriesCollection(k).Values
+            If Not (IsError(v(i)) Or IsEmpty(v(i))) Then hits = hits + 1
+        Next
+        AssertEqual 1, hits, "ponto " & i & " em exatamente uma serie"
+    Next
+    Scatter_SetTrend cht, True
+    AssertEqual 4, cht.Legend.LegendEntries.Count, "4 grupos na legenda, sem as tendencias"
+    AssertEqual 1, cht.SeriesCollection(2).Trendlines.Count, "o grupo tqq_g tambem ganha tendencia"
+    CloseTemp wb
+End Sub
