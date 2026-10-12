@@ -123,6 +123,16 @@ try {
             Check ([double]@($ser.Values)[0] -eq $serBefore + 1000) "serie B2C do E01 acompanha a tabela ($serBefore -> $(@($ser.Values)[0]))"
             Check ([string]$tot.Points(1).DataLabel.Text -ne $lblBefore) "rotulo do total do E01 acompanha ($lblBefore -> $($tot.Points(1).DataLabel.Text))"
         }
+        # opcoes que o core gravou no bloco do grafico (_ThinQQ, linha de meta, coluna 4: "chave=valor;...") e o tipo (coluna 2)
+        function Get-ChartBlockInfo($co) {
+            $blk = $wb.Names.Item('tqq_' + $co.Name.Substring(4)).RefersToRange
+            $o = @{}
+            foreach ($p in ([string]$blk.Cells.Item(1, 4).Value2).Split(';')) { $q = $p.IndexOf('='); if ($q -gt 0) { $o[$p.Substring(0, $q)] = $p.Substring($q + 1) } }
+            return @{ Kind = [string]$blk.Cells.Item(1, 2).Value2; Opt = $o; Block = $blk }
+        }
+        # E02: a tabela tem 1 casa decimal; com o formato padrao (inteiro) dois valores diferentes viram o mesmo rotulo
+        $e02 = Get-ChartBlockInfo ($wb.Worksheets.Item('E02').ChartObjects(1))
+        Check ($e02.Opt['numfmt'] -eq 'dec1') "E02: rotulos com 1 casa como a tabela (numfmt=$($e02.Opt['numfmt']))"
         # E24 (corte de eixo): na coluna cortada (total acima do maximo do eixo) nenhum segmento fica inteiro escondido: a base de cada serie de
         # dados fica abaixo do corte, o ponto tem altura desenhada e o rotulo continua ligado
         $cb = $wb.Worksheets.Item('E24').ChartObjects(1).Chart

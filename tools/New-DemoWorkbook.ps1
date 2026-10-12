@@ -307,7 +307,9 @@ try {
                  }
                  $co = Add-Chart $ws $rng 'stacked'; Set-ChartBox $ws $co 620 320 }
             2  { $rng = Write-Table $ws 'A6' @('Loja', '2024', '2025') $storeYearMiBody '#,##0.0'; $co = Add-Chart $ws $rng 'clustered'
-                 Invoke-CoreQuiet 'E02' 'Core_SetOption' 'gap' '120' | Out-Null; Set-ChartBox $ws $co 620 300 }
+                 Invoke-CoreQuiet 'E02' 'Core_SetOption' 'gap' '120' | Out-Null
+                 Invoke-CoreQuiet 'E02' 'Core_SetOption' 'numfmt' 'dec1' | Out-Null      # a tabela tem 1 casa: no padrão (inteiro) 8,7 e 9,4 viravam 9 e 9
+                 Set-ChartBox $ws $co 620 300 }
             3  { $rng = Write-Table $ws 'A6' @('Região', 'B2C', 'B2B') $regionChannelBody; $co = Add-Chart $ws $rng 'stacked100' }   # o indicador 100% nasce ligado nos 100%
             4  { $rng = Write-Table $ws 'A6' @('Mês', 'Vendas', 'Custo') $store1MonthBody; Set-MonthFormat $ws.Range('A7:A18')
                  $co = Add-Chart $ws $rng 'line'; Invoke-CoreQuiet 'E04' 'Core_SetOption' 'legend' 'lineend' | Out-Null }
