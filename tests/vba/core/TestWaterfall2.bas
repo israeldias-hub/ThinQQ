@@ -1314,3 +1314,28 @@ Public Sub Test_BarWaterfall_TipLabelBackground_KeepsUserFill()
     Watchers_Stop
     CloseTemp wb
 End Sub
+
+' Revisao da 15b (A4 com varias series): na cascata horizontal de varias series a auxiliar dos totais (tqq_lbl) tem pontos #N/D (linhas que nao
+' sao total); medido: Series.HasDataLabels continua True (os pontos #N/D tem rotulo vazio), entao a saida antecipada de Labels_RefreshPositions nao
+' pula a verificacao do lado. Um total negativo cujo rotulo nao cabe antes dos nomes das categorias vai para dentro da barra, com fundo branco.
+Public Sub Test_BarWaterfallMulti_NegativeTotalNearAxisMin_GoesInside()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, lt As Series, dl As DataLabel
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Ponte"
+    ws.Range("A1:C1").Value = Array("Etapa", "Loja", "Online")
+    ws.Range("A2:C2").Value = Array("Inicio", 100000, 20000)
+    ws.Range("A3:C3").Value = Array("Queda", -179000, -15000)
+    ws.Range("A4:B4").Value = Array("Fim", "e")
+    ws.Range("A1:C4").Select
+    Core_Insert "barwaterfall"
+    Set cht = Core_ActiveChart()
+    Set lt = Chart_FindSeries(cht, "tqq_lbl")
+    AssertTrue lt.HasDataLabels, "medido: HasDataLabels da auxiliar de totais continua True com pontos #N/D"
+    ForceLayout cht
+    Set dl = lt.Points(3).DataLabel
+    AssertEqual "-74" & Application.International(xlThousandsSeparator) & "000", dl.Text
+    AssertEqual xlLabelPositionRight, dl.Position, "total negativo perto do minimo do eixo: para dentro da barra"
+    AssertTrue dl.Left >= cht.PlotArea.InsideLeft - 0.5, "nao invade os nomes das categorias: " & dl.Left & " x " & cht.PlotArea.InsideLeft
+    AssertEqual msoTrue, dl.Format.Fill.Visible, "com fundo branco"
+    Watchers_Stop
+    CloseTemp wb
+End Sub
