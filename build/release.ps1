@@ -2,6 +2,9 @@
 .SYNOPSIS  Gera um release: version.json, build Release, manifest.json, zip e (opcional) publicação em pasta.
 .EXAMPLE   pwsh build/release.ps1 -Version 1.0.0 -BaseUrl https://github.com/israeldias-hub/ThinQQ/releases/download/v1.0.0
 .EXAMPLE   pwsh build/release.ps1 -Version 1.0.0 -BaseUrl '\\servidor\ThinQQ' -PublishTo '\\servidor\ThinQQ'
+.PARAMETER ManifestUrl  Fonte de atualizacao gravada no manifesto (o que um usuario que instala pelo ZIP consulta). Padrao: com BaseUrl
+           http(s), o endereco estavel DEFAULT_UPDATE_SOURCE do loader (release/manifest.json da main); com pasta de rede/local,
+           BaseUrl\manifest.json.
 .NOTES     NAO grava release/manifest.json: copie dist/manifest.json para release/manifest.json apenas
            depois de publicar com URLs reais (veja release/README.md).
 #>
@@ -10,7 +13,8 @@ param(
     [string]$LoaderVersion,
     [Parameter(Mandatory)][string]$BaseUrl,
     [string]$NotesFile = (Join-Path $PSScriptRoot '..\release\notes.txt'),
-    [string]$PublishTo
+    [string]$PublishTo,
+    [string]$ManifestUrl
 )
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\lib\Build-Common.ps1"
@@ -53,7 +57,7 @@ try {
     $manifest = New-ReleaseManifest -CoreVersion $versions.core -LoaderVersion $versions.loader -BaseUrl $BaseUrl `
         -CoreSha (Get-FileHash (Join-Path $DistDir 'ThinQQ.core.xlam') -Algorithm SHA256).Hash.ToLower() `
         -LoaderSha (Get-FileHash (Join-Path $DistDir 'ThinQQ.xlam') -Algorithm SHA256).Hash.ToLower() `
-        -Notes $notes -PublishedAt (Get-Date -Format 'yyyy-MM-dd')
+        -Notes $notes -PublishedAt (Get-Date -Format 'yyyy-MM-dd') -ManifestUrl $ManifestUrl
     [IO.File]::WriteAllText((Join-Path $DistDir 'manifest.json'), (($manifest | ConvertTo-Json) + "`n"), (New-Object Text.UTF8Encoding($false)))
     Copy-Item $tutorial $DistDir -Force
     foreach ($f in $installerFiles) { Copy-Item (Join-Path $RepoRoot "installer\$f") $DistDir -Force }

@@ -57,7 +57,22 @@ function Join-ReleaseUrl([string]$Base, [string]$Name) {
     return $Base.TrimEnd('/', '\') + $sep + $Name
 }
 
-function New-ReleaseManifest([string]$CoreVersion, [string]$LoaderVersion, [string]$BaseUrl, [string]$CoreSha, [string]$LoaderSha, [string]$Notes, [string]$PublishedAt) {
+# Fonte de atualizacao padrao do loader (DEFAULT_UPDATE_SOURCE em src/loader/modules/modSettings.bas: o release/manifest.json da main), lida do
+# proprio fonte para as duas listas nunca divergirem.
+function Get-DefaultUpdateSource {
+    $bas = Join-Path $PSScriptRoot '..\..\src\loader\modules\modSettings.bas'
+    $m = [regex]::Match([IO.File]::ReadAllText($bas), 'DEFAULT_UPDATE_SOURCE As String = "([^"]+)"')
+    if (-not $m.Success) { throw "DEFAULT_UPDATE_SOURCE nao encontrado em $bas" }
+    return $m.Groups[1].Value
+}
+
+# manifestUrl = a fonte de atualizacao que o instalador grava para quem instala pelo ZIP. Sem -ManifestUrl: com BaseUrl http(s) (release no
+# GitHub, assets versionados) e o endereco ESTAVEL (Get-DefaultUpdateSource), senao o ZIP da v1.1.0 consultaria para sempre o manifesto da
+# v1.1.0; com BaseUrl em pasta de rede/local (o manifesto e republicado no mesmo lugar) e BaseUrl\manifest.json.
+function New-ReleaseManifest([string]$CoreVersion, [string]$LoaderVersion, [string]$BaseUrl, [string]$CoreSha, [string]$LoaderSha, [string]$Notes, [string]$PublishedAt, [string]$ManifestUrl = '') {
+    if (-not $ManifestUrl) {
+        if ($BaseUrl -match '^https?://') { $ManifestUrl = Get-DefaultUpdateSource } else { $ManifestUrl = Join-ReleaseUrl $BaseUrl 'manifest.json' }
+    }
     return [ordered]@{
         schemaVersion = 1
         coreVersion   = $CoreVersion
@@ -67,7 +82,7 @@ function New-ReleaseManifest([string]$CoreVersion, [string]$LoaderVersion, [stri
         loaderUrl     = Join-ReleaseUrl $BaseUrl 'ThinQQ.xlam'
         loaderSha256  = $LoaderSha
         tutorialUrl   = Join-ReleaseUrl $BaseUrl 'tutorial.html'
-        manifestUrl   = Join-ReleaseUrl $BaseUrl 'manifest.json'
+        manifestUrl   = $ManifestUrl
         publishedAt   = $PublishedAt
         notes         = $Notes
     }

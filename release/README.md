@@ -6,7 +6,11 @@
    `manifest.json` e `tutorial.html` (o atualizador baixa esses arquivos individualmente). Em um GitHub Release, anexe todos como assets.
 3. Copie `dist/manifest.json` para `release/manifest.json` e faça commit junto com `version.json`.
    O `release/manifest.json` só deve ser commitado com URLs reais (nunca de um release de teste local).
-4. Edite `release/notes.txt` antes do release: o texto vai para o campo `notes` do manifesto. Mantenha o campo `notes` por último no manifesto (o leitor JSON simples do atualizador procura as chaves por texto; `notes` pode conter qualquer texto, então deve vir depois dos campos de versão e de URL).
+4. Fonte de atualização de quem instala pelo ZIP: o instalador grava o campo `manifestUrl` do `manifest.json`. Com `-BaseUrl` http(s)
+   ele é o endereço estável `https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json` (o `release/manifest.json`
+   da `main`, o mesmo padrão do carregador), nunca o asset da release; com pasta de rede/local é `<pasta>\manifest.json` (republique cada
+   versão na mesma pasta). `-ManifestUrl` troca o endereço.
+5. Edite `release/notes.txt` antes do release: o texto vai para o campo `notes` do manifesto. Mantenha o campo `notes` por último no manifesto (o leitor JSON simples do atualizador procura as chaves por texto; `notes` pode conter qualquer texto, então deve vir depois dos campos de versão e de URL).
 
 ## Antes de distribuir (ações do responsável, fora do código)
 

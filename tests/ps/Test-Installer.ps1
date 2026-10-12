@@ -107,6 +107,16 @@ try {
     Assert ((Get-ItemProperty $upKey).UpdateSource -eq 'D:\minha\fonte\manifest.json') 'UpdateSource existente preservado'
     & $install -Root $root -RegistryRoot $reg -PackageDir $pkg -SkipExcelCheck -UpdateSource '\\srv\tqq\manifest.json'
     Assert ((Get-ItemProperty $upKey).UpdateSource -eq '\\srv\tqq\manifest.json') 'UpdateSource explicito'
+    # manifesto de um release publicado no GitHub (New-ReleaseManifest com BaseUrl http): quem instala pelo ZIP passa a consultar o endereco
+    # ESTAVEL (release/manifest.json da main), e nao o asset versionado da release
+    . (Join-Path $repo 'build\lib\Release-Lib.ps1')
+    $gm = New-ReleaseManifest -CoreVersion '1.2.3' -LoaderVersion '1.0.0' -BaseUrl 'https://github.com/x/ThinQQ/releases/download/v1.2.3' -CoreSha (Sha $pkg 'ThinQQ.core.xlam') -LoaderSha (Sha $pkg 'ThinQQ.xlam') -Notes '' -PublishedAt '2026-10-10'
+    $gm | ConvertTo-Json | Set-Content (Join-Path $pkg 'manifest.json')
+    Remove-ItemProperty $upKey -Name UpdateSource
+    & $install -Root $root -RegistryRoot $reg -PackageDir $pkg -SkipExcelCheck
+    Assert ((Get-ItemProperty $upKey).UpdateSource -eq (Get-DefaultUpdateSource)) "UpdateSource do ZIP do GitHub = endereco estavel: $((Get-ItemProperty $upKey).UpdateSource)"
+    Assert ((Get-ItemProperty $upKey).UpdateSource -notmatch '/releases/download/') 'nao fica preso ao asset versionado'
+    Set-Manifest $pkg (Sha $pkg 'ThinQQ.core.xlam') (Sha $pkg 'ThinQQ.xlam')
 
     # ---- Backup do loader e recusa de loader mais antigo ----
     $pkgB = New-Pkg 'pkgB' 'loader-novo'

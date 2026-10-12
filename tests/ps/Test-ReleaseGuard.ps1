@@ -53,6 +53,17 @@ try {
     Assert ((($json | ConvertFrom-Json | ConvertTo-Json -Compress)) -notmatch '[\x00-\x1F]') 'forma compacta sem controles'
     $h = New-ReleaseManifest -CoreVersion '1.0.0' -LoaderVersion '1.0.0' -BaseUrl 'https://x.y/z/' -CoreSha ('a' * 64) -LoaderSha ('b' * 64) -Notes '' -PublishedAt '2026-10-10'
     Assert ($h.coreUrl -ceq 'https://x.y/z/ThinQQ.core.xlam') 'URL http usa /'
+    # manifestUrl (vira a fonte de atualizacao de quem instala pelo ZIP): com BaseUrl http(s) e o endereco ESTAVEL (DEFAULT_UPDATE_SOURCE do loader,
+    # o release/manifest.json da main), nunca o asset versionado; com pasta de rede/local, BaseUrl\manifest.json; -ManifestUrl explicito vence
+    $settingsBas = [IO.File]::ReadAllText((Join-Path $repo 'src\loader\modules\modSettings.bas'))
+    $stable = [regex]::Match($settingsBas, 'DEFAULT_UPDATE_SOURCE As String = "([^"]+)"').Groups[1].Value
+    Assert ($stable -match '^https://') "DEFAULT_UPDATE_SOURCE lido do loader: $stable"
+    Assert ($h.manifestUrl -ceq $stable) "manifestUrl com BaseUrl http e o endereco estavel: $($h.manifestUrl)"
+    Assert ((Get-DefaultUpdateSource) -ceq $stable) 'Get-DefaultUpdateSource le o mesmo endereco do loader'
+    $e = New-ReleaseManifest -CoreVersion '1.0.0' -LoaderVersion '1.0.0' -BaseUrl 'https://x.y/z/' -ManifestUrl 'https://outro/m.json' -CoreSha ('a' * 64) -LoaderSha ('b' * 64) -Notes '' -PublishedAt '2026-10-10'
+    Assert ($e.manifestUrl -ceq 'https://outro/m.json') 'ManifestUrl explicito vence'
+    $l = New-ReleaseManifest -CoreVersion '1.0.0' -LoaderVersion '1.0.0' -BaseUrl 'C:\temp\ensaio' -CoreSha ('a' * 64) -LoaderSha ('b' * 64) -Notes '' -PublishedAt '2026-10-10'
+    Assert ($l.manifestUrl -ceq 'C:\temp\ensaio\manifest.json') "pasta local: $($l.manifestUrl)"
 
     # stub do tutorial
     $stub = Join-Path $tmp 'stub.html'; Set-Content $stub ('x' * 5000 + '<!-- THINQQ-TUTORIAL-STUB -->')

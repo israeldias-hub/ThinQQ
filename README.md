@@ -141,7 +141,8 @@ publicado: o `release.ps1` recusa artefatos com módulos de teste.
    ```
 
    Parâmetros: `-Version` (x.y.z, vira a versão do core), `-LoaderVersion` (opcional, só quando o loader muda),
-   `-BaseUrl` (base das URLs do manifesto), `-PublishTo` (copia os arquivos para uma pasta) e `-NotesFile`.
+   `-BaseUrl` (base das URLs do manifesto), `-PublishTo` (copia os arquivos para uma pasta), `-NotesFile` e `-ManifestUrl`
+   (opcional; veja abaixo).
    O script recusa o tutorial-esqueleto, grava `version.json`, monta a configuração Release e gera
    `dist/manifest.json` (com os SHA-256) e `dist/ThinQQ-x.y.z.zip`.
 3. No GitHub, crie a release `vx.y.z` e anexe como assets o ZIP e os arquivos soltos de `dist/`
@@ -150,6 +151,13 @@ publicado: o `release.ps1` recusa artefatos com módulos de teste.
    branch `main` (a fonte padrão de atualização é o `release/manifest.json` da `main`). Só commite o
    manifesto com URLs reais, nunca o de um teste local.
 5. Os usuários recebem o aviso na próxima abertura do Excel (no máximo uma verificação por dia).
+
+**O que uma instalação pelo ZIP consulta.** O instalador grava como fonte de atualização (`UpdateSource`) o campo `manifestUrl` do
+`manifest.json` do ZIP (só se o usuário ainda não tiver uma fonte própria). Com `-BaseUrl` http(s), como a release do GitHub, esse campo
+é o endereço estável `https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json` (o mesmo padrão do
+carregador), nunca o `manifest.json` anexado à release: quem instalou a 1.1.0 pelo ZIP passa a ver a 1.2.0 assim que o passo 4 atualizar o
+`release/manifest.json` da `main`. Com `-BaseUrl` numa pasta de rede ou local, o campo é `<pasta>\manifest.json`, e cada versão nova deve
+ser publicada na mesma pasta (o manifesto é substituído no lugar). `-ManifestUrl` grava outro endereço.
 
 Para ensaiar sem publicar, use uma cópia do repositório (o Excel do usuário pode manter `dist\ThinQQ.core.test.xlam` travado):
 `pwsh build/release.ps1 -Version x.y.z -BaseUrl C:\temp\ensaio -PublishTo C:\temp\ensaio`, confira o ZIP e o
