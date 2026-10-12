@@ -2,6 +2,10 @@
 # Cert:\...\Root nem grava em HKLM. Assunto unico por execucao; a limpeza do finally remove pelo ASSUNTO, nas tres lojas em que o certificado
 # pode estar (My; CA, onde New-SelfSignedCertificate grava uma copia em "Autoridades de Certificacao Intermediarias"; TrustedPublisher),
 # inclusive quando a criacao falha no meio, e confere que nada sobrou. O run-tests o chama num processo proprio: termina sempre com exit 0 ou 1.
+# So pwsh: roda no mesmo host que o run-tests usa ((Get-Process -Id $PID).Path); nao e exercitado no Windows PowerShell 5.1 (New-ThinQQCert e
+# os demais scripts de tools/ sao compativeis com 5.1: apenas parseados nele).
+# LIMITE inevitavel: se o processo for morto a forca (watchdog, Ctrl+C no meio, queda de energia) o finally nao roda e ficam um certificado
+# "CN=ThinQQ Teste <id>" em Cert:\CurrentUser\My (e/ou TrustedPublisher) e uma pasta tqq_sign_* em %TEMP%: remova-os pelo assunto/pasta.
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $tmp = Join-Path $env:TEMP ("tqq_sign_" + [guid]::NewGuid().ToString('N'))
@@ -62,7 +66,9 @@ try {
     $out = & (Join-Path $repo 'tools\Sign-ThinQQ.ps1') -Files $copy -PfxPath $r.Pfx -PfxPassword 'teste' -WhatIf *>&1 | Out-String
     $code = $global:LASTEXITCODE
     Assert ($code -eq 0 -or $code -eq 2) "Sign-ThinQQ -WhatIf: codigo $code"
-    Assert ($out -match 'signtool' -or $out -match 'SIP') "diagnostico cita signtool/SIP: $out"
+    # o diagnostico sempre imprime "signtool.exe: ..." e "SIP do Office ...": a assercao e sobre a linha especifica do resultado, nao sobre a palavra
+    if ($code -eq 2) { Assert ($out -match 'signtool\.exe: NAO ENCONTRADO' -or $out -match 'SIP do Office[^\r\n]*AUSENTE') "codigo 2 => diagnostico aponta signtool ou SIP ausente: $out" }
+    else { Assert ($out -match 'signtool\.exe: [A-Za-z]:' -and $out -match 'SIP do Office[^\r\n]*presente' -and $out -match 'WhatIf: pre-requisitos presentes') "codigo 0 => signtool e SIP presentes no diagnostico: $out" }
     if ($code -eq 0 -and (Test-Path $dist)) {
         $global:LASTEXITCODE = 0
         & (Join-Path $repo 'tools\Sign-ThinQQ.ps1') -Files $copy -PfxPath $r.Pfx -PfxPassword 'teste' -SkipVerify *>&1 | Out-Null
