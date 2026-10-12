@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "coreVersion": "1.2.0",
+  "coreUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.2.0/ThinQQ.core.xlam",
+  "coreSha256": "63a456a049c917d9f9ef1f1c6bd8b3f2a5d1bbc52684322127ce10d5ccfc90e4",
+  "loaderVersion": "1.2.0",
+  "loaderUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.2.0/ThinQQ.xlam",
+  "loaderSha256": "6ed9cf1ac61d416c0127d259f115f0feb61fa0031cd27a0a7215b382de412776",
+  "tutorialUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.2.0/tutorial.html",
+  "manifestUrl": "https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json",
+  "publishedAt": "2026-10-12",
+  "notes": "• Borboleta, dispersão e bolhas: agora são 20 tipos de gráfico (menu Mais tipos).\n• Rótulos com soma consistente e Arredondar intervalo...: somas que fecham 100%, em fórmulas da planilha.\n• Corte de eixo para colunas e barras: uma coluna gigante deixa de achatar as outras.\n• Menu PowerPoint: copia o gráfico como imagem ou como gráfico vinculado ao Excel.\n• Excel de demonstração com 26 exemplos (pasta exemplos do ZIP) e ícones próprios na faixa.\n• Acertos: eixos da dispersão, cores da pizza até 10 fatias, combinação com totais, borboleta e área.\n• Instalação completa no README e roteiro de assinatura digital para a TI."
+}
