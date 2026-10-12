@@ -39,13 +39,17 @@ End Function
 
 ' Formula (texto em ingles, com "=") do maior resto para UMA celula: v = endereco do valor, rowRange = os S valores da linha,
 ' partialRange = do primeiro valor ate v (empate pela ordem), target = alvo (endereco ou expressao), decimals = endereco ou literal.
+' Os restos (em unidades de 10^-D) sao arredondados a 9 casas antes de comparar: (2,25 - 2,3) / 0,1 e (2,05 - 2,1) / 0,1 diferem no ultimo
+' bit (medido), e sem isso o empate seria decidido pelo ruido de ponto flutuante e nao pela ordem das colunas.
 Public Function Round_Formula(v As String, rowRange As String, partialRange As String, target As String, decimals As String) As String
-    Dim u As String, k As String, remExpr As String, rd As String, ra As String
+    Dim u As String, k As String, remExpr As String, rd As String, ra As String, remRow As String, remPart As String
     u = "POWER(10,-" & decimals & ")"
     k = "ROUND((ROUND(" & target & "," & decimals & ")-SUMPRODUCT(ROUND(" & rowRange & "," & decimals & ")))/" & u & ",0)"
-    remExpr = "(" & v & "-ROUND(" & v & "," & decimals & "))/" & u
-    rd = "(SUMPRODUCT(--((" & rowRange & "-ROUND(" & rowRange & "," & decimals & "))/" & u & ">" & remExpr & "))+SUMPRODUCT(--((" & partialRange & "-ROUND(" & partialRange & "," & decimals & "))/" & u & "=" & remExpr & ")))"
-    ra = "(SUMPRODUCT(--((" & rowRange & "-ROUND(" & rowRange & "," & decimals & "))/" & u & "<" & remExpr & "))+SUMPRODUCT(--((" & partialRange & "-ROUND(" & partialRange & "," & decimals & "))/" & u & "=" & remExpr & ")))"
+    remExpr = "ROUND((" & v & "-ROUND(" & v & "," & decimals & "))/" & u & ",9)"
+    remRow = "ROUND((" & rowRange & "-ROUND(" & rowRange & "," & decimals & "))/" & u & ",9)"
+    remPart = "ROUND((" & partialRange & "-ROUND(" & partialRange & "," & decimals & "))/" & u & ",9)"
+    rd = "(SUMPRODUCT(--(" & remRow & ">" & remExpr & "))+SUMPRODUCT(--(" & remPart & "=" & remExpr & ")))"
+    ra = "(SUMPRODUCT(--(" & remRow & "<" & remExpr & "))+SUMPRODUCT(--(" & remPart & "=" & remExpr & ")))"
     Round_Formula = "=ROUND(" & v & "," & decimals & ")+" & u & "*(IF(" & k & ">0,--(" & rd & "<=" & k & "),0)-IF(" & k & "<0,--(" & ra & "<=-" & k & "),0))"
 End Function
 

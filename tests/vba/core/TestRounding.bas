@@ -449,3 +449,23 @@ Public Sub Test_Core_Confirm_TestBuild_AnswersNo()
     AssertEqual "Substituir?", Core_LastConfirm()
     AssertEqual "", Core_LastNotice(), "nao e um aviso"
 End Sub
+
+' Empate de restos com 1 casa: (2,25 - 2,3) / 0,1 e (2,05 - 2,1) / 0,1 diferem no ultimo bit (-0,499999999999998 contra -0,500000000000003,
+' medido); os restos sao arredondados a 9 casas antes de comparar, entao vale a regra do empate (a PRIMEIRA coluna perde a unidade com K = -1).
+' 0,25 / 0,35 (restos -0,5 exatos no Excel) seguem a mesma regra: 0,2 / 0,4.
+Public Sub Test_Round_TieWithFloatNoise_FirstColumnLoses()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, dec As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    Fixture(ws, Array(2.25, 2.05, 0, 0.25, 0.35, 0)).Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    Core_SetOption "numfmt", "dec1"
+    Core_SetToggle "roundsum", True
+    dec = Application.International(xlDecimalSeparator)
+    AssertEqual "2" & dec & "2", cht.SeriesCollection(1).Points(1).DataLabel.Text, "2,25 / 2,05 (total 4,3): a primeira perde a unidade"
+    AssertEqual "2" & dec & "1", cht.SeriesCollection(2).Points(1).DataLabel.Text
+    AssertEqual "4" & dec & "3", Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Text
+    AssertEqual "0" & dec & "2", cht.SeriesCollection(1).Points(2).DataLabel.Text, "0,25 / 0,35 (total 0,6): 0,2 / 0,4"
+    AssertEqual "0" & dec & "4", cht.SeriesCollection(2).Points(2).DataLabel.Text
+    Teardown wb
+End Sub
