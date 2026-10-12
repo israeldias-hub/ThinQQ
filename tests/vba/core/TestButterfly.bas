@@ -282,3 +282,24 @@ Public Sub Test_Bfly_NarrowLongName_GapCappedAndStable()
     AssertTrue XOf(cht, g) - XOf(cht, -g) > 0.25 * cht.PlotArea.InsideWidth, "o vao chega perto do teto (nome longo)"
     Teardown wb
 End Sub
+
+' Revisao 1: o vao que cresce DEPOIS de inserir (nome longo no refresh) empurra os totais para a direita; a folga reservada na insercao valia
+' para o vao antigo. O total mais a direita continua antes da legenda (a direita) e dentro do grafico.
+Public Sub Test_Bfly_GapGrowth_KeepsTotalsRoom()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, s As Series, i As Long, lbl As DataLabel, k0 As Double
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("C4").Value = 895                                   ' o lado direito tem o maior valor (medido: sem a folga refeita o total 1.205 passa 1,1 pt da legenda)
+    Set cht = Bfly_Insert(ws, d).Chart
+    k0 = Util_ToDouble(Registry_Block(cht).Cells(1, 5).Value)
+    ws.Range("A4").Value = "Trinta a cinquenta e nove anos completos"
+    Core_SafeRefresh cht
+    ForceLayout cht
+    AssertTrue Util_ToDouble(Registry_Block(cht).Cells(1, 5).Value) > k0, "o vao cresceu"
+    Set s = Chart_FindSeries(cht, "tqq_total")
+    For i = 1 To s.Points.Count
+        Set lbl = s.Points(i).DataLabel
+        AssertTrue lbl.Left + lbl.Width <= cht.Legend.Left + 0.5, "total " & i & " (" & lbl.Text & ") termina em " & (lbl.Left + lbl.Width) & " pt, antes da legenda (" & cht.Legend.Left & " pt)"
+        AssertTrue lbl.Left + lbl.Width <= cht.ChartArea.Width, "total " & i & " dentro do grafico"
+    Next
+    Teardown wb
+End Sub

@@ -272,7 +272,7 @@ End Sub
 ' Sem o ThinQQ, GapK fica fixo e o vao continua proporcional ao maximo. Nunca propaga erro.
 Public Sub Bfly_RefreshGap(cht As Chart)
     Dim blk As Range, body As Range, n As Long, i As Long, w As Double, lw As Double, need As Double, k As Double, g As Double, gapPt As Double, pass As Long
-    Dim cap As Double, tgt As Double, capped As Boolean
+    Dim cap As Double, tgt As Double, capped As Boolean, wrote As Boolean
     If mGapBusy Then Exit Sub
     mGapBusy = True
     On Error GoTo Done
@@ -308,7 +308,11 @@ Public Sub Bfly_RefreshGap(cht As Chart)
         If k < BF_GAPK_MIN Then k = BF_GAPK_MIN
         If Abs(k - Util_ToDouble(blk.Cells(1, BF_META_GAPK).Value)) <= 0.02 * k Then Exit For
         blk.Cells(1, BF_META_GAPK).Value = k
+        wrote = True
     Next
+    ' o vao novo empurra os totais (x = Gap + B): a folga reservada por Bfly_SetTotals valia para o vao antigo. So reduz a area de
+    ' plotagem e nao chama o refresh (sem reentrada; mGapBusy continua ligado).
+    If wrote Then Stacked_EnsureRoomAfterChange cht
 Done:
     If Err.Number <> 0 Then Errors_Log "Bfly_RefreshGap" & vbTab & Err.Number & vbTab & Err.Description
     mGapBusy = False
