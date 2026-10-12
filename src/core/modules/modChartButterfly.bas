@@ -513,6 +513,7 @@ Public Sub Bfly_SyncThinLabels(cht As Chart)
     Next
 Done:
     If Err.Number <> 0 Then Errors_Log "Bfly_SyncThinLabels" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    On Error GoTo -1                                 ' encerra um erro ativo: sem isso o Resume Next abaixo nao protegeria a gravacao das listas
     On Error Resume Next
     list = CleanList(list): outL = CleanList(outL)
     If list <> list0 Then Registry_SetOption cht, BF_THIN_OPT, list

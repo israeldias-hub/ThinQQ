@@ -321,6 +321,7 @@ Public Sub Area_SyncEndLabels(cht As Chart)
     Next
 Done:
     en = Err.Number: ed = Err.Description
+    On Error GoTo -1                                 ' encerra um erro ativo: sem isso o Resume Next abaixo nao protegeria a gravacao da lista
     On Error Resume Next
     If list <> list0 Then Registry_SetOption cht, AREA_THIN_OPT, list   ' tambem na saida por erro: o que ja foi ocultado fica registrado
     If en <> 0 Then Errors_Log "Area_SyncEndLabels" & vbTab & en & vbTab & ed

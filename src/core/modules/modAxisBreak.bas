@@ -548,6 +548,7 @@ Public Sub Break_SyncLabels(cht As Chart)
     Next
 Done:
     If Err.Number <> 0 Then en = Err.Number: ed = Err.Description
+    On Error GoTo -1                                 ' encerra um erro ativo (minor 2 da Tarefa 4)
     On Error Resume Next
     If list <> list0 Then Registry_SetOption cht, BK_LBL_OPT, list
     If en <> 0 Then Errors_Log "Break_SyncLabels" & vbTab & en & vbTab & ed
