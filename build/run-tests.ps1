@@ -138,6 +138,13 @@ if (-not $timedOut) {
     if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
 }
 if (-not $timedOut) {
+    Write-Host '=== demonstracao (exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx) ==='
+    # processo proprio (Excel proprio, somente leitura): uma excecao do teste nao vaza para o run-tests
+    $global:LASTEXITCODE = 0
+    & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'tests\ps\Test-DemoWorkbook.ps1') -RepoRoot $RepoRoot
+    if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
+}
+if (-not $timedOut) {
     Write-Host '=== instalador (pwsh e Windows PowerShell 5.1) + guarda de release ==='
     $psExes = @((Get-Process -Id $PID).Path, (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'))
     foreach ($exe in $psExes) {
