@@ -507,3 +507,23 @@ Public Sub Test_Round_Stacked_SeriesDeletedByHand()
     AssertEqual "2", cht.SeriesCollection(1).Points(1).DataLabel.Text, "1,5 nativo"
     Teardown wb
 End Sub
+
+' Origem em percentual: a saida continua em percentual, com as casas do arredondamento (2 casas = 0%, 3 = 0,0%). Texto digitado depois
+' na origem: #VALOR! (documentado), e volta ao numero quando a celula volta a ser numero.
+Public Sub Test_Round_WriteFormulas_PercentSource_KeepsPercent()
+    Dim wb As Workbook, ws As Worksheet, dec As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    dec = Application.International(xlDecimalSeparator)
+    ws.Range("A1:A3").Value = Application.Transpose(Array(0.335, 0.335, 0.33))
+    ws.Range("A1:A3").NumberFormat = "0.0%"
+    Round_WriteFormulas ws.Range("A1:A3"), ws.Range("C1"), 2
+    AssertEqual "33%", ws.Range("C1").Text: AssertEqual "34%", ws.Range("C2").Text: AssertEqual "33%", ws.Range("C3").Text
+    ws.Range("A1:A3").Value = Application.Transpose(Array(1 / 3, 1 / 3, 1 / 3))
+    Round_WriteFormulas ws.Range("A1:A3"), ws.Range("E1"), 3
+    AssertEqual "33" & dec & "4%", ws.Range("E1").Text: AssertEqual "33" & dec & "3%", ws.Range("E3").Text
+    ws.Range("A2").Value = "x"
+    AssertTrue IsError(ws.Range("E1").Value), "texto na origem: #VALOR!"
+    ws.Range("A2").Value = 1 / 3
+    AssertAlmost 0.334, ws.Range("E1").Value, 0.0000001, "volta"
+    CloseTemp wb
+End Sub

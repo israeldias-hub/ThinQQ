@@ -332,6 +332,8 @@ End Function
 ' Valida antes (tamanho e destino: erro 7002 com a mensagem, nada gravado). Uma gravacao so (matriz em Range.Formula), com a tela congelada
 ' e o calculo manual; tela e modo de calculo voltam aos valores anteriores em toda saida. Transacional: uma falha depois de comecar a
 ' gravar devolve as formulas/valores e os formatos anteriores das celulas de saida antes de o erro seguir.
+' Texto digitado depois na origem vira #VALOR! em todas as celulas de saida (sinal claro de dado invalido): IFERROR nao avalia matriz dentro de
+' SUMPRODUCT sem Ctrl+Shift+Enter no Excel 2019 e IF(ISNUMBER()) da #VALOR! na formula completa (medido); o bloco dos graficos saneia antes (V_j).
 Public Sub Round_WriteFormulas(src As Range, dest As Range, decimals As Long)
     Dim n As Long, i As Long, vertical As Boolean, rowRng As String, partRng As String, out As Range, fmt As String, msg As String
     Dim f() As Variant, prevF As Variant, prevFmt() As String, prevCalc As Long, prevSU As Boolean, started As Boolean
@@ -353,7 +355,14 @@ Public Sub Round_WriteFormulas(src As Range, dest As Range, decimals As Long)
             f(1, i) = Round_Formula(Mid$(ChartData_ExternalAddress(src.Cells(i)), 2), rowRng, partRng, "SUM(" & rowRng & ")", "(" & decimals & ")")
         End If
     Next
-    If decimals > 0 Then fmt = "#,##0." & String$(decimals, "0") Else fmt = "#,##0"
+    If InStr(CStr(src.Cells(1, 1).NumberFormat), "%") > 0 Then
+        ' origem em percentual (participacoes): a saida continua em percentual, com as casas do arredondamento (2 casas da fracao = 0%)
+        If decimals > 2 Then fmt = "0." & String$(decimals - 2, "0") & "%" Else fmt = "0%"
+    ElseIf decimals > 0 Then
+        fmt = "#,##0." & String$(decimals, "0")
+    Else
+        fmt = "#,##0"
+    End If
     prevF = out.Formula
     ReDim prevFmt(1 To n)
     For i = 1 To n: prevFmt(i) = out.Cells(i).NumberFormat: Next

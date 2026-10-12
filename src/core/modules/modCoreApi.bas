@@ -600,7 +600,7 @@ Public Sub Core_RoundRange()
     addr = out.Address(False, False)
     If Not out.Worksheet Is rng.Worksheet Then addr = "'" & Replace(out.Worksheet.Name, "'", "''") & "'!" & addr
     If Application.WorksheetFunction.CountA(out) > 0 Then
-        If Not Core_Confirm("As células " & addr & " já têm conteúdo. Substituir?") Then Exit Sub
+        If Not Core_Confirm("As células " & addr & " já têm conteúdo. Substituir? Esta ação não pode ser desfeita.") Then Exit Sub
     End If
     Round_WriteFormulas rng, dest.Cells(1, 1), CLng(dec)
     Core_Notify "Fórmulas de arredondamento com soma consistente gravadas em " & addr & ".", vbInformation
