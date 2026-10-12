@@ -951,7 +951,7 @@ Public Sub Test_Legend_Bars_Arrows_RoomKeptAcrossLegendChanges()
     Ann_AddDifference cht, 1, 4
     For Each mode In Array("none", "right", "none", "right")
         Deco_SetLegend cht, CStr(mode)
-    Core_SafeRefresh cht
+        Core_SafeRefresh cht
         cht.Refresh
         Set ax = cht.Axes(xlValue)
         xEnd = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth * (57 - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale)      ' 2025: 18 + 30 + 9
