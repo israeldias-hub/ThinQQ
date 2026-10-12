@@ -415,3 +415,26 @@ Public Sub Test_Scatter_ErrorGroupCell_GoesToNoGroup()
     AssertAlmost 0.35, CDbl(v(2)), 0.000001
     CloseTemp wb
 End Sub
+
+' Falha no meio de ligar os quadrantes (gancho no segundo eixo): o primeiro eixo volta ao automatico e a opcao nao e gravada; o erro chega ao
+' chamador. Sem o gancho, ligar de novo funciona.
+Public Sub Test_Scatter_Quad_FailMidway_RollsBack()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, en As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Scatter_Insert(d.Source.Worksheet, d, "scatter").Chart
+    Util_FailThinSyncForTest = "scatter-quad:2"
+    On Error Resume Next
+    Scatter_SetQuad cht, True
+    en = Err.Number
+    On Error GoTo 0
+    Util_FailThinSyncForTest = ""
+    AssertEqual vbObjectError + 9996, en, "o erro chega ao chamador"
+    AssertEqual xlAxisCrossesAutomatic, cht.Axes(xlCategory).Crosses, "o primeiro eixo foi desfeito"
+    AssertEqual msoLineSolid, cht.Axes(xlCategory).Format.Line.DashStyle
+    AssertEqual xlAxisCrossesAutomatic, cht.Axes(xlValue).Crosses
+    AssertEqual "0", Registry_GetOption(cht, "quad")
+    Scatter_SetQuad cht, True
+    AssertEqual xlAxisCrossesCustom, cht.Axes(xlCategory).Crosses: AssertEqual xlAxisCrossesCustom, cht.Axes(xlValue).Crosses
+    AssertEqual "1", Registry_GetOption(cht, "quad")
+    CloseTemp wb
+End Sub

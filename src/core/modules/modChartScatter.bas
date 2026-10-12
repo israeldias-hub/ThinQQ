@@ -435,16 +435,37 @@ End Sub
 
 ' Quadrantes: os eixos cruzam nas medias (Axes(xlCategory).CrossesAt = media de X: linha vertical; Axes(xlValue).CrossesAt = media de Y:
 ' horizontal), tracejados; os rotulos continuam na borda (TickLabelPosition Low). Desligar volta ao cruzamento automatico e a linha solida.
+' Transacional (como Scatter_SetTrend): aplica primeiro e SO ENTAO grava a opcao; uma falha no meio de ligar desfaz o eixo ja cruzado (os dois
+' voltam ao automatico) e a opcao fica como estava; o erro segue para o chamador.
 Public Sub Scatter_SetQuad(cht As Chart, turnOn As Boolean)
-    Registry_SetOption cht, "quad", IIf(turnOn, "1", "0")
+    Dim en As Long, es As String, ed As String
+    On Error GoTo Fail
     If turnOn Then
         Scatter_ApplyQuadrants cht
     Else
-        cht.Axes(xlCategory, xlPrimary).Crosses = xlAxisCrossesAutomatic
-        cht.Axes(xlValue, xlPrimary).Crosses = xlAxisCrossesAutomatic
-        cht.Axes(xlCategory, xlPrimary).Format.Line.DashStyle = msoLineSolid
-        cht.Axes(xlValue, xlPrimary).Format.Line.DashStyle = msoLineSolid
+        QuadAxisOff cht, 1
+        QuadAxisOff cht, 2
     End If
+    Registry_SetOption cht, "quad", IIf(turnOn, "1", "0")
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1                                 ' encerra o tratamento do erro: sem isso o Resume Next abaixo nao protegeria a limpeza
+    On Error Resume Next
+    If turnOn Then
+        QuadAxisOff cht, 1                           ' cada eixo isolado: a falha de um nao impede desfazer o outro
+        QuadAxisOff cht, 2
+    End If
+    On Error GoTo 0
+    Err.Raise en, es, ed
+End Sub
+
+' Eixo k (1 = categorias/X, linha vertical; 2 = valores/Y, linha horizontal) de volta ao cruzamento automatico, linha solida.
+Private Sub QuadAxisOff(cht As Chart, k As Long)
+    With cht.Axes(IIf(k = 1, xlCategory, xlValue), xlPrimary)
+        .Crosses = xlAxisCrossesAutomatic
+        .Format.Line.DashStyle = msoLineSolid
+    End With
 End Sub
 
 ' Reaplica o cruzamento nas medias (meta E/F). So escreve quando mudou (chamada a cada refresh). Sem o ThinQQ as medias ficam no ultimo
@@ -454,6 +475,7 @@ Public Sub Scatter_ApplyQuadrants(cht As Chart)
     Set blk = Registry_Block(cht)
     If blk Is Nothing Then Exit Sub
     For k = 1 To 2
+        ScatterTestHook "quad", CStr(k)
         v = blk.Cells(1, IIf(k = 1, SC_META_AVGX, SC_META_AVGY)).Value2
         If IsError(v) Or IsEmpty(v) Then Exit Sub
         Set ax = cht.Axes(IIf(k = 1, xlCategory, xlValue), xlPrimary)
