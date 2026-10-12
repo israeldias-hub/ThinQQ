@@ -1582,3 +1582,34 @@ Public Sub Test_Core_Gap_EveryColumnGroup_And_NotApplicableTextIsCentral()
     AssertEqual "'Indicador 100%' não se aplica a este tipo de gráfico.", Core_LastNotice()
     Teardown wb
 End Sub
+
+' Onda final (I-5): copiar uma planilha mantem o nome do grafico (tqq_<id>): a copia divide id, bloco e opcoes com o original. Ao observar a
+' planilha (Watchers_Rehook) o ThinQQ avisa UMA vez por grafico e sessao para usar Alterar dados na copia; depois de Alterar dados a copia tem
+' id proprio e o original continua com o seu bloco.
+Public Sub Test_Core_CopiedSheet_ChartSharingId_NotifiedOnce_AndRebuildSeparates()
+    Dim wb As Workbook, ws As Worksheet, ws2 As Worksheet, cht As Chart, c2 As Chart, id As String
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    id = Registry_IdFromChart(cht)
+    ws.Copy After:=ws
+    Set ws2 = wb.Worksheets(2)
+    ws2.Activate
+    AssertEqual ID_PREFIX & id, ws2.ChartObjects(1).Name, "pre-condicao: a copia tem o mesmo nome (mesmo id)"
+    Core_ClearLastNotice
+    Watchers_Rehook
+    AssertTrue InStr(Core_LastNotice(), "Alterar dados") > 0 And InStr(Core_LastNotice(), "outra planilha") > 0, "aviso da copia: <" & Core_LastNotice() & ">"
+    Watchers_Rehook
+    AssertEqual 1, Core_NoticeCount(), "uma vez por grafico e sessao"
+    ws2.ChartObjects(1).Select
+    Set c2 = Core_ActiveChart()
+    AssertTrue Core_RebuildFromRange(c2, ws2.Range("A1:C5")), "Alterar dados na copia"
+    AssertTrue Registry_IdFromChart(ws2.ChartObjects(1).Chart) <> id, "a copia ganhou id proprio"
+    AssertTrue Not CalcSheet_FindBlock(wb, id) Is Nothing, "o bloco do original continua"
+    AssertEqual "stacked", Registry_ChartType(ws.ChartObjects(1).Chart)
+    Core_ClearLastNotice
+    Watchers_Rehook
+    AssertEqual 0, Core_NoticeCount(), "sem copia, sem aviso"
+    Teardown wb
+End Sub

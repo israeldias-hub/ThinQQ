@@ -41,6 +41,8 @@ Public Sub Watchers_Rehook()
             Set w.Cht = co.Chart
             If Err.Number = 0 Then mWatchers.Add w
             Err.Clear
+            Core_NotifyCopiedChartOnce co           ' planilha copiada: o grafico divide id e bloco com o original (aviso unico)
+            Err.Clear
             On Error GoTo 0
             ' redesenha anotacoes/rotulos do grafico que acabou de ser observado (planilha recem-ativada)
             If Not mRehooking Then

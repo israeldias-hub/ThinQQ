@@ -251,6 +251,7 @@ Os detalhes de cada tipo estão na seção "Limitações" do tutorial.
 - Adicionar ou remover linhas na tabela de origem exige o botão Alterar dados (o ThinQQ avisa uma vez por gráfico e por sessão quando detecta a mudança de tamanho).
 - Linhas filtradas ou ocultas continuam plotadas; a linha de totais de uma Tabela do Excel entra como categoria; formato `.xls` não é suportado (use `.xlsx`, `.xlsm` ou `.xlsb`); colunas empilhadas com sinais misturados têm rótulo de total líquido no topo da parte positiva.
 - Cópias de gráficos do ThinQQ e gráficos movidos para planilha de gráfico mantêm os dados, mas deixam de ser reconhecidos como gráficos do ThinQQ (sem botões nem setas automáticas).
+- Copiar uma planilha inteira (Mover ou copiar > Criar uma cópia) copia o gráfico com o mesmo nome: a cópia divide o bloco e as opções com o original e as séries auxiliares (totais, rótulos) continuam na tabela original. O ThinQQ avisa uma vez ao abrir a planilha copiada; use Alterar dados no gráfico da cópia para separá-lo.
 - Somente Excel para Windows, Office 16.0; sem Mac nem Excel na web. A compatibilidade com Excel 64 bits é por construção (sem `Declare`), ainda não verificada em teste.
 - Cascata com no máximo 6 séries. Pizza e rosca usam só a primeira coluna de valores; valores negativos, zero, texto e erros viram fatias vazias.
 - A seta de diferença não existe em gráficos 100%, Mekko, pizza e Gantt; a seta CAGR não existe em Mekko, pizza e Gantt; o colchete só existe no Gantt.

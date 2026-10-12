@@ -7,6 +7,7 @@ Private mLastNotice As String      ' última mensagem de Core_Notify (usada pelo
 Private mNoticeCount As Long        ' chamadas a Core_Notify desde Core_ClearLastNotice (testes)
 Private mMismatchSeen As Collection ' ids de gráficos já avisados de tabela de origem com outro tamanho
 Private mClipSeen As Collection     ' ids de gráficos já avisados de dados acima da escala fixa (Mesma escala)
+Private mCopySeen As Collection     ' ids de gráficos já avisados de cópia em outra planilha (planilha copiada)
 Private mTestFamily As String       ' gancho de teste: familia de despacho forcada (so no build Test); "" = a familia real do tipo
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
 Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,"
@@ -47,6 +48,7 @@ Public Sub Core_OnUnload()
     Watchers_Stop
     Set mMismatchSeen = Nothing
     Set mClipSeen = Nothing
+    Set mCopySeen = Nothing
 End Sub
 
 Public Sub Core_RegisterLoader(loaderName As String, loaderFullPath As String)
@@ -581,6 +583,31 @@ Private Sub NotifySourceMismatchOnce(cht As Chart)
     mMismatchSeen.Add id, id
     If Err.Number <> 0 Then Err.Clear: Exit Sub       ' chave repetida: já avisado
     Core_Notify "A tabela de origem mudou de tamanho. Use 'Alterar dados' para reconstruir o gráfico (ou reinsira o gráfico).", vbExclamation
+End Sub
+
+' Planilha copiada (Mover ou copiar > Criar uma cópia): o gráfico copiado mantém o nome tqq_<id> e passa a dividir id, bloco e opções com o
+' original, com as séries auxiliares ainda na tabela original. Chamado ao observar a planilha (Watchers_Rehook): se outro ChartObject da pasta
+' tem o mesmo nome, avisa uma única vez por id e por sessão para usar Alterar dados no gráfico da cópia. Nunca propaga erro.
+Public Sub Core_NotifyCopiedChartOnce(co As ChartObject)
+    Dim ws As Worksheet, n As Long, x As ChartObject, id As String, seen As Variant
+    On Error Resume Next
+    id = Mid$(co.Name, Len(ID_PREFIX) + 1)
+    If Len(id) = 0 Then Exit Sub
+    If Not mCopySeen Is Nothing Then
+        seen = mCopySeen.Item(id)
+        If Err.Number = 0 Then Exit Sub
+        Err.Clear
+    End If
+    For Each ws In co.Parent.Parent.Worksheets
+        Set x = Nothing
+        Set x = ws.ChartObjects(co.Name)
+        If Not x Is Nothing Then n = n + 1
+        Err.Clear
+    Next
+    If n < 2 Then Exit Sub
+    If mCopySeen Is Nothing Then Set mCopySeen = New Collection
+    mCopySeen.Add id, id
+    Core_Notify "Este gráfico do ThinQQ também existe em outra planilha (planilha copiada): a cópia continua ligada aos dados e às opções do gráfico original. Use 'Alterar dados' no gráfico da cópia para separá-lo.", vbExclamation
 End Sub
 
 ' Avisa uma única vez por gráfico e por sessão que os dados passaram do máximo da escala fixa (Mesma escala): a escala fixa é imposta
