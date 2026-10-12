@@ -577,7 +577,9 @@ Public Sub Test_Break_TotalsAfterBreak_RebuildBelowLimit()
     AssertTrue cht.PlotArea.InsideTop >= 23.5, "folga do total ligado depois do corte (" & cht.PlotArea.InsideTop & ")"
     AssertTrue tot.Points(3).DataLabel.Top >= 0, "rotulo dentro do grafico"
     ws.Range("A10:C10").Value = Array("Cat", "S1", "S2"): ws.Range("A11:C11").Value = Array("x", 1, 2): ws.Range("A12:C12").Value = Array("y", 3, 4)
+    Core_ClearLastNotice
     AssertTrue Core_RebuildFromRange(cht, ws.Range("A10:C12")), "rebuild"
+    AssertTrue InStr(Core_LastNotice(), "Corte de eixo retirado") > 0, "retirado com aviso (" & Core_LastNotice() & ")"
     Set cht = Core_ActiveChart()
     AssertEqual "", Registry_GetOption(cht, "vbreak", ""), "limite acima dos dados novos: corte desfeito"
     AssertTrue cht.Axes(xlValue).MaximumScaleIsAuto
@@ -736,5 +738,27 @@ Public Sub Test_Break_Stacked_SingleSeries_NoFloor()
     AssertTrue InStr(Core_LastNotice(), "inteiro acima") = 0, "sem dizer que some inteiro"
     AssertTrue InStr(Core_LastNotice(), Format$(33000, "#,##0")) > 0, "o minimo"
     AssertEqual "", Registry_GetOption(cht, "vbreak", "")
+    Teardown wb
+End Sub
+
+' Onda A, rodada 1: "Alterar dados" reaplica o corte como o refresh: com os dados novos abaixo do piso (o segmento de cima da coluna c inteiro
+' acima do corte), o corte fica, o segmento fica sem rotulo e entra em brklbl — o mesmo estado de quando os dados sobem depois do corte.
+Public Sub Test_Break_Rebuild_BelowFloor_KeptLikeRefresh()
+    Dim wb As Workbook, rng As Range, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb): Set ws = rng.Worksheet
+    rng.Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    LowerC cht
+    Core_SetAxisBreakAt 50
+    ws.Range("B4").Value = 200: ws.Range("C4").Value = 30        ' sem refresh: o Alterar dados ve os dados novos
+    Core_ClearLastNotice
+    AssertTrue Core_RebuildFromRange(cht, rng), "rebuild"
+    Set cht = Core_ActiveChart()
+    AssertEqual "", Core_LastNotice(), "sem aviso: o corte continua valido"
+    AssertEqual "50", Registry_GetOption(cht, "vbreak", ""), "o corte fica"
+    AssertFalse cht.SeriesCollection(2).Points(3).HasDataLabel, "segmento inteiro acima do corte: sem rotulo"
+    AssertEqual "2.3", Registry_GetOption(cht, "brklbl", ""), "e registrado, como no refresh"
+    AssertEqual xlLabelPositionInsideBase, cht.SeriesCollection(1).Points(3).DataLabel.Position
     Teardown wb
 End Sub

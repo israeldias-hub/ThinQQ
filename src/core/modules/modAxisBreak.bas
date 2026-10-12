@@ -224,7 +224,7 @@ End Function
 ' a coluna e o menor valor aceito), todas antes de gravar qualquer coisa. Recusar (e nao subir o limite sozinho) deixa o usuario decidir e
 ' nunca grava um valor que ele nao digitou. Transacional: uma falha depois de comecar volta a celula do limite, as opcoes (vbreak, vmin,
 ' vmax) e o eixo ao que eram antes de o erro seguir para o chamador.
-Public Sub Break_Set(cht As Chart, limit As Double)
+Public Sub Break_Set(cht As Chart, limit As Double, Optional enforceFloor As Boolean = True)
     Dim kind As String, ax As Axis, lc As Range, prevOpt As String, prevMin As String, prevMax As String, prevCell As Variant
     Dim prevAutoMax As Boolean, prevMaxVal As Double, prevAutoMin As Boolean, prevMinVal As Double, started As Boolean, wasBusy As Boolean
     Dim en As Long, es As String, ed As String, fl As Double, cat As Long
@@ -232,7 +232,7 @@ Public Sub Break_Set(cht As Chart, limit As Double)
     If Not Kinds_Supports(kind, "break") Then Err.Raise vbObjectError + 7002, "Break_Set", Kinds_NotApplicableText("break")
     If limit <= 0 Then Break_Remove cht: Exit Sub
     If limit >= MaxTop(cht) Then Err.Raise vbObjectError + 7003, "Break_Set", BREAK_ERR_LIMIT
-    fl = StackedFloor(cht, limit, cat)
+    If enforceFloor Then fl = StackedFloor(cht, limit, cat)       ' "Alterar dados" (Break_TryReapply) reaplica como o refresh: sem o piso
     If limit < fl - 0.000000001 * (1 + fl) Then Err.Raise vbObjectError + 7003, "Break_Set", FloorText(cht, cat, fl)
     wasBusy = mBusy: mBusy = True
     On Error GoTo Fail
@@ -716,18 +716,22 @@ Public Sub Break_RefreshAfterDataChange(cht As Chart)
     mBusy = False
 End Sub
 
-' Depois de "Alterar dados" o grafico novo tem a opcao copiada mas nenhuma coluna/marca: reaplica; se o limite ja nao vale para os dados
-' novos (7003) ou a aplicacao falha, limpa a opcao e registra. Nunca propaga erro.
+' Depois de "Alterar dados" o grafico novo tem a opcao copiada mas nenhuma coluna/marca: reaplica como o refresh faria com os dados novos
+' (sem o piso das empilhadas: um segmento inteiro acima do corte fica oculto e em brklbl, como quando os dados sobem); se o limite ja nao fica
+' abaixo do maior topo (7003), retira o corte e AVISA (Core_Notify); outra falha limpa a opcao e registra. Nunca propaga erro.
 Public Sub Break_TryReapply(cht As Chart)
-    Dim lim As Double
+    Dim lim As Double, en As Long
     On Error GoTo Fail
     lim = Break_Limit(cht)
     If lim <= 0 Then Exit Sub
     If Not Kinds_Supports(Registry_ChartType(cht), "break") Then Registry_SetOption cht, "vbreak", "": Exit Sub
-    Break_Set cht, lim
+    Break_Set cht, lim, False                       ' sem o piso: os dados novos sao do usuario, como num refresh (segmento acima do corte: oculto e em brklbl)
     Exit Sub
 Fail:
+    en = Err.Number
     Errors_Log "Break_TryReapply" & vbTab & Err.Number & vbTab & Err.Description
+    On Error GoTo -1
     On Error Resume Next
     Registry_SetOption cht, "vbreak", ""
+    If en = vbObjectError + 7003 Then Core_Notify "Corte de eixo retirado: o limite anterior (" & NumberText(lim) & ") não fica abaixo do maior valor dos dados novos.", vbInformation
 End Sub
