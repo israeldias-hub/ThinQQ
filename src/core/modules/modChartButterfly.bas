@@ -302,7 +302,7 @@ End Sub
 ' Sem o ThinQQ, GapK fica fixo e o vao continua proporcional ao maximo. Nunca propaga erro.
 Public Sub Bfly_RefreshGap(cht As Chart)
     Dim blk As Range, body As Range, n As Long, i As Long, w As Double, lw As Double, need As Double, k As Double, g As Double, gapPt As Double, pass As Long
-    Dim cap As Double, tgt As Double, capped As Boolean, wrote As Boolean, autoAx As Boolean, kMax As Double, mx As Double, halfExt As Double
+    Dim cap As Double, tgt As Double, capped As Boolean, wrote As Boolean, autoAx As Boolean, kMax As Double, mx As Double, halfExt As Double, grow As Boolean
     If mGapBusy Then Exit Sub
     mGapBusy = True
     On Error GoTo Done
@@ -337,16 +337,18 @@ Public Sub Bfly_RefreshGap(cht As Chart)
         gapPt = Geom_ChartValueToX(cht, g) - Geom_ChartValueToX(cht, -g)
         If gapPt <= 0 Then Exit For
         If gapPt < need - 0.5 Then
+            grow = True
             tgt = need * 1.05
             If tgt > cap Then tgt = cap
         ElseIf (gapPt > need * 1.6 Or gapPt > cap + 0.5) And k > BF_GAPK_MIN Then
+            grow = False
             tgt = need * 1.2
             If tgt > cap Then tgt = cap
         Else
             Exit For
         End If
         k = k * tgt / gapPt
-        If capped And tgt = cap And autoAx Then k = BF_GAPK_MAX
+        If grow And capped And tgt = cap And autoAx Then k = BF_GAPK_MAX         ' so ao crescer: encolher nunca salta para o teto
         If k > kMax Then k = kMax
         If k < BF_GAPK_MIN Then k = BF_GAPK_MIN
         If Abs(k - Util_ToDouble(blk.Cells(1, BF_META_GAPK).Value)) <= 0.02 * k Then Exit For
