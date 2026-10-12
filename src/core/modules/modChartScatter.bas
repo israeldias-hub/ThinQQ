@@ -28,6 +28,8 @@ Private Const SC_MAX_NAME As Long = 255          ' literal de texto numa formula
 Private Const SC_AXIS_COLOR As Long = 10921638   ' RGB(166, 166, 166)
 Private Const SC_TEXT_COLOR As Long = 5855577    ' RGB(89, 89, 89)
 Private Const SC_LABEL_COLOR As Long = 4210752   ' RGB(64, 64, 64): nomes ao lado do ponto
+Private mBubbleSyncBusy As Boolean                ' Scatter_SyncBubbleLabels em andamento: a reentrada (Calculate de uma escrita) sai
+Private mBubbleSyncRuns As Long                   ' gancho de teste: passadas de Scatter_SyncBubbleLabels que fizeram o trabalho
 Private Const SC_TIGHT_FRAC As Double = 0.6667  ' escala apertada quando a faixa dos dados e menor que 2/3 do maior |valor| (Scatter_NiceRange)
 Private Const SC_MAX_STEPS As Long = 8           ' no maximo 8 intervalos na escala apertada
 Private Const SC_AXIS_PAD As Double = 0.05       ' folga de cada lado da escala apertada (fracao da faixa dos dados)
@@ -646,10 +648,20 @@ End Sub
 ' (Labels_EstimateWidth). Chamado ao ligar os rotulos, ao trocar a paleta e em todo refresh (Scatter_RefreshAfterDataChange). So mexe em
 ' rotulos que existem (o apagado pelo usuario continua apagado) e so escreve o que mudou; cada ponto e isolado: uma leitura que falha deixa
 ' o ponto como esta (nunca decide com o valor de outro ponto). Ponto nao plotado (diametro 0) fica como esta. Nunca propaga erro.
+' As escritas rodam com os eventos desligados e um sinalizador de ocupado (cada escrita dispararia Calculate e o refresh reentraria aqui);
+' os dois voltam ao estado anterior na unica saida depois de ligados.
 Public Sub Scatter_SyncBubbleLabels(cht As Chart)
     Dim k As Long, i As Long, s As Series, fc As Long, has As Boolean, d As Double, txt As String, wantPos As Long, wantColor As Long, ok As Boolean
+    Dim prevEv As Boolean
     On Error Resume Next
+    Err.Clear                                        ' um erro pendente do chamador nao vale como falha de leitura aqui
+    If mBubbleSyncBusy Then Exit Sub
     If Registry_ChartType(cht) <> "bubble" Then Exit Sub
+    Err.Clear
+    mBubbleSyncBusy = True
+    mBubbleSyncRuns = mBubbleSyncRuns + 1
+    prevEv = Application.EnableEvents
+    Application.EnableEvents = False
     For k = 1 To Scatter_SeriesCount(cht)
         Set s = Nothing
         Set s = Scatter_DataSeries(cht, k)
@@ -677,7 +689,15 @@ Public Sub Scatter_SyncBubbleLabels(cht As Chart)
             Next
         End If
     Next
+    Application.EnableEvents = prevEv
+    mBubbleSyncBusy = False
 End Sub
+
+' Gancho de teste: passadas de Scatter_SyncBubbleLabels que fizeram o trabalho (a reentrada barrada nao conta); reset zera.
+Public Function Scatter_BubbleSyncRunsForTest(Optional reset As Boolean = False) As Long
+    Scatter_BubbleSyncRunsForTest = mBubbleSyncRuns
+    If reset Then mBubbleSyncRuns = 0
+End Function
 
 ' Gancho de teste (Util_FailThinSyncForTest = "scatter-<ponto>:<chave>", como o bfly- da borboleta): falha simulada num ponto do codigo para
 ' testar o caminho de erro. Inerte fora do build Test.

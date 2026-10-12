@@ -707,3 +707,31 @@ Public Sub Test_Scatter_AxisNumberFormat_ReadBackNormalized_KeepsFollowing()
     AssertEqual ws.Range("B2").NumberFormatLocal, axX.TickLabels.NumberFormatLocal, "continua seguindo (moeda com codigo de localidade)"
     Teardown wb
 End Sub
+
+' Onda B (B2.6): Scatter_SyncBubbleLabels escreve com os eventos desligados e barra a reentrada (cada escrita disparava Calculate e o refresh
+' entrava de novo: convergia, mas fundo). Uma chamada = uma passada que faz o trabalho; EnableEvents volta ao que era (ligado ou desligado).
+Public Sub Test_Bubble_SyncLabels_NoReentry_EventsRestored()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, s As Series, i As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb, True, True)
+    d.Source.Select
+    Core_Insert "bubble"
+    Set cht = Core_ActiveChart()
+    Application.EnableEvents = False                                         ' prepara sem refresh: todos os rotulos fora do lugar
+    For Each s In cht.SeriesCollection
+        For i = 1 To s.Points.Count
+            If s.Points(i).HasDataLabel Then s.Points(i).DataLabel.Position = xlLabelPositionLeft
+        Next
+    Next
+    Application.EnableEvents = True
+    Scatter_BubbleSyncRunsForTest True
+    Scatter_SyncBubbleLabels cht
+    AssertEqual 1, Scatter_BubbleSyncRunsForTest(True), "uma passada (as escritas nao reentram pelo Calculate)"
+    AssertTrue Application.EnableEvents, "eventos ligados de volta"
+    AssertEqual xlLabelPositionCenter, cht.SeriesCollection(1).Points(1).DataLabel.Position, "a passada fez o trabalho (P1 cabe)"
+    AssertEqual xlLabelPositionRight, cht.SeriesCollection(2).Points(4).DataLabel.Position, "P4 (bolha pequena) nao cabe"
+    Application.EnableEvents = False
+    Scatter_SyncBubbleLabels cht
+    AssertFalse Application.EnableEvents, "desligado antes: continua desligado"
+    Application.EnableEvents = True
+    Teardown wb
+End Sub
