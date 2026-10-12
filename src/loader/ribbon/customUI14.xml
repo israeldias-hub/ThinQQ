@@ -4,10 +4,12 @@
     <tabs>
       <tab id="tqqTab" label="ThinQQ" insertAfterMso="TabInsert">
 
-        <!-- Cinco menus por familia de grafico (17 botoes de insercao, todos com onAction=Rx_OnInsert e a chave do tipo em tag).
-             REGRA: filho de menu NUNCA leva 'size' (so o proprio menu no grupo); um atributo invalido faz o Excel descartar a aba inteira, em silencio. -->
+        <!-- Cinco menus por familia de grafico (20 botoes de insercao, todos com onAction=Rx_OnInsert e a chave do tipo em tag).
+             REGRA: filho de menu NUNCA leva 'size' (so o proprio menu no grupo); um atributo invalido faz o Excel descartar a aba inteira, em silencio.
+             Icones proprios: atributo image com o nome de um icone da tabela de build/lib/Ribbon-Icons.ps1 (32 px nos menus grandes, sufixo 16 nos
+             pequenos); o build grava o PNG e a relacao no pacote. Nenhum controle leva image e imageMso juntos. -->
         <group id="grpInsert" label="Inserir gráfico">
-          <menu id="mnuColumns" label="Colunas" size="large" imageMso="ChartTypeColumnInsertGallery"
+          <menu id="mnuColumns" label="Colunas" size="large" image="tqq_columns"
                 screentip="Colunas" supertip="Colunas empilhadas, agrupadas ou 100%. Tabela: cabeçalho na 1ª linha, categorias na 1ª coluna e uma coluna de valores por série.">
             <button id="btnStacked" label="Colunas empilhadas" tag="stacked" onAction="Rx_OnInsert"
                     screentip="Colunas empilhadas" supertip="Selecione a tabela (linha de cabeçalho + coluna de categorias) e clique. Totais e rótulos entram automaticamente."/>
@@ -16,7 +18,7 @@
             <button id="btnStacked100" label="Colunas 100%" tag="stacked100" onAction="Rx_OnInsert"
                     screentip="Colunas 100% empilhadas" supertip="Cada coluna soma 100% e mostra a participação de cada série. Mesma tabela das colunas empilhadas."/>
           </menu>
-          <menu id="mnuBars" label="Barras" size="large" imageMso="ChartTypeBarInsertGallery"
+          <menu id="mnuBars" label="Barras" size="large" image="tqq_bars"
                 screentip="Barras" supertip="Como as colunas, com as categorias no eixo vertical. Tabela: cabeçalho, categorias na 1ª coluna e uma coluna de valores por série.">
             <button id="btnBarStacked" label="Barras empilhadas" tag="barstacked" onAction="Rx_OnInsert"
                     screentip="Barras empilhadas" supertip="Barras horizontais empilhadas, com totais e rótulos. Mesma tabela das colunas empilhadas."/>
@@ -25,14 +27,14 @@
             <button id="btnBarStacked100" label="Barras 100%" tag="barstacked100" onAction="Rx_OnInsert"
                     screentip="Barras 100% empilhadas" supertip="Cada barra soma 100% e mostra a participação de cada série. Mesma tabela das colunas empilhadas."/>
           </menu>
-          <menu id="mnuWaterfall" label="Cascata" size="large" imageMso="ChartTypeOtherInsertGallery"
+          <menu id="mnuWaterfall" label="Cascata" size="large" image="tqq_waterfall"
                 screentip="Cascata (ponte)" supertip="Tabela: etapa na 1ª coluna e valor na 2ª. Escreva 'e' no valor para uma barra de total/subtotal calculada.">
             <button id="btnWaterfall" label="Cascata (colunas)" tag="waterfall" onAction="Rx_OnInsert"
                     screentip="Cascata (colunas)" supertip="Tabela com 2 colunas: etapa e valor. Escreva 'e' no valor para uma barra de total/subtotal calculada. Com mais colunas de valores, cada uma vira uma série."/>
             <button id="btnBarWaterfall" label="Cascata (barras)" tag="barwaterfall" onAction="Rx_OnInsert"
                     screentip="Cascata (barras)" supertip="A mesma cascata na horizontal: etapa e valor; 'e' no valor para um total/subtotal."/>
           </menu>
-          <menu id="mnuLines" label="Linha e área" size="large" imageMso="ChartTypeLineInsertGallery"
+          <menu id="mnuLines" label="Linha e área" size="large" image="tqq_lines"
                 screentip="Linha e área" supertip="Linha, áreas empilhadas ou 100% e a combinação de colunas com linha. Tabela: cabeçalho, categorias (texto ou datas) na 1ª coluna e uma coluna de valores por série.">
             <button id="btnLine" label="Linha" tag="line" onAction="Rx_OnInsert"
                     screentip="Linha com rótulos" supertip="Uma linha por coluna de valores, com o valor de cada ponto escrito acima dele."/>
@@ -43,8 +45,8 @@
             <button id="btnCombo" label="Combinação (colunas + linha)" tag="combo" onAction="Rx_OnInsert"
                     screentip="Combinação (colunas + linha)" supertip="Tabela com 2 ou mais colunas de valores: as primeiras viram colunas empilhadas e a última vira uma linha, com eixo secundário opcional."/>
           </menu>
-          <menu id="mnuOthers" label="Mais tipos" size="large" imageMso="ChartTypePieInsertGallery"
-                screentip="Mais tipos" supertip="Mekko, Gantt, pizza e rosca. Cada tipo tem o seu formato de tabela (veja o texto de cada item).">
+          <menu id="mnuOthers" label="Mais tipos" size="large" image="tqq_more"
+                screentip="Mais tipos" supertip="Mekko, Gantt, pizza, rosca, borboleta, dispersão e bolhas. Cada tipo tem o seu formato de tabela (veja o texto de cada item).">
             <button id="btnMekko" label="Mekko (%)" tag="mekko" onAction="Rx_OnInsert"
                     screentip="Mekko (%)" supertip="Colunas de largura proporcional ao total de cada categoria; a altura mostra a participação de cada série (100%). Tabela: categorias e uma coluna de valores por série."/>
             <button id="btnMekkoUnits" label="Mekko (unidades)" tag="mekkounits" onAction="Rx_OnInsert"
@@ -55,6 +57,12 @@
                     screentip="Pizza" supertip="Tabela: categorias e uma coluna de valores positivos (as demais colunas são ignoradas)."/>
             <button id="btnDoughnut" label="Rosca" tag="doughnut" onAction="Rx_OnInsert"
                     screentip="Rosca" supertip="Tabela: categorias e uma coluna de valores positivos (as demais colunas são ignoradas)."/>
+            <button id="btnButterfly" label="Borboleta" tag="butterfly" onAction="Rx_OnInsert" image="tqq_butterfly16"
+                    screentip="Borboleta" supertip="Duas séries espelhadas (esquerda e direita) com os nomes das categorias no centro. Tabela: categorias e exatamente 2 colunas de valores."/>
+            <button id="btnScatter" label="Dispersão" tag="scatter" onAction="Rx_OnInsert" image="tqq_scatter16"
+                    screentip="Dispersão" supertip="Pontos em dois eixos de valor, com o nome ao lado de cada ponto. Tabela: nome, X, Y e, opcionalmente, uma coluna de grupo (uma série por grupo)."/>
+            <button id="btnBubble" label="Bolhas" tag="bubble" onAction="Rx_OnInsert" image="tqq_bubble16"
+                    screentip="Bolhas" supertip="Como a dispersão, com o tamanho da bolha numa terceira coluna. Tabela: nome, X, Y, tamanho e, opcionalmente, grupo."/>
           </menu>
         </group>
 
@@ -105,9 +113,10 @@
             <item id="lineend" label="Nome no fim da linha"/>
           </dropDown>
           <separator id="sep2"/>
-          <!-- Mais opcoes fica sempre ativo (sem getEnabled): contem Mesma escala e Escala automatica, que valem sem gráfico selecionado. -->
-          <menu id="mnuMore" label="Mais opções" imageMso="PropertySheet"
-                screentip="Mais opções" supertip="Indicador 100%, linha de valor, eixo secundário, rótulos fora da pizza, Mesma escala e Escala automática.">
+          <!-- Mais opcoes fica sempre ativo (sem getEnabled): contem Mesma escala, Escala automatica e Arredondar intervalo, que valem sem gráfico
+               selecionado. Os alternadores e os dois botoes de corte de eixo consultam a matriz pela tag (Core_Supports). -->
+          <menu id="mnuMore" label="Mais opções" image="tqq_options16"
+                screentip="Mais opções" supertip="Indicador 100%, linha de valor, eixo secundário, rótulos fora da pizza, soma consistente, linha de tendência, quadrantes, corte de eixo, Arredondar intervalo, Mesma escala e Escala automática.">
             <toggleButton id="tglInd100" label="Indicador 100%" imageMso="PercentStyle" tag="ind100"
                           onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
                           screentip="Indicador 100%" supertip="Marca o nível de 100% (à esquerda nas colunas e no Mekko, no alto nas barras) dos gráficos 100% e do Mekko (%). Já nasce ligado nesses tipos."/>
@@ -120,14 +129,32 @@
             <toggleButton id="tglPieOut" label="Rótulos fora da pizza" imageMso="TextBoxInsert" tag="pieout"
                           onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
                           screentip="Rótulos fora da pizza" supertip="Move os rótulos para fora das fatias, com o nome da categoria (a legenda sai enquanto os rótulos ficam ligados). O Excel só desenha as linhas de chamada depois que você arrasta um rótulo. A rosca não tem esta opção."/>
+            <toggleButton id="tglRoundSum" label="Rótulos com soma consistente" image="tqq_round16" tag="roundsum"
+                          onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
+                          screentip="Rótulos com soma consistente" supertip="Arredonda os rótulos de segmento para que somem exatamente o total mostrado (34% + 33% + 33% = 100%), pelo método do maior resto, em fórmulas da planilha."/>
+            <toggleButton id="tglTrend" label="Linha de tendência" image="tqq_lines16" tag="trend"
+                          onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
+                          screentip="Linha de tendência" supertip="Regressão linear por série (dispersão e bolhas)."/>
+            <toggleButton id="tglQuad" label="Quadrantes (médias)" image="tqq_scatter16" tag="quad"
+                          onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
+                          screentip="Quadrantes (médias)" supertip="Os eixos passam a cruzar nas médias de X e de Y, dividindo o gráfico em quatro quadrantes (dispersão e bolhas)."/>
+            <menuSeparator id="msepBreak"/>
+            <button id="btnBreak" label="Corte de eixo..." image="tqq_break16" tag="break" onAction="Rx_OnAxisBreak" getEnabled="Rx_GetEnabled"
+                    screentip="Corte de eixo" supertip="Corta o eixo de valores num valor que você informa: as colunas maiores ficam cortadas, com uma marca, e o total continua no rótulo."/>
+            <button id="btnBreakOff" label="Remover corte de eixo" tag="break" onAction="Rx_OnAxisBreakOff" getEnabled="Rx_GetEnabled"
+                    screentip="Remover corte de eixo"/>
+            <menuSeparator id="msepRound"/>
+            <!-- Arredondar intervalo age sobre as celulas selecionadas (nao sobre o grafico): sem getEnabled, sempre ativo. -->
+            <button id="btnRoundRange" label="Arredondar intervalo..." image="tqq_round16" onAction="Rx_OnRoundRange"
+                    screentip="Arredondar intervalo" supertip="Grava, a partir de uma célula que você escolhe, fórmulas que arredondam a coluna ou linha selecionada de modo que a soma dos arredondados seja o total arredondado (maior resto). Só fórmulas nativas."/>
             <menuSeparator id="msepScale"/>
             <button id="btnSameScale" label="Mesma escala" imageMso="ChartFormatAxis" onAction="Rx_OnSameScale"
-                    screentip="Mesma escala" supertip="Aplica a mesma escala do eixo de valores a dois ou mais gráficos ThinQQ selecionados; com um só selecionado ou nenhum, a todos os da planilha."/>
+                    screentip="Mesma escala" supertip="Aplica a mesma escala do eixo de valores a dois ou mais gráficos ThinQQ selecionados; com um só selecionado ou nenhum, a todos os da planilha. Não entram no grupo: gráficos 100%, Mekko (%), pizza, rosca, Gantt, dispersão, bolhas e qualquer gráfico com corte de eixo."/>
             <button id="btnResetScale" label="Escala automática" imageMso="Undo" onAction="Rx_OnResetScale"
                     screentip="Escala automática" supertip="Devolve o eixo de valores ao automático no gráfico selecionado (ou nos selecionados); sem nenhum selecionado, em todos os da planilha."/>
           </menu>
           <!-- Setas: o menu so exige um grafico (sem tag); cada seta consulta a matriz pela propria tag. -->
-          <menu id="mnuArrows" label="Setas" imageMso="ArrowsMore" getEnabled="Rx_GetEnabled"
+          <menu id="mnuArrows" label="Setas" image="tqq_arrows16" getEnabled="Rx_GetEnabled"
                 screentip="Setas e colchetes" supertip="Seta de CAGR e de diferença entre duas categorias; colchete sobre atividades do Gantt.">
             <button id="btnCagr" label="Seta CAGR" imageMso="ArrowsMore" tag="cagr" onAction="Rx_OnAnnotation"
                     getEnabled="Rx_GetEnabled" screentip="Seta de crescimento anual composto entre duas categorias"/>
@@ -138,6 +165,14 @@
             <menuSeparator id="msepArrows"/>
             <button id="btnRemoveAnn" label="Remover setas" imageMso="Delete" onAction="Rx_OnRemoveAnnotations"
                     getEnabled="Rx_GetEnabled" screentip="Remove todas as setas e colchetes do gráfico selecionado"/>
+          </menu>
+          <!-- PowerPoint: o menu e os itens so exigem um grafico (sem tag); copiar nao muda o grafico. -->
+          <menu id="mnuPpt" label="PowerPoint" image="tqq_ppt16" getEnabled="Rx_GetEnabled"
+                screentip="Copiar para o PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint, como imagem ou como gráfico vinculado a esta pasta de trabalho.">
+            <button id="btnPptImage" label="Copiar como imagem" onAction="Rx_OnPptImage" getEnabled="Rx_GetEnabled"
+                    screentip="Copiar como imagem" supertip="Cola uma imagem do gráfico no slide ativo (abre o PowerPoint se preciso)."/>
+            <button id="btnPptChart" label="Copiar como gráfico vinculado" onAction="Rx_OnPptChart" getEnabled="Rx_GetEnabled"
+                    screentip="Copiar como gráfico vinculado" supertip="Cola um gráfico do PowerPoint vinculado a esta pasta de trabalho salva (Dados &gt; Editar Vínculos no PowerPoint)."/>
           </menu>
           <separator id="sep3"/>
           <button id="btnRefresh" label="Atualizar" imageMso="Refresh" onAction="Rx_OnRefresh"

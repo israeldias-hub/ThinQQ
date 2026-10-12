@@ -12,6 +12,22 @@ Private Function LoadRibbon() As Object
     Set LoadRibbon = d
 End Function
 
+' Valor do atributo, ou "" se o no e Nothing ou nao tem o atributo (nunca erro 91: mensagens de falha nao podem quebrar o teste).
+Private Function AttrText(n As Object, attr As String) As String
+    Dim a As Object
+    If n Is Nothing Then Exit Function
+    Set a = n.Attributes.getNamedItem(attr)
+    If Not a Is Nothing Then AttrText = a.Text
+End Function
+
+' id do controle para mensagens de falha; "<elemento sem id>" quando nao ha id.
+Private Function NodeId(n As Object) As String
+    NodeId = AttrText(n, "id")
+    If Len(NodeId) = 0 Then
+        If n Is Nothing Then NodeId = "<nada>" Else NodeId = "<" & n.baseName & " sem id>"
+    End If
+End Function
+
 Private Function RibbonModuleCode() As String
     Dim cm As Object
     Set cm = ThisWorkbook.VBProject.VBComponents("modRibbon").CodeModule
@@ -94,10 +110,12 @@ Public Sub Test_Ribbon_Xml_HasAllCallbacks()
     xml = Transport_ReadTextFile(RepoPath() & "\src\loader\ribbon\customUI14.xml")
     names = Array("Rx_OnLoad", "Rx_OnInsert", "Rx_GetEnabled", "Rx_OnToggle", "Rx_GetPressed", "Rx_OnDropdown", _
                   "Rx_GetSelectedId", "Rx_OnAnnotation", "Rx_OnRemoveAnnotations", "Rx_OnRefresh", "Rx_OnChangeSource", _
-                  "Rx_OnSamples", "Rx_OnTutorial", "Rx_OnCheckUpdates", "Rx_OnSettings", "Rx_OnAbout", "Rx_OnSameScale", "Rx_OnResetScale")
+                  "Rx_OnSamples", "Rx_OnTutorial", "Rx_OnCheckUpdates", "Rx_OnSettings", "Rx_OnAbout", "Rx_OnSameScale", "Rx_OnResetScale", _
+                  "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart")
     For i = LBound(names) To UBound(names)
         AssertTrue InStr(xml, names(i)) > 0, "callback ausente no XML: " & names(i)
     Next
+    AssertTrue InStr(xml, "tag=""butterfly""") > 0
     AssertTrue InStr(xml, "tag=""waterfall""") > 0
     AssertTrue InStr(xml, "tag=""gantt""") > 0
     AssertTrue InStr(xml, "tag=""numfmt""") > 0
@@ -177,7 +195,7 @@ End Sub
 Public Sub Test_Ribbon_Tags_MatchCoreKeys()
     Dim d As Object, n As Object, t As String, k As Object, found As Boolean
     Set d = LoadRibbon()
-    AssertEqual 17, d.SelectNodes("//u:button[@onAction='Rx_OnInsert']").Length
+    AssertEqual 20, d.SelectNodes("//u:button[@onAction='Rx_OnInsert']").Length
     For Each n In d.SelectNodes("//u:button[@onAction='Rx_OnInsert']")
         t = n.Attributes.getNamedItem("tag").Text
         AssertTrue CBool(Loader_RunCore("Kinds_IsValid", t)), "tipo desconhecido do core: " & t
@@ -194,14 +212,20 @@ Public Sub Test_Ribbon_Tags_MatchCoreKeys()
         Next
         AssertTrue found, "nenhum tipo suporta a anotacao " & t
     Next
+    ' Botoes com tag de recurso (Corte de eixo, Remover corte de eixo): a tag e um recurso da matriz (Core_Supports decide o cinza)
+    For Each n In d.SelectNodes("//u:button[@tag][not(@onAction='Rx_OnInsert')][not(@onAction='Rx_OnAnnotation')]")
+        t = n.Attributes.getNamedItem("tag").Text
+        AssertTrue Len(CStr(Loader_RunCore("Kinds_FeatureLabel", t))) > 0, "recurso desconhecido do core: " & t
+        AssertEqual "Rx_GetEnabled", AttrText(n, "getEnabled"), "botao com tag de recurso sem getEnabled: " & NodeId(n)
+    Next
 End Sub
 
-' Menus (customUI14): 5 menus de insercao com os 17 botoes + "Mais opcoes" e "Setas". Um atributo invalido em filho de menu faz o Excel
-' descartar a aba inteira, sem aviso: nenhum filho de menu leva 'size'.
+' Menus (customUI14): 5 menus de insercao com os 20 botoes + "Mais opcoes", "Setas" e "PowerPoint". Um atributo invalido em filho de menu
+' faz o Excel descartar a aba inteira, sem aviso: nenhum filho de menu leva 'size'.
 Public Sub Test_Ribbon_Menus_Structure()
     Dim d As Object, m As Object, kids As Object, n As Object, t As String
     Set d = LoadRibbon()
-    AssertEqual 7, d.SelectNodes("//u:menu").Length, "5 menus de insercao + Mais opcoes + Setas"
+    AssertEqual 8, d.SelectNodes("//u:menu").Length, "5 menus de insercao + Mais opcoes + Setas + PowerPoint"
     AssertEqual 5, d.SelectNodes("//u:group[@id='grpInsert']/u:menu[@size='large']").Length
     AssertEqual 0, d.SelectNodes("//u:menu/*[@size]").Length, "filho de menu com 'size' (invalido: o Excel descarta a aba inteira sem aviso)"
     For Each m In d.SelectNodes("//u:group[@id='grpInsert']/u:menu")
@@ -210,25 +234,63 @@ Public Sub Test_Ribbon_Menus_Structure()
         For Each n In kids
             AssertEqual "Rx_OnInsert", n.Attributes.getNamedItem("onAction").Text
             t = n.Attributes.getNamedItem("tag").Text
-            AssertTrue InStr(",stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,gantt,pie,doughnut,", "," & t & ",") > 0, "kind invalido: " & t
+            AssertTrue InStr(",stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,gantt,pie,doughnut,butterfly,scatter,bubble,", "," & t & ",") > 0, "kind invalido: " & t
         Next
     Next
-    AssertEqual 17, d.SelectNodes("//u:button[@onAction='Rx_OnInsert']").Length
+    AssertEqual 20, d.SelectNodes("//u:button[@onAction='Rx_OnInsert']").Length
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuMore']/@getEnabled") Is Nothing, "Mais opcoes contem botoes sempre ativos"
-    AssertEqual 4, d.SelectNodes("//u:menu[@id='mnuMore']/u:toggleButton").Length
+    AssertEqual 7, d.SelectNodes("//u:menu[@id='mnuMore']/u:toggleButton").Length
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnSameScale'][@onAction='Rx_OnSameScale']") Is Nothing
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnResetScale'][@onAction='Rx_OnResetScale']") Is Nothing
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuArrows']/u:button[@tag='bracket']") Is Nothing
     AssertEqual "Rx_GetEnabled", d.SelectSingleNode("//u:menu[@id='mnuArrows']").Attributes.getNamedItem("getEnabled").Text
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnBreak'][@tag='break'][@onAction='Rx_OnAxisBreak'][@getEnabled='Rx_GetEnabled']") Is Nothing
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnBreakOff'][@tag='break'][@onAction='Rx_OnAxisBreakOff']") Is Nothing
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnRoundRange'][@onAction='Rx_OnRoundRange']") Is Nothing
+    AssertTrue d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnRoundRange']/@getEnabled") Is Nothing, "Arredondar intervalo age sobre celulas: sempre ativo"
+    AssertEqual "Rx_GetEnabled", d.SelectSingleNode("//u:menu[@id='mnuPpt']").Attributes.getNamedItem("getEnabled").Text
+    AssertTrue d.SelectSingleNode("//u:menu[@id='mnuPpt']/@tag") Is Nothing, "PowerPoint so exige um grafico (sem tag)"
+    AssertEqual 2, d.SelectNodes("//u:menu[@id='mnuPpt']/u:button").Length
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptImage'][@onAction='Rx_OnPptImage']") Is Nothing
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptChart'][@onAction='Rx_OnPptChart']") Is Nothing
+    ' ordem do grupo: ... Mais opcoes, Setas, PowerPoint, separador, Atualizar
+    AssertEqual "mnuPpt", AttrText(d.SelectSingleNode("//u:menu[@id='mnuArrows']/following-sibling::*[1]"), "id"), "PowerPoint logo depois de Setas"
+    ' ordem dos itens novos de Mais tipos: depois da Rosca
+    AssertEqual "btnDoughnut,btnButterfly,btnScatter,btnBubble", AttrText(d.SelectSingleNode("//u:button[@id='btnDoughnut']"), "id") & "," & _
+        AttrText(d.SelectSingleNode("//u:button[@id='btnDoughnut']/following-sibling::*[1]"), "id") & "," & _
+        AttrText(d.SelectSingleNode("//u:button[@id='btnDoughnut']/following-sibling::*[2]"), "id") & "," & _
+        AttrText(d.SelectSingleNode("//u:button[@id='btnDoughnut']/following-sibling::*[3]"), "id")
+End Sub
+
+' Rotulos, tags e textos de ajuda exatos dos controles da Fase 3 (o tutorial e o Test-Docs dependem dos rotulos).
+Public Sub Test_Ribbon_Phase3_LabelsAndTips()
+    Dim d As Object, spec As Variant, i As Long, p() As String, n As Object
+    Set d = LoadRibbon()
+    spec = Array("btnButterfly|Borboleta|butterfly", "btnScatter|Dispersão|scatter", "btnBubble|Bolhas|bubble", _
+                 "tglRoundSum|Rótulos com soma consistente|roundsum", "tglTrend|Linha de tendência|trend", "tglQuad|Quadrantes (médias)|quad", _
+                 "btnBreak|Corte de eixo...|break", "btnBreakOff|Remover corte de eixo|break", "btnRoundRange|Arredondar intervalo...|", _
+                 "mnuPpt|PowerPoint|", "btnPptImage|Copiar como imagem|", "btnPptChart|Copiar como gráfico vinculado|")
+    For i = LBound(spec) To UBound(spec)
+        p = Split(spec(i), "|")
+        Set n = d.SelectSingleNode("//*[@id='" & p(0) & "']")
+        AssertTrue Not n Is Nothing, "controle ausente: " & p(0)
+        AssertEqual p(1), AttrText(n, "label"), "rotulo de " & p(0)
+        AssertEqual p(2), AttrText(n, "tag"), "tag de " & p(0)
+        If p(0) <> "btnBreakOff" And p(0) <> "mnuPpt" Then AssertTrue Len(AttrText(n, "supertip")) > 20, "sem supertip: " & p(0)
+    Next
+    AssertEqual "Copiar para o PowerPoint", AttrText(d.SelectSingleNode("//*[@id='mnuPpt']"), "screentip")
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='btnSameScale']"), "supertip"), "corte de eixo") > 0, "Mesma escala: o supertip diz que grafico com corte de eixo nao entra"
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='tglRoundSum']"), "supertip"), "maior resto") > 0
 End Sub
 
 Public Sub Test_Ribbon_Toggles_And_Dropdowns_Phase2()
     Dim d As Object, n As Object, t As String
     Set d = LoadRibbon()
-    AssertEqual 7, d.SelectNodes("//u:toggleButton").Length
+    AssertEqual 10, d.SelectNodes("//u:toggleButton").Length
     For Each n In d.SelectNodes("//u:toggleButton")
         t = n.Attributes.getNamedItem("tag").Text
-        AssertTrue InStr(",totals,labels,connectors,ind100,vline,secondary,pieout,", "," & t & ",") > 0, "toggle invalido: " & t
+        AssertTrue InStr(",totals,labels,connectors,ind100,vline,secondary,pieout,roundsum,trend,quad,", "," & t & ",") > 0, "toggle invalido: " & t
+        AssertEqual "Rx_OnToggle", AttrText(n, "onAction"), "toggle sem Rx_OnToggle: " & t
         AssertEqual "Rx_GetEnabled", n.Attributes.getNamedItem("getEnabled").Text, "toggle sem getEnabled: " & t
         AssertEqual "Rx_GetPressed", n.Attributes.getNamedItem("getPressed").Text
     Next
@@ -290,9 +352,10 @@ Public Sub Test_Ribbon_AllCallbacks_HaveErrorContainment()
     AssertTrue n >= 14, "poucos callbacks Rx_ encontrados: " & n
 End Sub
 
-' Atualizar (btnRefresh) e "Mais opcoes" (mnuMore: contem Mesma escala e Escala automatica, sempre ativas) ficam sempre habilitados de
-' proposito; os demais controles do grupo "Grafico selecionado" dependem do grafico selecionado. Dentro de mnuMore, os 4 toggles tem
-' getEnabled e os 2 botoes de escala nao.
+' Atualizar (btnRefresh) e "Mais opcoes" (mnuMore: contem Mesma escala, Escala automatica e Arredondar intervalo, sempre ativos) ficam
+' sempre habilitados de proposito; os demais controles do grupo "Grafico selecionado" dependem do grafico selecionado. Dentro de mnuMore,
+' os 7 toggles e os 2 botoes de corte de eixo tem getEnabled; os 2 botoes de escala e o Arredondar intervalo (age sobre celulas) nao.
+' PowerPoint e os seus 2 itens exigem um grafico.
 Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
     Dim d As Object, n As Object, c As Long, id As String
     Set d = LoadRibbon()
@@ -307,20 +370,42 @@ Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
     Next
     AssertTrue c >= 10
     For Each n In d.SelectNodes("//u:menu[@id='mnuMore']/u:toggleButton")
-        AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "toggle de Mais opcoes sem getEnabled: " & n.Attributes.getNamedItem("id").Text
+        AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "toggle de Mais opcoes sem getEnabled: " & NodeId(n)
     Next
+    c = 0
     For Each n In d.SelectNodes("//u:menu[@id='mnuMore']/u:button")
-        AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "botao de escala deve ficar sempre ativo: " & n.Attributes.getNamedItem("id").Text
+        id = NodeId(n)
+        Select Case id
+            Case "btnBreak", "btnBreakOff"
+                AssertEqual "Rx_GetEnabled", AttrText(n, "getEnabled"), "corte de eixo segue a matriz (Core_Supports): " & id
+            Case "btnSameScale", "btnResetScale", "btnRoundRange"
+                AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "deve ficar sempre ativo: " & id
+            Case Else
+                AssertTrue False, "botao inesperado em Mais opcoes: " & id
+        End Select
+        c = c + 1
     Next
+    AssertEqual 5, c, "botoes de Mais opcoes"
     ' Setas: cada seta consulta a matriz pela propria tag; "Remover setas" so exige um grafico (sem tag)
     For Each n In d.SelectNodes("//u:menu[@id='mnuArrows']/u:button")
-        AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "seta sem getEnabled: " & n.Attributes.getNamedItem("id").Text
+        AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "seta sem getEnabled: " & NodeId(n)
+    Next
+    ' PowerPoint: o menu e os itens so exigem um grafico (sem tag)
+    For Each n In d.SelectNodes("//u:menu[@id='mnuPpt'] | //u:menu[@id='mnuPpt']/u:button")
+        AssertEqual "Rx_GetEnabled", AttrText(n, "getEnabled"), "PowerPoint sem getEnabled: " & NodeId(n)
+        AssertEqual "", AttrText(n, "tag"), "PowerPoint nao consulta a matriz: " & NodeId(n)
     Next
 End Sub
 
-' Sem core com Core_InsertSamples (Tarefa 15) o botao nao pode bloquear nem propagar erro.
+' Sem core com Core_InsertSamples (Tarefa 15) o botao nao pode bloquear nem propagar erro. Com o core, a pasta de exemplos aberta pelo teste
+' e fechada no fim (diferenca entre as pastas antes e depois) e os observadores do core param: nada sobra no Excel dos testes seguintes.
 Public Sub Test_Ribbon_OnSamples_WithoutCoreProc_DoesNotBlock()
-    Dim n0 As Long, w As Workbook, found As Boolean, sh As Object
+    Dim n0 As Long, w As Workbook, found As Boolean, sh As Object, before As Object, en As Long, ed As String
+    On Error GoTo Cleanup
+    Set before = CreateObject("Scripting.Dictionary")
+    For Each w In Application.Workbooks
+        before(w.Name) = True
+    Next
     n0 = Application.Workbooks.Count
     Loader_LastMsg = ""
     Rx_OnSamples Nothing
@@ -336,6 +421,28 @@ Public Sub Test_Ribbon_OnSamples_WithoutCoreProc_DoesNotBlock()
         Next
         AssertTrue found, "a pasta aberta tem a planilha Exemplos"
     End If
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error Resume Next
+    Loader_RunCore "Watchers_Stop"
+    CloseNewWorkbooks before
+    On Error GoTo 0
+    If en = 0 Then AssertEqual n0, Application.Workbooks.Count, "a pasta de exemplos foi fechada no fim do teste"
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+' Fecha sem salvar toda pasta aberta que nao estava em before (nomes); nunca propaga erro.
+Private Sub CloseNewWorkbooks(before As Object)
+    Dim i As Long, w As Workbook
+    On Error Resume Next
+    If before Is Nothing Then Exit Sub
+    For i = Application.Workbooks.Count To 1 Step -1
+        Set w = Application.Workbooks(i)
+        If Not before.Exists(w.Name) Then
+            w.Saved = True
+            w.Close False
+        End If
+    Next
 End Sub
 
 Public Sub Test_Ribbon_TutorialUrl_IsGithubPages()
@@ -395,6 +502,9 @@ Public Sub Test_Ribbon_Enabled_FollowsCapabilityOfSelectedChart()
     For Each t In Array("labels", "numfmt", "palette", "legend", "pieout", "")
         AssertTrue Rx_IsEnabledFor(CStr(t)), "pizza: '" & t & "' deveria estar habilitado"
     Next
+    For Each t In Array("roundsum", "trend", "quad", "break")
+        AssertFalse Rx_IsEnabledFor(CStr(t)), "pizza: '" & t & "' deveria estar desabilitado"
+    Next
     InsertAndSelect ws, "A20:B23", "waterfall"
     For Each t In Array("connectors", "gap", "cagr", "diff", "labels", "")
         AssertTrue Rx_IsEnabledFor(CStr(t)), "cascata: '" & t & "' deveria estar habilitado (cache da pizza nao pode valer)"
@@ -405,6 +515,14 @@ Public Sub Test_Ribbon_Enabled_FollowsCapabilityOfSelectedChart()
     InsertAndSelect ws, "A40:C43", "waterfall"
     AssertTrue Rx_IsEnabledFor("legend"), "cascata com duas series tem legenda"
     AssertFalse Rx_IsEnabledFor("pieout")
+    InsertAndSelect ws, "A1:B5", "clustered"
+    AssertTrue Rx_IsEnabledFor("break"), "colunas agrupadas aceitam corte de eixo"
+    AssertFalse Rx_IsEnabledFor("roundsum"), "colunas agrupadas nao tem rotulos de segmento com soma"
+    AssertFalse Rx_IsEnabledFor("trend")
+    InsertAndSelect ws, "A1:B5", "stacked"
+    AssertTrue Rx_IsEnabledFor("roundsum"), "colunas empilhadas: soma consistente"
+    AssertTrue Rx_IsEnabledFor("break"), "colunas empilhadas: corte de eixo"
+    AssertFalse Rx_IsEnabledFor("quad")
     ws.Range("A1").Select
     Loader_RunCore "Watchers_NotifySelection"
     AssertFalse Rx_IsEnabledFor("legend"), "de volta a uma celula"
@@ -499,6 +617,82 @@ Public Sub Test_Ribbon_ScaleButtons_ReachCore_WithoutBlocking()
     CloseTemp wb
 End Sub
 
+' Corte de eixo pela faixa: Rx_OnAxisBreak chega a Core_SetAxisBreak (a resposta do InputBox vem do gancho do core no build Test) e grava o
+' corte; Rx_OnAxisBreakOff chega a Core_RemoveAxisBreak e o remove.
+Public Sub Test_Ribbon_AxisBreakButtons_ReachCore()
+    Dim wb As Workbook, ws As Worksheet, en As Long, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set ws = CapabilityFixture(wb)
+    InsertAndSelect ws, "A1:B5", "stacked"
+    AssertEqual "", CoreOpt("vbreak"), "pre-condicao: sem corte"
+    Loader_RunCore "Core_TestSetAxisBreakAnswer", 25
+    Rx_OnAxisBreak Nothing
+    AssertTrue Len(CoreOpt("vbreak")) > 0, "Corte de eixo... nao chegou ao core"
+    AssertEqual 25, Val(CoreOpt("vbreak")), "limite do corte"
+    Rx_OnAxisBreakOff Nothing
+    AssertEqual "", CoreOpt("vbreak"), "Remover corte de eixo nao chegou ao core"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error Resume Next
+    Loader_RunCore "Core_TestSetAxisBreakAnswer", Empty
+    EnabledCleanup
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+' Arredondar intervalo pela faixa: sempre ativo (age sobre celulas, sem grafico) e chega a Core_RoundRange (respostas pelo gancho do core).
+Public Sub Test_Ribbon_RoundRangeButton_ReachesCore()
+    Dim wb As Workbook, ws As Worksheet, en As Long, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set ws = CapabilityFixture(wb)
+    ws.Range("B2:B5").Select
+    Loader_RunCore "Core_TestSetRoundRangeAnswers", 0, ws.Range("E2")
+    Rx_OnRoundRange Nothing
+    AssertTrue ws.Range("E2").HasFormula, "Arredondar intervalo... nao gravou a formula (nao chegou ao core)"
+    AssertTrue ws.Range("E5").HasFormula
+    AssertEqual 100, Application.WorksheetFunction.Sum(ws.Range("E2:E5")), "soma dos arredondados"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error Resume Next
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+' PowerPoint pela faixa: "Copiar como grafico vinculado" chega a Core_CopyToPowerPoint("chart"), que recusa a pasta nunca salva ANTES de
+' abrir o PowerPoint (o teste nao abre o PowerPoint). "Copiar como imagem" abriria o PowerPoint: confere-se o modo no codigo do callback.
+Public Sub Test_Ribbon_PptButtons_ReachCore()
+    Dim wb As Workbook, ws As Worksheet, en As Long, ed As String, code As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set ws = CapabilityFixture(wb)
+    InsertAndSelect ws, "A1:B5", "clustered"
+    Loader_InvalidateRibbon                ' o cache do ciclo pode vir de outro teste
+    AssertTrue Rx_IsEnabledFor(""), "PowerPoint: ativo com grafico selecionado"
+    Loader_RunCore "Core_ClearLastNotice"
+    Rx_OnPptChart Nothing
+    AssertTrue InStr(CStr(Loader_RunCore("Core_LastNotice")), "Salve a pasta de trabalho") > 0, "Copiar como grafico vinculado nao chegou ao core: " & CStr(Loader_RunCore("Core_LastNotice"))
+    code = RibbonModuleCode()
+    AssertTrue InStr(code, "Loader_RunCore ""Core_CopyToPowerPoint"", ""image""") > 0, "Rx_OnPptImage passa o modo image"
+    AssertTrue InStr(code, "Loader_RunCore ""Core_CopyToPowerPoint"", ""chart""") > 0, "Rx_OnPptChart passa o modo chart"
+    ws.Range("A1").Select
+    Loader_InvalidateRibbon
+    AssertFalse Rx_IsEnabledFor(""), "PowerPoint: cinza sem grafico"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    EnabledCleanup
+    On Error Resume Next
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+Private Function CoreOpt(key As String) As String
+    Dim v As Variant
+    v = Loader_RunCore("Core_GetOption", key)
+    If Not IsEmpty(v) Then CoreOpt = CStr(v)
+End Function
+
 ' Icones proprios (Fase 3): nomes image= no padrao tqq_<nome>[16] e nunca junto de imageMso no mesmo controle (Tarefa 8 exige >= 13).
 Public Sub Test_Ribbon_Images_NamesAndNoDoubleIcon()
     Dim d As Object, n As Object, re As Object, nm As String, c As Long
@@ -508,10 +702,12 @@ Public Sub Test_Ribbon_Images_NamesAndNoDoubleIcon()
     For Each n In d.SelectNodes("//*[@image]")
         nm = n.Attributes.getNamedItem("image").Text
         AssertTrue re.Test(nm), "nome de imagem invalido: " & nm
-        AssertTrue n.Attributes.getNamedItem("imageMso") Is Nothing, "image e imageMso no mesmo controle: " & n.Attributes.getNamedItem("id").Text
+        ' a mensagem so e montada na falha e tolera controle sem id (NodeId nunca da erro 91)
+        If Not n.Attributes.getNamedItem("imageMso") Is Nothing Then AssertTrue False, "image e imageMso no mesmo controle: " & NodeId(n)
         c = c + 1
     Next
-    AssertTrue c >= 0
+    AssertTrue c >= 13, "icones proprios: " & c
+    AssertEqual 0, d.SelectNodes("//*[@image and @imageMso]").Length, "nenhum controle com image e imageMso"
 End Sub
 
 ' As reservas imageMso da tabela de icones (build\lib\Ribbon-Icons.ps1, usadas no modo -RibbonIcons Mso) existem neste Office. O teste

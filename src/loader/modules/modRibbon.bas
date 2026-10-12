@@ -184,6 +184,37 @@ Public Sub Rx_OnResetScale(control As IRibbonControl)
     Loader_InvalidateRibbon
 End Sub
 
+' Corte de eixo (Fase 3): o core pergunta o valor (InputBox) e aplica; ligar ou remover o corte muda o que o grafico aceita (Mesma escala,
+' Remover corte de eixo), entao a faixa e invalidada.
+Public Sub Rx_OnAxisBreak(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then Loader_RunCore "Core_SetAxisBreak"
+    Loader_InvalidateRibbon
+End Sub
+
+Public Sub Rx_OnAxisBreakOff(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then Loader_RunCore "Core_RemoveAxisBreak"
+    Loader_InvalidateRibbon
+End Sub
+
+' Arredondar intervalo: age sobre as celulas selecionadas (sem grafico); o botao fica sempre ativo e nao muda o estado da faixa.
+Public Sub Rx_OnRoundRange(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then Loader_RunCore "Core_RoundRange"
+End Sub
+
+' Copiar para o PowerPoint (imagem ou grafico vinculado): nao muda o grafico nem o estado da faixa.
+Public Sub Rx_OnPptImage(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then Loader_RunCore "Core_CopyToPowerPoint", "image"
+End Sub
+
+Public Sub Rx_OnPptChart(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then Loader_RunCore "Core_CopyToPowerPoint", "chart"
+End Sub
+
 Public Sub Rx_OnSamples(control As IRibbonControl)
     On Error GoTo Fail
     If Not CoreOrWarn() Then Exit Sub

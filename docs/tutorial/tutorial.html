@@ -276,6 +276,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
               <div class="rb-row">
                 <div class="rb-btn sm"><span class="ui">Mais opções</span><span class="car">▾</span></div>
                 <div class="rb-btn sm"><span class="ui">Setas</span><span class="car">▾</span></div>
+                <div class="rb-btn sm"><span class="ui">PowerPoint</span><span class="car">▾</span></div>
                 <div class="rb-btn sm"><span class="ui">Atualizar</span></div>
                 <div class="rb-btn sm"><span class="ui">Alterar dados</span></div>
               </div>
@@ -296,7 +297,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
           <div class="rb-title ui">ThinQQ</div>
         </div>
       </div>
-      <figcaption class="cap" id="rib-cap" style="padding:8px 14px 10px;background:#f3f3f3;color:#444;margin:0;max-width:none;border-top:1px solid #d0d0d0">A aba <span class="ui">ThinQQ</span> na faixa de opções do Excel, ao lado de Inserir. Os três grupos: inserir (cinco menus com 17 tipos), ajustar o gráfico selecionado (dois menus com os recursos de cada tipo) e ajuda.</figcaption>
+      <figcaption class="cap" id="rib-cap" style="padding:8px 14px 10px;background:#f3f3f3;color:#444;margin:0;max-width:none;border-top:1px solid #d0d0d0">A aba <span class="ui">ThinQQ</span> na faixa de opções do Excel, ao lado de Inserir. Os três grupos: inserir (cinco menus com 20 tipos; <span class="ui">Mais tipos</span> traz também <span class="ui">Borboleta</span>, <span class="ui">Dispersão</span> e <span class="ui">Bolhas</span>), ajustar o gráfico selecionado (os menus <span class="ui">Mais opções</span> e <span class="ui">Setas</span>, com os recursos de cada tipo, e <span class="ui">PowerPoint</span>) e ajuda.</figcaption>
     </figure>
   </div>
 </header>
@@ -399,12 +400,15 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr><td><span class="ui">Mais tipos</span> › <a href="#gantt"><span class="ui">Gantt</span></a></td><td>Barras de atividades sobre uma escala de datas; o marco aparece como losango.</td><td>Atividade, início e fim (datas, não texto). Fim vazio = marco. Uma 4ª coluna opcional vira o rótulo da barra.</td></tr>
       <tr><td><span class="ui">Mais tipos</span> › <a href="#pizza"><span class="ui">Pizza</span></a></td><td>Fatias dos valores positivos, com rótulos de valor ou de participação.</td><td>Categorias e uma coluna de valores; as demais colunas são ignoradas.</td></tr>
       <tr><td><span class="ui">Mais tipos</span> › <a href="#pizza"><span class="ui">Rosca</span></a></td><td>A pizza com furo; os rótulos ficam sobre o anel.</td><td>O mesmo da pizza.</td></tr>
+      <tr><td><span class="ui">Mais tipos</span> › <span class="ui">Borboleta</span></td><td>Duas séries espelhadas com os nomes no centro; totais no fim da barra direita.</td><td>Categorias e exatamente 2 colunas de valores.</td></tr>
+      <tr><td><span class="ui">Mais tipos</span> › <span class="ui">Dispersão</span></td><td>Pontos em dois eixos de valor, uma série por grupo, nome ao lado de cada ponto.</td><td>Nome, X, Y e, opcionalmente, Grupo.</td></tr>
+      <tr><td><span class="ui">Mais tipos</span> › <span class="ui">Bolhas</span></td><td>Como a dispersão, com o tamanho da bolha.</td><td>Nome, X, Y, Tamanho e, opcionalmente, Grupo.</td></tr>
     </tbody>
   </table>
   </div>
 
   <h3>Controles que dependem do tipo</h3>
-  <p>No grupo <span class="ui">Gráfico selecionado</span>, cada controle só fica ativo nos tipos que o aceitam; os demais ficam cinza. Na pizza, por exemplo, <span class="ui">Totais</span>, <span class="ui">Conectores</span> e <span class="ui">Espaço</span> ficam cinzas e <span class="ui">Rótulos fora da pizza</span> fica ativo. As exceções são <span class="ui">Mesma escala</span> e <span class="ui">Escala automática</span>, que ficam sempre ativos. A tabela completa, tipo por tipo, está em <a href="#matriz">O que cada tipo aceita</a>, e cada controle é explicado em <a href="#opcoes">Opções do gráfico selecionado</a>.</p>
+  <p>No grupo <span class="ui">Gráfico selecionado</span>, cada controle só fica ativo nos tipos que o aceitam; os demais ficam cinza. Na pizza, por exemplo, <span class="ui">Totais</span>, <span class="ui">Conectores</span> e <span class="ui">Espaço</span> ficam cinzas e <span class="ui">Rótulos fora da pizza</span> fica ativo. As exceções são <span class="ui">Mesma escala</span>, <span class="ui">Escala automática</span> e <span class="ui">Arredondar intervalo...</span> (que age sobre células), que ficam sempre ativos. A tabela completa, tipo por tipo, está em <a href="#matriz">O que cada tipo aceita</a>, e cada controle é explicado em <a href="#opcoes">Opções do gráfico selecionado</a>.</p>
 
   <h3>Sobre os exemplos</h3>
   <p>As duas planilhas de <span class="ui">Exemplos</span> mostram 14 dos 17 tipos, a seta de diferença, o colchete, a linha de valor, o indicador 100% e a mesma escala. Não há exemplo pronto de Barras agrupadas, Barras 100% e Área 100%, da cascata de cima para baixo e de <span class="ui">Nome no fim da linha</span>: use as tabelas das seções de cada tipo. Os exemplos são gráficos comuns do ThinQQ: clique neles e experimente os controles.</p>
@@ -788,9 +792,9 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td>—</td></tr>
       <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
       <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
-      <tr data-kind="butterfly"><th scope="row"><span class="k">Borboleta</span></th><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
-      <tr data-kind="scatter"><th scope="row"><span class="k">Dispersão</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
-      <tr data-kind="bubble"><th scope="row"><span class="k">Bolhas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="butterfly"><th scope="row"><span class="ui">Borboleta</span></th><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="scatter"><th scope="row"><span class="ui">Dispersão</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="bubble"><th scope="row"><span class="ui">Bolhas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
     </tbody>
   </table>
   </div>
@@ -816,16 +820,16 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
       <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td>—</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-      <tr data-kind="butterfly"><th scope="row"><span class="k">Borboleta</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td></tr>
-      <tr data-kind="scatter"><th scope="row"><span class="k">Dispersão</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-      <tr data-kind="bubble"><th scope="row"><span class="k">Bolhas</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="butterfly"><th scope="row"><span class="ui">Borboleta</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="scatter"><th scope="row"><span class="ui">Dispersão</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="bubble"><th scope="row"><span class="ui">Bolhas</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
     </tbody>
   </table>
   </div>
   <h4>Arredondamento, corte e análise</h4>
   <div class="tw" tabindex="0" role="region" aria-label="Tabela do que cada tipo aceita: arredondamento, corte e análise (em telas estreitas, role para os lados)">
   <table class="mx">
-    <thead><tr><th scope="col">Tipo</th><th scope="col" data-f="roundsum"><span class="k">Rótulos com soma consistente</span></th><th scope="col" data-f="break"><span class="k">Corte de eixo</span></th><th scope="col" data-f="trend"><span class="k">Linha de tendência</span></th><th scope="col" data-f="quad"><span class="k">Quadrantes (médias)</span></th></tr></thead>
+    <thead><tr><th scope="col">Tipo</th><th scope="col" data-f="roundsum"><span class="ui">Rótulos com soma consistente</span></th><th scope="col" data-f="break"><span class="k">Corte de eixo</span></th><th scope="col" data-f="trend"><span class="ui">Linha de tendência</span></th><th scope="col" data-f="quad"><span class="ui">Quadrantes (médias)</span></th></tr></thead>
     <tbody>
       <tr data-kind="stacked"><th scope="row"><span class="ui">Colunas empilhadas</span></th><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td>—</td></tr>
       <tr data-kind="clustered"><th scope="row"><span class="ui">Colunas agrupadas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td></tr>
@@ -844,9 +848,9 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-      <tr data-kind="butterfly"><th scope="row"><span class="k">Borboleta</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-      <tr data-kind="scatter"><th scope="row"><span class="k">Dispersão</span></th><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td></tr>
-      <tr data-kind="bubble"><th scope="row"><span class="k">Bolhas</span></th><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td></tr>
+      <tr data-kind="butterfly"><th scope="row"><span class="ui">Borboleta</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="scatter"><th scope="row"><span class="ui">Dispersão</span></th><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td></tr>
+      <tr data-kind="bubble"><th scope="row"><span class="ui">Bolhas</span></th><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td></tr>
     </tbody>
   </table>
   </div>
@@ -871,11 +875,17 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr><td><span class="ui">Paleta</span></td><td><span class="ui">Padrão ThinQQ</span> (azul-marinho, azul, azul-claro, cinza, verde-azulado e âmbar), <span class="ui">Tons de cinza</span> ou <span class="ui">Cores do tema</span> (as cores do tema da pasta de trabalho). Vale em todos os tipos; na pizza, colore as fatias.</td></tr>
       <tr><td><span class="ui">Espaço</span></td><td>Largura do vão entre as colunas ou barras: <span class="ui">Estreito (30%)</span>, <span class="ui">Normal (50%)</span>, <span class="ui">Largo (80%)</span> ou <span class="ui">Muito largo (120%)</span>. No Gantt, é o espaçamento entre as linhas. Não se aplica a linha, área, Mekko e pizza.</td></tr>
       <tr><td><span class="ui">Legenda</span></td><td><span class="ui">Direita</span>, <span class="ui">Nenhuma</span> ou <span class="ui">Nome no fim da linha</span> (só em linha e combinação). Na cascata, só existe com várias séries; no Gantt, não existe. Veja <a href="#linha-area">Linha, área e combinação</a>.</td></tr>
-      <tr><td><span class="ui">Mais opções</span></td><td>Menu com <span class="ui">Indicador 100%</span>, <span class="ui">Linha de valor (média)</span>, <span class="ui">Eixo secundário (linha)</span>, <span class="ui">Rótulos fora da pizza</span>, <span class="ui">Mesma escala</span> e <span class="ui">Escala automática</span>. Fica ativo mesmo sem gráfico selecionado; os quatro primeiros itens só ficam ativos nos tipos que os aceitam.</td></tr>
+      <tr><td><span class="ui">Mais opções</span></td><td>Menu com <span class="ui">Indicador 100%</span>, <span class="ui">Linha de valor (média)</span>, <span class="ui">Eixo secundário (linha)</span>, <span class="ui">Rótulos fora da pizza</span>, <span class="ui">Rótulos com soma consistente</span>, <span class="ui">Linha de tendência</span>, <span class="ui">Quadrantes (médias)</span>, <span class="ui">Corte de eixo...</span>, <span class="ui">Remover corte de eixo</span>, <span class="ui">Arredondar intervalo...</span>, <span class="ui">Mesma escala</span> e <span class="ui">Escala automática</span>. Fica ativo mesmo sem gráfico selecionado; os alternadores e os dois itens de corte de eixo só ficam ativos nos tipos que os aceitam.</td></tr>
       <tr><td><span class="ui">Indicador 100%</span></td><td>Marca o nível de 100% nos gráficos 100% e no Mekko (%); já nasce ligado. Veja <a href="#decoracoes">Linha de valor, indicador 100% e mesma escala</a>.</td></tr>
       <tr><td><span class="ui">Linha de valor (média)</span></td><td>Linha na média dos valores, com o rótulo "Média" e o número. Em colunas e barras empilhadas e agrupadas, linha, área empilhada, combinação e Mekko (unidades); não nos gráficos 100%, na cascata, no Mekko (%), na pizza e no Gantt.</td></tr>
       <tr><td><span class="ui">Eixo secundário (linha)</span></td><td>Só na combinação: a linha usa um eixo próprio. Já nasce ligado quando as grandezas da linha e das colunas diferem mais de 5 vezes.</td></tr>
       <tr><td><span class="ui">Rótulos fora da pizza</span></td><td>Só na pizza: rótulos fora das fatias, com o nome da categoria; a legenda sai enquanto eles estiverem ligados.</td></tr>
+      <tr><td><span class="ui">Rótulos com soma consistente</span></td><td>Arredonda os rótulos dos segmentos para que somem exatamente o total mostrado (34% + 33% + 33% = 100%), pelo método do maior resto, com fórmulas da planilha. Em colunas, barras e áreas empilhadas e 100%.</td></tr>
+      <tr><td><span class="ui">Linha de tendência</span></td><td>Regressão linear por série, na dispersão e nas bolhas.</td></tr>
+      <tr><td><span class="ui">Quadrantes (médias)</span></td><td>Os eixos passam a cruzar nas médias de X e de Y e dividem o gráfico em quatro quadrantes. Na dispersão e nas bolhas.</td></tr>
+      <tr><td><span class="ui">Corte de eixo...</span></td><td>Pede um valor e corta o eixo de valores nele: as colunas ou barras maiores ficam cortadas, com uma marca, e o total continua no rótulo. Em colunas e barras empilhadas e agrupadas.</td></tr>
+      <tr><td><span class="ui">Remover corte de eixo</span></td><td>Devolve o eixo de valores ao normal e tira as marcas de corte.</td></tr>
+      <tr><td><span class="ui">Arredondar intervalo...</span></td><td>Com uma coluna ou linha de números selecionada, grava a partir da célula que você escolher fórmulas que arredondam os valores de modo que a soma dos arredondados seja o total arredondado. Não precisa de gráfico.</td></tr>
       <tr><td><span class="ui">Mesma escala</span></td><td>Aplica a mesma escala do eixo de valores a dois ou mais gráficos selecionados (com um só selecionado ou nenhum, a todos os da planilha); o botão fica sempre ativo. Gráficos 100%, Mekko (%), pizza e Gantt não entram. A escala fica fixa até você usar <span class="ui">Escala automática</span>.</td></tr>
       <tr><td><span class="ui">Escala automática</span></td><td>Devolve ao automático o eixo de valores fixado por <span class="ui">Mesma escala</span> no gráfico (ou nos gráficos) selecionado(s); sem nenhum selecionado, em todos os da planilha. Sempre ativo.</td></tr>
       <tr><td><span class="ui">Setas</span></td><td>Menu com <span class="ui">Seta CAGR</span>, <span class="ui">Seta diferença</span>, <span class="ui">Colchete (Gantt)</span> e <span class="ui">Remover setas</span>. Cada seta só fica ativa nos tipos que a aceitam; a pizza não tem setas.</td></tr>
@@ -883,6 +893,9 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr><td><span class="ui">Seta diferença</span></td><td>No menu <span class="ui">Setas</span>: seta com a diferença absoluta e relativa entre dois totais. Não existe nos gráficos 100%, no Mekko, na pizza e no Gantt.</td></tr>
       <tr><td><span class="ui">Colchete (Gantt)</span></td><td>No menu <span class="ui">Setas</span>: colchete sobre uma ou mais atividades do Gantt, com o período. Só existe no Gantt.</td></tr>
       <tr><td><span class="ui">Remover setas</span></td><td>No menu <span class="ui">Setas</span>: apaga as setas e os colchetes do gráfico. Os conectores da cascata e o indicador 100% ficam.</td></tr>
+      <tr><td><span class="ui">PowerPoint</span></td><td>Menu com <span class="ui">Copiar como imagem</span> e <span class="ui">Copiar como gráfico vinculado</span>. Só fica ativo com um gráfico do ThinQQ selecionado.</td></tr>
+      <tr><td><span class="ui">Copiar como imagem</span></td><td>No menu <span class="ui">PowerPoint</span>: cola uma imagem do gráfico no slide ativo, abrindo o PowerPoint se preciso.</td></tr>
+      <tr><td><span class="ui">Copiar como gráfico vinculado</span></td><td>No menu <span class="ui">PowerPoint</span>: cola um gráfico do PowerPoint vinculado a esta pasta de trabalho, que precisa estar salva.</td></tr>
       <tr><td><span class="ui">Atualizar</span></td><td>Reposiciona setas e rótulos, recalcula a escala do Gantt e remove dados internos de gráficos que você apagou. Funciona também sem gráfico selecionado: atualiza todos os gráficos ThinQQ da planilha ativa.</td></tr>
       <tr><td><span class="ui">Alterar dados</span></td><td>Pede uma nova tabela de origem e recria o gráfico no mesmo lugar, com o mesmo tipo e as mesmas opções. A tabela precisa estar na mesma pasta de trabalho do gráfico. Use também depois de inserir ou remover linhas na origem. As setas e os colchetes não são preservados: coloque-os de novo.</td></tr>
     </tbody>
