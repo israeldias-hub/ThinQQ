@@ -271,7 +271,7 @@ End Sub
 ' interna) e GapK se multiplicaria a cada calculo. Nome que pede o teto com eixo automatico: k vai direto a BF_GAPK_MAX (estavel).
 ' Sem o ThinQQ, GapK fica fixo e o vao continua proporcional ao maximo. Nunca propaga erro.
 Public Sub Bfly_RefreshGap(cht As Chart)
-    Dim blk As Range, body As Range, n As Long, i As Long, w As Double, lw As Double, need As Double, k As Double, k0 As Double, g As Double, gapPt As Double, pass As Long
+    Dim blk As Range, body As Range, n As Long, i As Long, w As Double, lw As Double, need As Double, k As Double, g As Double, gapPt As Double, pass As Long
     Dim cap As Double, tgt As Double, capped As Boolean
     If mGapBusy Then Exit Sub
     mGapBusy = True
@@ -288,7 +288,6 @@ Public Sub Bfly_RefreshGap(cht As Chart)
     If need > cap Then need = cap: capped = True
     k = Util_ToDouble(blk.Cells(1, BF_META_GAPK).Value)
     If k < BF_GAPK_MIN Then k = BF_GAPK_MIN
-    k0 = k
     For pass = 1 To 3
         g = Util_ToDouble(body.Cells(2, BF_COL_GAP).Value)
         If g <= 0 Then Exit For
