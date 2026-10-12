@@ -1228,3 +1228,54 @@ Public Sub Test_WaterfallMulti_ThinSegmentLabel_HiddenUntilItFits()
         CloseTemp wb
     Next
 End Sub
+
+' Revisao da 15b (I-1): o ThinQQ so religa os rotulos de segmento que ELE escondeu (registrados na opcao "thinlbl", pares serie.ponto); um rotulo
+' que o usuario apagou continua apagado depois de atualizar. A opcao vive na meta do bloco: sobrevive a mover o grafico, a uma copia dele e ao
+' Atualizar; religar os rotulos (Rotulos desligado e ligado) recomeca a lista.
+Public Sub Test_WaterfallMulti_UserDeletedSegmentLabel_StaysDeleted_ThinListPersists()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, co As ChartObject, l1 As Series, l2 As Series, dup As Shape
+    Set wb = NewTempWorkbook(): Set ws = MultiFixture(wb).Source.Worksheet
+    ws.Range("A1:C6").Select
+    Core_Insert "waterfall"
+    Set cht = Core_ActiveChart(): Set co = cht.Parent
+    Set l1 = Chart_FindSeries(cht, "tqq_lbl_1"): Set l2 = Chart_FindSeries(cht, "tqq_lbl_2")
+    AssertFalse l2.Points(2).HasDataLabel, "pre-condicao: o segmento fino (Online, Ajuste) escondido pelo ThinQQ"
+    AssertEqual "2.2", Registry_GetOption(cht, "thinlbl", ""), "o par escondido fica registrado na opcao"
+    l1.Points(1).DataLabel.Delete                                  ' o usuario apaga o rotulo de um segmento largo (Loja, Inicio = 100)
+    AssertFalse l1.Points(1).HasDataLabel, "pre-condicao: rotulo apagado"
+    Core_SafeRefresh cht
+    ws.Calculate
+    Core_Refresh
+    AssertFalse l1.Points(1).HasDataLabel, "rotulo apagado pelo usuario continua apagado depois de atualizar"
+    ws.Range("C3").Value = 60                                      ' o segmento escondido pelo ThinQQ passa a caber
+    Core_SafeRefresh cht
+    AssertTrue l2.Points(2).HasDataLabel, "o ThinQQ religa so o que ele escondeu"
+    AssertEqual "", Registry_GetOption(cht, "thinlbl", ""), "religado: sai da opcao"
+    AssertFalse l1.Points(1).HasDataLabel, "o apagado pelo usuario continua apagado"
+    ' persistencia: mover o grafico, copiar o grafico e Atualizar
+    ws.Range("C3").Value = 10
+    Core_SafeRefresh cht
+    AssertEqual "2.2", Registry_GetOption(cht, "thinlbl", "")
+    co.Left = co.Left + 30: co.Top = co.Top + 20
+    Set dup = co.Duplicate
+    co.Select
+    Core_Refresh
+    AssertEqual "2.2", Registry_GetOption(cht, "thinlbl", ""), "a lista sobrevive a mover, copiar o grafico e Atualizar"
+    AssertFalse l2.Points(2).HasDataLabel
+    ws.Range("C3").Value = 60
+    Core_SafeRefresh cht
+    AssertTrue l2.Points(2).HasDataLabel, "depois de mover/copiar o par registrado ainda e religado"
+    AssertFalse l1.Points(1).HasDataLabel
+    ' religar os rotulos recomeca: todos ligados e o fino escondido de novo
+    ws.Range("C3").Value = 10
+    co.Select
+    Core_SetToggle "labels", False
+    AssertEqual "", Registry_GetOption(cht, "thinlbl", ""), "desligar os rotulos limpa a lista"
+    Core_SetToggle "labels", True
+    Set l1 = Chart_FindSeries(cht, "tqq_lbl_1"): Set l2 = Chart_FindSeries(cht, "tqq_lbl_2")
+    AssertTrue l1.Points(1).HasDataLabel, "religar os rotulos recria tambem o que o usuario apagou"
+    AssertFalse l2.Points(2).HasDataLabel
+    AssertEqual "2.2", Registry_GetOption(cht, "thinlbl", "")
+    Watchers_Stop
+    CloseTemp wb
+End Sub

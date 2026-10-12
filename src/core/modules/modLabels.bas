@@ -310,9 +310,13 @@ End Function
 ' largura < largura estimada do texto (Labels_EstimateWidth do valor no formato do gráfico). Quando o segmento volta a caber (dados ou tamanho
 ' mudaram) o rótulo é religado como em Labels_LinkPoints. Rótulos de texto vazio (delta zero) ficam como estão. Só escreve quando muda; cada
 ' ponto é isolado; nunca propaga erro.
+' O ThinQQ só religa o que ELE escondeu: cada par série.ponto escondido aqui fica registrado na opção "thinlbl" (ex.: "2.2,3.4") e sai dela ao ser
+' religado; um rótulo que falta e não está na lista foi apagado pelo usuário e fica apagado. Waterfall_SetLabels (religar ou desligar todos os
+' rótulos) limpa a lista. A opção vive na meta do bloco: mover o gráfico, copiá-lo ou Atualizar não a perdem.
 Private Sub SyncThinSegmentLabels(cht As Chart, body As Range, horiz As Boolean)
     Dim ns As Long, j As Long, i As Long, n As Long, s As Series, mn As Double, mx As Double, k As Double, dcol As Long, c As Range
     Dim txt As String, need As Double, want As Boolean, fmt As String, sheetRef As String, fc As Long, v As Double
+    Dim list0 As String, list As String, key As String, has As Boolean, mine As Boolean
     On Error GoTo Done
     If mLinking > 0 Then Exit Sub                   ' refresh reentrante no meio de Labels_LinkPoints: o refresh final refaz
     ns = Waterfall_SeriesCount(cht)
@@ -323,6 +327,8 @@ Private Sub SyncThinSegmentLabels(cht As Chart, body As Range, horiz As Boolean)
     n = body.Rows.Count - 1
     fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
     sheetRef = "='" & Replace(body.Worksheet.Name, "'", "''") & "'!"
+    list0 = Registry_GetOption(cht, "thinlbl", "")
+    list = list0
     For j = 1 To ns
         Set s = Chart_FindSeries(cht, "tqq_lbl_" & j)
         If Not s Is Nothing Then
@@ -336,9 +342,20 @@ Private Sub SyncThinSegmentLabels(cht As Chart, body As Range, horiz As Boolean)
                         txt = Format$(v, fmt)
                         If horiz Then need = Labels_EstimateWidth(txt) Else need = SEGMENT_TEXT_HEIGHT
                         want = (Abs(v) * k >= need)
+                        key = j & "." & i
+                        mine = ThinListHas(list, key)
                         On Error Resume Next
-                        If want <> s.Points(i).HasDataLabel Then
-                            If want Then LinkOnePoint s, i, sheetRef & c.Address(True, True), c.Value, fmt, xlLabelPositionCenter, fc, horiz Else s.Points(i).HasDataLabel = False
+                        has = s.Points(i).HasDataLabel
+                        If has Then
+                            If Not want Then
+                                s.Points(i).HasDataLabel = False
+                                If Not mine Then list = ThinListAdd(list, key)
+                            ElseIf mine Then
+                                list = ThinListRemove(list, key)          ' o rotulo existe de novo (religado por outro caminho): nao e mais nosso
+                            End If
+                        ElseIf want And mine Then                        ' so o que o ThinQQ escondeu; o apagado pelo usuario fica apagado
+                            LinkOnePoint s, i, sheetRef & c.Address(True, True), c.Value, fmt, xlLabelPositionCenter, fc, horiz
+                            list = ThinListRemove(list, key)
                         End If
                         If Err.Number <> 0 Then Errors_Log "Labels/segmento fino" & vbTab & s.Name & " ponto " & i & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
                         On Error GoTo Done
@@ -347,9 +364,26 @@ Private Sub SyncThinSegmentLabels(cht As Chart, body As Range, horiz As Boolean)
             Next
         End If
     Next
+    If list <> list0 Then Registry_SetOption cht, "thinlbl", list
 Done:
     If Err.Number <> 0 Then Errors_Log "Labels/segmentos finos" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
+
+' Lista "serie.ponto,serie.ponto" da opcao thinlbl.
+Private Function ThinListHas(list As String, key As String) As Boolean
+    ThinListHas = (InStr("," & list & ",", "," & key & ",") > 0)
+End Function
+
+Private Function ThinListAdd(list As String, key As String) As String
+    If Len(list) = 0 Then ThinListAdd = key Else ThinListAdd = list & "," & key
+End Function
+
+Private Function ThinListRemove(list As String, key As String) As String
+    Dim t As String
+    t = Replace("," & list & ",", "," & key & ",", ",")
+    If Len(t) <= 1 Then Exit Function
+    ThinListRemove = Mid$(t, 2, Len(t) - 2)
+End Function
 
 ' Fundo branco no rótulo que ficou sobre a própria barra (inside) e sem fundo nos demais; só escreve quando muda. Medido: o preenchimento
 ' só passa a valer (Fill.Visible lido de volta True) depois de escrever a cor, mesmo que ela já seja o branco: as duas escritas vão juntas.

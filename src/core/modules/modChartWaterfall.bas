@@ -361,6 +361,8 @@ End Sub
 Public Sub Waterfall_SetLabels(cht As Chart, turnOn As Boolean)
     Dim s As Series, body As Range, n As Long, fmt As String, ns As Long, j As Long, i As Long, horiz As Boolean, posCol As Range
     ns = Waterfall_SeriesCount(cht)
+    ' religar ou desligar TODOS os rotulos recomeca a lista dos segmentos finos escondidos pelo ThinQQ (Labels_RefreshPositions refaz)
+    If Len(Registry_GetOption(cht, "thinlbl", "")) > 0 Then Registry_SetOption cht, "thinlbl", ""
     If Not turnOn Then
         For i = cht.SeriesCollection.Count To 1 Step -1
             Set s = cht.SeriesCollection(i)
