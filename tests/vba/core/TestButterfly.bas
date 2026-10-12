@@ -401,3 +401,53 @@ Public Sub Test_Bfly_TinyBars_LabelsHiddenAndRestored()
     AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "e a barra fina volta a ficar sem rotulo"
     Teardown wb
 End Sub
+
+' Revisao 1: Mesma escala entre duas borboletas: a uniao continua simetrica e igual nas duas; depois, com o eixo FIXO, o vao central ainda
+' cresce para um nome longo (Bfly_RefreshGap mede na escala real) sem passar do teto, e o eixo continua o fixado.
+Public Sub Test_Bfly_SameScale_TwoButterflies_SymmetricUnion_GapOnFixedAxis()
+    Dim wb As Workbook, ws As Worksheet, c1 As Chart, c2 As Chart, coll As New Collection, skipped As Long, ax1 As Axis, ax2 As Axis
+    Dim hi As Double, k0 As Double, g As Double, lbl As DataLabel
+    Set wb = NewTempWorkbook()
+    Set ws = TwoButterflies(wb, c1, c2)
+    coll.Add c1: coll.Add c2
+    AssertEqual 2, Deco_SameScale(coll, skipped): AssertEqual 0, skipped
+    Set ax1 = c1.Axes(xlValue, xlPrimary): Set ax2 = c2.Axes(xlValue, xlPrimary)
+    AssertFalse ax1.MaximumScaleIsAuto, "escala fixa"
+    AssertAlmost -ax1.MaximumScale, ax1.MinimumScale, 0.000001, "uniao simetrica"
+    AssertAlmost ax1.MaximumScale, ax2.MaximumScale, 0.000001, "mesmo maximo"
+    AssertAlmost ax1.MinimumScale, ax2.MinimumScale, 0.000001, "mesmo minimo"
+    hi = ax1.MaximumScale
+    AssertTrue hi >= Util_ToDouble(Registry_Block(c2).Cells(1, 7).Value), "a uniao cobre a borboleta maior (SymR)"
+    k0 = Util_ToDouble(Registry_Block(c1).Cells(1, 5).Value)
+    ws.Range("A4").Value = "Trinta a cinquenta e nove"
+    Core_SafeRefresh c1
+    ForceLayout c1
+    AssertAlmost hi, ax1.MaximumScale, 0.000001, "o eixo continua o fixado"
+    AssertTrue Util_ToDouble(Registry_Block(c1).Cells(1, 5).Value) > k0, "o vao cresceu no eixo fixo"
+    g = CDbl(Block_Body(Registry_Block(c1)).Cells(2, BF_COL_GAP).Value)
+    Set lbl = Chart_FindSeries(c1, "tqq_cat").Points(3).DataLabel
+    AssertTrue XOf(c1, g) - XOf(c1, -g) >= lbl.Width, "o nome cabe no vao (" & lbl.Width & " pt)"
+    AssertTrue XOf(c1, g) - XOf(c1, -g) <= 0.5 * c1.PlotArea.InsideWidth + 1, "o vao respeita o teto no eixo fixo"
+    AssertAlmost XOf(c1, 0), lbl.Left + lbl.Width / 2, 1.5, "nome centrado"
+    Teardown wb
+End Sub
+
+' Revisao 1: "Alterar dados" de uma borboleta para uma tabela com 3 colunas de valores recusa com o aviso 6011 e o grafico fica intacto.
+Public Sub Test_Bfly_Rebuild_ThreeValueColumns_Refuses6011_KeepsChart()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, nm As String
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb).Source.Worksheet
+    ws.Range("A1:C5").Select
+    Core_Insert "butterfly"
+    Set cht = Core_ActiveChart()
+    nm = cht.Parent.Name
+    ws.Range("D1").Value = "Outro": ws.Range("D2:D5").Value = 1
+    Core_ClearLastNotice
+    AssertFalse Core_RebuildFromRange(cht, ws.Range("A1:D5")), "recusou"
+    AssertEqual "A borboleta precisa de exatamente 2 colunas de valores (lado esquerdo e lado direito).", Core_LastNotice()
+    AssertEqual 1, ws.ChartObjects.Count, "um grafico"
+    AssertEqual nm, ws.ChartObjects(1).Name, "o mesmo grafico"
+    AssertEqual "butterfly", Registry_ChartType(ws.ChartObjects(1).Chart)
+    AssertEqual 1, TqqNameCount(wb), "um bloco (o novo nao foi alocado)"
+    AssertEqual "Mulheres", Bfly_SideSeries(ws.ChartObjects(1).Chart, 1).Name, "series intactas"
+    Teardown wb
+End Sub
