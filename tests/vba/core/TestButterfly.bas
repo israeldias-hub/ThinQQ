@@ -329,3 +329,35 @@ Public Sub Test_Bfly_SameScale_LeftSideAboveMax_IsClipped()
     AssertTrue Deco_ScaleClipped(c1), "lado esquerdo acima do maximo fixo (" & vmax & ") e corte"
     Teardown wb
 End Sub
+
+' Revisao 1: com o calculo MANUAL a celula Gap nao recalcula depois de gravar GapK; as passadas de Bfly_RefreshGap reliam o mesmo vao e
+' multiplicavam GapK. A pasta em manual deve dar o mesmo vao que em automatico. O modo de calculo volta ao anterior tambem em erro.
+Public Sub Test_Bfly_ManualCalc_SameGapAsAutomatic()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, blk As Range, prevCalc As Long
+    Dim kAuto As Double, kMan As Double, gMan As Double, symMan As Double, maxAB As Double, en As Long, ed As String
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("A4").Value = "Cinquenta+"
+    Set cht = Bfly_Insert(ws, d).Chart
+    kAuto = Util_ToDouble(Registry_Block(cht).Cells(1, 5).Value)
+    ws.ChartObjects(1).Delete
+    CalcSheet_Cleanup wb
+    prevCalc = Application.Calculation
+    On Error GoTo Restore
+    Application.Calculation = xlCalculationManual
+    Set cht = Bfly_Insert(ws, ChartData_FromRange(ws.Range("A1:C5"))).Chart
+    Set blk = Registry_Block(cht)
+    kMan = Util_ToDouble(blk.Cells(1, 5).Value)
+    gMan = Util_ToDouble(Block_Body(blk).Cells(2, BF_COL_GAP).Value)
+    symMan = Util_ToDouble(blk.Cells(1, 7).Value)
+Restore:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    Application.Calculation = prevCalc
+    If en <> 0 Then CloseTemp wb: Err.Raise en, "Test_Bfly_ManualCalc_SameGapAsAutomatic", ed
+    maxAB = 310
+    AssertTrue kAuto > 0.15, "o nome pede vao maior que o minimo (" & kAuto & ")"
+    AssertAlmost kAuto, kMan, 0.03 * kAuto, "GapK em manual = em automatico"
+    AssertAlmost kMan * maxAB, gMan, 0.000001, "a celula Gap foi recalculada em manual"
+    AssertAlmost gMan + maxAB, symMan, 0.000001, "SymR recalculado em manual"
+    Teardown wb
+End Sub

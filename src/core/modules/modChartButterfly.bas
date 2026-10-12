@@ -37,6 +37,12 @@ Private Sub Bfly_CheckData(data As clsChartData)
     If data.SeriesCount <> 2 Then Err.Raise vbObjectError + 6011, "Bfly_Insert", BF_ERR_COLS
 End Sub
 
+' Calculo manual: recalcula o bloco (Range.Calculate segue as dependencias dentro da faixa). Em automatico nao faz nada (o Excel ja
+' recalculou ao gravar).
+Private Sub Bfly_CalcIfManual(blk As Range)
+    If Application.Calculation <> xlCalculationAutomatic Then blk.Calculate
+End Sub
+
 Public Function Bfly_BuildBlock(wb As Workbook, id As String, data As clsChartData) As Range
     Dim blk As Range, body As Range, n As Long, i As Long, r As Long, sA As String, sB As String, a As String, b As String, g As String
     Dim allAB As String, gapK As String, hdr As Variant, k As Long, sC As String
@@ -74,6 +80,7 @@ Public Function Bfly_BuildBlock(wb As Workbook, id As String, data As clsChartDa
     blk.Cells(1, BF_META_SYMR).Formula = "=" & body.Cells(2, BF_COL_GAP).Address(True, True) & "+MAX(" & allAB & ")"
     blk.Cells(1, BF_META_SYMY).Value = n / 2
     blk.Cells(1, BF_META_SYMY + 1).Value = n / 2
+    Bfly_CalcIfManual blk                            ' calculo manual: as formulas acima foram gravadas antes das celulas que elas leem
     Set Bfly_BuildBlock = blk
 End Function
 
@@ -309,6 +316,7 @@ Public Sub Bfly_RefreshGap(cht As Chart)
         If Abs(k - Util_ToDouble(blk.Cells(1, BF_META_GAPK).Value)) <= 0.02 * k Then Exit For
         blk.Cells(1, BF_META_GAPK).Value = k
         wrote = True
+        Bfly_CalcIfManual blk                        ' calculo manual: sem isto a passada seguinte releria o vao antigo e multiplicaria GapK
     Next
     ' o vao novo empurra os totais (x = Gap + B): a folga reservada por Bfly_SetTotals valia para o vao antigo. So reduz a area de
     ' plotagem e nao chama o refresh (sem reentrada; mGapBusy continua ligado).
