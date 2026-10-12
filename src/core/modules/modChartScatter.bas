@@ -28,6 +28,7 @@ Private Const SC_MAX_NAME As Long = 255          ' literal de texto numa formula
 Private Const SC_AXIS_COLOR As Long = 10921638   ' RGB(166, 166, 166)
 Private Const SC_TEXT_COLOR As Long = 5855577    ' RGB(89, 89, 89)
 Private Const SC_LABEL_COLOR As Long = 4210752   ' RGB(64, 64, 64): nomes ao lado do ponto
+Private Const SC_LABEL_SIDE_GAP As Double = 3     ' pt entre o ponto e o nome ao lado (Scatter_SyncBubbleLabels: lado esquerdo ou direito)
 Private mBubbleSyncBusy As Boolean                ' Scatter_SyncBubbleLabels em andamento: a reentrada (Calculate de uma escrita) sai
 Private mBubbleSyncRuns As Long                   ' gancho de teste: passadas de Scatter_SyncBubbleLabels que fizeram o trabalho
 Private Const SC_TIGHT_FRAC As Double = 0.6667  ' escala apertada quando a faixa dos dados e menor que 2/3 do maior |valor| (Scatter_NiceRange)
@@ -668,7 +669,7 @@ Public Sub Scatter_SetLabels(cht As Chart, turnOn As Boolean)
         End If
     Next
     Registry_SetOption cht, "labels", IIf(turnOn, "1", "0")
-    If turnOn And isBubble Then Scatter_SyncBubbleLabels cht       ' nome que nao cabe na bolha: a direita, cinza-escuro
+    If turnOn Then Scatter_SyncBubbleLabels cht                    ' nome que nao cabe na bolha: ao lado, cinza-escuro; perto da borda direita: a esquerda
 End Sub
 
 ' Cores por serie (grupo): marcadores XY so aceitam a cor por MarkerBackground/ForegroundColor (medido na Fase 2); as bolhas so pelo
@@ -702,21 +703,27 @@ Public Sub Scatter_ApplyColors(cht As Chart, paletteName As String)
     If isBubble Then Scatter_SyncBubbleLabels cht     ' a cor dos rotulos depende da cor nova (contraste) e de onde o rotulo esta
 End Sub
 
-' Bolhas: o nome fica DENTRO da bolha (centro, fonte por contraste com a cor do grupo) so quando cabe no diametro; senao vai para a direita,
+' Bolhas: o nome fica DENTRO da bolha (centro, fonte por contraste com a cor do grupo) so quando cabe no diametro; senao vai para o lado,
 ' em cinza-escuro, como na dispersao (branco por contraste sobre o fundo branco sumiria). Diametro = Point.Width (medido: devolve o tamanho
 ' atual sem o grafico ser desenhado, inclusive logo depois de mudar os dados ou o tamanho do grafico); texto pela largura estimada
-' (Labels_EstimateWidth). Chamado ao ligar os rotulos, ao trocar a paleta e em todo refresh (Scatter_RefreshAfterDataChange). So mexe em
+' (Labels_EstimateWidth). Lado (dispersao e bolhas, revisao final): a direita do ponto; a esquerda quando o texto estimado passaria da borda
+' interna direita da area de plotagem (invadia a legenda) e cabe a esquerda. Na dispersao so mexe em rotulo que esta a direita ou a esquerda
+' (as posicoes que o ThinQQ aplica: outra posicao foi escolhida pelo usuario e fica) e so na posicao (a cor fica).
+' Chamado ao ligar os rotulos, ao trocar a paleta e em todo refresh (Scatter_RefreshAfterDataChange). So mexe em
 ' rotulos que existem (o apagado pelo usuario continua apagado) e so escreve o que mudou; cada ponto e isolado: uma leitura que falha deixa
 ' o ponto como esta (nunca decide com o valor de outro ponto). Ponto nao plotado (diametro 0) fica como esta. Nunca propaga erro.
 ' As escritas rodam com os eventos desligados e um sinalizador de ocupado (cada escrita dispararia Calculate e o refresh reentraria aqui);
 ' os dois voltam ao estado anterior na unica saida depois de ligados.
 Public Sub Scatter_SyncBubbleLabels(cht As Chart)
     Dim k As Long, i As Long, s As Series, fc As Long, has As Boolean, d As Double, txt As String, wantPos As Long, wantColor As Long, ok As Boolean
-    Dim prevEv As Boolean
+    Dim prevEv As Boolean, isBubble As Boolean, pl As Double, w As Double, right_ As Double, left_ As Double, curPos As Long, r As Double, ms As Double, plotted As Boolean, cw As Double
     On Error Resume Next
     Err.Clear                                        ' um erro pendente do chamador nao vale como falha de leitura aqui
     If mBubbleSyncBusy Then Exit Sub
-    If Registry_ChartType(cht) <> "bubble" Then Exit Sub
+    If Kinds_Family(Registry_ChartType(cht)) <> "scatter" Then Exit Sub
+    isBubble = (Registry_ChartType(cht) = "bubble")
+    left_ = cht.PlotArea.InsideLeft: right_ = left_ + cht.PlotArea.InsideWidth: cw = cht.ChartArea.Width
+    If Err.Number <> 0 Then Errors_Log "Scatter_SyncBubbleLabels/area" & vbTab & Err.Number & vbTab & Err.Description: Exit Sub
     Err.Clear
     mBubbleSyncBusy = True
     mBubbleSyncRuns = mBubbleSyncRuns + 1
@@ -726,24 +733,35 @@ Public Sub Scatter_SyncBubbleLabels(cht As Chart)
         Set s = Nothing
         Set s = Scatter_DataSeries(cht, k)
         fc = Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
+        ms = 0
+        If Not isBubble Then ms = s.MarkerSize               ' dispersao: Point.Width le 0 (medido); o raio vem do marcador
         ok = (Err.Number = 0)
         If Not ok Then Errors_Log "Scatter_SyncBubbleLabels" & vbTab & k & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
         If ok Then
             For i = 1 To s.Points.Count
-                has = False: d = 0: txt = vbNullString
+                has = False: d = 0: txt = vbNullString: pl = 0: curPos = 0: plotted = False
                 has = s.Points(i).HasDataLabel
                 If Err.Number = 0 And has Then d = s.Points(i).Width
-                If Err.Number = 0 And has And d > 0 Then txt = s.Points(i).DataLabel.Text
-                If Err.Number = 0 And has And d > 0 Then
-                    If Labels_EstimateWidth(txt) <= d Then
-                        wantPos = xlLabelPositionCenter: wantColor = fc
-                    Else
-                        wantPos = xlLabelPositionRight: wantColor = SC_LABEL_COLOR
+                If Err.Number = 0 And has Then pl = s.Points(i).Left
+                If Err.Number = 0 And has Then plotted = (d > 0) Or (Not isBubble And pl > 0 And pl < cw)      ' nao plotado (NA): bolha de diametro 0; marcador fora do grafico (medido)
+                If Err.Number = 0 And plotted Then txt = s.Points(i).DataLabel.Text
+                If Err.Number = 0 And plotted Then curPos = s.Points(i).DataLabel.Position
+                If Err.Number = 0 And plotted Then
+                    w = Labels_EstimateWidth(txt)
+                    r = d / 2
+                    If r <= 0 Then r = ms / 2
+                    wantPos = xlLabelPositionRight
+                    If pl + d / 2 + r + SC_LABEL_SIDE_GAP + w > right_ And pl + d / 2 - r - SC_LABEL_SIDE_GAP - w >= left_ Then wantPos = xlLabelPositionLeft
+                    wantColor = SC_LABEL_COLOR
+                    If isBubble And w <= d Then wantPos = xlLabelPositionCenter: wantColor = fc
+                    If isBubble Then
+                        With s.Points(i).DataLabel
+                            If .Position <> wantPos Then .Position = wantPos
+                            If .Font.Color <> wantColor Then .Font.Color = wantColor
+                        End With
+                    ElseIf (curPos = xlLabelPositionRight Or curPos = xlLabelPositionLeft) And curPos <> wantPos Then
+                        s.Points(i).DataLabel.Position = wantPos
                     End If
-                    With s.Points(i).DataLabel
-                        If .Position <> wantPos Then .Position = wantPos
-                        If .Font.Color <> wantColor Then .Font.Color = wantColor
-                    End With
                 End If
                 If Err.Number <> 0 Then Errors_Log "Scatter_SyncBubbleLabels" & vbTab & s.Name & vbTab & i & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
             Next
@@ -891,7 +909,7 @@ Public Sub Scatter_RefreshAfterDataChange(cht As Chart)
     If Registry_GetOption(cht, "quad", "0") = "1" Then Scatter_ApplyQuadrants cht
     If Err.Number <> 0 Then Errors_Log "Scatter_RefreshAfterDataChange/quad" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Scatter_HideTrendEntries cht
-    Scatter_SyncBubbleLabels cht                     ' bolhas: o tamanho mudou com os dados ou com o grafico; o nome entra ou sai da bolha
+    Scatter_SyncBubbleLabels cht                     ' o tamanho e a posicao mudaram com os dados ou com o grafico: o nome entra ou sai da bolha, troca de lado
 End Sub
 
 ' Numero de linhas da tabela de origem entre o primeiro e o ultimo ponto, lido nas formulas da coluna X do bloco

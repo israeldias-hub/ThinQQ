@@ -266,7 +266,8 @@ Public Sub Test_Scatter_NamesAndGroups_BlankDateCaseBooleanLongName()
     AssertEqual "Produto de nome bem comprido", lbl.Text
     Set p = cht.SeriesCollection(3).Points(4)
     AssertTrue Abs((lbl.Top + lbl.Height / 2) - (p.Top + p.Height / 2)) < 8, "nome longo na altura do ponto"
-    AssertTrue lbl.Left >= p.Left + p.Width / 2, "nome longo a direita do ponto"
+    AssertEqual xlLabelPositionLeft, lbl.Position, "o ponto do nome longo e o mais a direita: o nome vai para a esquerda (revisao final)"
+    AssertTrue lbl.Left + lbl.Width <= p.Left + p.Width / 2 + 1, "nome longo a esquerda do ponto"
     CloseTemp wb
 End Sub
 
@@ -848,3 +849,50 @@ Cleanup:
     Teardown wb
     If en <> 0 Then Err.Raise en, es, ed
 End Sub
+
+' Revisao final: o nome a direita do ponto perto da borda direita invadia a legenda (demonstracao, bolha "Pisos e revestimentos"): quando o
+' texto estimado passa da borda interna da area de plotagem, vai para a esquerda do ponto; volta para a direita quando cabe. Dispersao e bolhas.
+Public Sub Test_Scatter_Labels_NearRightEdge_GoLeft()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, k As Variant, p As Point, d As clsChartData, lastCol As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:E1").Value = Array("Departamento", "Ticket", "Margem", "Vendas", "Grupo")
+    ws.Range("A2:E2").Value = Array("Ferragens", 75, 0.46, 5488, "Construção")
+    ws.Range("A3:E3").Value = Array("Cimento", 418, 0.22, 43324, "Construção")
+    ws.Range("A4:E4").Value = Array("Pisos e revestimentos de alto padrão", 697, 0.34, 23770, "Acabamento")
+    ws.Range("A5:E5").Value = Array("Elétrica", 120, 0.4, 11549, "Instalações")
+    For Each k In Array("scatter", "bubble")
+        lastCol = IIf(k = "bubble", "E", "C")
+        Set d = ChartData_FromRange(ws.Range("A1:" & lastCol & "5"))
+        Set cht = Scatter_Insert(ws, d, CStr(k)).Chart
+        cht.Parent.Width = 600: cht.Parent.Height = 360
+        ForceLayout cht
+        Core_SafeRefresh cht
+        ForceLayout cht
+        Set p = FindPointByLabel(cht, "Pisos e revestimentos de alto padrão")
+        AssertTrue Not p Is Nothing, k & ": ponto do nome longo"
+        AssertEqual xlLabelPositionLeft, p.DataLabel.Position, k & ": nome longo perto da borda direita vai para a esquerda"
+        AssertTrue p.DataLabel.Left + p.DataLabel.Width <= cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth + 2, k & ": rotulo dentro da area de plotagem (" & p.DataLabel.Left & "+" & p.DataLabel.Width & ")"
+        Set p = FindPointByLabel(cht, "Ferragens")
+        AssertTrue p.DataLabel.Position <> xlLabelPositionLeft, k & ": nome curto longe da borda nao muda de lado"
+        ws.Range("A4").Value = "Pisos"
+        Core_SafeRefresh cht
+        Set p = FindPointByLabel(cht, "Pisos")
+        AssertTrue p.DataLabel.Position <> xlLabelPositionLeft, k & ": nome curto volta para a direita (ou para dentro da bolha)"
+        ws.Range("A4").Value = "Pisos e revestimentos de alto padrão"
+        ws.ChartObjects(1).Delete
+        CalcSheet_Cleanup wb
+    Next
+    Teardown wb
+End Sub
+
+Private Function FindPointByLabel(cht As Chart, txt As String) As Point
+    Dim s As Series, i As Long
+    On Error Resume Next
+    For Each s In cht.SeriesCollection
+        For i = 1 To s.Points.Count
+            If s.Points(i).HasDataLabel And s.Points(i).Left < cht.ChartArea.Width Then          ' ponto plotado (o NA de outro grupo tem o mesmo nome, fora do grafico)
+                If s.Points(i).DataLabel.Text = txt Then Set FindPointByLabel = s.Points(i): Exit Function
+            End If
+        Next
+    Next
+End Function
