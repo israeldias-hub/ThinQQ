@@ -966,6 +966,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     kind = Registry_ChartType(c)
     l = oldCo.Left: t = oldCo.Top: w = oldCo.Width: h = oldCo.Height
     opts = CStr(Registry_Block(c).Cells(1, 4).Value)
+    Break_TakeNotice                            ' descarta um aviso de corte que tenha sobrado
     Application.ScreenUpdating = False
     ' O novo gráfico nasce na planilha do gráfico antigo (ws), não na da nova fonte.
     Set co = Kinds_Insert(ws, data, kind)
@@ -978,6 +979,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     If Len(Registry_GetOption(nc, "outpos", "")) > 0 Then Registry_SetOption nc, "outpos", ""        ' e as posicoes aplicadas a eles
     If Len(Registry_GetOption(nc, "brklbl", "")) > 0 Then Registry_SetOption nc, "brklbl", ""        ' rotulos ocultos pelo corte de eixo: idem
     ReapplyOptions nc                           ' formato, paleta, espaco, alternadores, escala fixa e legenda: as ESCOLHAS salvas do usuario
+    RebuildTestHook "afterreapply"              ' (teste) falha depois de reaplicar, antes de trocar o grafico
     oldCo.Delete
     ' A partir daqui o gráfico antigo não existe mais: nada pode apagar o novo. Falhas só são registradas.
     On Error Resume Next
@@ -994,6 +996,8 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     Core_SafeRefresh nc
     NotifyPieIgnoredColumns kind, data
     NotifyMekkoNegatives kind, data
+    msg = Break_TakeNotice()                    ' corte de eixo: aviso so depois de o grafico antigo ser trocado
+    If Len(msg) > 0 Then Core_Notify msg, vbInformation
     Core_RebuildFromRange = True
     Exit Function
 FailNew:
@@ -1004,6 +1008,7 @@ FailNew:
     nid = Mid$(co.Name, Len(ID_PREFIX) + 1)
     co.Delete
     CalcSheet_DeleteBlock wb, nid
+    Break_TakeNotice                            ' o antigo fica (cortado): o aviso do novo e descartado
     Application.ScreenUpdating = prevSU
     On Error GoTo 0
     Errors_HandleErr "Core_RebuildFromRange", en, ed
@@ -1303,5 +1308,15 @@ Fail:
         Core_Notify Ppt_ErrorText(en, ed), vbExclamation
     Else
         Errors_HandleErr "Core_CopyToPowerPoint(" & mode & ")", en, Ppt_ErrorText(en, ed)
+    End If
+End Sub
+
+' Gancho de teste de Core_RebuildFromRange (Util_FailThinSyncForTest = "rebuild-<ponto>:1"): dispara UMA vez. Inerte fora do build Test.
+Private Sub RebuildTestHook(site As String)
+    If BUILD_CONFIG = "Test" Then
+        If Util_FailThinSyncForTest = "rebuild-" & site & ":1" Then
+            Util_FailThinSyncForTest = ""
+            Err.Raise vbObjectError + 9991, "ThinQQ", "Falha simulada (teste) " & site
+        End If
     End If
 End Sub

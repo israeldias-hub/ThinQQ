@@ -16,6 +16,7 @@ Private Const BK_RIGHT_MARGIN As Double = 10    ' barras: folga = largura do mai
 Private Const BK_TOP_SHARE As Double = 0.25     ' empilhadas: parte minima visivel do segmento de cima de uma coluna cortada (StackedFloor)
 Public Const BREAK_ERR_LIMIT As String = "Corte de eixo: informe um valor maior que zero e menor que o maior valor do gráfico."
 Private mBusy As Boolean                        ' Break_Set/Break_Remove em andamento: o refresh por evento (Calculate) nao interfere
+Private mPendingNotice As String                 ' aviso de Break_TryReapply guardado ate "Alterar dados" trocar o grafico (Break_TakeNotice)
 
 Public Function Break_Limit(cht As Chart) As Double
     Break_Limit = Val(Registry_GetOption(cht, "vbreak", ""))
@@ -729,9 +730,10 @@ Public Sub Break_RefreshAfterDataChange(cht As Chart)
 End Sub
 
 ' Depois de "Alterar dados" o grafico novo tem a opcao copiada mas nenhuma coluna/marca: reaplica como o refresh faria com os dados novos
-' (sem o piso das empilhadas: um segmento inteiro acima do corte fica oculto e em brklbl, como quando os dados sobem, e o usuario e AVISADO
-' com a coluna e o minimo); se o limite ja nao fica
-' abaixo do maior topo (7003), retira o corte e AVISA (Core_Notify); outra falha limpa a opcao e registra. Nunca propaga erro.
+' (sem o piso das empilhadas: um segmento inteiro acima do corte fica oculto e em brklbl, como quando os dados sobem); se o limite ja nao fica
+' abaixo do maior topo (7003), retira o corte; outra falha limpa a opcao e registra. O usuario e AVISADO do corte retirado ou do segmento
+' escondido (coluna e minimo), mas o aviso fica guardado (Break_TakeNotice) e Core_RebuildFromRange o mostra so depois de trocar o grafico.
+' Nunca propaga erro.
 Public Sub Break_TryReapply(cht As Chart)
     Dim lim As Double, en As Long, fl As Double, cat As Long
     On Error GoTo Fail
@@ -740,7 +742,7 @@ Public Sub Break_TryReapply(cht As Chart)
     If Not Kinds_Supports(Registry_ChartType(cht), "break") Then Registry_SetOption cht, "vbreak", "": Exit Sub
     Break_Set cht, lim, False                       ' sem o piso: os dados novos sao do usuario, como num refresh (segmento acima do corte: oculto e em brklbl)
     fl = StackedFloor(cht, lim, cat)                ' mas o usuario fica sabendo que o corte esconde um segmento (o defeito do item A)
-    If lim < fl - 0.000000001 * (1 + fl) Then Core_Notify FloorAfterDataText(cht, lim, cat, fl), vbInformation
+    If lim < fl - 0.000000001 * (1 + fl) Then mPendingNotice = FloorAfterDataText(cht, lim, cat, fl)
     Exit Sub
 Fail:
     en = Err.Number
@@ -748,5 +750,12 @@ Fail:
     On Error GoTo -1
     On Error Resume Next
     Registry_SetOption cht, "vbreak", ""
-    If en = vbObjectError + 7003 Then Core_Notify "Corte de eixo retirado: o limite anterior (" & NumberText(lim) & ") não fica abaixo do maior valor dos dados novos.", vbInformation
+    If en = vbObjectError + 7003 Then mPendingNotice = "Corte de eixo retirado: o limite anterior (" & NumberText(lim) & ") não fica abaixo do maior valor dos dados novos."
 End Sub
+
+' O aviso que Break_TryReapply guardou (um so por chamada: o ultimo grafico reaplicado), devolvido e limpo. "Alterar dados" o mostra so DEPOIS de
+' trocar o grafico (uma falha antes disso mantem o grafico antigo, cortado, e o aviso e descartado).
+Public Function Break_TakeNotice() As String
+    Break_TakeNotice = mPendingNotice
+    mPendingNotice = ""
+End Function

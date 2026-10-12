@@ -765,3 +765,32 @@ Public Sub Test_Break_Rebuild_BelowFloor_KeptLikeRefresh()
     AssertEqual xlLabelPositionInsideBase, cht.SeriesCollection(1).Points(3).DataLabel.Position
     Teardown wb
 End Sub
+
+' Onda A, rodada 2 (menor 3): o aviso do corte em "Alterar dados" sai DEPOIS de o grafico antigo ser trocado. Uma falha depois de reaplicar as
+' opcoes (gancho) descarta o grafico novo e mantem o antigo com o corte: nenhum aviso de "corte retirado" sobre um grafico que continua cortado.
+Public Sub Test_Break_Rebuild_NoticeOnlyAfterSwap()
+    Dim wb As Workbook, rng As Range, ws As Worksheet, cht As Chart, en As Long, es As String, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb): Set ws = rng.Worksheet
+    rng.Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    CutThenRaise cht, 50
+    ws.Range("A10:C10").Value = Array("Cat", "S1", "S2"): ws.Range("A11:C11").Value = Array("x", 1, 2): ws.Range("A12:C12").Value = Array("y", 3, 4)
+    Util_FailThinSyncForTest = "rebuild-afterreapply:1"
+    Core_ClearLastNotice
+    AssertFalse Core_RebuildFromRange(cht, ws.Range("A10:C12")), "falha simulada depois de reaplicar"
+    AssertEqual "", Util_FailThinSyncForTest, "o gancho disparou"
+    AssertTrue InStr(Core_LastNotice(), "Corte de eixo retirado") = 0, "sem aviso de corte retirado (" & Core_LastNotice() & ")"
+    AssertEqual 1, Core_NoticeCount(), "so o aviso da falha (o de corte retirado nao saiu antes dela)"
+    AssertEqual 1, ws.ChartObjects.Count, "o antigo fica"
+    AssertEqual "50", Registry_GetOption(ws.ChartObjects(1).Chart, "vbreak", ""), "e continua cortado"
+    Core_ClearLastNotice
+    AssertTrue Core_RebuildFromRange(ws.ChartObjects(1).Chart, ws.Range("A10:C12")), "sem a falha"
+    AssertTrue InStr(Core_LastNotice(), "Corte de eixo retirado") > 0, "agora o aviso (" & Core_LastNotice() & ")"
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    Teardown wb
+    If en <> 0 Then Err.Raise en, es, ed
+End Sub
