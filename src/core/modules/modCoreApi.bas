@@ -1155,3 +1155,77 @@ Fail:
     Application.ScreenUpdating = prevSU
     Errors_Handle "Core_InsertSamples"
 End Sub
+
+' Copiar para o PowerPoint: "image" (figura) ou "chart" (grafico do PowerPoint vinculado a pasta salva). Sem grafico ativo nao faz nada;
+' a pasta nao salva e recusada ANTES de abrir o PowerPoint; PowerPoint ausente (429) vira aviso. Nunca propaga erro. Em falha desfaz o que
+' criou (forma colada, apresentacao nova, PowerPoint aberto por nos). A colagem usa a area de transferencia do Windows.
+Public Sub Core_CopyToPowerPoint(mode As String)
+    On Error Resume Next
+    CopyToPowerPointImpl mode
+    Ppt_SetFailForTest ""                            ' gancho de teste: desarmado em toda saida (inclusive as antecipadas)
+End Sub
+
+Private Sub CopyToPowerPointImpl(mode As String)
+    On Error GoTo Fail
+    Dim c As Chart, co As ChartObject, wb As Workbook, app As Object, slide As Object, shp As Object, msg As String, linked As Boolean
+    Dim en As Long, ed As String, presBefore As Long, created As Boolean
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Sub
+    If mode <> "image" And mode <> "chart" Then
+        Errors_Log "Core_CopyToPowerPoint: modo desconhecido (ignorado)" & vbTab & mode
+        Exit Sub
+    End If
+    linked = (mode = "chart")
+    Set wb = Registry_Workbook(c)
+    If linked Then
+        msg = Ppt_LinkedPrecheck(wb)
+        If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
+    End If
+    presBefore = -1
+    Set app = Ppt_GetApp(True)
+    created = Ppt_AppWasCreated()
+    If app Is Nothing Then Core_Notify PPT_ERR_NOT_INSTALLED, vbExclamation: Exit Sub
+    presBefore = app.Presentations.Count
+    Set slide = Ppt_TargetSlide(app)
+    If linked Then
+        Set co = c.Parent
+        Set shp = Ppt_PasteChart(co, slide)
+        On Error Resume Next: Application.CutCopyMode = False: Err.Clear: On Error GoTo Fail    ' a colagem ja deu certo: cancelar a copia nao pode desfazer nada
+    Else
+        Set shp = Ppt_PasteImage(c, slide)
+    End If
+    msg = "Gráfico copiado para o slide " & slide.SlideIndex & " de '" & slide.Parent.Name & "' como " & IIf(linked, "gráfico vinculado", "imagem") & "."
+    If linked And Not wb.Saved Then msg = msg & " " & PPT_NOTE_DIRTY
+    Core_Notify msg, vbInformation                   ' ANTES de ativar o PowerPoint: a caixa (Release) nao fica escondida atras dele
+    If BUILD_CONFIG <> "Test" Then                   ' nos testes o PowerPoint do teste nao aparece nem rouba o foco
+        On Error Resume Next
+        app.Visible = -1
+        app.Activate
+        Err.Clear
+        On Error GoTo Fail
+    End If
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Application.CutCopyMode = False
+    If Not app Is Nothing Then
+        ' desfaz o que esta chamada criou: a apresentacao nova (so se nao havia nenhuma) e o PowerPoint que ela abriu
+        If presBefore = 0 Then
+            If app.Presentations.Count = 1 Then
+                app.Presentations(1).Saved = -1
+                app.Presentations(1).Close
+            End If
+        End If
+        If created Then
+            If app.Presentations.Count = 0 Then app.Quit
+        End If
+    End If
+    On Error GoTo 0
+    If Ppt_IsKnownFailure(en) Then
+        Core_Notify Ppt_ErrorText(en, ed), vbExclamation
+    Else
+        Errors_HandleErr "Core_CopyToPowerPoint(" & mode & ")", en, Ppt_ErrorText(en, ed)
+    End If
+End Sub
