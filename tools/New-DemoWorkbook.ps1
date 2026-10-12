@@ -380,7 +380,7 @@ try {
                  Set-NumFmt ($ws.Range("B${tr}")) '0.000%'; Set-NumFmt ($ws.Range("C${tr}:D${tr}")) '0%'
                  $ws.Range("A${tr}:D${tr}").Font.Bold = $true
                  $ws.Range("A${tr}:D${tr}").Borders.Item(8).LineStyle = 1        # xlEdgeTop
-                 $ws.Range('C15:D15').WrapText = $true; $ws.Columns('C:D').ColumnWidth = 14
+                 $ws.Range('C15:D15').WrapText = $true; $ws.Columns('C:D').ColumnWidth = 16
                  $ws.Rows(15).AutoFit() | Out-Null }                                 # cabeçalho em 2 linhas inteiro
             24 { $rng = Write-Table $ws 'A6' @('Departamento', 'B2C', 'B2B') $deptChannelBody; $co = Add-Chart $ws $rng 'stacked'
                  # corte DENTRO do segmento de cima da coluna cortada (B2C + metade do B2B do cimento): os dois segmentos aparecem e o B2B mantém o
@@ -422,7 +422,7 @@ try {
     $idx.Range('A4').Value2 = 'Os gráficos são gráficos nativos do Excel e continuam ligados às tabelas: funcionam com ou sem o ThinQQ instalado. Setas, colchetes, marcas de corte e a escala do Gantt são recalculados só com o ThinQQ instalado; sem ele ficam como estão se os números mudarem.'
     $idx.Range('A2:A4').Font.Color = 0x404040
     foreach ($rr in 2, 3, 4) { $m = $idx.Range("A${rr}:E${rr}"); $m.Merge() | Out-Null; $m.WrapText = $true; $m.VerticalAlignment = -4160 }   # textos dentro da largura da tabela
-    $idx.Rows(3).RowHeight = 30; $idx.Rows(4).RowHeight = 30                    # células mescladas não se ajustam sozinhas: 2 linhas
+    $idx.Rows(4).RowHeight = 30                                                  # células mescladas não se ajustam sozinhas: A4 tem 2 linhas
     $hdrRow = 6
     $idx.Range("A${hdrRow}:E${hdrRow}").Value2 = [object[]]('Nº', 'Exemplo (clique para abrir)', 'Tipo de gráfico', 'Recursos em destaque', 'Como criar no ThinQQ')
     $h = $idx.Range("A${hdrRow}:E${hdrRow}"); $h.Font.Bold = $true; $h.Font.Color = 0xFFFFFF; $h.Interior.Color = 0x79531F
