@@ -28,6 +28,9 @@ Private Const SC_MAX_NAME As Long = 255          ' literal de texto numa formula
 Private Const SC_AXIS_COLOR As Long = 10921638   ' RGB(166, 166, 166)
 Private Const SC_TEXT_COLOR As Long = 5855577    ' RGB(89, 89, 89)
 Private Const SC_LABEL_COLOR As Long = 4210752   ' RGB(64, 64, 64): nomes ao lado do ponto
+Private Const SC_TIGHT_FRAC As Double = 0.6667  ' escala apertada quando a faixa dos dados e menor que 2/3 do maior |valor| (Scatter_NiceRange)
+Private Const SC_MAX_STEPS As Long = 8           ' no maximo 8 intervalos na escala apertada
+Private Const SC_AXIS_PAD As Double = 0.05       ' folga de cada lado da escala apertada (fracao da faixa dos dados)
 
 Public Function Scatter_GroupCount(blk As Range) As Long
     Scatter_GroupCount = (blk.Columns.Count - SC_FIXED) \ 3
@@ -215,6 +218,7 @@ Public Function Scatter_Insert(ws As Worksheet, data As clsChartData, kind As St
     Registry_SetOption cht, "trend", "0"
     Registry_SetOption cht, "quad", "0"
     Scatter_ApplyColors cht, "padrao"
+    Scatter_SyncAxes cht                             ' depois do tamanho das bolhas e da legenda: a folga das bolhas depende deles
     Scatter_SetLabels cht, True
     Set Scatter_Insert = co
     Exit Function
@@ -324,6 +328,191 @@ Public Sub Scatter_SyncAxisFormats(cht As Chart)
         End If
         If Err.Number <> 0 Then Errors_Log "Scatter_SyncAxisFormats" & vbTab & k & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Next
+End Sub
+
+' ---------- escala dos eixos ----------
+
+' Faixa "bonita" de um eixo de dispersao com os dados em [lo, hi]. A escala automatica do Excel comeca em zero quando a faixa passa de 1/6 do
+' maximo e amontoa pontos como 20..50 num canto (visto na demonstracao). True (com outMin/outMax/outStep) quando os dados nao incluem o zero
+' e a faixa e menor que SC_TIGHT_FRAC do maior valor absoluto: [lo - folga, hi + folga] (folga = padFrac da faixa; um valor so: padFrac do
+' valor) arredondada para fora a um passo 1/2/2,5/5 x 10^k, o menor com no maximo SC_MAX_STEPS intervalos e >= minUnit (resolucao do
+' formato: com 0% um passo de 0,5% repetiria "30%"). Nunca cruza o zero pelo arredondamento. False = escala do Excel. Pura.
+Public Function Scatter_NiceRange(lo As Double, hi As Double, minUnit As Double, padFrac As Double, ByRef outMin As Double, ByRef outMax As Double, ByRef outStep As Double) As Boolean
+    Dim big As Double, pad As Double, a As Double, b As Double, e As Double, s As Double, k As Long, lo0 As Double, hi0 As Double
+    If hi < lo Then Exit Function
+    If lo <= 0 And hi >= 0 Then Exit Function
+    If Abs(lo) > Abs(hi) Then big = Abs(lo) Else big = Abs(hi)
+    If hi - lo >= SC_TIGHT_FRAC * big Then Exit Function
+    pad = padFrac * (hi - lo)
+    If pad <= 0 Then pad = padFrac * big
+    a = lo - pad: b = hi + pad
+    e = 10 ^ Int(Log((b - a) / SC_MAX_STEPS) / Log(10))
+    For k = 0 To 15
+        s = Choose((k Mod 4) + 1, 1, 2, 2.5, 5) * e * 10 ^ (k \ 4)
+        lo0 = Int(a / s + 0.000000001): hi0 = -Int(-b / s + 0.000000001)
+        If s >= minUnit * (1 - 0.000000001) And hi0 - lo0 <= SC_MAX_STEPS Then Exit For
+    Next
+    outMin = lo0 * s: outMax = hi0 * s: outStep = s
+    If lo > 0 And outMin < 0 Then outMin = 0
+    If hi < 0 And outMax > 0 Then outMax = 0
+    Scatter_NiceRange = True
+End Function
+
+' Resolucao de um codigo de formato (ingles, da celula de origem): 10^-casas (dividida por 100 com %) da primeira secao; 0 para Geral, datas e
+' horas (sem restricao de passo).
+Private Function FormatUnit(code As String) As Double
+    Dim sec As String, i As Long, ch As String, inQ As Boolean, clean As String, p As Long, d As Long
+    If Len(code) = 0 Or code = "General" Then Exit Function
+    sec = Split(code & ";", ";")(0)
+    For i = 1 To Len(sec)
+        ch = Mid$(sec, i, 1)
+        If ch = """" Then
+            inQ = Not inQ
+        ElseIf Not inQ Then
+            clean = clean & ch
+        End If
+    Next
+    If clean Like "*[dDmMyYhHsS]*" Then Exit Function
+    p = InStr(clean, ".")
+    If p > 0 Then
+        For i = p + 1 To Len(clean)
+            ch = Mid$(clean, i, 1)
+            If ch = "0" Or ch = "#" Or ch = "?" Then d = d + 1 Else Exit For
+        Next
+    End If
+    FormatUnit = 10 ^ (-d)
+    If InStr(clean, "%") > 0 Then FormatUnit = FormatUnit / 100
+End Function
+
+' Menor e maior valor PLOTADO no eixo k (1 = X, 2 = Y): os valores numericos das series de dados (os pontos fora do grupo ou invalidos sao
+' NA() no bloco e chegam vazios). False sem nenhum.
+Private Function DataRange(cht As Chart, k As Long, ByRef lo As Double, ByRef hi As Double) As Boolean
+    Dim s As Series, v As Variant, i As Long, x As Double, j As Long
+    For j = 1 To Scatter_SeriesCount(cht)
+        Set s = Scatter_DataSeries(cht, j)
+        If k = 1 Then v = s.XValues Else v = s.Values
+        If IsArray(v) Then
+            For i = LBound(v) To UBound(v)
+                If Not IsError(v(i)) And Not IsEmpty(v(i)) And VarType(v(i)) <> vbString And VarType(v(i)) <> vbBoolean Then
+                    x = CDbl(v(i))
+                    If Not DataRange Then
+                        lo = x: hi = x: DataRange = True
+                    Else
+                        If x < lo Then lo = x
+                        If x > hi Then hi = x
+                    End If
+                End If
+            Next
+        End If
+    Next
+End Function
+
+' Folga de cada lado (fracao da faixa dos dados) do eixo k nas bolhas: 5% mais o raio da MAIOR bolha (Point.Width: o diametro atual, lido sem
+' desenhar o grafico; independe da escala dos eixos), para nenhuma bolha da borda sair da area de plotagem: com fr = raio / lado interno,
+' folga p >= fr x (faixa + 2p) + 5% da faixa => p = (fr + 5%) / (1 - 2 fr). Dispersao: 5%. -1 se as bolhas nao cabem (fr >= 0,4).
+Private Function PadFraction(cht As Chart, k As Long) As Double
+    Dim s As Series, j As Long, i As Long, w As Double, d As Double, side As Double, fr As Double
+    PadFraction = SC_AXIS_PAD
+    If Registry_ChartType(cht) <> "bubble" Then Exit Function
+    For j = 1 To Scatter_SeriesCount(cht)
+        Set s = Scatter_DataSeries(cht, j)
+        For i = 1 To s.Points.Count
+            w = 0
+            On Error Resume Next
+            w = s.Points(i).Width
+            On Error GoTo 0
+            If w > d Then d = w
+        Next
+    Next
+    If k = 1 Then side = cht.PlotArea.InsideWidth Else side = cht.PlotArea.InsideHeight
+    If side <= 0 Then PadFraction = -1: Exit Function
+    fr = (d / 2) / side
+    If fr >= 0.4 Then PadFraction = -1: Exit Function
+    PadFraction = (fr + SC_AXIS_PAD) / (1 - 2 * fr)
+End Function
+
+Private Function ScaleText(mn As Double, mx As Double, st As Double) As String
+    ScaleText = Trim$(Str$(mn)) & "|" & Trim$(Str$(mx)) & "|" & Trim$(Str$(st))
+End Function
+
+Private Function SameNumber(a As Double, b As Double) As Boolean
+    SameNumber = (Abs(a - b) <= 0.000000001 * (1 + Abs(a) + Abs(b)))
+End Function
+
+' O eixo esta exatamente na escala gravada pelo ThinQQ (minimo, maximo e passo fixos e iguais aos gravados)?
+Private Function AxisIsOurs(ax As Axis, stored As String) As Boolean
+    Dim p As Variant
+    If Len(stored) = 0 Then Exit Function
+    p = Split(stored, "|")
+    If UBound(p) < 2 Then Exit Function
+    If ax.MinimumScaleIsAuto Or ax.MaximumScaleIsAuto Or ax.MajorUnitIsAuto Then Exit Function
+    AxisIsOurs = SameNumber(ax.MinimumScale, Val(p(0))) And SameNumber(ax.MaximumScale, Val(p(1))) And SameNumber(ax.MajorUnit, Val(p(2)))
+End Function
+
+' Escala do eixo k (1 = X: Axes(xlCategory); 2 = Y: Axes(xlValue)) pela faixa dos dados (Scatter_NiceRange), gravada na opcao xscale/yscale
+' ("min|max|passo"; o registro nao aceita ";") para reconhecer a propria escala depois (como o "secmin" da combinacao): um eixo fixo que nao e o gravado foi ajustado
+' pelo usuario e fica como esta (inclusive so o passo). Sem aperto (zero na faixa, faixa larga, sem dados) a escala gravada volta ao
+' automatico do Excel. So escreve o que mudou. Transacional: uma falha no meio devolve o eixo e a opcao ao que eram. Nunca propaga erro.
+Private Sub SyncAxisScale(cht As Chart, k As Long)
+    Dim ax As Axis, key As String, stored As String, ours As Boolean, lo As Double, hi As Double, mn As Double, mx As Double, st As Double
+    Dim want As Boolean, pf As Double, c As Range, unit As Double, started As Boolean, newText As String
+    Dim pAutoMin As Boolean, pAutoMax As Boolean, pAutoUnit As Boolean, pMin As Double, pMax As Double, pUnit As Double
+    On Error GoTo Fail
+    key = IIf(k = 1, "xscale", "yscale")
+    Set ax = cht.Axes(IIf(k = 1, xlCategory, xlValue), xlPrimary)
+    stored = Registry_GetOption(cht, key, "")
+    ours = AxisIsOurs(ax, stored)
+    If Not ours Then
+        If Not (ax.MinimumScaleIsAuto And ax.MaximumScaleIsAuto) Then Exit Sub        ' escala do usuario: fica
+    End If
+    If DataRange(cht, k, lo, hi) Then
+        pf = PadFraction(cht, k)
+        If pf >= 0 Then
+            Set c = SourceNumberCell(cht, IIf(k = 1, SC_COL_X, SC_COL_Y))
+            If Not c Is Nothing Then unit = FormatUnit(CStr(c.NumberFormat))
+            want = Scatter_NiceRange(lo, hi, unit, pf, mn, mx, st)
+        End If
+    End If
+    pAutoMin = ax.MinimumScaleIsAuto: pAutoMax = ax.MaximumScaleIsAuto: pAutoUnit = ax.MajorUnitIsAuto
+    pMin = ax.MinimumScale: pMax = ax.MaximumScale: pUnit = ax.MajorUnit
+    If want Then
+        newText = ScaleText(mn, mx, st)
+        If ours And stored = newText Then Exit Sub
+        started = True
+        If mn < ax.MaximumScale Then
+            ax.MinimumScale = mn: ax.MaximumScale = mx
+        Else
+            ax.MaximumScale = mx: ax.MinimumScale = mn                      ' subindo: o minimo novo passaria do maximo atual
+        End If
+        ax.MajorUnit = st
+        ScatterTestHook "scale", CStr(k)
+        Registry_SetOption cht, key, newText
+    ElseIf ours Then
+        started = True
+        ax.MinimumScaleIsAuto = True: ax.MaximumScaleIsAuto = True: ax.MajorUnitIsAuto = True
+        Registry_SetOption cht, key, ""
+    ElseIf Len(stored) > 0 Then
+        Registry_SetOption cht, key, ""
+    End If
+    Exit Sub
+Fail:
+    Errors_Log "Scatter_SyncAxisScale" & vbTab & k & vbTab & Err.Number & vbTab & Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If started Then
+        If pAutoMin Then ax.MinimumScaleIsAuto = True Else ax.MinimumScale = pMin
+        If pAutoMax Then ax.MaximumScaleIsAuto = True Else ax.MaximumScale = pMax
+        If pAutoMin Then ax.MinimumScaleIsAuto = True Else ax.MinimumScale = pMin      ' de novo: a ordem pode ter sido recusada
+        If pAutoUnit Then ax.MajorUnitIsAuto = True Else ax.MajorUnit = pUnit
+        Registry_SetOption cht, key, stored
+    End If
+End Sub
+
+' Escala dos dois eixos (SyncAxisScale). Na insercao e em todo refresh. Nunca propaga erro.
+Public Sub Scatter_SyncAxes(cht As Chart)
+    On Error Resume Next
+    SyncAxisScale cht, 1
+    SyncAxisScale cht, 2
 End Sub
 
 Public Function Scatter_SeriesCount(cht As Chart) As Long
@@ -580,6 +769,7 @@ Public Sub Scatter_RefreshAfterDataChange(cht As Chart)
     On Error Resume Next
     If Kinds_Family(Registry_ChartType(cht)) <> "scatter" Then Exit Sub
     Scatter_SyncAxisFormats cht                      ' o formato da coluna de origem pode ter mudado
+    Scatter_SyncAxes cht                             ' a faixa dos dados (e o tamanho das bolhas) pode ter mudado
     If Registry_GetOption(cht, "quad", "0") = "1" Then Scatter_ApplyQuadrants cht
     If Err.Number <> 0 Then Errors_Log "Scatter_RefreshAfterDataChange/quad" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Scatter_HideTrendEntries cht

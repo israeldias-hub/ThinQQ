@@ -513,3 +513,115 @@ Public Sub Test_Scatter_AxisNumberFormat_FollowsSource()
     Next
     Teardown wb
 End Sub
+
+' Onda A, item C: faixa "bonita" (pura): dados longe do zero e faixa estreita ganham minimo/maximo em volta dos dados (5% de folga, passo
+' 1/2/2,5/5 x 10^k, no maximo 8 intervalos, passo >= a resolucao do formato); zero dentro da faixa ou faixa larga = escala do Excel.
+Public Sub Test_Scatter_NiceRange_Pure()
+    Dim mn As Double, mx As Double, st As Double
+    AssertTrue Scatter_NiceRange(20, 50, 0, 0.05, mn, mx, st), "20..50 aperta"
+    AssertAlmost 15, mn, 0.000001: AssertAlmost 55, mx, 0.000001: AssertAlmost 5, st, 0.000001
+    AssertTrue Scatter_NiceRange(0.3, 0.33, 0, 0.05, mn, mx, st), "margens de 30% a 33%"
+    AssertAlmost 0.295, mn, 0.0000001: AssertAlmost 0.335, mx, 0.0000001: AssertAlmost 0.005, st, 0.0000001
+    AssertTrue Scatter_NiceRange(0.3, 0.33, 0.01, 0.05, mn, mx, st), "formato 0%: passo de pelo menos 1 ponto percentual"
+    AssertAlmost 0.29, mn, 0.0000001: AssertAlmost 0.34, mx, 0.0000001: AssertAlmost 0.01, st, 0.0000001
+    AssertFalse Scatter_NiceRange(-5, 50, 0, 0.05, mn, mx, st), "zero dentro da faixa: escala do Excel"
+    AssertFalse Scatter_NiceRange(10, 50, 0, 0.05, mn, mx, st), "faixa larga (10..50): escala do Excel"
+    AssertTrue Scatter_NiceRange(-50, -20, 0, 0.05, mn, mx, st), "negativos: espelho"
+    AssertAlmost -55, mn, 0.000001: AssertAlmost -15, mx, 0.000001
+    AssertTrue Scatter_NiceRange(30, 30, 0, 0.05, mn, mx, st), "um valor so"
+    AssertTrue mn < 30 And mx > 30 And mn > 0, "um valor so: em volta dele (" & mn & ".." & mx & ")"
+    AssertTrue Scatter_NiceRange(1, 1.4, 0, 0.05, mn, mx, st)
+    AssertTrue mn >= 0, "nunca cruza o zero pelo arredondamento"
+End Sub
+
+' Onda A, item C: pontos entre 20 e 50 nao ficam amontoados num canto (o Excel comecaria os eixos em zero): a escala aperta em volta deles,
+' e gravada (xscale/yscale), os quadrantes continuam nas medias, os dados que passam a incluir o zero (ou a ficar largos) devolvem a escala
+' do Excel, e um eixo que o usuario fixou a mao nao e sobrescrito. Bolhas: a maior bolha fica inteira dentro da area de plotagem.
+Public Sub Test_Scatter_TightAxes_Between20And50()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, axX As Axis, axY As Axis, p As Point, d As clsChartData, s As Series, i As Long, k As Variant
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:D1").Value = Array("Loja", "Ticket", "Margem", "Vendas")
+    ws.Range("A2:D2").Value = Array("L1", 20, 21, 50): ws.Range("A3:D3").Value = Array("L2", 28, 30, 120)
+    ws.Range("A4:D4").Value = Array("L3", 35, 38, 80): ws.Range("A5:D5").Value = Array("L4", 42, 45, 20)
+    ws.Range("A6:D6").Value = Array("L5", 50, 49, 60)
+    Set d = ChartData_FromRange(ws.Range("A1:C6"))
+    Set cht = Scatter_Insert(ws, d, "scatter").Chart
+    Set axX = cht.Axes(xlCategory, xlPrimary): Set axY = cht.Axes(xlValue, xlPrimary)
+    For Each k In Array(1, 2)
+        With cht.Axes(IIf(k = 1, xlCategory, xlValue), xlPrimary)
+            AssertFalse .MinimumScaleIsAuto Or .MaximumScaleIsAuto, "eixo " & k & ": escala do ThinQQ"
+            AssertTrue .MinimumScale > 0 And .MinimumScale <= 20 And .MaximumScale >= 50, "eixo " & k & ": cobre os dados sem o zero (" & .MinimumScale & ".." & .MaximumScale & ")"
+            AssertTrue 29 / (.MaximumScale - .MinimumScale) >= 0.7, "eixo " & k & ": os pontos ocupam a maior parte do eixo (" & .MinimumScale & ".." & .MaximumScale & ")"
+        End With
+    Next
+    AssertTrue Len(Registry_GetOption(cht, "xscale", "")) > 0 And Len(Registry_GetOption(cht, "yscale", "")) > 0, "escala gravada"
+    ForceLayout cht
+    Set p = cht.SeriesCollection(1).Points(1)                   ' L1 (20; 21): regra de tres no eixo real
+    AssertAlmost XOf(cht, 20), p.Left + p.Width / 2, 2, "centro do marcador em x(20)"
+    AssertAlmost YOf(cht, 21), p.Top + p.Height / 2, 2, "centro do marcador em y(21)"
+    AssertTrue p.Left + p.Width / 2 > cht.PlotArea.InsideLeft + 2, "L1 nao encostado no canto"
+    Scatter_SetQuad cht, True
+    AssertAlmost 35, CDbl(axX.CrossesAt), 0.000001, "quadrante na media de X"
+    AssertTrue axX.CrossesAt > axX.MinimumScale And axX.CrossesAt < axX.MaximumScale, "a linha do quadrante fica dentro da escala"
+    AssertFalse axX.MinimumScaleIsAuto, "os quadrantes mantem a escala"
+    ws.Range("B6").Value = 80                                   ' X de 20 a 80: faixa larga, escala do Excel
+    Core_SafeRefresh cht
+    AssertTrue axX.MinimumScaleIsAuto And axX.MaximumScaleIsAuto, "faixa larga: escala do Excel"
+    AssertEqual "", Registry_GetOption(cht, "xscale", ""), "opcao limpa"
+    AssertAlmost 41, CDbl(axX.CrossesAt), 0.000001, "quadrante acompanha"
+    ws.Range("B6").Value = 50
+    Core_SafeRefresh cht
+    AssertFalse axX.MinimumScaleIsAuto, "de volta ao aperto"
+    ws.Range("B2").Value = -10                                  ' zero dentro da faixa
+    Core_SafeRefresh cht
+    AssertTrue axX.MinimumScaleIsAuto And axX.MaximumScaleIsAuto, "zero dentro da faixa: escala do Excel"
+    ws.Range("B2").Value = 20
+    Core_SafeRefresh cht
+    axY.MinimumScale = 0                                        ' o usuario fixa o eixo Y
+    Core_SafeRefresh cht
+    AssertEqual 0, axY.MinimumScale, "eixo do usuario fica"
+    ws.Range("C2").Value = 25
+    Core_SafeRefresh cht
+    AssertEqual 0, axY.MinimumScale, "eixo do usuario fica depois de mudar os dados"
+    ws.ChartObjects(1).Delete
+    CalcSheet_Cleanup wb
+    Set d = ChartData_FromRange(ws.Range("A1:D6"))
+    Set cht = Scatter_Insert(ws, d, "bubble").Chart
+    AssertFalse cht.Axes(xlCategory, xlPrimary).MinimumScaleIsAuto, "bolhas: escala do ThinQQ"
+    ForceLayout cht
+    For Each s In cht.SeriesCollection
+        For i = 1 To s.Points.Count
+            Set p = s.Points(i)
+            If p.Width > 0 Then
+                AssertTrue p.Left >= cht.PlotArea.InsideLeft - 1 And p.Left + p.Width <= cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth + 1, "bolha " & i & " inteira na horizontal (" & p.Left & "+" & p.Width & ")"
+                AssertTrue p.Top >= cht.PlotArea.InsideTop - 1 And p.Top + p.Height <= cht.PlotArea.InsideTop + cht.PlotArea.InsideHeight + 1, "bolha " & i & " inteira na vertical (" & p.Top & "+" & p.Height & ")"
+            End If
+        Next
+    Next
+    Teardown wb
+End Sub
+
+' Onda A, item C: a escala do eixo e transacional (uma falha depois de mexer no eixo devolve o automatico e a opcao) e nunca derruba a
+' insercao; sem a falha, o refresh seguinte aperta.
+Public Sub Test_Scatter_TightAxes_FailMidway_RollsBack()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, d As clsChartData, en As Long, es As String, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Loja", "Ticket", "Margem")
+    ws.Range("A2:C2").Value = Array("L1", 20, 21): ws.Range("A3:C3").Value = Array("L2", 50, 49)
+    Set d = ChartData_FromRange(ws.Range("A1:C3"))
+    Util_FailThinSyncForTest = "scatter-scale:1"
+    Set cht = Scatter_Insert(ws, d, "scatter").Chart
+    AssertTrue cht.Axes(xlCategory, xlPrimary).MinimumScaleIsAuto And cht.Axes(xlCategory, xlPrimary).MaximumScaleIsAuto, "falha no eixo X: automatico de volta"
+    AssertTrue cht.Axes(xlCategory, xlPrimary).MajorUnitIsAuto, "passo automatico de volta"
+    AssertEqual "", Registry_GetOption(cht, "xscale", ""), "opcao como estava"
+    AssertFalse cht.Axes(xlValue, xlPrimary).MinimumScaleIsAuto, "o eixo Y (sem falha) aperta"
+    Util_FailThinSyncForTest = ""
+    Core_SafeRefresh cht
+    AssertFalse cht.Axes(xlCategory, xlPrimary).MinimumScaleIsAuto, "sem a falha o refresh aperta"
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    Teardown wb
+    If en <> 0 Then Err.Raise en, es, ed
+End Sub
