@@ -1,0 +1,19 @@
+﻿ThinQQ - pasta de trabalho de demonstração
+==========================================
+
+ThinQQ-Demonstracao-Materiais-Construcao.xlsx é um Excel de exemplo para conhecer o ThinQQ abrindo e mexendo nos gráficos.
+
+O QUE É
+Uma rede fictícia de materiais de construção (8 lojas, 8 departamentos e 24 meses de vendas) com 26 exemplos, de E01 a E26: um por funcionalidade (os 20 tipos de gráfico e os principais recursos: totais, rótulos, setas, colchete, linha de valor, indicador 100%, mesma escala, soma consistente, corte de eixo, tendência e quadrantes). Todos os dados e nomes são fictícios.
+
+COMO USAR
+1. Abra o arquivo no Excel. Se ele abrir em "Modo Protegido" (arquivo baixado da internet), clique em "Habilitar edição".
+2. A primeira planilha (Indice) lista os exemplos: clique no nome de um exemplo para ir ao gráfico.
+3. Em cada exemplo (planilhas E01 a E26), a legenda diz o que o gráfico mostra e qual menu da aba ThinQQ o cria. A célula A1 ("Voltar ao índice") leva de volta ao índice.
+4. Mude um número na tabela do exemplo (ou na planilha Dados) e veja o gráfico acompanhar.
+
+COM E SEM O THINQQ
+- O arquivo não tem macros e não precisa do ThinQQ para ser aberto: os gráficos são gráficos nativos do Excel, ligados aos dados por fórmulas.
+- Com o ThinQQ instalado, a aba ThinQQ e os controles do grupo "Gráfico selecionado" funcionam nos gráficos do arquivo. Sem ele, as setas de CAGR e de diferença, os colchetes e as marcas de corte de eixo ficam onde estão: só o ThinQQ os recalcula.
+
+O instalador (Instalar-ThinQQ.cmd) não instala nem abre este arquivo: ele só vem no ZIP, na pasta "exemplos". Copie-o para onde quiser.

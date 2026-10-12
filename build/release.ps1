@@ -1,5 +1,5 @@
 ﻿<#
-.SYNOPSIS  Gera um release: version.json, build Release, manifest.json, zip e (opcional) publicação em pasta.
+.SYNOPSIS  Gera um release: version.json, build Release, manifest.json, zip (com o Excel de demonstração em exemplos/) e (opcional) publicação em pasta.
 .EXAMPLE   pwsh build/release.ps1 -Version 1.0.0 -BaseUrl https://github.com/israeldias-hub/ThinQQ/releases/download/v1.0.0
 .EXAMPLE   pwsh build/release.ps1 -Version 1.0.0 -BaseUrl '\\servidor\ThinQQ' -PublishTo '\\servidor\ThinQQ'
 .PARAMETER ManifestUrl  Fonte de atualizacao gravada no manifesto (o que um usuario que instala pelo ZIP consulta). Padrao: com BaseUrl
@@ -29,10 +29,15 @@ if ($LoaderVersion -and $LoaderVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Loa
 $tutorial = Join-Path $RepoRoot 'docs\tutorial\tutorial.html'
 if (-not (Test-Path $tutorial)) { throw "Tutorial não encontrado: $tutorial. Crie docs/tutorial/tutorial.html antes de gerar o release." }
 if (Test-TutorialIsStub $tutorial) { throw 'docs/tutorial/tutorial.html ainda é o esqueleto (pequeno demais ou com o marcador THINQQ-TUTORIAL-STUB). Escreva o tutorial real antes do release.' }
-$installerFiles = @('install.ps1', 'uninstall.ps1', 'Instalar-ThinQQ.cmd', 'LEIA-ME.txt')
+$installerFiles = @(Get-ReleaseInstallerFiles)
 foreach ($f in $installerFiles) {
     if (-not (Test-Path (Join-Path $RepoRoot "installer\$f"))) { throw "Arquivo do instalador ausente: installer\$f" }
 }
+# O Excel de demonstracao viaja no ZIP (exemplos/), ao lado de Instalar-ThinQQ.cmd; o instalador nao o instala nem o abre.
+$demoSource = Join-Path $RepoRoot "exemplos\$(Get-ReleaseDemoName)"
+if (-not (Test-Path -LiteralPath $demoSource)) { throw "Arquivo de demonstracao ausente: exemplos\$(Get-ReleaseDemoName). Gere-o com tools/New-DemoWorkbook.ps1 antes do release." }
+if (Test-XlsxHasMacros $demoSource) { throw "exemplos\$(Get-ReleaseDemoName) contem macros (vbaProject): a demonstracao deve ser .xlsx sem macros." }
+if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot 'installer\LEIA-ME-exemplos.txt'))) { throw 'Arquivo ausente: installer\LEIA-ME-exemplos.txt (vai no ZIP como exemplos\LEIA-ME.txt).' }
 
 # version.json: gravado antes do build (o build le dele); restaurado se qualquer etapa falhar
 $versionPath = Join-Path $RepoRoot 'version.json'
@@ -72,13 +77,14 @@ try {
     Copy-Item $tutorial $DistDir -Force
     foreach ($f in $installerFiles) { Copy-Item (Join-Path $RepoRoot "installer\$f") $DistDir -Force }
 
-    $names = @('ThinQQ.xlam', 'ThinQQ.core.xlam', 'manifest.json', 'tutorial.html') + $installerFiles
+    $names = @(Get-ReleaseTopFiles)
     $files = $names | ForEach-Object { Join-Path $DistDir $_ }
     $zip = Join-Path $DistDir "ThinQQ-$($versions.core).zip"
-    if (Test-Path $zip) { Remove-Item $zip -Force }
-    Compress-Archive -Path $files -DestinationPath $zip
+    New-ReleaseZip $zip (Get-ReleaseZipLayout $RepoRoot $DistDir)
     $badZip = @(Get-TestMarkersInZip $zip)
     if ($badZip.Count -gt 0) { Remove-Item $zip -Force; throw "O ZIP do release contém módulos de teste ($($badZip -join ', ')). Release cancelado." }
+    $zipProblems = @(Test-ReleaseZipContent $zip $demoSource)
+    if ($zipProblems.Count -gt 0) { Remove-Item $zip -Force; throw "O conteúdo do ZIP do release está errado ($($zipProblems -join '; ')). Release cancelado." }
     if ($PublishTo) {
         New-Item -ItemType Directory -Force $PublishTo | Out-Null
         Copy-Item $files $PublishTo -Force

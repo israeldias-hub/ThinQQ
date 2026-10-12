@@ -94,3 +94,76 @@ function Test-TutorialIsStub([string]$Path) {
     if ($len -lt 2000) { return $true }
     return ([IO.File]::ReadAllText($Path) -match 'THINQQ-TUTORIAL-STUB')
 }
+
+# ---- Conteudo do ZIP do release: o pacote (arquivos soltos de dist), o Excel de demonstracao e um LEIA-ME curto em exemplos/.
+# O instalador copia so os arquivos que nomeia (ThinQQ.xlam, ThinQQ.core.xlam, tutorial.html): exemplos/ so viaja no ZIP, nunca e instalado
+# nem aberto. O xlsx vem de exemplos/ do repositorio (o gerador o regrava; nao mexa nele aqui) e o LEIA-ME de installer/LEIA-ME-exemplos.txt.
+function Get-ReleaseDemoName { return 'ThinQQ-Demonstracao-Materiais-Construcao.xlsx' }
+
+function Get-ReleaseInstallerFiles { return @('install.ps1', 'uninstall.ps1', 'Instalar-ThinQQ.cmd', 'LEIA-ME.txt') }
+
+# Arquivos soltos na raiz do ZIP (e os que -PublishTo copia para a pasta de publicacao).
+function Get-ReleaseTopFiles { return @('ThinQQ.xlam', 'ThinQQ.core.xlam', 'manifest.json', 'tutorial.html') + @(Get-ReleaseInstallerFiles) }
+
+# nome da entrada no ZIP (sempre com '/') -> arquivo de origem
+function Get-ReleaseZipLayout([string]$RepoRoot, [string]$DistDir) {
+    $layout = [ordered]@{}
+    foreach ($n in (Get-ReleaseTopFiles)) { $layout[$n] = Join-Path $DistDir $n }
+    $layout["exemplos/$(Get-ReleaseDemoName)"] = Join-Path $RepoRoot "exemplos\$(Get-ReleaseDemoName)"
+    $layout['exemplos/LEIA-ME.txt'] = Join-Path $RepoRoot 'installer\LEIA-ME-exemplos.txt'
+    return $layout
+}
+
+# Cria o ZIP com os nomes de entrada do layout, com '/' em qualquer versao do PowerShell (o Compress-Archive do Windows PowerShell 5.1 grava
+# '\', que outras ferramentas leem como parte do nome).
+function New-ReleaseZip([string]$ZipPath, $Layout) {
+    if (Test-Path -LiteralPath $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }
+    $z = [IO.Compression.ZipFile]::Open($ZipPath, [IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach ($name in $Layout.Keys) {
+            [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($z, [string]$Layout[$name], [string]$name, [IO.Compression.CompressionLevel]::Optimal)
+        }
+    } finally { $z.Dispose() }
+}
+
+function Test-XlsxBytesHaveMacros([byte[]]$Bytes) {
+    $ms = New-Object IO.MemoryStream(, $Bytes)
+    $z = New-Object IO.Compression.ZipArchive($ms, [IO.Compression.ZipArchiveMode]::Read)
+    try { return (@($z.Entries | Where-Object { $_.FullName -match 'vbaProject' }).Count -gt 0) } finally { $z.Dispose() }
+}
+
+function Test-XlsxHasMacros([string]$Path) { return (Test-XlsxBytesHaveMacros ([IO.File]::ReadAllBytes($Path))) }
+
+# Problemas do conteudo de um ZIP de release (lista vazia = ok): so os arquivos esperados (nenhuma outra planilha .xls*), nomes com '/', o
+# xlsx de demonstracao identico (SHA-256) ao do repositorio (-DemoSource) e sem macros (vbaProject).
+function Test-ReleaseZipContent([string]$ZipPath, [string]$DemoSource) {
+    $problems = New-Object System.Collections.Generic.List[string]
+    $demo = Get-ReleaseDemoName
+    $expected = @(Get-ReleaseTopFiles) + @("exemplos/$demo", 'exemplos/LEIA-ME.txt')
+    $z = [IO.Compression.ZipFile]::OpenRead($ZipPath)
+    try {
+        $names = @($z.Entries | ForEach-Object { $_.FullName } | Where-Object { -not $_.EndsWith('/') })
+        foreach ($n in $names) { if ($n.Contains('\')) { $problems.Add("nome com barra invertida no ZIP: $n") } }
+        foreach ($n in $expected) { if ($names -cnotcontains $n) { $problems.Add("ausente no ZIP: $n") } }
+        foreach ($n in $names) {
+            if ($expected -cnotcontains $n) {
+                if ($n -match '\.(xlsx|xlsm|xlsb|xls)$') { $problems.Add("planilha inesperada no ZIP: $n (so exemplos/$demo viaja no release)") }
+                else { $problems.Add("entrada inesperada no ZIP: $n") }
+            }
+        }
+        $e = $z.GetEntry("exemplos/$demo")
+        if ($e) {
+            $bytes = Read-EntryBytes $e
+            $sha = [Security.Cryptography.SHA256]::Create()
+            $inZip = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '').ToLower()
+            $sha.Dispose()
+            if (-not (Test-Path -LiteralPath $DemoSource)) { $problems.Add("arquivo de demonstracao do repositorio ausente: $DemoSource") }
+            else {
+                $inRepo = (Get-FileHash -LiteralPath $DemoSource -Algorithm SHA256).Hash.ToLower()
+                if ($inZip -ne $inRepo) { $problems.Add("exemplos/$demo difere do arquivo do repositorio (SHA-256 $inZip no ZIP, $inRepo no repositorio)") }
+            }
+            if (Test-XlsxBytesHaveMacros $bytes) { $problems.Add("exemplos/$demo contem vbaProject (macros): a demonstracao deve ser .xlsx sem macros") }
+        }
+    } finally { $z.Dispose() }
+    return $problems.ToArray()
+}
