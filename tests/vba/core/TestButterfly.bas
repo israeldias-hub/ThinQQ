@@ -361,3 +361,43 @@ Restore:
     AssertAlmost gMan + maxAB, symMan, 0.000001, "SymR recalculado em manual"
     Teardown wb
 End Sub
+
+' Revisao 1: barra mais fina que o texto do rotulo (InsideEnd com fonte branca): o Excel poe o rotulo fora da barra, branco sobre branco, ou no
+' vao central ao lado do nome. O rotulo fica oculto enquanto nao cabe e volta quando cabe; o que o USUARIO apagou continua apagado; religar
+' Rotulos refaz todos; trocar o formato nao recria os ocultos.
+Public Sub Test_Bfly_TinyBars_LabelsHiddenAndRestored()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, dec As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Faixa", "A", "B")
+    ws.Range("A2:C2").Value = Array("x1", 1500, 1300)
+    ws.Range("A3:C3").Value = Array("x2", 10, 20)
+    ws.Range("A4:C4").Value = Array("x3", 600, 700)
+    ws.Range("A1:C4").Select
+    Core_Insert "butterfly"
+    Set cht = Core_ActiveChart()
+    AssertFalse Bfly_SideSeries(cht, 1).Points(2).HasDataLabel, "10: barra fina, rotulo oculto"
+    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "20: barra fina, rotulo oculto"
+    AssertEqual Format$(1500, "#,##0"), Bfly_SideSeries(cht, 1).Points(1).DataLabel.Text
+    AssertEqual "600", Bfly_SideSeries(cht, 1).Points(3).DataLabel.Text
+    Bfly_SideSeries(cht, 2).Points(1).HasDataLabel = False             ' o usuario apaga um rotulo
+    ws.Range("B3").Value = 900
+    Core_SafeRefresh cht
+    AssertTrue Bfly_SideSeries(cht, 1).Points(2).HasDataLabel, "900 cabe: o rotulo volta"
+    AssertEqual "900", Bfly_SideSeries(cht, 1).Points(2).DataLabel.Text, "volta sem sinal"
+    AssertEqual xlLabelPositionInsideEnd, Bfly_SideSeries(cht, 1).Points(2).DataLabel.Position
+    AssertEqual Style_ContrastFont(CLng(Bfly_SideSeries(cht, 1).Format.Fill.ForeColor.RGB)), Bfly_SideSeries(cht, 1).Points(2).DataLabel.Font.Color, "fonte por contraste"
+    AssertFalse Bfly_SideSeries(cht, 2).Points(1).HasDataLabel, "o rotulo apagado pelo usuario continua apagado"
+    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "20 continua oculto"
+    Core_SetOption "numfmt", "dec1"
+    dec = Application.International(xlDecimalSeparator)
+    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "trocar o formato nao recria o oculto"
+    AssertEqual "900" & dec & "0", Bfly_SideSeries(cht, 1).Points(2).DataLabel.Text, "formato novo no rotulo que voltou"
+    AssertEqual "700" & dec & "0", Bfly_SideSeries(cht, 2).Points(3).DataLabel.Text, "formato novo no lado direito"
+    Core_SetOption "palette", "cinza"
+    AssertEqual RGB(255, 255, 255), Bfly_SideSeries(cht, 1).Points(1).DataLabel.Font.Color, "paleta: fonte por contraste ponto a ponto"
+    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "trocar a paleta nao recria o oculto"
+    Core_SetToggle "labels", True
+    AssertTrue Bfly_SideSeries(cht, 2).Points(1).HasDataLabel, "religar Rotulos refaz todos"
+    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "e a barra fina volta a ficar sem rotulo"
+    Teardown wb
+End Sub

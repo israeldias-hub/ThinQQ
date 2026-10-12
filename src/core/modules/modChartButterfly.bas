@@ -30,6 +30,7 @@ Private Const BF_GAPK_MIN As Double = 0.15       ' vao minimo: 15% do maior valo
 Private Const BF_GAPK_MAX As Double = 1          ' teto de GapK: com o eixo automatico o vao fica <= metade da area interna (Bfly_RefreshGap)
 Private Const BF_GAP_MAXFRAC As Double = 0.5     ' teto do vao em pontos: metade da largura interna da area de plotagem
 Private Const BF_LABEL_MARGIN As Double = 8      ' respiro (pt) alem da largura estimada do maior nome
+Private Const BF_THIN_OPT As String = "thinlbl"  ' pares lado.ponto (1 = esquerdo, 2 = direito) cujo rotulo o ThinQQ ocultou (Bfly_SyncThinLabels)
 Private Const BF_ERR_COLS As String = "A borboleta precisa de exatamente 2 colunas de valores (lado esquerdo e lado direito)."
 Private mGapBusy As Boolean                      ' Bfly_RefreshGap grava uma celula: o evento Calculate do grafico reentra em Core_SafeRefresh
 
@@ -140,6 +141,7 @@ Public Function Bfly_Insert(ws As Worksheet, data As clsChartData) As ChartObjec
     Chart_SetupSecondaryAxes cht, n
     Chart_HideHelperLegendEntries cht
     Bfly_RefreshGap cht
+    Bfly_SyncThinLabels cht                          ' barras finas demais para o rotulo (na escala final, depois do vao)
     Set Bfly_Insert = co
     Exit Function
 Fail:
@@ -201,7 +203,11 @@ Public Sub Bfly_SetLabels(cht As Chart, turnOn As Boolean)
         End If
     Next
     Registry_SetOption cht, "labels", IIf(turnOn, "1", "0")
-    If turnOn Then Bfly_ApplyNumberFormat cht
+    Registry_SetOption cht, BF_THIN_OPT, ""          ' ligar refaz todos os rotulos e desligar apaga todos: nada fica oculto pelo ThinQQ
+    If turnOn Then
+        Bfly_ApplyNumberFormat cht
+        Bfly_SyncThinLabels cht
+    End If
 End Sub
 
 ' Formato "absoluto": a secao negativa igual a positiva (o lado esquerdo e plotado em negativo). Pura.
@@ -214,12 +220,22 @@ End Function
 ' Formato numerico (opcao numfmt): lado esquerdo absoluto, lado direito normal, celulas do Total (Labels_ApplyCellFormat) e os rotulos
 ' ligados dos totais, ponto a ponto.
 Public Sub Bfly_ApplyNumberFormat(cht As Chart)
-    Dim fmt As String, s As Series, i As Long
+    Dim fmt As String, s As Series, i As Long, k As Long
     fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
-    Set s = Bfly_SideSeries(cht, 1)
-    If Not s Is Nothing Then If s.HasDataLabels Then Style_AssignNumberFormat s.DataLabels, Bfly_AbsFormat(fmt)
-    Set s = Bfly_SideSeries(cht, 2)
-    If Not s Is Nothing Then If s.HasDataLabels Then Style_AssignNumberFormat s.DataLabels, fmt
+    For k = 1 To 2
+        Set s = Bfly_SideSeries(cht, k)
+        If Not s Is Nothing Then
+            If s.HasDataLabels Then
+                Style_AssignNumberFormat s.DataLabels, SideFormat(cht, k)
+            Else
+                ' alguns pontos sem rotulo (barra fina oculta ou apagada pelo usuario; HasDataLabels le False): ponto a ponto, porque escrever
+                ' em DataLabels da serie recriaria os rotulos que faltam
+                For i = 1 To s.Points.Count
+                    If s.Points(i).HasDataLabel Then Style_AssignNumberFormat s.Points(i).DataLabel, SideFormat(cht, k)
+                Next
+            End If
+        End If
+    Next
     Labels_ApplyCellFormat cht, fmt
     Set s = Chart_FindSeries(cht, "tqq_total")
     If Not s Is Nothing Then
@@ -253,7 +269,7 @@ End Sub
 ' Cores: a paleta nas duas series de dados (Style_ApplySeriesColors pula as auxiliares), os vaos sempre invisiveis e a fonte dos rotulos
 ' por contraste com a cor nova.
 Public Sub Bfly_ApplyColors(cht As Chart, paletteName As String)
-    Dim s As Series, k As Long
+    Dim s As Series, k As Long, i As Long, fc As Long
     Style_ApplySeriesColors cht, paletteName
     For Each s In cht.SeriesCollection
         If s.Name = "tqq_gapL" Or s.Name = "tqq_gapR" Then
@@ -264,7 +280,14 @@ Public Sub Bfly_ApplyColors(cht As Chart, paletteName As String)
     For k = 1 To 2
         Set s = Bfly_SideSeries(cht, k)
         If Not s Is Nothing Then
-            If s.HasDataLabels Then s.DataLabels.Font.Color = Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
+            fc = Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
+            If s.HasDataLabels Then
+                s.DataLabels.Font.Color = fc
+            Else
+                For i = 1 To s.Points.Count                  ' alguns pontos sem rotulo: ponto a ponto (a serie recriaria os que faltam)
+                    If s.Points(i).HasDataLabel Then s.Points(i).DataLabel.Font.Color = fc
+                Next
+            End If
         End If
     Next
 End Sub
@@ -331,4 +354,84 @@ Public Sub Bfly_RefreshAfterDataChange(cht As Chart)
     On Error Resume Next
     If Kinds_Family(Registry_ChartType(cht)) <> "butterfly" Then Exit Sub
     Bfly_RefreshGap cht
+    Bfly_SyncThinLabels cht                          ' depois do vao: a escala nova decide quais barras ficam finas demais
+End Sub
+
+' Formato (codigo em ingles) dos rotulos do lado k: o esquerdo e plotado em negativo e mostra o valor absoluto (Bfly_AbsFormat).
+Private Function SideFormat(cht As Chart, k As Long) As String
+    Dim fmt As String
+    fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
+    If k = 1 Then SideFormat = Bfly_AbsFormat(fmt) Else SideFormat = fmt
+End Function
+
+' Barras finas: o rotulo InsideEnd de uma barra mais estreita que o texto nao cabe nela; o Excel o poe fora da barra (o esquerdo sobre o fundo,
+' com a fonte branca de contraste: some) ou, no lado direito, dentro do vao central ao lado do nome (medido). Esse rotulo fica OCULTO enquanto
+' nao cabe e volta (com o formato e a fonte de Bfly_SetLabels) quando cabe. Largura da barra pela escala atual (valor x largura interna / faixa do
+' eixo); largura do texto estimada (Labels_EstimateWidth do valor no formato do lado). So mexe no que o ThinQQ escondeu: cada par lado.ponto
+' oculto aqui fica na opcao "thinlbl" (a mesma da cascata: "Alterar dados" a limpa) e sai dela ao voltar; um rotulo que falta e nao esta na lista
+' foi apagado pelo usuario e fica apagado. Valor zero (rotulo vazio) fica como esta. Cada ponto e isolado; nunca propaga erro.
+Public Sub Bfly_SyncThinLabels(cht As Chart)
+    Dim body As Range, n As Long, k As Long, i As Long, s As Series, ax As Axis, ppu As Double, v As Double, txtW As Double
+    Dim list0 As String, list As String, key As String, has As Boolean, mine As Boolean, fmt As String, sec As String, col As Long
+    On Error GoTo Done
+    If Kinds_Family(Registry_ChartType(cht)) <> "butterfly" Then Exit Sub
+    If Registry_GetOption(cht, "labels", "1") <> "1" Then Exit Sub
+    Set body = Block_Body(Registry_Block(cht))
+    n = body.Rows.Count - 1
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    If ax.MaximumScale <= ax.MinimumScale Then Exit Sub
+    ppu = cht.PlotArea.InsideWidth / (ax.MaximumScale - ax.MinimumScale)
+    list0 = Registry_GetOption(cht, BF_THIN_OPT, "")
+    list = "," & list0 & ","
+    For k = 1 To 2
+        Set s = Bfly_SideSeries(cht, k)
+        If Not s Is Nothing Then
+            fmt = SideFormat(cht, k)
+            sec = Split(fmt, ";")(0)
+            If k = 1 Then col = BF_COL_A Else col = BF_COL_B
+            For i = 1 To n
+                key = k & "." & i
+                mine = (InStr(list, "," & key & ",") > 0)
+                v = Util_ToDouble(body.Cells(i + 1, col).Value)
+                On Error Resume Next
+                has = False
+                has = s.Points(i).HasDataLabel
+                If Err.Number = 0 And v > 0 Then
+                    txtW = Labels_EstimateWidth(Format$(v, sec))
+                    If has And v * ppu < txtW Then
+                        s.Points(i).HasDataLabel = False
+                        If Err.Number = 0 And Not mine Then list = list & key & ","
+                    ElseIf (Not has) And mine And v * ppu >= txtW Then
+                        s.Points(i).HasDataLabel = True
+                        FormatSideLabel s, i, fmt
+                        If Err.Number = 0 Then list = Replace(list, "," & key & ",", ",")
+                    ElseIf has And mine Then
+                        list = Replace(list, "," & key & ",", ",")      ' o rotulo voltou por outro caminho: deixa de ser "oculto pelo ThinQQ"
+                    End If
+                End If
+                If Err.Number <> 0 Then Errors_Log "Bfly_SyncThinLabels" & vbTab & key & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+                On Error GoTo Done
+            Next
+        End If
+    Next
+Done:
+    If Err.Number <> 0 Then Errors_Log "Bfly_SyncThinLabels" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    On Error Resume Next
+    Do While InStr(list, ",,") > 0
+        list = Replace(list, ",,", ",")
+    Loop
+    If Left$(list, 1) = "," Then list = Mid$(list, 2)
+    If Right$(list, 1) = "," Then list = Left$(list, Len(list) - 1)
+    If list <> list0 Then Registry_SetOption cht, BF_THIN_OPT, list
+End Sub
+
+' Rotulo de um ponto de lado com o formato de Bfly_SetLabels (ao voltar depois de oculto por Bfly_SyncThinLabels). Propaga erros.
+Private Sub FormatSideLabel(s As Series, i As Long, fmt As String)
+    With s.Points(i).DataLabel
+        .ShowValue = True: .ShowSeriesName = False: .ShowCategoryName = False
+        .Position = xlLabelPositionInsideEnd
+        .Font.Size = 9
+        .Font.Color = Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
+    End With
+    Style_AssignNumberFormat s.Points(i).DataLabel, fmt
 End Sub
