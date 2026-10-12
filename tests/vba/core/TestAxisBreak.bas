@@ -743,6 +743,7 @@ End Sub
 
 ' Onda A, rodada 1: "Alterar dados" reaplica o corte como o refresh: com os dados novos abaixo do piso (o segmento de cima da coluna c inteiro
 ' acima do corte), o corte fica, o segmento fica sem rotulo e entra em brklbl — o mesmo estado de quando os dados sobem depois do corte.
+' Rodada 2: e um aviso (um so) diz a coluna e o minimo que mostraria o segmento.
 Public Sub Test_Break_Rebuild_BelowFloor_KeptLikeRefresh()
     Dim wb As Workbook, rng As Range, ws As Worksheet, cht As Chart
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb): Set ws = rng.Worksheet
@@ -755,7 +756,9 @@ Public Sub Test_Break_Rebuild_BelowFloor_KeptLikeRefresh()
     Core_ClearLastNotice
     AssertTrue Core_RebuildFromRange(cht, rng), "rebuild"
     Set cht = Core_ActiveChart()
-    AssertEqual "", Core_LastNotice(), "sem aviso: o corte continua valido"
+    AssertTrue InStr(Core_LastNotice(), "'c'") > 0 And InStr(Core_LastNotice(), "segmento de cima") > 0, "aviso: o corte esconde o segmento de cima da coluna c (" & Core_LastNotice() & ")"
+    AssertTrue InStr(Core_LastNotice(), Format$(210, "#,##0")) > 0, "e o minimo para ele aparecer"
+    AssertEqual 1, Core_NoticeCount(), "um aviso so"
     AssertEqual "50", Registry_GetOption(cht, "vbreak", ""), "o corte fica"
     AssertFalse cht.SeriesCollection(2).Points(3).HasDataLabel, "segmento inteiro acima do corte: sem rotulo"
     AssertEqual "2.3", Registry_GetOption(cht, "brklbl", ""), "e registrado, como no refresh"

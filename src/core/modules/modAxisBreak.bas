@@ -178,8 +178,8 @@ Private Function NumberText(v As Double) As String
     If v = Int(v) Then NumberText = Format$(v, "#,##0") Else NumberText = Format$(v, "#,##0.##")
 End Function
 
-' Texto da recusa do piso (7003): a coluna (barra) que define o piso e o menor limite aceito, ja arredondado para cima.
-Private Function FloorText(cht As Chart, cat As Long, fl As Double) As String
+' "coluna 'nome'" (ou "barra 'nome'") da categoria cat, pelo texto da categoria no grafico (o indice se nao houver texto).
+Private Function CategoryLabel(cht As Chart, cat As Long) As String
     Dim nm As String, xv As Variant, what As String
     On Error Resume Next
     xv = cht.SeriesCollection(1).XValues
@@ -187,8 +187,20 @@ Private Function FloorText(cht As Chart, cat As Long, fl As Double) As String
     On Error GoTo 0
     If Len(nm) = 0 Then nm = CStr(cat)
     If Geom_ChartIsHorizontal(cht) Then what = "barra" Else what = "coluna"
-    FloorText = "Corte de eixo: com esse valor o segmento de cima da " & what & " '" & nm & "' ficaria quase invisível (menos de um quarto dele abaixo do corte). "
+    CategoryLabel = what & " '" & nm & "'"
+End Function
+
+' Texto da recusa do piso (7003): a coluna (barra) que define o piso e o menor limite aceito, ja arredondado para cima.
+Private Function FloorText(cht As Chart, cat As Long, fl As Double) As String
+    FloorText = "Corte de eixo: com esse valor o segmento de cima da " & CategoryLabel(cht, cat) & " ficaria quase invisível (menos de um quarto dele abaixo do corte). "
     FloorText = FloorText & "Informe pelo menos " & NumberText(NiceCeil(fl, MaxTop(cht))) & "."
+End Function
+
+' Aviso depois de "Alterar dados" (o corte foi mantido sem o piso): com os dados novos, o corte deixa o segmento de cima de uma coluna (quase)
+' invisivel; diz a coluna e o menor limite que o mostraria.
+Private Function FloorAfterDataText(cht As Chart, lim As Double, cat As Long, fl As Double) As String
+    FloorAfterDataText = "Corte de eixo: com os dados novos, o corte em " & NumberText(lim) & " esconde o segmento de cima da " & CategoryLabel(cht, cat) & ". "
+    FloorAfterDataText = FloorAfterDataText & "Informe pelo menos " & NumberText(NiceCeil(fl, MaxTop(cht))) & " (Corte de eixo...) para que ele apareça."
 End Function
 
 ' Sugestao de corte: 1,2 x o segundo maior topo (se menor que o maior), senao metade do maior; nas empilhadas, nunca abaixo do piso
@@ -717,15 +729,18 @@ Public Sub Break_RefreshAfterDataChange(cht As Chart)
 End Sub
 
 ' Depois de "Alterar dados" o grafico novo tem a opcao copiada mas nenhuma coluna/marca: reaplica como o refresh faria com os dados novos
-' (sem o piso das empilhadas: um segmento inteiro acima do corte fica oculto e em brklbl, como quando os dados sobem); se o limite ja nao fica
+' (sem o piso das empilhadas: um segmento inteiro acima do corte fica oculto e em brklbl, como quando os dados sobem, e o usuario e AVISADO
+' com a coluna e o minimo); se o limite ja nao fica
 ' abaixo do maior topo (7003), retira o corte e AVISA (Core_Notify); outra falha limpa a opcao e registra. Nunca propaga erro.
 Public Sub Break_TryReapply(cht As Chart)
-    Dim lim As Double, en As Long
+    Dim lim As Double, en As Long, fl As Double, cat As Long
     On Error GoTo Fail
     lim = Break_Limit(cht)
     If lim <= 0 Then Exit Sub
     If Not Kinds_Supports(Registry_ChartType(cht), "break") Then Registry_SetOption cht, "vbreak", "": Exit Sub
     Break_Set cht, lim, False                       ' sem o piso: os dados novos sao do usuario, como num refresh (segmento acima do corte: oculto e em brklbl)
+    fl = StackedFloor(cht, lim, cat)                ' mas o usuario fica sabendo que o corte esconde um segmento (o defeito do item A)
+    If lim < fl - 0.000000001 * (1 + fl) Then Core_Notify FloorAfterDataText(cht, lim, cat, fl), vbInformation
     Exit Sub
 Fail:
     en = Err.Number
