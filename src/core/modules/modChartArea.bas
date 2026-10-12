@@ -18,6 +18,10 @@ Option Explicit
 ' sobre uma faixa posterior (limite do proprio grafico empilhado do Excel). Celula com texto ou #N/D: o Excel desenha a faixa
 ' com espessura 0 naquele ponto (nao interpola; medido) e o bloco usa Val = 0, igual.
 
+Private Const AREA_THIN_OPT As String = "thinlbl"   ' pares j.i dos rotulos de ponta que o ThinQQ ocultou (Area_SyncEndLabels)
+Private Const AREA_SIDE_OFFSET As Double = 6        ' o rotulo Right/Left comeca ~5,5 pt depois do ponto (medido nos totais XY)
+Private Const AREA_TEXT_HEIGHT As Double = 12       ' altura do texto de um rotulo de 9 pt: centros mais proximos que isso se sobrepoem
+
 Public Function Area_BuildBlock(wb As Workbook, id As String, data As clsChartData, kind As String) As Range
     Dim blk As Range, body As Range, i As Long, j As Long, n As Long, ns As Long, is100 As Boolean
     Dim rowCells As Range, srcAddr As String, totAddr As String, totRange As String, valAddr As String, cumExpr As String
@@ -170,6 +174,7 @@ Public Sub Area_SetLabels(cht As Chart, turnOn As Boolean)
             Set s = cht.SeriesCollection(i)
             If Left$(s.Name, 8) = "tqq_lbl_" Then s.Delete
         Next
+        If Len(Registry_GetOption(cht, AREA_THIN_OPT, "")) > 0 Then Registry_SetOption cht, AREA_THIN_OPT, ""
         Registry_SetOption cht, "labels", "0"
         Exit Sub
     End If
@@ -193,6 +198,132 @@ Public Sub Area_SetLabels(cht As Chart, turnOn As Boolean)
     Next
     Chart_HideHelperLegendEntries cht
     Registry_SetOption cht, "labels", "1"
+    If Len(Registry_GetOption(cht, AREA_THIN_OPT, "")) > 0 Then Registry_SetOption cht, AREA_THIN_OPT, ""     ' todos religados acima
+    Area_SyncEndLabels cht                           ' pontas que encostam no vizinho: ocultas (e na lista)
+End Sub
+
+' Gancho de teste (Util_FailThinSyncForTest = "area-<ponto>:<chave>", como break-/round-): falha simulada num ponto de Area_SyncEndLabels.
+' Dispara UMA vez (limpa o gancho antes de levantar o erro). Inerte fora do build Test.
+Private Sub AreaTestHook(site As String, key As String)
+    If BUILD_CONFIG = "Test" Then
+        If Len(Util_FailThinSyncForTest) > 0 Then
+            If Util_FailThinSyncForTest = "area-" & site & ":" & key Then
+                Util_FailThinSyncForTest = ""
+                Err.Raise vbObjectError + 9993, "ThinQQ", "Falha simulada (teste) " & site & " " & key
+            End If
+        End If
+    End If
+End Sub
+
+Private Function EndListHas(list As String, key As String) As Boolean
+    EndListHas = (InStr("," & list & ",", "," & key & ",") > 0)
+End Function
+
+Private Function EndListAdd(list As String, key As String) As String
+    If EndListHas(list, key) Then EndListAdd = list: Exit Function
+    If Len(list) = 0 Then EndListAdd = key Else EndListAdd = list & "," & key
+End Function
+
+Private Function EndListRemove(list As String, key As String) As String
+    Dim s As String
+    s = Replace("," & list & ",", "," & key & ",", ",")
+    If Len(s) <= 1 Then Exit Function
+    EndListRemove = Mid$(s, 2, Len(s) - 2)
+End Function
+
+' Rotulos das PONTAS (1o e ultimo ponto de cada tqq_lbl_j, empurrados para dentro da faixa: Right no primeiro, Left no ultimo) que encostariam
+' no rotulo vizinho da mesma faixa (2o / penultimo, centrado) ficam ocultos, como os segmentos finos da cascata (na demonstracao, 12 meses de
+' 5 digitos davam "3.5713.418"). Sobreposicao pela escala atual: na horizontal, deslocamento do rotulo da ponta (AREA_SIDE_OFFSET) + largura
+' estimada dele + meia largura do vizinho + 1 pt > largura da fatia (com 2 categorias, os dois sao de ponta); na vertical, os centros (meio
+' da faixa, Mid_j, na escala do eixo) a menos de AREA_TEXT_HEIGHT. Larguras pelo texto do formato atual (Labels_EstimateWidth do valor da
+' celula ligada: Rnd_j com a soma consistente, senao Val_j). Valor zero (rotulo vazio) fica como esta.
+' Disciplina da Fase 2: o ThinQQ so religa o que ELE ocultou (pares j.i na opcao "thinlbl", a mesma da cascata; "Alterar dados" e religar os
+' rotulos a limpam): um rotulo que falta e nao esta na lista foi apagado pelo usuario e fica apagado. Transacional por ponto: as variaveis do
+' ponto sao zeradas antes de cada leitura, um par entra na lista so se ocultar deu certo e sai so se religar deu certo (uma falha no meio de
+' religar oculta de novo); a lista e gravada tambem na saida por erro. So escreve o que mudou. Sai cedo durante Labels_LinkPoints. Nunca
+' propaga erro.
+Public Sub Area_SyncEndLabels(cht As Chart)
+    Dim blk As Range, body As Range, n As Long, ns As Long, j As Long, s As Series, fmt As String, slot As Double, mn As Double, mx As Double
+    Dim list0 As String, list As String, e As Long, i As Long, nb As Long, key As String, txt As String, txtN As String, w As Double, wn As Double
+    Dim y As Double, yn As Double, hide As Boolean, has As Boolean, readOk As Boolean, vc As Long, c As Range, cn As Range, sheetRef As String
+    Dim fc As Long, pos As Long, need As Double, en As Long, ed As String, rs As Boolean
+    On Error GoTo Done
+    If Labels_IsLinking() Then Exit Sub
+    If Kinds_Family(Registry_ChartType(cht)) <> "area" Then Exit Sub
+    list0 = Registry_GetOption(cht, AREA_THIN_OPT, ""): list = list0
+    If Registry_GetOption(cht, "labels", "1") <> "1" Then GoTo Done
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then GoTo Done
+    Set body = Block_Body(blk)
+    n = body.Rows.Count - 1
+    If n < 2 Then GoTo Done
+    ns = Area_SeriesCount(blk)
+    slot = cht.PlotArea.InsideWidth / n
+    mn = cht.Axes(xlValue, xlPrimary).MinimumScale: mx = cht.Axes(xlValue, xlPrimary).MaximumScale
+    If mx <= mn Or slot <= 0 Then GoTo Done
+    fmt = Labels_SegmentFormat(cht)
+    sheetRef = "='" & Replace(body.Worksheet.Name, "'", "''") & "'!"
+    rs = (Registry_GetOption(cht, "roundsum", "0") = "1")
+    For j = 1 To ns
+        Set s = Chart_FindSeries(cht, "tqq_lbl_" & j)
+        If Not s Is Nothing Then
+            vc = 0
+            If rs Then vc = Round_RCol(blk, j)
+            If vc = 0 Then vc = Area_ValCol(blk, j)
+            fc = Style_ContrastFont(Style_DataSeriesColor(cht, j))
+            For e = 1 To 2
+                If e = 1 Then
+                    i = 1: nb = 2: pos = xlLabelPositionRight
+                Else
+                    i = n: nb = n - 1: pos = xlLabelPositionLeft
+                End If
+                If i <= s.Points.Count Then
+                    key = j & "." & i
+                    hide = False: has = False: readOk = False: txt = "": txtN = "": w = 0: wn = 0: need = 0
+                    Set c = body.Cells(i + 1, vc): Set cn = body.Cells(nb + 1, vc)
+                    On Error Resume Next
+                    AreaTestHook "read", key
+                    If Err.Number = 0 Then
+                        txt = Format$(Util_ToDouble(c.Value), fmt): txtN = Format$(Util_ToDouble(cn.Value), fmt)
+                        y = Util_ToDouble(body.Cells(i + 1, Area_MidCol(blk, j)).Value)
+                        yn = Util_ToDouble(body.Cells(nb + 1, Area_MidCol(blk, j)).Value)
+                        has = s.Points(i).HasDataLabel
+                    End If
+                    readOk = (Err.Number = 0)
+                    If readOk And Len(txt) > 0 Then
+                        w = Labels_EstimateWidth(txt)
+                        If Len(txtN) > 0 Then wn = Labels_EstimateWidth(txtN)
+                        If n = 2 Then need = 2 * AREA_SIDE_OFFSET + w + wn + 1 Else need = AREA_SIDE_OFFSET + w + wn / 2 + 1
+                        hide = (need > slot And wn > 0 And Abs(y - yn) * cht.PlotArea.InsideHeight / (mx - mn) < AREA_TEXT_HEIGHT)
+                        If hide Then
+                            If has Then
+                                s.Points(i).HasDataLabel = False
+                                If Err.Number = 0 Then list = EndListAdd(list, key)
+                            End If
+                        ElseIf Not has And EndListHas(list, key) Then
+                            AreaTestHook "link", key
+                            If Err.Number = 0 Then Labels_LinkOnePoint s, i, sheetRef & c.Address(True, True), c.Value, fmt, pos, fc
+                            If Err.Number = 0 Then
+                                list = EndListRemove(list, key)
+                            Else
+                                en = Err.Number: ed = Err.Description: Err.Clear
+                                s.Points(i).HasDataLabel = False                    ' religar falhou no meio: oculto de novo, continua na lista
+                                Err.Raise en, "ThinQQ", ed
+                            End If
+                        End If
+                    End If
+                    If Err.Number <> 0 Then Errors_Log "Area_SyncEndLabels" & vbTab & key & vbTab & Err.Number & vbTab & Err.Description
+                    Err.Clear
+                    On Error GoTo Done
+                End If
+            Next
+        End If
+    Next
+Done:
+    en = Err.Number: ed = Err.Description
+    On Error Resume Next
+    If list <> list0 Then Registry_SetOption cht, AREA_THIN_OPT, list   ' tambem na saida por erro: o que ja foi ocultado fica registrado
+    If en <> 0 Then Errors_Log "Area_SyncEndLabels" & vbTab & en & vbTab & ed
 End Sub
 
 ' Totais: a auxiliar tqq_total em TotalPos com o rotulo ligado a Total, em negrito, acima/abaixo pelo sinal. As colunas 1..3

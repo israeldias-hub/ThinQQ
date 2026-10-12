@@ -55,6 +55,21 @@ Fail:
     Err.Raise en, es, ed
 End Sub
 
+' Religa UM rotulo como Labels_LinkPoints (celula, formato, fonte 9, cor e posicao fixa), marcado como ligacao em andamento (o refresh
+' reentrante nao mexe nele). Propaga o erro (quem chama decide: a area oculta de novo e mantem o par na lista).
+Public Sub Labels_LinkOnePoint(s As Series, i As Long, cellRef As String, v As Variant, numFmt As String, fixedPos As Long, fontColor As Long)
+    Dim en As Long, es As String, ed As String
+    mLinking = mLinking + 1
+    On Error GoTo Fail
+    LinkOnePoint s, i, cellRef, v, numFmt, fixedPos, fontColor, False
+    mLinking = mLinking - 1
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    mLinking = mLinking - 1
+    Err.Raise en, es, ed
+End Sub
+
 ' True enquanto Labels_LinkPoints liga rotulos: cada gravacao dispara o Calculate do grafico e o refresh do observador, que nao deve mexer em
 ' rotulos no meio da ligacao (SyncThinSegmentLabels e Break_RefreshAfterDataChange saem cedo; o refresh final de quem liga refaz).
 Public Function Labels_IsLinking() As Boolean
@@ -273,6 +288,7 @@ Public Sub Labels_RefreshPositions(cht As Chart)
     horiz = Kinds_IsHorizontal(kind)
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
+    If Kinds_Family(kind) = "area" Then Area_SyncEndLabels cht        ' area: rotulos das pontas que encostam no vizinho ficam ocultos
     If Kinds_Family(kind) = "waterfall" Then
         SyncThinSegmentLabels cht, body, horiz          ' varias series: rotulos de segmento finos demais ficam ocultos (independe de tqq_lbl)
         Set s = Chart_FindSeries(cht, "tqq_lbl"): col = WF_COL_LABELVAL

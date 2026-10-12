@@ -951,7 +951,7 @@ Public Sub Test_Legend_Bars_Arrows_RoomKeptAcrossLegendChanges()
     Ann_AddDifference cht, 1, 4
     For Each mode In Array("none", "right", "none", "right")
         Deco_SetLegend cht, CStr(mode)
-        Core_SafeRefresh cht
+    Core_SafeRefresh cht
         cht.Refresh
         Set ax = cht.Axes(xlValue)
         xEnd = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth * (57 - ax.MinimumScale) / (ax.MaximumScale - ax.MinimumScale)      ' 2025: 18 + 30 + 9
@@ -1398,4 +1398,90 @@ Public Sub Test_Combo_LineAboveTotals_DemoMonths()
     AssertTrue px.MaximumScaleIsAuto, "e a folga das colunas sai"
     Watchers_Stop
     CloseTemp wb
+End Sub
+
+' Onda A, item F: com 12 trimestres de 5 digitos o rotulo da ponta (empurrado para dentro da faixa) encostava no vizinho ("3.5713.418"). Agora
+' o rotulo da ponta que sobrepoe o vizinho da mesma faixa fica oculto (registrado em thinlbl) e volta quando cabe (grafico mais largo). Conferido
+' pela geometria MEDIDA dos rotulos (ForceLayout): nenhum rotulo de ponta visivel sobrepoe o vizinho. Um rotulo apagado pelo usuario continua
+' apagado; formato e paleta nao recriam os ocultos; religar que falha no meio deixa o rotulo oculto e na lista.
+Private Function EndLabelsFixture(wb As Workbook) As Range
+    Dim ws As Worksheet, i As Long
+    Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:D1").Value = Array("Trimestre", "Cimento", "Tintas", "Hidráulica")
+    For i = 1 To 12
+        ws.Cells(i + 1, 1).Value = "T" & i
+        ws.Cells(i + 1, 2).Value = 9200 + i * 37: ws.Cells(i + 1, 3).Value = 3571 - i * 13: ws.Cells(i + 1, 4).Value = 2400 + i * 11
+    Next
+    Set EndLabelsFixture = ws.Range("A1:D13")
+End Function
+
+Private Sub AssertEndLabelsClear(cht As Chart, tag As String)
+    Dim j As Long, s As Series, e As Long, i As Long, nb As Long, a As DataLabel, b As DataLabel, list As String, sepH As Boolean, sepV As Boolean
+    ForceLayout cht
+    list = Registry_GetOption(cht, "thinlbl", "")
+    For j = 1 To 3
+        Set s = Chart_FindSeries(cht, "tqq_lbl_" & j)
+        For e = 1 To 2
+            If e = 1 Then i = 1: nb = 2 Else i = 12: nb = 11
+            If s.Points(i).HasDataLabel And s.Points(nb).HasDataLabel Then
+                Set a = s.Points(i).DataLabel: Set b = s.Points(nb).DataLabel
+                sepH = (a.Left + a.Width <= b.Left + 0.5) Or (b.Left + b.Width <= a.Left + 0.5)
+                sepV = (a.Top + a.Height <= b.Top + 0.5) Or (b.Top + b.Height <= a.Top + 0.5)
+                AssertTrue sepH Or sepV, tag & ": rotulo da ponta " & j & "." & i & " sobre o vizinho (" & a.Left & "+" & a.Width & " / " & b.Left & ")"
+            End If
+        Next
+    Next
+End Sub
+
+Public Sub Test_Area_EndLabels_HiddenWhenOverlapping_BackWhenFit()
+    Dim wb As Workbook, rng As Range, cht As Chart, s1 As Series, s2 As Series, j As Long, en As Long, es As String, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set rng = EndLabelsFixture(wb)
+    rng.Select
+    Core_Insert "area"
+    Set cht = Core_ActiveChart()
+    AssertTrue Len(Registry_GetOption(cht, "thinlbl", "")) > 0, "12 trimestres de 5 digitos: alguma ponta ocultada (" & Registry_GetOption(cht, "thinlbl", "") & ")"
+    AssertEndLabelsClear cht, "estreito"
+    For j = 1 To 3
+        If Not Chart_FindSeries(cht, "tqq_lbl_" & j).Points(1).HasDataLabel Then AssertTrue InStr("," & Registry_GetOption(cht, "thinlbl", "") & ",", "," & j & ".1,") > 0, "oculto = registrado"
+    Next
+    Set s1 = Chart_FindSeries(cht, "tqq_lbl_1"): Set s2 = Chart_FindSeries(cht, "tqq_lbl_2")
+    Core_SetOption "numfmt", "dec1"
+    Core_SetOption "palette", "cinza"
+    AssertEndLabelsClear cht, "formato e paleta"
+    AssertTrue Len(Registry_GetOption(cht, "thinlbl", "")) > 0, "formato e paleta nao recriam os ocultos"
+    Core_SetOption "numfmt", "int"
+    cht.Parent.Width = 1400
+    Core_SafeRefresh cht
+    AssertEqual "", Registry_GetOption(cht, "thinlbl", ""), "largo: todos de volta"
+    AssertTrue s1.Points(1).HasDataLabel And s1.Points(12).HasDataLabel
+    AssertEqual xlLabelPositionRight, s1.Points(1).DataLabel.Position, "de volta para dentro da faixa"
+    AssertEqual xlLabelPositionLeft, s1.Points(12).DataLabel.Position
+    AssertEqual Format$(9237, "#,##0"), s1.Points(1).DataLabel.Text
+    AssertEndLabelsClear cht, "largo"
+    s2.Points(12).HasDataLabel = False                          ' o usuario apaga um rotulo de ponta
+    cht.Parent.Width = 460
+    Core_SafeRefresh cht
+    cht.Parent.Width = 1400
+    Core_SafeRefresh cht
+    AssertFalse s2.Points(12).HasDataLabel, "apagado pelo usuario continua apagado"
+    cht.Parent.Width = 460
+    Core_SafeRefresh cht
+    AssertFalse s1.Points(1).HasDataLabel, "estreito de novo: a ponta 1.1 oculta"
+    Application.EnableEvents = False                            ' o refresh so quando o teste chama
+    Util_FailThinSyncForTest = "area-link:1.1"
+    cht.Parent.Width = 1400                                     ' (o redimensionamento pode disparar o refresh por evento: o gancho vem antes)
+    Core_SafeRefresh cht
+    AssertEqual "", Util_FailThinSyncForTest, "o gancho disparou"
+    AssertFalse s1.Points(1).HasDataLabel, "religar falhou: oculto de novo"
+    AssertTrue InStr("," & Registry_GetOption(cht, "thinlbl", "") & ",", ",1.1,") > 0, "e continua na lista"
+    Core_SafeRefresh cht
+    AssertTrue s1.Points(1).HasDataLabel, "a passada seguinte religa"
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    Application.EnableEvents = True
+    Watchers_Stop
+    CloseTemp wb
+    If en <> 0 Then Err.Raise en, es, ed
 End Sub
