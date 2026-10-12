@@ -141,6 +141,48 @@ try {
             foreach ($p in ([string]$blk.Cells.Item(1, 4).Value2).Split(';')) { $q = $p.IndexOf('='); if ($q -gt 0) { $o[$p.Substring(0, $q)] = $p.Substring($q + 1) } }
             return @{ Kind = [string]$blk.Cells.Item(1, 2).Value2; Opt = $o; Block = $blk }
         }
+        # cada recurso da cobertura deixou no grafico o que o comando grava (opcao no bloco, anotacao tqq_ann_*, escala do Gantt, formulas do
+        # Arredondar intervalo): um comando que nao fez nada nao passa. O mapa e deste teste (independente da lista de DemoCoverage.ps1) e cobre
+        # toda a lista fixa de recursos.
+        function Test-HasShape($co, [string]$prefix) { foreach ($sh in $co.Chart.Shapes) { if (([string]$sh.Name).StartsWith($prefix)) { return $true } }; return $false }
+        $featCheck = @{
+            'totals'       = { param($i, $co, $ws) $i.Opt['totals'] -eq '1' }
+            'labels'       = { param($i, $co, $ws) $i.Opt['labels'] -eq '1' }
+            'legend-none'  = { param($i, $co, $ws) $i.Opt['legend'] -eq 'none' -and -not $co.Chart.HasLegend }
+            'lineend'      = { param($i, $co, $ws) $i.Opt['legend'] -eq 'lineend' }
+            'numfmt'       = { param($i, $co, $ws) $i.Opt['numfmt'] -eq 'mil' }
+            'gap'          = { param($i, $co, $ws) $i.Opt['gap'] -eq '120' }
+            'palette'      = { param($i, $co, $ws) $i.Opt['palette'] -eq 'cinza' }
+            'cagr'         = { param($i, $co, $ws) Test-HasShape $co 'tqq_ann_cagr_' }
+            'diff'         = { param($i, $co, $ws) Test-HasShape $co 'tqq_ann_diff_' }
+            'bracket'      = { param($i, $co, $ws) Test-HasShape $co 'tqq_ann_bracket_' }
+            'vline'        = { param($i, $co, $ws) $i.Opt['vline'] -eq '1' }
+            'ind100'       = { param($i, $co, $ws) $i.Opt['ind100'] -eq '1' -and (Test-HasShape $co 'tqq_ann_ind') }
+            'samescale'    = { param($i, $co, $ws) $i.Opt['vmax'] -match '^\d' -and [double]$co.Chart.Axes(2).MaximumScale -eq [double]$i.Opt['vmax'] }
+            'secondary'    = { param($i, $co, $ws) $i.Opt['secondary'] -eq '1' }
+            'pieout'       = { param($i, $co, $ws) $i.Opt['pieout'] -eq '1' }
+            'gantt-weeks'  = { param($i, $co, $ws) [string]$i.Block.Cells.Item(3, 12).Value2 -eq 'w' }
+            'gantt-months' = { param($i, $co, $ws) [string]$i.Block.Cells.Item(3, 12).Value2 -eq 'm' }
+            'roundsum'     = { param($i, $co, $ws) $i.Opt['roundsum'] -eq '1' }
+            'roundrange'   = { param($i, $co, $ws) $n = 0; foreach ($c in $ws.UsedRange.Cells) { if ([string]$c.Formula -match 'SUMPRODUCT') { $n++ } }; $n -ge 2 }
+            'break'        = { param($i, $co, $ws) $i.Opt['vbreak'] -match '^\d' -and [double]$co.Chart.Axes(2).MaximumScale -eq [double]$i.Opt['vbreak'] }
+            'trend'        = { param($i, $co, $ws) $n = 0; foreach ($sr in $co.Chart.SeriesCollection()) { $n += $sr.Trendlines().Count }; $i.Opt['trend'] -eq '1' -and $n -ge 1 }
+            'quad'         = { param($i, $co, $ws) $i.Opt['quad'] -eq '1' }
+            'connectors'   = { param($i, $co, $ws) $i.Opt['connectors'] -eq '1' }
+        }
+        foreach ($f in $feats) { Check ($featCheck.ContainsKey($f)) "o teste sabe conferir o recurso '$f'" }
+        foreach ($it in $cov) {
+            $ws = $wb.Worksheets.Item($it.Sheet)
+            foreach ($co in @($ws.ChartObjects())) {
+                $info = Get-ChartBlockInfo $co
+                Check ($info.Kind -eq $it.Kind) "$($it.Sheet): grafico do tipo '$($it.Kind)' ($($info.Kind))"
+                foreach ($f in $it.Features) {
+                    $ok = $false
+                    if ($featCheck.ContainsKey($f)) { try { $ok = [bool](& $featCheck[$f] $info $co $ws) } catch { $ok = $false } }
+                    Check $ok "$($it.Sheet): recurso '$f' presente no grafico (opcoes: $(($info.Opt.Keys | Sort-Object | ForEach-Object { "$_=$($info.Opt[$_])" }) -join ';'))"
+                }
+            }
+        }
         # E02: a tabela tem 1 casa decimal; com o formato padrao (inteiro) dois valores diferentes viram o mesmo rotulo
         $e02 = Get-ChartBlockInfo ($wb.Worksheets.Item('E02').ChartObjects(1))
         Check ($e02.Opt['numfmt'] -eq 'dec1') "E02: rotulos com 1 casa como a tabela (numfmt=$($e02.Opt['numfmt']))"
