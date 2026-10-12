@@ -1216,6 +1216,7 @@ Public Sub Test_WaterfallMulti_ThinSegmentLabel_HiddenUntilItFits()
         Core_SafeRefresh cht
         AssertTrue l2.Points(2).HasDataLabel, tag & "segmento que passou a caber: rotulo de volta"
         AssertEqual "60", l2.Points(2).DataLabel.Text, tag & "ligado a celula"
+        AssertTrue Left$(l2.Points(2).DataLabel.Formula, 1) = "=" And InStr(1, l2.Points(2).DataLabel.Formula, CALC_SHEET, vbTextCompare) > 0, tag & "religado como ligacao ao bloco (nao texto fixo): " & l2.Points(2).DataLabel.Formula
         AssertEqual xlLabelPositionCenter, l2.Points(2).DataLabel.Position
         ws.Range("C3").Value = 10
         Core_SafeRefresh cht
