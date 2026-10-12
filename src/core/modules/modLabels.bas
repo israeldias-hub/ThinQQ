@@ -4,6 +4,7 @@ Private mRefreshing As Boolean
 Private mLinking As Long        ' Labels_LinkPoints em andamento: um refresh reentrante (evento Calculate no meio da ligacao) nao esconde rotulos
 Private Const SIDE_LABEL_OFFSET As Double = 6   ' o rotulo "Left"/"Right" de um ponto XY comeca ~5,5 pt depois dele (medido nos totais XY)
 Private Const SEGMENT_TEXT_HEIGHT As Double = 12 ' altura (pt) do texto de um rotulo de 9 pt: segmento de cascata mais baixo que isso esconde o rotulo
+Private Const LINE_FMT_KEEP As String = "?"      ' Labels_ComboLineFormat: as celulas da linha nao foram localizadas, o formato atual fica
 
 ' Liga o rótulo de cada ponto à célula correspondente (rótulo "vivo"). Posição: acima/abaixo conforme o sinal
 ' (fixedPos = 0) ou a posição fixa informada (ex.: xlLabelPositionCenter em segmentos empilhados). Com horizontal
@@ -121,21 +122,14 @@ Public Function Labels_IsSourceFormatSeries(cht As Chart, s As Series) As Boolea
     Labels_IsSourceFormatSeries = (Registry_ChartType(cht) = "combo")
 End Function
 
-' Células de valores da coluna da linha da combinação (a última coluna da tabela de origem, sem o cabeçalho), lidas do endereço
-' da origem gravado na meta do bloco; Nothing se não for possível ler.
+' Células de valores da linha da combinação, lidas da fórmula VIVA da série da linha (3o argumento de SERIES, Util_SeriesArgRange): acompanha a
+' planilha de origem renomeada (o endereço em texto na meta do bloco não acompanha). Nothing se não for possível localizar.
 Private Function ComboLineCells(cht As Chart) As Range
-    Dim blk As Range, a As String, bang As Long, sh As String, src As Range
+    Dim ln As Series
     On Error GoTo Fail
-    Set blk = Registry_Block(cht)
-    If blk Is Nothing Then Exit Function
-    a = CStr(blk.Cells(1, 3).Value)
-    bang = InStrRev(a, "!")
-    If bang < 2 Then Exit Function
-    sh = Left$(a, bang - 1)
-    If Left$(sh, 1) = "'" And Right$(sh, 1) = "'" Then sh = Replace(Mid$(sh, 2, Len(sh) - 2), "''", "'")
-    Set src = Registry_Workbook(cht).Worksheets(sh).Range(Mid$(a, bang + 1))
-    If src.Rows.Count < 2 Or src.Columns.Count < 2 Then Exit Function
-    Set ComboLineCells = src.Cells(2, src.Columns.Count).Resize(src.Rows.Count - 1, 1)
+    Set ln = Combo_LineSeries(cht)
+    If ln Is Nothing Then Exit Function
+    Set ComboLineCells = Util_SeriesArgRange(ln, Registry_Workbook(cht), 3)
     Exit Function
 Fail:
     Set ComboLineCells = Nothing
@@ -145,12 +139,15 @@ End Function
 ' Célula de origem COM formato (percentual, moeda, ...) ou formatos misturados: "" (o rótulo é vinculado ao formato da célula).
 ' Célula em Geral: o rótulo mostraria os dígitos crus (0,423456789), então a regra de reserva olha os valores da linha:
 ' todos inteiros (ou nenhum número) = "int"; todos com módulo <= 1 = "pct1" (razão/percentual: 0,42 vira 42,3%); os demais
-' = "dec2". Quem quiser outro formato muda o formato da célula.
+' = "dec2". Quem quiser outro formato muda o formato da célula. Células não localizadas (ou leitura que falha): LINE_FMT_KEEP, e quem
+' chama mantém o formato atual (antes o rótulo era vinculado à célula e mostrava os dígitos crus a cada cálculo).
 Public Function Labels_ComboLineFormat(cht As Chart) As String
     Dim c As Range, f As Variant, v As Variant, one() As Variant, i As Long, d As Double, anyNum As Boolean, allInt As Boolean, allSmall As Boolean
     On Error GoTo Fail
+    Labels_ComboLineFormat = LINE_FMT_KEEP
     Set c = ComboLineCells(cht)
     If c Is Nothing Then Exit Function
+    Labels_ComboLineFormat = ""
     f = c.NumberFormat
     If IsNull(f) Then Exit Function
     If CStr(f) <> "General" Then Exit Function
@@ -178,13 +175,14 @@ Public Function Labels_ComboLineFormat(cht As Chart) As String
     End If
     Exit Function
 Fail:
-    Labels_ComboLineFormat = ""
+    Labels_ComboLineFormat = LINE_FMT_KEEP
 End Function
 
 ' Aplica a um DataLabels/DataLabel da linha da combinação o formato certo: vinculado à célula, ou o de reserva (Geral).
 Public Sub Labels_ApplyLineSourceFormat(target As Object, cht As Chart)
     Dim fb As String
     fb = Labels_ComboLineFormat(cht)
+    If fb = LINE_FMT_KEEP Then Exit Sub                 ' linha nao localizada: o formato atual fica
     If Len(fb) = 0 Then target.NumberFormatLinked = True Else Style_AssignNumberFormat target, fb
 End Sub
 
@@ -210,6 +208,7 @@ Done:
 End Sub
 
 Private Sub SyncFormat(target As Object, want As String)
+    If want = LINE_FMT_KEEP Then Exit Sub               ' linha nao localizada: o formato atual fica
     If Len(want) = 0 Then
         If Not target.NumberFormatLinked Then target.NumberFormatLinked = True
     Else

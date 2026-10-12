@@ -129,12 +129,25 @@ End Function
 ' reflete linhas inseridas/removidas na origem mesmo quando Series.XValues não mostra a diferença.
 ' Retorna -1 se o argumento não for uma referência simples a uma planilha da pasta wb.
 Public Function Util_SeriesCategoryRefCount(s As Series, wb As Workbook) As Long
-    Dim f As String, i As Long, ch As String, inQ As Boolean, inS As Boolean, depth As Long
-    Dim argN As Long, startPos As Long, arg As String, bang As Long, sh As String
+    Dim r As Range
     On Error GoTo Fail
     Util_SeriesCategoryRefCount = -1
+    Set r = Util_SeriesArgRange(s, wb, 2)
+    If Not r Is Nothing Then Util_SeriesCategoryRefCount = r.Cells.Count
+    Exit Function
+Fail:
+    Util_SeriesCategoryRefCount = -1
+End Function
+
+' Faixa do argumento argN (1 nome, 2 categorias, 3 valores) da fórmula VIVA da série (=SERIES(...)), lida no texto da fórmula: acompanha a
+' planilha renomeada e as linhas inseridas. Nothing se o argumento não for uma referência simples a uma planilha da pasta wb (constante,
+' outra pasta, nome definido) ou se a leitura falhar. Nunca propaga erro.
+Public Function Util_SeriesArgRange(s As Series, wb As Workbook, argN As Long) As Range
+    Dim f As String, i As Long, ch As String, inQ As Boolean, inS As Boolean, depth As Long
+    Dim k As Long, startPos As Long, arg As String, bang As Long, sh As String
+    On Error GoTo Fail
     f = s.Formula
-    argN = 1
+    k = 1
     startPos = InStr(f, "(") + 1
     If startPos < 2 Then Exit Function
     For i = startPos To Len(f)
@@ -151,8 +164,8 @@ Public Function Util_SeriesCategoryRefCount(s As Series, wb As Workbook) As Long
             ElseIf ch = ")" And depth > 0 Then
                 depth = depth - 1
             ElseIf (ch = "," And depth = 0) Or (ch = ")" And depth = 0) Then
-                If argN = 2 Then arg = Mid$(f, startPos, i - startPos): Exit For
-                argN = argN + 1
+                If k = argN Then arg = Mid$(f, startPos, i - startPos): Exit For
+                k = k + 1
                 startPos = i + 1
             End If
         End If
@@ -163,10 +176,10 @@ Public Function Util_SeriesCategoryRefCount(s As Series, wb As Workbook) As Long
     sh = Left$(arg, bang - 1)
     If InStr(sh, "[") > 0 Then Exit Function
     If Left$(sh, 1) = "'" And Right$(sh, 1) = "'" Then sh = Replace(Mid$(sh, 2, Len(sh) - 2), "''", "'")
-    Util_SeriesCategoryRefCount = wb.Worksheets(sh).Range(Mid$(arg, bang + 1)).Cells.Count
+    Set Util_SeriesArgRange = wb.Worksheets(sh).Range(Mid$(arg, bang + 1))
     Exit Function
 Fail:
-    Util_SeriesCategoryRefCount = -1
+    Set Util_SeriesArgRange = Nothing
 End Function
 
 ' Serie auxiliar (prefixo tqq_) para rotulos/totais/marcadores, orientavel:

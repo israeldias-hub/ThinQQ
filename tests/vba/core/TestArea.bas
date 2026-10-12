@@ -1302,3 +1302,27 @@ Public Sub Test_Combo_SecondaryScale_KeepsUserManualMinimum()
     AssertTrue cht.Axes(xlValue, xlSecondary).MinimumScaleIsAuto, "o 0 do ThinQQ volta ao automatico com negativo"
     CloseTemp wb
 End Sub
+
+' Onda final (I-3): a coluna da linha da combinacao e localizada pela formula VIVA da serie (3o argumento de SERIES), nao pelo texto do
+' endereco da origem gravado no bloco: renomear a planilha de origem nao faz os rotulos da linha (celula em Geral) virarem 0,42 a cada calculo.
+Public Sub Test_Combo_LineLabels_KeepFallbackFormat_AfterSourceSheetRenamed()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ws As Worksheet, ln As Series, want As String
+    Set wb = NewTempWorkbook(): Set d = ComboFixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("A1:D4").Select
+    Core_Insert "combo"
+    Set cht = Core_ActiveChart()
+    Set ln = Combo_LineSeries(cht)
+    want = Format$(0.42, "0.0%")
+    AssertEqual want, ln.Points(1).DataLabel.Text, "pre-condicao: Geral com razao vira pct1"
+    ws.Name = "Origem renomeada"
+    Core_SafeRefresh cht
+    ws.Calculate
+    Core_SafeRefresh cht
+    AssertEqual want, ln.Points(1).DataLabel.Text, "depois de renomear a planilha de origem o formato de reserva continua"
+    AssertEqual Format$(0.47, "0.0%"), ln.Points(3).DataLabel.Text
+    ws.Range("D2:D4").NumberFormat = "0%"                            ' a celula ganha formato: o rotulo passa a segui-la
+    Core_SafeRefresh cht
+    AssertEqual Format$(0.42, "0%"), ln.Points(1).DataLabel.Text, "a celula com formato (planilha renomeada) e lida pela formula da serie"
+    Watchers_Stop
+    CloseTemp wb
+End Sub
