@@ -32,6 +32,7 @@ Private Const BF_GAP_MAXFRAC As Double = 0.5     ' teto do vao em pontos: metade
 Private Const BF_LABEL_MARGIN As Double = 8      ' respiro (pt) alem da largura estimada do maior nome
 Private Const BF_THIN_OPT As String = "thinlbl"  ' pares lado.ponto (1 = esquerdo, 2 = direito) cujo rotulo o ThinQQ ocultou (Bfly_SyncThinLabels)
 Private Const BF_OUT_OPT As String = "outlbl"    ' pares lado.ponto cujo rotulo o ThinQQ pos FORA da barra fina (Bfly_SyncThinLabels)
+Private Const BF_POS_OPT As String = "outpos"    ' posicao manual (pt) aplicada a cada rotulo direito posto fora: k.i@left (arrastado pelo usuario = outra)
 Private Const BF_OUT_OFFSET As Double = 3       ' distancia (pt) entre a ponta da barra e o rotulo posto fora (e entre ele e o total)
 Private Const BF_OUT_COLOR As Long = 4210752     ' RGB(64, 64, 64): rotulo fora da barra, sobre o fundo branco
 Private Const BF_ERR_COLS As String = "A borboleta precisa de exatamente 2 colunas de valores (lado esquerdo e lado direito)."
@@ -217,7 +218,11 @@ Public Sub Bfly_SetLabels(cht As Chart, turnOn As Boolean)
     Next
     Registry_SetOption cht, "labels", IIf(turnOn, "1", "0")
     Registry_SetOption cht, BF_THIN_OPT, ""          ' ligar refaz todos os rotulos e desligar apaga todos: nada fica oculto pelo ThinQQ
-    If Len(Registry_GetOption(cht, BF_OUT_OPT, "")) > 0 Then Registry_SetOption cht, BF_OUT_OPT, ""      ' e nada fica fora
+    If Len(Registry_GetOption(cht, BF_OUT_OPT, "")) > 0 Then
+        ResetOutTotals cht                           ' os totais das linhas com rotulo posto fora voltam a posicao automatica
+        Registry_SetOption cht, BF_OUT_OPT, ""       ' e nada fica fora
+    End If
+    If Len(Registry_GetOption(cht, BF_POS_OPT, "")) > 0 Then Registry_SetOption cht, BF_POS_OPT, ""
     If turnOn Then
         Bfly_ApplyNumberFormat cht
         Bfly_SyncThinLabels cht
@@ -414,7 +419,7 @@ Public Sub Bfly_SyncThinLabels(cht As Chart)
     Dim body As Range, n As Long, k As Long, i As Long, s As Series, ax As Axis, ppu As Double, v As Double, txtW As Double
     Dim list0 As String, list As String, key As String, has As Boolean, mine As Boolean, fmt As String, sec As String, col As Long
     Dim out0 As String, outL As String, inOut As Boolean, thin As Boolean, room As Boolean, tot As Series, totOn As Boolean
-    Dim xEnd As Double, g As Double, totW As Double, rightEdge As Double, ok As Boolean
+    Dim xEnd As Double, g As Double, totW As Double, rightEdge As Double, ok As Boolean, pos0 As String, posL As String, moved As Boolean
     On Error GoTo Done
     If Kinds_Family(Registry_ChartType(cht)) <> "butterfly" Then Exit Sub
     If Registry_GetOption(cht, "labels", "1") <> "1" Then Exit Sub
@@ -426,6 +431,7 @@ Public Sub Bfly_SyncThinLabels(cht As Chart)
     rightEdge = Geom_ChartRightEdge(cht)
     list0 = Registry_GetOption(cht, BF_THIN_OPT, ""): out0 = Registry_GetOption(cht, BF_OUT_OPT, "")
     list = "," & list0 & ",": outL = "," & out0 & ","
+    pos0 = Registry_GetOption(cht, BF_POS_OPT, ""): posL = pos0
     If Registry_GetOption(cht, "totals", "0") = "1" Then Set tot = Chart_FindSeries(cht, "tqq_total")
     totOn = Not tot Is Nothing
     For k = 1 To 2
@@ -438,7 +444,7 @@ Public Sub Bfly_SyncThinLabels(cht As Chart)
                 key = k & "." & i
                 mine = (InStr(list, "," & key & ",") > 0)
                 inOut = (InStr(outL, "," & key & ",") > 0)
-                has = False: txtW = 0: totW = 0: xEnd = 0: g = 0: thin = False: room = False: ok = False
+                has = False: txtW = 0: totW = 0: xEnd = 0: g = 0: thin = False: room = False: ok = False: moved = False
                 v = Util_ToDouble(body.Cells(i + 1, col).Value)
                 g = Util_ToDouble(body.Cells(i + 1, BF_COL_GAP).Value)
                 On Error Resume Next
@@ -456,10 +462,11 @@ Public Sub Bfly_SyncThinLabels(cht As Chart)
                             If totOn Then totW = TotalTextWidth(tot, i)
                             room = (xEnd + BF_OUT_OFFSET + txtW + IIf(totW > 0, totW + BF_OUT_OFFSET, 0) <= rightEdge)
                         End If
+                        If has And inOut Then moved = UserMoved(s, i, k, PosGet(posL, key), xEnd, txtW)     ' arrastado pelo usuario: fica onde ele pos
                         If Not thin Then
                             If has And inOut Then
-                                RestoreInside s, i, k, tot
-                                If Err.Number = 0 Then outL = Replace(outL, "," & key & ",", ",")
+                                If Not moved Then RestoreInside s, i, k, tot   ' o arrastado pelo usuario fica onde esta (so deixa a lista)
+                                If Err.Number = 0 Then outL = Replace(outL, "," & key & ",", ","): posL = PosRemove(posL, key)
                             ElseIf (Not has) And mine Then
                                 s.Points(i).HasDataLabel = True
                                 If Err.Number = 0 Then FormatSideLabel s, i, fmt, key
@@ -474,33 +481,39 @@ Public Sub Bfly_SyncThinLabels(cht As Chart)
                             ElseIf has And mine Then
                                 list = Replace(list, "," & key & ",", ",")      ' o rotulo voltou por outro caminho: deixa de ser "oculto pelo ThinQQ"
                             ElseIf (Not has) And inOut Then
-                                outL = Replace(outL, "," & key & ",", ",")      ' o posto fora foi apagado pelo usuario: fica apagado
+                                outL = Replace(outL, "," & key & ",", ","): posL = PosRemove(posL, key)    ' apagado pelo usuario: fica apagado
+                                If k = 2 And totOn Then ResetTotalLabel tot, i                   ' e o total da linha volta a posicao automatica
                             End If
                         ElseIf room Then
                             If (Not has) And mine Then                          ' oculto pelo ThinQQ (versao anterior ou sem espaco antes): religa e poe fora
                                 s.Points(i).HasDataLabel = True
                                 If Err.Number = 0 Then FormatSideLabel s, i, fmt, key
-                                If Err.Number = 0 Then PlaceOutside s, i, k, xEnd, txtW, tot, key
+                                If Err.Number = 0 Then
+                                    If Not inOut Then outL = outL & key & ","   ' registrado antes de mexer: uma falha no meio nao o perde
+                                    PlaceOutside s, i, k, xEnd, txtW, tot, key, posL
+                                End If
                                 If Err.Number = 0 Then
                                     list = Replace(list, "," & key & ",", ",")
-                                    If Not inOut Then outL = outL & key & ","
                                 Else
                                     Errors_Log "Bfly_SyncThinLabels" & vbTab & key & vbTab & Err.Number & vbTab & Err.Description
                                     Err.Clear
-                                    s.Points(i).HasDataLabel = False
+                                    s.Points(i).HasDataLabel = False             ' oculto de novo: continua em thinlbl, sai de outlbl
+                                    outL = Replace(outL, "," & key & ",", ","): posL = PosRemove(posL, key)
+                                    If k = 2 And totOn Then ResetTotalLabel tot, i
                                 End If
-                            ElseIf has Then
-                                PlaceOutside s, i, k, xEnd, txtW, tot, key
-                                If Err.Number = 0 And Not inOut Then outL = outL & key & ","
+                            ElseIf has And Not moved Then
+                                If Not inOut Then outL = outL & key & ","       ' registrado antes de mexer: uma falha no meio nao o perde
+                                PlaceOutside s, i, k, xEnd, txtW, tot, key, posL
                                 If mine And Err.Number = 0 Then list = Replace(list, "," & key & ",", ",")
-                            ElseIf inOut Then
-                                outL = Replace(outL, "," & key & ",", ",")      ' apagado pelo usuario: fica apagado
+                            ElseIf (Not has) And inOut Then
+                                outL = Replace(outL, "," & key & ",", ","): posL = PosRemove(posL, key)    ' apagado pelo usuario: fica apagado
+                                If k = 2 And totOn Then ResetTotalLabel tot, i
                             End If
-                        ElseIf has Then                                         ' nem fora cabe: oculto
+                        ElseIf has And Not moved Then                           ' nem fora cabe: oculto
                             s.Points(i).HasDataLabel = False
                             If Err.Number = 0 Then
                                 If Not mine Then list = list & key & ","
-                                outL = Replace(outL, "," & key & ",", ",")
+                                outL = Replace(outL, "," & key & ",", ","): posL = PosRemove(posL, key)
                                 If k = 2 And totOn Then ResetTotalLabel tot, i
                             End If
                         End If
@@ -518,6 +531,7 @@ Done:
     list = CleanList(list): outL = CleanList(outL)
     If list <> list0 Then Registry_SetOption cht, BF_THIN_OPT, list
     If outL <> out0 Then Registry_SetOption cht, BF_OUT_OPT, outL
+    If posL <> pos0 Then Registry_SetOption cht, BF_POS_OPT, posL
 End Sub
 
 Private Function CleanList(ByVal list As String) As String
@@ -540,12 +554,13 @@ End Function
 
 ' Rotulo de barra fina FORA da barra, em cinza-escuro. Esquerdo: InsideEnd (o Excel o poe alem da ponta, medido). Direito: posicao manual logo
 ' depois da ponta (xEnd) e, com totais, o rotulo do total da linha logo depois dele. Propaga erros.
-Private Sub PlaceOutside(s As Series, i As Long, k As Long, xEnd As Double, txtW As Double, tot As Series, key As String)
+Private Sub PlaceOutside(s As Series, i As Long, k As Long, xEnd As Double, txtW As Double, tot As Series, key As String, ByRef posL As String)
     With s.Points(i).DataLabel
         If k = 1 Then
             If .Position <> xlLabelPositionInsideEnd Then .Position = xlLabelPositionInsideEnd
         Else
             .Left = xEnd + BF_OUT_OFFSET
+            posL = PosSet(posL, key, Trim$(Str$(.Left)) & "|" & Trim$(Str$(xEnd)) & "|" & Trim$(Str$(txtW)))     ' a posicao aplicada (lida de volta)
         End If
         If .Font.Color <> BF_OUT_COLOR Then .Font.Color = BF_OUT_COLOR
     End With
@@ -556,6 +571,64 @@ Private Sub PlaceOutside(s As Series, i As Long, k As Long, xEnd As Double, txtW
         NoLeaderLines tot
     End If
 End Sub
+
+' Totais das linhas cujo rotulo direito estava fora (outlbl "2.i") de volta a posicao automatica (Right). Nunca propaga erro.
+Private Sub ResetOutTotals(cht As Chart)
+    Dim parts() As String, i As Long, tot As Series
+    On Error Resume Next
+    Set tot = Chart_FindSeries(cht, "tqq_total")
+    If tot Is Nothing Then Exit Sub
+    parts = Split(Registry_GetOption(cht, BF_OUT_OPT, ""), ",")
+    For i = LBound(parts) To UBound(parts)
+        If Left$(parts(i), 2) = "2." Then ResetTotalLabel tot, CLng(Val(Mid$(parts(i), 3)))
+    Next
+End Sub
+
+' O rotulo posto fora pelo ThinQQ foi arrastado pelo usuario? Esquerdo: o ThinQQ so usa a posicao do Excel (InsideEnd), entao posicao manual
+' (Custom) e do usuario. Direito: o Excel guarda a posicao manual RELATIVA a posicao padrao (que depende da ponta da barra e da largura do
+' texto; medido: o Left lido muda quando o vao ou o formato mudam), entao so da para afirmar que o usuario arrastou quando a ponta (xEnd) e a
+' largura estimada (txtW) sao as da ultima aplicacao (rec = "left|xend|w", "" se nenhuma) e o Left atual difere do aplicado em mais de 1 pt,
+' ou a posicao deixou de ser manual. Com a geometria mudada o ThinQQ reposiciona (um arrasto antigo se perde: limite documentado).
+Private Function UserMoved(s As Series, i As Long, k As Long, rec As String, xEnd As Double, txtW As Double) As Boolean
+    Dim p As Variant
+    With s.Points(i).DataLabel
+        If k = 1 Then
+            UserMoved = (.Position = xlLabelPositionCustom)
+        ElseIf Len(rec) > 0 Then
+            p = Split(rec, "|")
+            If UBound(p) < 2 Then Exit Function
+            If Abs(Val(p(1)) - xEnd) > 0.5 Or Abs(Val(p(2)) - txtW) > 0.5 Then Exit Function
+            UserMoved = (.Position <> xlLabelPositionCustom) Or (Abs(.Left - Val(p(0))) > 1)
+        End If
+    End With
+End Function
+
+' Lista "k.i@left|xend|w,..." da opcao outpos (posicao manual aplicada a cada rotulo direito posto fora; Str$, ponto decimal).
+Private Function PosGet(list As String, key As String) As String
+    Dim p As Long, q As Long, s As String
+    s = "," & list & ","
+    p = InStr(s, "," & key & "@")
+    If p = 0 Then Exit Function
+    p = p + Len(key) + 2
+    q = InStr(p, s, ",")
+    PosGet = Mid$(s, p, q - p)
+End Function
+
+Private Function PosRemove(list As String, key As String) As String
+    Dim parts() As String, i As Long, out As String
+    If Len(list) = 0 Then Exit Function
+    parts = Split(list, ",")
+    For i = LBound(parts) To UBound(parts)
+        If Len(parts(i)) > 0 And Left$(parts(i), Len(key) + 1) <> key & "@" Then out = out & IIf(Len(out) > 0, ",", "") & parts(i)
+    Next
+    PosRemove = out
+End Function
+
+Private Function PosSet(list As String, key As String, rec As String) As String
+    Dim out As String
+    out = PosRemove(list, key)
+    PosSet = out & IIf(Len(out) > 0, ",", "") & key & "@" & rec
+End Function
 
 ' Sem linhas de chamada: um rotulo em posicao manual ganha uma linha do ponto ate ele (medido no PNG: atravessava o rotulo de fora ate o total).
 Private Sub NoLeaderLines(s As Series)

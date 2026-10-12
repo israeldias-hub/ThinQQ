@@ -600,7 +600,7 @@ Public Sub Test_Bfly_ThinSync_FormatError_LabelHiddenAgain()
     Util_FailThinSyncForTest = "bfly-out:2.2"
     Core_SafeRefresh cht
     Util_FailThinSyncForTest = ""
-    AssertEqual "1.2", Registry_GetOption(cht, "outlbl", ""), "falha no meio: nao registrado"
+    AssertEqual "1.2,2.2", Registry_GetOption(cht, "outlbl", ""), "falha no meio: registrado mesmo assim (o rotulo ja tinha saido)"
     Core_SafeRefresh cht
     AssertEqual "1.2,2.2", Registry_GetOption(cht, "outlbl", ""), "a passada seguinte completa"
 Cleanup:
@@ -609,4 +609,38 @@ Cleanup:
     Application.EnableEvents = True
     Teardown wb
     If en <> 0 Then Err.Raise en, es, ed
+End Sub
+
+' Onda A, rodada 1 (menor b): o rotulo direito posto fora acompanha a ponta da barra quando os dados mudam, mas o que o USUARIO arrastou fica
+' onde ele pos enquanto a geometria da barra nao muda (o Excel guarda a posicao manual relativa a padrao: com a ponta ou o texto mudando o ThinQQ
+' reposiciona); apagar o rotulo de fora (ou religar os Rotulos) devolve o total da linha a posicao automatica (sem posicao manual sobrando).
+Public Sub Test_Bfly_OutsideLabel_UserDragKept_TotalReset()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, sB As Series, tot As Series, x1 As Double, dragged As Double
+    Set wb = NewTempWorkbook(): Set ws = TinyFixture(wb)
+    ws.Range("A1:C4").Select
+    Core_Insert "butterfly"
+    Set cht = Core_ActiveChart()
+    Set sB = Bfly_SideSeries(cht, 2): Set tot = Chart_FindSeries(cht, "tqq_total")
+    AssertEqual xlLabelPositionCustom, sB.Points(2).DataLabel.Position, "posto fora: posicao manual"
+    x1 = sB.Points(2).DataLabel.Left
+    ws.Range("C3").Value = 40                                   ' barra um pouco maior, ainda fina
+    Core_SafeRefresh cht
+    AssertTrue sB.Points(2).DataLabel.Left > x1 + 0.5, "acompanha a ponta (" & sB.Points(2).DataLabel.Left & " / " & x1 & ")"
+    AssertTiny cht, "dados novos"
+    dragged = sB.Points(2).DataLabel.Left + 40
+    sB.Points(2).DataLabel.Left = dragged                       ' o usuario arrasta
+    Core_SafeRefresh cht
+    Core_SafeRefresh cht
+    AssertAlmost dragged, sB.Points(2).DataLabel.Left, 1, "o arrastado pelo usuario fica"
+    sB.Points(2).HasDataLabel = False                           ' o usuario apaga o rotulo de fora
+    Core_SafeRefresh cht
+    AssertEqual xlLabelPositionRight, tot.Points(2).DataLabel.Position, "total da linha de volta a posicao automatica"
+    AssertEqual "1.2", Registry_GetOption(cht, "outlbl", ""), "o apagado sai da lista"
+    AssertFalse sB.Points(2).HasDataLabel, "e continua apagado"
+    Core_SetToggle "labels", True
+    AssertEqual "1.2,2.2", Registry_GetOption(cht, "outlbl", ""), "religar Rotulos: todos refeitos e postos fora de novo"
+    Core_SetToggle "labels", False
+    AssertEqual "", Registry_GetOption(cht, "outlbl", "")
+    AssertEqual xlLabelPositionRight, tot.Points(2).DataLabel.Position, "rotulos desligados: total na posicao automatica"
+    Teardown wb
 End Sub

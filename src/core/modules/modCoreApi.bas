@@ -975,6 +975,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     Registry_SetOption nc, "n", CStr(data.CategoryCount)     ' as opções antigas trazem o n da tabela anterior
     If Len(Registry_GetOption(nc, "thinlbl", "")) > 0 Then Registry_SetOption nc, "thinlbl", ""      ' rotulos finos escondidos: pontos do grafico antigo
     If Len(Registry_GetOption(nc, "outlbl", "")) > 0 Then Registry_SetOption nc, "outlbl", ""        ' rotulos postos fora da barra fina (borboleta): idem
+    If Len(Registry_GetOption(nc, "outpos", "")) > 0 Then Registry_SetOption nc, "outpos", ""        ' e as posicoes aplicadas a eles
     If Len(Registry_GetOption(nc, "brklbl", "")) > 0 Then Registry_SetOption nc, "brklbl", ""        ' rotulos ocultos pelo corte de eixo: idem
     ReapplyOptions nc                           ' formato, paleta, espaco, alternadores, escala fixa e legenda: as ESCOLHAS salvas do usuario
     oldCo.Delete
