@@ -100,7 +100,19 @@ try {
             $t = [string]$wb.Worksheets.Item($sh).Range('A7').Text
             Check ($t -match '\d{2}$' -and $t -notmatch '(?i)yy|aa') "mes/ano em $sh!A7 com o ano em 2 digitos ([$t])"
         }
-        # graficos vivos sem o ThinQQ (nenhum suplemento aberto neste Excel): +1.000.000 em Dados (B2C de cimento em 2025) muda a tabela
+        # o mesmo total em R$ mil e o mesmo numero em todas as planilhas (as partes fecham com o total arredondado): cimento 2025 em E01 (canais),
+        # E24 e E22 (total); Sudeste 2025 em E03/E06 (canais), E13/E23 (grupos de produto) e E17/E18 (total)
+        function Get-RowSum($sh, [string]$name) {
+            $ws = $wb.Worksheets.Item($sh); $r = 7
+            while ([string]$ws.Cells.Item($r, 1).Value2 -ne $name -and $r -lt 40) { $r++ }
+            $t = 0.0; for ($c = 2; $c -le 5; $c++) { $v = $ws.Cells.Item($r, $c).Value2; if ($v -is [double]) { $t += $v } }
+            return $t
+        }
+        $cim = @('E01', 'E24' | ForEach-Object { Get-RowSum $_ 'Cimento e argamassa' }) + @([double]$wb.Worksheets.Item('E22').Range('B8').Value2)
+        Check (@($cim | Sort-Object -Unique).Count -eq 1) "cimento 2025 igual em E01, E24 e E22 ($($cim -join ', '))"
+        $sud = @('E03', 'E06', 'E13', 'E23', 'E17', 'E18' | ForEach-Object { Get-RowSum $_ 'Sudeste' })
+        Check (@($sud | Sort-Object -Unique).Count -eq 1) "Sudeste 2025 igual em E03, E06, E13, E23, E17 e E18 ($($sud -join ', '))"
+        # graficos vivos sem o ThinQQ (nenhum suplemento aberto neste Excel): +1.000.000 em Dados (Vendas e Vendas B2C de uma linha de cimento em 2025) muda a tabela
         # do E01 (SOMASES), a serie B2C do grafico e o rotulo do total (ligado a _ThinQQ); nada e gravado (pasta somente leitura, fechada sem salvar)
         $wsDados = $wb.Worksheets.Item('Dados')
         $keys = $wsDados.Range('D2').Resize(($wsDados.UsedRange.Rows.Count - 1), 2).Value2
@@ -116,8 +128,7 @@ try {
         Check ($null -ne $ser -and $null -ne $tot) 'E01 com a serie B2C e o total (tqq_total)'
         if ($hit -gt 0 -and $null -ne $ser -and $null -ne $tot) {
             $cellBefore = [double]$e01.Range('B7').Value2; $serBefore = [double]@($ser.Values)[0]; $lblBefore = [string]$tot.Points(1).DataLabel.Text
-            $kCell = $wsDados.Cells.Item($hit, 11)
-            $kCell.Value2 = [double]$kCell.Value2 + 1000000
+            foreach ($col in 6, 11) { $kCell = $wsDados.Cells.Item($hit, $col); $kCell.Value2 = [double]$kCell.Value2 + 1000000 }   # Vendas e Vendas B2C
             $xl.Calculate()
             Check ([double]$e01.Range('B7').Value2 -eq $cellBefore + 1000) "E01!B7 acompanha Dados ($cellBefore -> $($e01.Range('B7').Value2))"
             Check ([double]@($ser.Values)[0] -eq $serBefore + 1000) "serie B2C do E01 acompanha a tabela ($serBefore -> $(@($ser.Values)[0]))"

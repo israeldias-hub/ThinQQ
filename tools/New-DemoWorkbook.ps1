@@ -100,6 +100,13 @@ function Get-DemoSum([string]$metric, [int[]]$sIdx, [int[]]$dIdx, [int[]]$mIdx) 
     return $t
 }
 function Get-DemoK([double]$v) { return [Math]::Round($v / 1000, 0) }                       # R$ -> R$ mil
+# Partes em R$ mil que fecham com o total arredondado: a última parte é K(total) - soma das outras (já arredondadas). Assim o mesmo total
+# (ex.: vendas 2025 do Sudeste ou do cimento) mostra o mesmo número em todas as planilhas, venha de canais, de grupos ou do total.
+function Get-DemoParts([double]$total, [double[]]$parts) {
+    $out = @(); $acc = 0.0
+    for ($i = 0; $i -lt $parts.Count - 1; $i++) { $k = Get-DemoK $parts[$i]; $out += $k; $acc += $k }
+    return ,@($out + @((Get-DemoK $total) - $acc))
+}
 function Get-StoresOf([string]$region) { return @(for ($i = 0; $i -lt $nS; $i++) { if ($stores[$i].Region -eq $region) { $i } }) }
 function Get-DeptsOf([string]$group) { return @(for ($i = 0; $i -lt $nD; $i++) { if ($depts[$i].Group -eq $group) { $i } }) }
 # ordens: departamentos e lojas pelas vendas de 2025 (maior primeiro)
@@ -254,14 +261,14 @@ try {
     }
 
     # ---- tabelas (R$ mil, salvo indicação)
-    $deptChannelBody = @($deptOrder | ForEach-Object { ,@($depts[$_].Name, (Get-DemoK (Get-DemoSum 'b2c' $allS @($_) $y25)), (Get-DemoK (Get-DemoSum 'b2b' $allS @($_) $y25))) })
+    $deptChannelBody = @($deptOrder | ForEach-Object { ,@(@($depts[$_].Name) + (Get-DemoParts (Get-DemoSum 'sales' $allS @($_) $y25) @((Get-DemoSum 'b2c' $allS @($_) $y25), 0))) })
     $storeYearMiBody = @($storeOrder | ForEach-Object { ,@($stores[$_].Name, [Math]::Round((Get-DemoSum 'sales' @($_) $allD $y24) / 1e6, 1), [Math]::Round((Get-DemoSum 'sales' @($_) $allD $y25) / 1e6, 1)) })
     $storeYearRsBody = @($storeOrder | ForEach-Object { ,@($stores[$_].Name, (Get-DemoSum 'sales' @($_) $allD $y24), (Get-DemoSum 'sales' @($_) $allD $y25)) })
-    $regionChannelBody = @($regions | ForEach-Object { $ss = @(Get-StoresOf $_); ,@($_, (Get-DemoK (Get-DemoSum 'b2c' $ss $allD $y25)), (Get-DemoK (Get-DemoSum 'b2b' $ss $allD $y25))) })
-    $storeChannelBody = @($storeOrder | ForEach-Object { ,@($stores[$_].Name, (Get-DemoK (Get-DemoSum 'b2c' @($_) $allD $y25)), (Get-DemoK (Get-DemoSum 'b2b' @($_) $allD $y25))) })
+    $regionChannelBody = @($regions | ForEach-Object { $ss = @(Get-StoresOf $_); ,@(@([string]$_) + (Get-DemoParts (Get-DemoSum 'sales' $ss $allD $y25) @((Get-DemoSum 'b2c' $ss $allD $y25), 0))) })
+    $storeChannelBody = @($storeOrder | ForEach-Object { ,@(@($stores[$_].Name) + (Get-DemoParts (Get-DemoSum 'sales' @($_) $allD $y25) @((Get-DemoSum 'b2c' @($_) $allD $y25), 0))) })
     $store1MonthBody = @($y25 | ForEach-Object { ,@($months[$_], (Get-DemoK (Get-DemoSum 'sales' @($s1) $allD @($_))), (Get-DemoK (Get-DemoSum 'cost' @($s1) $allD @($_)))) })
     $comboBody = @($y25 | ForEach-Object { $v = Get-DemoSum 'sales' @($s1) $allD @($_); $c = Get-DemoSum 'cost' @($s1) $allD @($_)
-                                           ,@($months[$_], (Get-DemoK (Get-DemoSum 'b2c' @($s1) $allD @($_))), (Get-DemoK (Get-DemoSum 'b2b' @($s1) $allD @($_))), [Math]::Round(($v - $c) / $v, 3)) })
+                                           ,@(@($months[$_]) + (Get-DemoParts $v @((Get-DemoSum 'b2c' @($s1) $allD @($_)), 0)) + @([Math]::Round(($v - $c) / $v, 3))) })
     $receita = Get-DemoSum 'sales' $allS $allD $y25; $cmv = Get-DemoSum 'cost' $allS $allD $y25
     $despesas = 0.21 * $receita; $ebitda = $receita - $cmv - $despesas; $deprec = 0.025 * $receita; $impostos = 0.34 * ($ebitda - $deprec)
     $wfBody = @(@('Receita bruta', (Get-DemoK $receita)), @('Custo das mercadorias', - (Get-DemoK $cmv)), @('Despesas operacionais', - (Get-DemoK $despesas)),
@@ -269,7 +276,8 @@ try {
     # área (E10/E11): trimestres de 2024 e 2025 (12 meses de rótulos de 5 dígitos colidem nas bordas); o maior departamento por cima, longe da média
     $areaDepts = @($top3[2], $top3[1], $top3[0])
     $quarterDeptBody = @(for ($q = 0; $q -lt 8; $q++) { $qm = @((3 * $q)..(3 * $q + 2)); ,@(@("T$($q % 4 + 1)/$(24 + [Math]::Floor($q / 4))") + @($areaDepts | ForEach-Object { Get-DemoK (Get-DemoSum 'sales' $allS @($_) $qm) })) })
-    $regionGroupBody = @($regions | ForEach-Object { $ss = @(Get-StoresOf $_); ,@(@($_) + @($groups | ForEach-Object { Get-DemoK (Get-DemoSum 'sales' $ss (Get-DeptsOf $_) $y25) })) })
+    $regionGroupBody = @($regions | ForEach-Object { $ss = @(Get-StoresOf $_)
+                                                     ,@(@([string]$_) + (Get-DemoParts (Get-DemoSum 'sales' $ss $allD $y25) @($groups | ForEach-Object { Get-DemoSum 'sales' $ss (Get-DeptsOf $_) $y25 }))) })
     $mekkoUnitsBody = @($regions | ForEach-Object { $ss = @(Get-StoresOf $_); $n = $ss.Count
                                                     ,@(@($_, $n) + @($groups | ForEach-Object { [Math]::Round((Get-DemoSum 'sales' $ss (Get-DeptsOf $_) $y25) / 1000 / $n, 0) })) })
     $deptSalesBody = @($deptOrder | ForEach-Object { ,@($depts[$_].Name, (Get-DemoK (Get-DemoSum 'sales' $allS @($_) $y25))) })
@@ -303,7 +311,7 @@ try {
             1  { $rng = Write-Table $ws 'A6' @('Departamento', 'B2C', 'B2B') $deptChannelBody
                  for ($i = 0; $i -lt $deptChannelBody.Count; $i++) {
                      $ws.Cells.Item(7 + $i, 2).Formula = Get-SumIfsFormula 'K' 'D' "`$A$(7 + $i)" 2025
-                     $ws.Cells.Item(7 + $i, 3).Formula = Get-SumIfsFormula 'L' 'D' "`$A$(7 + $i)" 2025
+                     $ws.Cells.Item(7 + $i, 3).Formula = (Get-SumIfsFormula 'F' 'D' "`$A$(7 + $i)" 2025) + "-`$B$(7 + $i)"     # B2B = total arredondado - B2C
                  }
                  $co = Add-Chart $ws $rng 'stacked'; Set-ChartBox $ws $co 620 320 }
             2  { $rng = Write-Table $ws 'A6' @('Loja', '2024', '2025') $storeYearMiBody '#,##0.0'; $co = Add-Chart $ws $rng 'clustered'
