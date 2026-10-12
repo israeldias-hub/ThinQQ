@@ -62,20 +62,24 @@ Check (@(Find-PrivacyHits ('o PI' + 'D e o numero do processo')).Count -eq 0) 'a
 
 # Arquivos versionados e novos nao ignorados de um repositorio Git: `git ls-files -z` (separados por NUL, sem aspas nem escapes) lido em UTF-8
 # explicito por System.Diagnostics.Process (a saida de um comando nativo e decodificada pela pagina de codigo do console no Windows
-# PowerShell 5.1: um nome com acento chegava trocado e o arquivo era pulado). $null se o git falhar.
+# PowerShell 5.1: um nome com acento chegava trocado e o arquivo era pulado). $null se o git falhar. A raiz vai para o git sem a barra final
+# (uma barra invertida antes da aspa de fechamento a escaparia e o git falharia); o stderr e lido em paralelo (um stderr grande nao trava o pipe).
 function Get-GitFiles([string]$root) {
+    $arg = $root.TrimEnd([char]92, [char]47)
+    if ($arg -match '^[A-Za-z]:$') { $arg += '/' }                       # raiz de unidade: C:/
     $psi = New-Object Diagnostics.ProcessStartInfo
     $psi.FileName = 'git'
-    $psi.Arguments = '-C "' + $root + '" -c core.quotepath=off ls-files -z --cached --others --exclude-standard'
+    $psi.Arguments = '-C "' + $arg + '" -c core.quotepath=off ls-files -z --cached --others --exclude-standard'
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.StandardOutputEncoding = New-Object Text.UTF8Encoding($false)
     $p = [Diagnostics.Process]::Start($psi)
+    $errTask = $p.StandardError.ReadToEndAsync()
     $out = $p.StandardOutput.ReadToEnd()
-    $null = $p.StandardError.ReadToEnd()
     $p.WaitForExit()
+    $null = $errTask.Result
     if ($p.ExitCode -ne 0) { return $null }
     return @($out.Split([char]0) | Where-Object { $_ } | ForEach-Object { Join-Path $root ($_ -replace '/', $bs) })
 }
@@ -95,6 +99,8 @@ if ($hasGitCmd) {
         Check ($null -ne $listed -and @($listed | Where-Object { (Split-Path $_ -Leaf) -ceq $odd }).Count -eq 1) 'git ls-files -z em UTF-8 lista o arquivo de nome nao ASCII intacto'
         Check (@($listed | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) }).Count -eq 0) 'todo caminho listado existe no disco'
         Check (@(Find-PrivacyHits ([IO.File]::ReadAllText((Join-Path $tmp $odd), $utf8))).Count -eq 1) 'o conteudo do arquivo de nome nao ASCII e varrido'
+        $listed2 = Get-GitFiles ($tmp + $bs)
+        Check ($null -ne $listed2 -and @($listed2 | Where-Object { (Split-Path $_ -Leaf) -ceq $odd }).Count -eq 1) 'raiz terminada em barra invertida: o git lista (nao cai na varredura da arvore)'
     } finally {
         Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -105,9 +111,10 @@ if ($hasGitCmd) {
 # ---- conjunto de arquivos
 $files = @()
 $hasGit = (Test-Path (Join-Path $RepoRoot '.git')) -and $hasGitCmd
+$gitFailed = $false
 if ($hasGit) {
     $files = Get-GitFiles $RepoRoot
-    if ($null -eq $files) { $files = @(); $hasGit = $false }
+    if ($null -eq $files) { $files = @(); $hasGit = $false; $gitFailed = $true }
 }
 if (-not $hasGit) {
     $skip = '\\(\.git|\.superpowers|dist|node_modules)\\|\\tests\\results\\|\\tests\\fixtures\\release\\'
@@ -115,7 +122,7 @@ if (-not $hasGit) {
         ($_.FullName.Substring($RepoRoot.Length) + $bs) -notmatch $skip -and $_.Name -notlike '*.tmp' -and $_.Name -notlike '~$*'
     } | ForEach-Object { $_.FullName })
 }
-Check ($files.Count -ge 50) "arquivos a verificar ($($files.Count)): $(if ($hasGit) { 'git ls-files' } else { 'varredura da arvore (sem .git)' })"
+Check ($files.Count -ge 50) "arquivos a verificar ($($files.Count)): $(if ($hasGit) { 'git ls-files' } elseif ($gitFailed) { 'varredura da arvore (o git ls-files FALHOU)' } else { 'varredura da arvore (sem .git)' })"
 
 # ---- varredura (so texto: arquivo com byte NUL e binario); caminho listado que nao existe no disco e falha, nunca pulado
 $bad = 0
