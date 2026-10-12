@@ -398,10 +398,14 @@ Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
 End Sub
 
 ' Sem core com Core_InsertSamples (Tarefa 15) o botao nao pode bloquear nem propagar erro. Com o core, a pasta de exemplos aberta pelo teste
-' e fechada no fim (diferenca entre as pastas antes e depois) e os observadores do core param: nada sobra no Excel dos testes seguintes.
+' e fechada no fim (diferenca entre as pastas antes e depois) e os observadores do core voltam ao estado de antes (Onda B: ligados ou nao, e
+' o loader registrado): nada sobra nem falta no Excel dos testes seguintes.
 Public Sub Test_Ribbon_OnSamples_WithoutCoreProc_DoesNotBlock()
-    Dim n0 As Long, w As Workbook, found As Boolean, sh As Object, before As Object, en As Long, ed As String
+    Dim n0 As Long, w As Workbook, found As Boolean, sh As Object, before As Object, en As Long, ed As String, wasActive As Boolean, ln As String
     On Error GoTo Cleanup
+    If Not Loader_CoreWorkbook() Is Nothing Then
+        wasActive = CBool(Loader_RunCore("Watchers_IsActive")): ln = CStr(Loader_RunCore("Watchers_LoaderName"))
+    End If
     Set before = CreateObject("Scripting.Dictionary")
     For Each w In Application.Workbooks
         before(w.Name) = True
@@ -426,8 +430,14 @@ Cleanup:
     On Error Resume Next
     Loader_RunCore "Watchers_Stop"
     CloseNewWorkbooks before
+    If wasActive Then Loader_RunCore "Watchers_Start"            ' o estado de antes (o Stop acima desliga e esquece o loader)
+    If Len(ln) > 0 Then Loader_RunCore "Watchers_SetLoader", ln
     On Error GoTo 0
     If en = 0 Then AssertEqual n0, Application.Workbooks.Count, "a pasta de exemplos foi fechada no fim do teste"
+    If en = 0 And Not Loader_CoreWorkbook() Is Nothing Then
+        AssertEqual wasActive, CBool(Loader_RunCore("Watchers_IsActive")), "observadores de volta ao estado de antes"
+        AssertEqual ln, CStr(Loader_RunCore("Watchers_LoaderName")), "loader registrado de volta"
+    End If
     If en <> 0 Then Err.Raise en, "TestRibbon", ed
 End Sub
 
@@ -673,8 +683,8 @@ Public Sub Test_Ribbon_PptButtons_ReachCore()
     Rx_OnPptChart Nothing
     AssertTrue InStr(CStr(Loader_RunCore("Core_LastNotice")), "Salve a pasta de trabalho") > 0, "Copiar como grafico vinculado nao chegou ao core: " & CStr(Loader_RunCore("Core_LastNotice"))
     code = RibbonModuleCode()
-    AssertTrue InStr(code, "Loader_RunCore ""Core_CopyToPowerPoint"", ""image""") > 0, "Rx_OnPptImage passa o modo image"
-    AssertTrue InStr(code, "Loader_RunCore ""Core_CopyToPowerPoint"", ""chart""") > 0, "Rx_OnPptChart passa o modo chart"
+    AssertTrue InStr(code, "RunCoreFeature ""Core_CopyToPowerPoint"", ""image""") > 0, "Rx_OnPptImage passa o modo image"
+    AssertTrue InStr(code, "RunCoreFeature ""Core_CopyToPowerPoint"", ""chart""") > 0, "Rx_OnPptChart passa o modo chart"
     ws.Range("A1").Select
     Loader_InvalidateRibbon
     AssertFalse Rx_IsEnabledFor(""), "PowerPoint: cinza sem grafico"
@@ -727,4 +737,35 @@ Public Sub Test_Ribbon_IconFallbackMso_AreValid()
         checked = checked + 1
     Next
     AssertEqual 13, checked, "uma reserva por icone da tabela"
+End Sub
+
+' Onda B (B3.10): loader novo com core anterior (sem os procedimentos novos): Loader_RunCore marca o procedimento inexistente e os botoes
+' sempre ativos (Arredondar intervalo, PowerPoint) avisam que e preciso atualizar em vez de nao fazer nada. Com o core atual: sem o aviso.
+Public Sub Test_Ribbon_FeatureWithOlderCore_AsksToUpdate()
+    Dim en As Long, ed As String
+    On Error GoTo Cleanup
+    If Loader_CoreWorkbook() Is Nothing Then Loader_Log "TestRibbon: core nao carregado (pulado)": Exit Sub
+    Loader_RunCore "Core_NaoExisteOndaB"
+    AssertTrue Loader_RunCoreMissed(), "procedimento inexistente no core"
+    Loader_RunCore "Core_Version"
+    AssertFalse Loader_RunCoreMissed(), "a chamada seguinte zera a marca"
+    Rx_TestSetFeatureProcSuffix "_inexistente"
+    Loader_LastMsg = ""
+    Rx_OnRoundRange Nothing
+    AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "Arredondar intervalo"
+    Loader_LastMsg = ""
+    Rx_OnPptImage Nothing
+    AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "PowerPoint (imagem)"
+    Loader_LastMsg = ""
+    Rx_OnPptChart Nothing
+    AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "PowerPoint (grafico vinculado)"
+    Rx_TestSetFeatureProcSuffix ""
+    Loader_LastMsg = ""
+    Rx_OnPptImage Nothing                                       ' core atual, sem grafico ativo: nada (o core decide), sem o aviso
+    AssertTrue Loader_LastMsg <> RX_MSG_UPDATE, "core atual: sem o aviso de atualizar"
+    Err.Clear                                                   ' os botoes usam On Error Resume Next: um erro ja tratado no core nao e falha aqui
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    Rx_TestSetFeatureProcSuffix ""
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
 End Sub

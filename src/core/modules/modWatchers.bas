@@ -54,6 +54,15 @@ Public Sub Watchers_Rehook()
     Next
 End Sub
 
+' Estado dos observadores (para quem precisa restaura-lo, como os testes da faixa): ligados (eventos do aplicativo) e o loader registrado.
+Public Function Watchers_IsActive() As Boolean
+    Watchers_IsActive = Not mAppEvents Is Nothing
+End Function
+
+Public Function Watchers_LoaderName() As String
+    Watchers_LoaderName = mLoaderName
+End Function
+
 Public Function Watchers_Count() As Long
     If mWatchers Is Nothing Then Exit Function
     Watchers_Count = mWatchers.Count

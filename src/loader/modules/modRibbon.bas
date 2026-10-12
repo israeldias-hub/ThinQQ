@@ -6,6 +6,8 @@ Private mHasChartValid As Boolean
 Private mSupports As Object         ' cache de Core_Supports por ciclo de Invalidate: Scripting.Dictionary tag -> Boolean
 Private mSupportsMissing As Boolean ' o core nao tem Core_Supports (versao 1.0.0) ou nao esta carregado: vale ate o fim do ciclo
 Private mSupportsProc As String     ' gancho de teste (Rx_TestSetSupportsProc); vazio = "Core_Supports"
+Private mTestProcSuffix As String   ' gancho de teste (Rx_TestSetFeatureProcSuffix): simula um core sem os procedimentos novos
+Public Const RX_MSG_UPDATE As String = "Atualize o ThinQQ para usar este recurso."
 Public Const TUTORIAL_URL As String = "https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html"
 
 Public Sub Rx_OnLoad(ribbon As IRibbonUI)
@@ -26,6 +28,23 @@ Public Sub Rx_TestSetSupportsProc(procName As String)
     If BUILD_CONFIG <> "Test" Then Exit Sub
     mSupportsProc = procName
     ResetRibbonCaches
+End Sub
+
+' Gancho de teste: sufixo acrescentado ao nome dos procedimentos dos recursos sempre ativos (Arredondar intervalo, PowerPoint) para simular
+' um core anterior que nao os tem ("" desarma). So existe no build de Teste.
+Public Sub Rx_TestSetFeatureProcSuffix(suffix As String)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestProcSuffix = suffix
+End Sub
+
+' Recurso sempre ativo na faixa (sem consulta a matriz): com um core anterior carregado o procedimento nao existe e Loader_RunCore so
+' registraria; avisa que e preciso atualizar (como Rx_OnSamples).
+Private Sub RunCoreFeature(procName As String, Optional arg As Variant)
+    Dim p As String
+    p = procName
+    If BUILD_CONFIG = "Test" Then p = p & mTestProcSuffix
+    If IsMissing(arg) Then Loader_RunCore p Else Loader_RunCore p, arg
+    If Loader_RunCoreMissed() Then RxMsg RX_MSG_UPDATE, vbInformation
 End Sub
 
 ' Unico ponto de MsgBox do modulo: em build de Teste apenas registra (nunca bloqueia).
@@ -198,21 +217,22 @@ Public Sub Rx_OnAxisBreakOff(control As IRibbonControl)
     Loader_InvalidateRibbon
 End Sub
 
-' Arredondar intervalo: age sobre as celulas selecionadas (sem grafico); o botao fica sempre ativo e nao muda o estado da faixa.
+' Arredondar intervalo: age sobre as celulas selecionadas (sem grafico); o botao fica sempre ativo e nao muda o estado da faixa. Core anterior
+' (sem o procedimento): aviso de atualizar (RunCoreFeature).
 Public Sub Rx_OnRoundRange(control As IRibbonControl)
     On Error Resume Next
-    If CoreOrWarn() Then Loader_RunCore "Core_RoundRange"
+    If CoreOrWarn() Then RunCoreFeature "Core_RoundRange"
 End Sub
 
-' Copiar para o PowerPoint (imagem ou grafico vinculado): nao muda o grafico nem o estado da faixa.
+' Copiar para o PowerPoint (imagem ou grafico vinculado): nao muda o grafico nem o estado da faixa. Core anterior: aviso de atualizar.
 Public Sub Rx_OnPptImage(control As IRibbonControl)
     On Error Resume Next
-    If CoreOrWarn() Then Loader_RunCore "Core_CopyToPowerPoint", "image"
+    If CoreOrWarn() Then RunCoreFeature "Core_CopyToPowerPoint", "image"
 End Sub
 
 Public Sub Rx_OnPptChart(control As IRibbonControl)
     On Error Resume Next
-    If CoreOrWarn() Then Loader_RunCore "Core_CopyToPowerPoint", "chart"
+    If CoreOrWarn() Then RunCoreFeature "Core_CopyToPowerPoint", "chart"
 End Sub
 
 Public Sub Rx_OnSamples(control As IRibbonControl)

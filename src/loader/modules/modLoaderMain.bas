@@ -5,6 +5,7 @@ Private mRootOverride As String
 Private mStartupCheckAt As Date
 Private Const SWAP_FLAG_MAX_MINUTES As Double = 5
 Public Loader_LastMsg As String      ' ultima mensagem enviada por Loader_Msg ou pela faixa (RxMsg) (usada nos testes)
+Private mRunMissing As Boolean      ' o ultimo Loader_RunCore falhou porque o core carregado nao tem o procedimento (core anterior ao loader)
 
 Public Function Loader_Ping() As String
     Loader_Ping = "pong"
@@ -220,6 +221,7 @@ End Function
 ' Encaminha uma chamada ao core. Retorna Empty se o core não estiver carregado.
 Public Function Loader_RunCore(procName As String, ParamArray args() As Variant) As Variant
     Dim macro As String
+    mRunMissing = False
     If Loader_CoreWorkbook() Is Nothing Then Exit Function
     macro = "'" & Loader_CoreFileName() & "'!" & procName
     Dim n As Long
@@ -237,7 +239,14 @@ RunFail:
     Dim en As Long, ed As String
     en = Err.Number: ed = Err.Description
     Loader_RunCore = Empty
+    mRunMissing = (en = 1004 And InStr(1, ed, procName, vbTextCompare) > 0)     ' macro inexistente: o Excel cita o nome dela
     Loader_Log "Loader_RunCore(" & procName & ") erro " & en & ": " & ed
+End Function
+
+' True se o ultimo Loader_RunCore falhou porque o core carregado nao tem o procedimento (erro 1004 citando o nome: um core mais antigo que o
+' loader, como o 1.1.0 com o loader 1.2.0). Ler logo depois da chamada.
+Public Function Loader_RunCoreMissed() As Boolean
+    Loader_RunCoreMissed = mRunMissing
 End Function
 
 Public Function Loader_CurrentCoreVersion() As String
