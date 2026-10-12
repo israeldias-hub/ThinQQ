@@ -45,7 +45,13 @@ Public Sub Test_Stacked_SegmentLabels_CenteredWithFormat()
     Set cht = Stacked_Insert(d.Source.Worksheet, d, "stacked").Chart
     AssertTrue cht.SeriesCollection(1).HasDataLabels
     AssertEqual xlLabelPositionCenter, cht.SeriesCollection(1).DataLabels.Position
-    AssertEqual "#,##0;-#,##0;", cht.SeriesCollection(1).DataLabels.NumberFormat   ' getter devolve o código neutro (gravado por NumberFormatLocal)
+    ' Formato pelo NumberFormatLocal (o que o rotulo usa) e pelo texto desenhado. O getter NumberFormat devolve o codigo neutro, MAS (medido na
+    ' Onda A) na mesma sessao em que um grafico foi movido para folha de grafico e um eixo recebeu um formato com cor ([Vermelho]0%) ele passa a
+    ' devolver o codigo local, com o texto desenhado certo: aceita os dois.
+    AssertEqual Style_LocalizeCode("#,##0;-#,##0;"), cht.SeriesCollection(1).DataLabels.NumberFormatLocal
+    AssertTrue cht.SeriesCollection(1).DataLabels.NumberFormat = "#,##0;-#,##0;" Or cht.SeriesCollection(1).DataLabels.NumberFormat = Style_LocalizeCode("#,##0;-#,##0;"), "getter: " & cht.SeriesCollection(1).DataLabels.NumberFormat
+    d.Source.Cells(2, 2).Value = 1234
+    AssertEqual Format$(1234, "#,##0"), cht.SeriesCollection(1).Points(1).DataLabel.Text, "milhar desenhado na localidade"
     Stacked_SetLabels cht, False
     AssertFalse cht.SeriesCollection(1).HasDataLabels
     AssertEqual "0", Registry_GetOption(cht, "labels")
