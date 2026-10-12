@@ -27,6 +27,9 @@ Public Util_LabelBudgetForTest As Long
 
 ' Gancho de teste (so com BUILD_CONFIG = "Test"): nome do ChartObject cuja leitura da escala automatica (Deco_SameScale) falha ("" = nenhum).
 Public Util_FailScaleReadChartForTest As String
+' Gancho de teste (so com BUILD_CONFIG = "Test") dos rotulos de segmento finos da cascata (SyncThinSegmentLabels): "read:j.i" falha a leitura
+' de Points(i).HasDataLabel da serie j, "link:j.i" falha ao religar esse ponto, "series:j" falha ao comecar a serie j ("" = nenhum).
+Public Util_FailThinSyncForTest As String
 
 Public Sub Util_TestHookAfterBlock()
     If BUILD_CONFIG = "Test" Then

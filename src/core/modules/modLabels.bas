@@ -313,10 +313,12 @@ End Function
 ' O ThinQQ só religa o que ELE escondeu: cada par série.ponto escondido aqui fica registrado na opção "thinlbl" (ex.: "2.2,3.4") e sai dela ao ser
 ' religado; um rótulo que falta e não está na lista foi apagado pelo usuário e fica apagado. Waterfall_SetLabels (religar ou desligar todos os
 ' rótulos) limpa a lista. A opção vive na meta do bloco: mover o gráfico, copiá-lo ou Atualizar não a perdem.
+' A lista é transacional: um ponto cuja leitura falha fica como está (sem herdar o estado do ponto anterior); um par só sai da lista quando
+' religar deu certo; e a lista é gravada também na saída por erro (o que já foi escondido nesta passada fica registrado).
 Private Sub SyncThinSegmentLabels(cht As Chart, body As Range, horiz As Boolean)
     Dim ns As Long, j As Long, i As Long, n As Long, s As Series, mn As Double, mx As Double, k As Double, dcol As Long, c As Range
     Dim txt As String, need As Double, want As Boolean, fmt As String, sheetRef As String, fc As Long, v As Double
-    Dim list0 As String, list As String, key As String, has As Boolean, mine As Boolean
+    Dim list0 As String, list As String, key As String, has As Boolean, mine As Boolean, en As Long, ed As String
     On Error GoTo Done
     If mLinking > 0 Then Exit Sub                   ' refresh reentrante no meio de Labels_LinkPoints: o refresh final refaz
     ns = Waterfall_SeriesCount(cht)
@@ -331,6 +333,7 @@ Private Sub SyncThinSegmentLabels(cht As Chart, body As Range, horiz As Boolean)
     list = list0
     For j = 1 To ns
         Set s = Chart_FindSeries(cht, "tqq_lbl_" & j)
+        ThinTestHook "series", CStr(j)
         If Not s Is Nothing Then
             dcol = Waterfall_SeriesCol(j, "D")
             fc = Style_ContrastFont(Style_DataSeriesColor(cht, j))
@@ -345,17 +348,23 @@ Private Sub SyncThinSegmentLabels(cht As Chart, body As Range, horiz As Boolean)
                         key = j & "." & i
                         mine = ThinListHas(list, key)
                         On Error Resume Next
-                        has = s.Points(i).HasDataLabel
-                        If has Then
+                        has = False
+                        Err.Clear
+                        ThinTestHook "read", key
+                        If Err.Number = 0 Then has = s.Points(i).HasDataLabel
+                        If Err.Number <> 0 Then
+                            ' leitura falhou: o ponto fica como esta (o erro e registrado abaixo)
+                        ElseIf has Then
                             If Not want Then
                                 s.Points(i).HasDataLabel = False
-                                If Not mine Then list = ThinListAdd(list, key)
+                                If Err.Number = 0 And Not mine Then list = ThinListAdd(list, key)
                             ElseIf mine Then
                                 list = ThinListRemove(list, key)          ' o rotulo existe de novo (religado por outro caminho): nao e mais nosso
                             End If
                         ElseIf want And mine Then                        ' so o que o ThinQQ escondeu; o apagado pelo usuario fica apagado
-                            LinkOnePoint s, i, sheetRef & c.Address(True, True), c.Value, fmt, xlLabelPositionCenter, fc, horiz
-                            list = ThinListRemove(list, key)
+                            ThinTestHook "link", key
+                            If Err.Number = 0 Then LinkOnePoint s, i, sheetRef & c.Address(True, True), c.Value, fmt, xlLabelPositionCenter, fc, horiz
+                            If Err.Number = 0 Then list = ThinListRemove(list, key)       ' so sai da lista se religou
                         End If
                         If Err.Number <> 0 Then Errors_Log "Labels/segmento fino" & vbTab & s.Name & " ponto " & i & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
                         On Error GoTo Done
@@ -364,9 +373,20 @@ Private Sub SyncThinSegmentLabels(cht As Chart, body As Range, horiz As Boolean)
             Next
         End If
     Next
-    If list <> list0 Then Registry_SetOption cht, "thinlbl", list
 Done:
-    If Err.Number <> 0 Then Errors_Log "Labels/segmentos finos" & vbTab & Err.Number & vbTab & Err.Description
+    en = Err.Number: ed = Err.Description
+    On Error Resume Next
+    If list <> list0 Then Registry_SetOption cht, "thinlbl", list       ' tambem na saida por erro: o que ja foi escondido fica registrado
+    If en <> 0 Then Errors_Log "Labels/segmentos finos" & vbTab & en & vbTab & ed
+End Sub
+
+' Gancho de teste de SyncThinSegmentLabels (Util_FailThinSyncForTest = "site:chave"); inerte fora do build Test.
+Private Sub ThinTestHook(site As String, key As String)
+    If BUILD_CONFIG = "Test" Then
+        If Len(Util_FailThinSyncForTest) > 0 Then
+            If Util_FailThinSyncForTest = site & ":" & key Then Err.Raise vbObjectError + 9996, "ThinQQ", "Falha simulada (teste) " & site & " " & key
+        End If
+    End If
 End Sub
 
 ' Lista "serie.ponto,serie.ponto" da opcao thinlbl.

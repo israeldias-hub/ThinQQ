@@ -1339,3 +1339,68 @@ Public Sub Test_BarWaterfallMulti_NegativeTotalNearAxisMin_GoesInside()
     Watchers_Stop
     CloseTemp wb
 End Sub
+
+' Onda final (I-1): a lista "thinlbl" e transacional. (c) uma falha numa serie posterior nao perde o registro do que ja foi escondido na passada;
+' (a) um ponto cuja leitura falha fica como esta (nao herda o estado do ponto anterior); (b) um par so sai da lista quando religar deu certo.
+' Falhas injetadas pelo gancho de teste Util_FailThinSyncForTest.
+Private Function ThinHas(cht As Chart, key As String) As Boolean
+    ThinHas = (InStr("," & Registry_GetOption(cht, "thinlbl", "") & ",", "," & key & ",") > 0)
+End Function
+
+Public Sub Test_WaterfallMulti_ThinList_IsTransactional()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, l2 As Series, en As Long, es As String, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Ponte"
+    ws.Range("A1:D1").Value = Array("Etapa", "Loja", "Online", "Extra")
+    ws.Range("A2:D2").Value = Array("Inicio", 100, 50, 20)
+    ws.Range("A3:D3").Value = Array("Ajuste", -30, 10, 5)
+    ws.Range("A4:D4").Value = Array("Subtotal", "e", "e", "e")
+    ws.Range("A5:D5").Value = Array("Queda", -200, -20, 4)
+    ws.Range("A6:B6").Value = Array("Fim", "e")
+    ws.Range("A1:D6").Select
+    On Error GoTo Cleanup
+    Core_Insert "waterfall"
+    Set cht = Core_ActiveChart()
+    AssertTrue ThinHas(cht, "2.2") And ThinHas(cht, "3.2"), "pre-condicao: finos registrados (" & Registry_GetOption(cht, "thinlbl", "") & ")"
+    ' (c) falha ao comecar a serie 3: o 2.2 escondido antes da falha fica registrado
+    Core_SetToggle "labels", False
+    Util_FailThinSyncForTest = "series:3"
+    Core_SetToggle "labels", True
+    Util_FailThinSyncForTest = ""
+    Set l2 = Chart_FindSeries(cht, "tqq_lbl_2")
+    AssertFalse l2.Points(2).HasDataLabel, "(c) 2.2 escondido antes da falha"
+    AssertTrue ThinHas(cht, "2.2"), "(c) e registrado mesmo com a falha na serie 3: <" & Registry_GetOption(cht, "thinlbl", "") & ">"
+    Core_SafeRefresh cht
+    ' (a) leitura do ponto 2.2 falha: o rotulo (ja religado e visivel) fica como esta, sem herdar o estado do ponto 2.1
+    ws.Range("C3").Value = 60
+    Core_SafeRefresh cht
+    AssertTrue l2.Points(2).HasDataLabel, "pre-condicao: 2.2 religado"
+    AssertFalse ThinHas(cht, "2.2")
+    Util_FailThinSyncForTest = "read:2.2"
+    ws.Range("C3").Value = 10
+    Core_SafeRefresh cht
+    Util_FailThinSyncForTest = ""
+    AssertTrue l2.Points(2).HasDataLabel, "(a) ponto ilegivel fica como esta"
+    AssertFalse ThinHas(cht, "2.2"), "(a) e nao entra na lista"
+    ' (b) religar falha: o par continua na lista e e religado na proxima atualizacao
+    Core_SafeRefresh cht
+    AssertFalse l2.Points(2).HasDataLabel, "pre-condicao: 2.2 escondido de novo"
+    AssertTrue ThinHas(cht, "2.2")
+    Util_FailThinSyncForTest = "link:2.2"
+    ws.Range("C3").Value = 60
+    Core_SafeRefresh cht
+    Util_FailThinSyncForTest = ""
+    AssertTrue ThinHas(cht, "2.2"), "(b) religar falhou: o par continua na lista"
+    Core_SafeRefresh cht
+    AssertTrue l2.Points(2).HasDataLabel, "(b) religado na atualizacao seguinte"
+    AssertFalse ThinHas(cht, "2.2")
+    Util_FailThinSyncForTest = ""
+    Watchers_Stop
+    CloseTemp wb
+    Exit Sub
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    Watchers_Stop
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub
