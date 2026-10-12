@@ -89,7 +89,7 @@ Public Function Core_Supports(feature As String) As Boolean
     Set c = Core_ActiveChart()
     If c Is Nothing Then Exit Function
     If feature = "changesource" Then
-        Core_Supports = True
+        Core_Supports = True                                  ' reservado: nenhum controle da faixa consulta "changesource" hoje (Alterar dados vale para todo grafico ThinQQ)
     Else
         Core_Supports = Kinds_SupportsChart(c, feature)       ' inclui a regra da legenda da cascata (so com varias series)
     End If
@@ -727,6 +727,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     On Error GoTo FailNew
     Registry_Block(nc).Cells(1, 4).Value = opts
     Registry_SetOption nc, "n", CStr(data.CategoryCount)     ' as opções antigas trazem o n da tabela anterior
+    If Len(Registry_GetOption(nc, "thinlbl", "")) > 0 Then Registry_SetOption nc, "thinlbl", ""      ' rotulos finos escondidos: pontos do grafico antigo
     ReapplyOptions nc                           ' formato, paleta, espaco, alternadores, escala fixa e legenda: as ESCOLHAS salvas do usuario
     oldCo.Delete
     ' A partir daqui o gráfico antigo não existe mais: nada pode apagar o novo. Falhas só são registradas.
