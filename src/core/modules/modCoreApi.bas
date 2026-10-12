@@ -951,7 +951,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     On Error GoTo Fail
     Dim co As ChartObject, oldCo As ChartObject, data As clsChartData, msg As String
     Dim kind As String, opts As String, ws As Worksheet, wb As Workbook, nc As Chart, prevSU As Boolean
-    Dim l As Double, t As Double, w As Double, h As Double
+    Dim l As Double, t As Double, w As Double, h As Double, keepKeys As Variant, keepVals(5) As String, ki As Long
     prevSU = Application.ScreenUpdating
     Set oldCo = c.Parent
     Set ws = oldCo.Parent: Set wb = ws.Parent
@@ -976,7 +976,16 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     Set co = Kinds_Insert(ws, data, kind)
     Set nc = co.Chart
     On Error GoTo FailNew
+    ' escala e formato dos eixos da dispersao/bolhas: os que o grafico NOVO calculou para os dados novos (os do antigo fariam o refresh nao
+    ' reconhecer a propria escala e congelar o eixo)
+    keepKeys = Array("xscale", "yscale", "xfmt", "yfmt", "xsrc", "ysrc")
+    For ki = 0 To 5
+        keepVals(ki) = Registry_GetOption(nc, CStr(keepKeys(ki)), "")
+    Next
     Registry_Block(nc).Cells(1, 4).Value = opts
+    For ki = 0 To 5
+        If Registry_GetOption(nc, CStr(keepKeys(ki)), "") <> keepVals(ki) Then Registry_SetOption nc, CStr(keepKeys(ki)), keepVals(ki)
+    Next
     Registry_SetOption nc, "n", CStr(data.CategoryCount)     ' as opções antigas trazem o n da tabela anterior
     If Len(Registry_GetOption(nc, "thinlbl", "")) > 0 Then Registry_SetOption nc, "thinlbl", ""      ' rotulos finos escondidos: pontos do grafico antigo
     If Len(Registry_GetOption(nc, "outlbl", "")) > 0 Then Registry_SetOption nc, "outlbl", ""        ' rotulos postos fora da barra fina (borboleta): idem

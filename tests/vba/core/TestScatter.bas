@@ -743,3 +743,45 @@ Cleanup:
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, es, ed
 End Sub
+
+' Escala gravada (xscale/yscale) do eixo k igual a do eixo real (minimo|maximo|passo)?
+Private Function ScaleMatchesAxis(cht As Chart, k As Long) As Boolean
+    Dim p As Variant, ax As Axis
+    Set ax = cht.Axes(IIf(k = 1, xlCategory, xlValue), xlPrimary)
+    p = Split(Registry_GetOption(cht, IIf(k = 1, "xscale", "yscale"), ""), "|")
+    If UBound(p) < 2 Then Exit Function
+    If ax.MinimumScaleIsAuto Or ax.MaximumScaleIsAuto Or ax.MajorUnitIsAuto Then Exit Function
+    ScaleMatchesAxis = Abs(ax.MinimumScale - Val(p(0))) < 0.000001 And Abs(ax.MaximumScale - Val(p(1))) < 0.000001 And Abs(ax.MajorUnit - Val(p(2))) < 0.000001
+End Function
+
+' Revisao final: "Alterar dados" numa dispersao guarda a escala e o formato que o grafico NOVO calculou (xscale/yscale/xfmt/yfmt/xsrc/ysrc), nao
+' os do grafico antigo: senao o refresh nao reconhece a propria escala, congela o eixo e o ponto alem do maximo antigo some.
+Public Sub Test_Scatter_Rebuild_KeepsNewScaleAndReTightens()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, nc As Chart, axX As Axis, i As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Loja", "Ticket", "Margem")
+    ws.Range("E1:G1").Value = Array("Loja", "Ticket", "Margem")
+    For i = 0 To 4
+        ws.Cells(2 + i, 1).Value = "L" & (i + 1): ws.Cells(2 + i, 2).Value = 20 + 7.5 * i: ws.Cells(2 + i, 3).Value = 21 + 7 * i
+        ws.Cells(2 + i, 5).Value = "M" & (i + 1): ws.Cells(2 + i, 6).Value = 100 + 10 * i: ws.Cells(2 + i, 7).Value = 21 + 7 * i
+    Next
+    ws.Range("F2:F6").NumberFormat = "0.0"
+    ws.Range("A1:C6").Select
+    Core_Insert "scatter"
+    Set cht = Core_ActiveChart()
+    AssertTrue ScaleMatchesAxis(cht, 1), "antes: escala X gravada = eixo"
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("E1:G6")), "Alterar dados (" & Core_LastNotice() & ")"
+    Set nc = Core_ActiveChart(): Set axX = nc.Axes(xlCategory, xlPrimary)
+    AssertTrue axX.MinimumScale > 50 And axX.MaximumScale >= 140, "eixo X do grafico novo apertado nos dados novos (" & axX.MinimumScale & ".." & axX.MaximumScale & ")"
+    AssertTrue ScaleMatchesAxis(nc, 1), "escala X gravada = eixo do grafico novo (" & Registry_GetOption(nc, "xscale", "") & ")"
+    AssertTrue ScaleMatchesAxis(nc, 2), "escala Y gravada = eixo do grafico novo (" & Registry_GetOption(nc, "yscale", "") & ")"
+    AssertTrue Len(Registry_GetOption(nc, "xfmt", "")) > 0, "formato X da origem nova gravado"
+    ws.Range("F6").Value = 175                                  ' alem do maximo: o ThinQQ aperta de novo
+    Core_SafeRefresh nc
+    AssertTrue axX.MaximumScale >= 175, "o ponto novo fica dentro do eixo (" & axX.MaximumScale & ")"
+    AssertTrue ScaleMatchesAxis(nc, 1), "escala regravada"
+    ws.Range("F2:F6").NumberFormat = "0.00"
+    Core_SafeRefresh nc
+    AssertEqual ws.Range("F2").NumberFormatLocal, axX.TickLabels.NumberFormatLocal, "o formato do eixo continua seguindo a coluna"
+    Teardown wb
+End Sub
