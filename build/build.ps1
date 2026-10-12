@@ -5,6 +5,7 @@
 param(
     [ValidateSet('loader','core','all')] [string]$Target = 'all',
     [ValidateSet('Release','Test')]      [string]$Configuration = 'Release',
+    [ValidateSet('Png','Mso')] [string]$RibbonIcons = 'Png',   # Png: icones proprios no pacote; Mso: imageMso de reserva (sem imagens)
     [switch]$Install,
     [int]$TimeoutSec = 180   # watchdog por alvo: mata o Excel iniciado aqui se não terminar (saída 2)
 )
@@ -80,7 +81,7 @@ foreach ($t in $targets) {
     }
     if ($timedOut) { Write-ExcelTimeout $wd; exit 2 }
 
-    if ($t -eq 'loader') { Add-RibbonToPackage -PackagePath $outPath -RibbonXmlPath (Join-Path $srcDir 'ribbon\customUI14.xml') }
+    if ($t -eq 'loader') { Add-RibbonToPackage -PackagePath $outPath -RibbonXmlPath (Join-Path $srcDir 'ribbon\customUI14.xml') -Icons $RibbonIcons }
     Write-Host "OK  $outPath"
 }
 

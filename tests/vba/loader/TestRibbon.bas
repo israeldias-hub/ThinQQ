@@ -498,3 +498,37 @@ Public Sub Test_Ribbon_ScaleButtons_ReachCore_WithoutBlocking()
     AssertTrue InStr(CStr(Loader_RunCore("Core_LastNotice")), "Escala automática") > 0, "Core_ResetScale nao foi chamado: " & CStr(Loader_RunCore("Core_LastNotice"))
     CloseTemp wb
 End Sub
+
+' Icones proprios (Fase 3): nomes image= no padrao tqq_<nome>[16] e nunca junto de imageMso no mesmo controle (Tarefa 8 exige >= 13).
+Public Sub Test_Ribbon_Images_NamesAndNoDoubleIcon()
+    Dim d As Object, n As Object, re As Object, nm As String, c As Long
+    Set d = LoadRibbon()
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = "^tqq_[a-z0-9_]+$"
+    For Each n In d.SelectNodes("//*[@image]")
+        nm = n.Attributes.getNamedItem("image").Text
+        AssertTrue re.Test(nm), "nome de imagem invalido: " & nm
+        AssertTrue n.Attributes.getNamedItem("imageMso") Is Nothing, "image e imageMso no mesmo controle: " & n.Attributes.getNamedItem("id").Text
+        c = c + 1
+    Next
+    AssertTrue c >= 0
+End Sub
+
+' As reservas imageMso da tabela de icones (build\lib\Ribbon-Icons.ps1, usadas no modo -RibbonIcons Mso) existem neste Office. O teste
+' Test_Ribbon_ImageMso_AreValid le o XML fonte e nunca ve as reservas.
+Public Sub Test_Ribbon_IconFallbackMso_AreValid()
+    Dim txt As String, re As Object, m As Object, pic As Object, checked As Long
+    txt = Transport_ReadTextFile(RepoPath() & "\build\lib\Ribbon-Icons.ps1")
+    Set re = CreateObject("VBScript.RegExp")
+    re.Global = True
+    re.Pattern = "Mso = '([^']+)'"
+    For Each m In re.Execute(txt)
+        Set pic = Nothing
+        On Error Resume Next
+        Set pic = Application.CommandBars.GetImageMso(CStr(m.SubMatches(0)), 16, 16)
+        On Error GoTo 0
+        AssertTrue Not pic Is Nothing, "imageMso de reserva invalido: " & m.SubMatches(0)
+        checked = checked + 1
+    Next
+    AssertEqual 13, checked, "uma reserva por icone da tabela"
+End Sub

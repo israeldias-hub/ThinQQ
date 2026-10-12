@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 
 $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $script:DistDir  = Join-Path $script:RepoRoot 'dist'
+. "$PSScriptRoot\Ribbon-Icons.ps1"
 
 function Assert-VbomTrusted {
     $key = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security'
@@ -114,31 +115,50 @@ function Add-FormFromJson($vbproj, [string]$JsonPath, [string]$CodePath) {
     }
 }
 
-# Insere customUI/customUI14.xml no pacote (zip) e a relação em _rels/.rels.
-function Add-RibbonToPackage([string]$PackagePath, [string]$RibbonXmlPath) {
+# Insere customUI/customUI14.xml no pacote (zip), a relacao em _rels/.rels e, no modo Png, os icones proprios: customUI/images/<nome>.png
+# para cada image= do XML, customUI/_rels/customUI14.xml.rels (Id = nome) e o content type png. Modo Mso: XML com imageMso de reserva, sem imagens.
+function Add-RibbonToPackage([string]$PackagePath, [string]$RibbonXmlPath, [ValidateSet('Png','Mso')][string]$Icons = 'Png') {
     [void]([xml](Get-Content $RibbonXmlPath -Raw))   # falha cedo se o XML estiver malformado
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $xmlText = [IO.File]::ReadAllText($RibbonXmlPath, (New-Object Text.UTF8Encoding($false)))
+    $images = @([regex]::Matches($xmlText, 'image="([^"]+)"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    if ($Icons -eq 'Mso') { $xmlText = Convert-TqqRibbonToMso -Xml $xmlText; $images = @() }
+    $specs = Get-TqqIconSpecs
+    foreach ($img in $images) { if (-not $specs.Contains(($img -replace '16$', ''))) { throw "customUI14.xml usa image=`"$img`" sem icone na tabela (Ribbon-Icons.ps1)" } }
+    $iconDir = $null
+    if ($images.Count -gt 0) { $iconDir = Join-Path ([IO.Path]::GetTempPath()) ("thinqq_icons_" + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $iconDir | Out-Null; [void](Export-TqqIcons -OutDir $iconDir) }
     $zip = [System.IO.Compression.ZipFile]::Open($PackagePath, [System.IO.Compression.ZipArchiveMode]::Update)
     try {
-        $existing = $zip.GetEntry('customUI/customUI14.xml')
-        if ($existing) { $existing.Delete() }
-        $entry = $zip.CreateEntry('customUI/customUI14.xml')
-        $bytes = [System.IO.File]::ReadAllBytes($RibbonXmlPath)
-        $s = $entry.Open(); $s.Write($bytes, 0, $bytes.Length); $s.Dispose()
-
+        function Set-ZipText($zip, [string]$name, [string]$text) {
+            $old = $zip.GetEntry($name); if ($old) { $old.Delete() }
+            $e = $zip.CreateEntry($name); $w = New-Object System.IO.StreamWriter($e.Open(), (New-Object System.Text.UTF8Encoding($false))); $w.Write($text); $w.Dispose()
+        }
+        if ($Icons -eq 'Mso') {
+            Set-ZipText $zip 'customUI/customUI14.xml' $xmlText
+        } else {
+            $existing = $zip.GetEntry('customUI/customUI14.xml'); if ($existing) { $existing.Delete() }
+            $entry = $zip.CreateEntry('customUI/customUI14.xml'); $bytes = [IO.File]::ReadAllBytes($RibbonXmlPath); $s = $entry.Open(); $s.Write($bytes, 0, $bytes.Length); $s.Dispose()
+        }
         $relsEntry = $zip.GetEntry('_rels/.rels')
-        $reader = New-Object System.IO.StreamReader($relsEntry.Open())
-        $rels = $reader.ReadToEnd(); $reader.Dispose()
+        $reader = New-Object System.IO.StreamReader($relsEntry.Open()); $rels = $reader.ReadToEnd(); $reader.Dispose()
         if ($rels -notmatch 'customUI/customUI14\.xml') {
             $rel = '<Relationship Id="rIdThinQQ" Type="http://schemas.microsoft.com/office/2007/relationships/ui/extensibility" Target="customUI/customUI14.xml"/>'
-            $rels = $rels -replace '</Relationships>', "$rel</Relationships>"
-            $relsEntry.Delete()
-            $newRels = $zip.CreateEntry('_rels/.rels')
-            $w = New-Object System.IO.StreamWriter($newRels.Open(), (New-Object System.Text.UTF8Encoding($false)))
-            $w.Write($rels); $w.Dispose()
+            Set-ZipText $zip '_rels/.rels' ($rels -replace '</Relationships>', "$rel</Relationships>")
         }
-    } finally { $zip.Dispose() }
+        foreach ($old in @($zip.Entries | Where-Object { $_.FullName -like 'customUI/images/*' -or $_.FullName -eq 'customUI/_rels/customUI14.xml.rels' })) { $old.Delete() }
+        if ($images.Count -gt 0) {
+            foreach ($img in $images) {
+                $e = $zip.CreateEntry("customUI/images/$img.png"); $b = [IO.File]::ReadAllBytes((Join-Path $iconDir "$img.png")); $s = $e.Open(); $s.Write($b, 0, $b.Length); $s.Dispose()
+            }
+            $imgRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+                (($images | ForEach-Object { '<Relationship Id="' + $_ + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/' + $_ + '.png"/>' }) -join '') + '</Relationships>'
+            Set-ZipText $zip 'customUI/_rels/customUI14.xml.rels' $imgRels
+            $ctEntry = $zip.GetEntry('[Content_Types].xml')
+            $reader = New-Object System.IO.StreamReader($ctEntry.Open()); $ct = $reader.ReadToEnd(); $reader.Dispose()
+            if ($ct -notmatch 'Extension="png"') { Set-ZipText $zip '[Content_Types].xml' ($ct -replace '<Default Extension="rels"', '<Default Extension="png" ContentType="image/png"/><Default Extension="rels"') }
+        }
+    } finally { $zip.Dispose(); if ($iconDir) { Remove-Item $iconDir -Recurse -Force -ErrorAction SilentlyContinue } }
 }
 
 # ---- Watchdog do Excel -------------------------------------------------------
