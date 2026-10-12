@@ -34,6 +34,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - Aviso único quando linhas são inseridas ou removidas na tabela de origem (use Alterar dados).
 - Gráficos 100%: rótulos dos segmentos mostram a participação; o formato escolhido vale para os totais.
 - Rótulo do total em colunas empilhadas de sinais misturados no topo da parte positiva.
+- Espaço vale para todos os grupos de colunas ou barras do gráfico: numa combinação com uma série de colunas levada ao eixo secundário, os dois grupos de colunas recebem o espaço escolhido (antes só o primeiro).
 - Escala automática só desfaz a escala fixa de Mesma escala: um eixo ou uma área de plotagem ajustados à mão ficam como estão, e um mínimo fixado à mão no eixo secundário da combinação não é mais trocado por zero.
 - Pizza: trocar a Paleta não devolve mais à posição padrão um rótulo arrastado nem recria um rótulo apagado (só a cor da fonte acompanha as fatias).
 - Gantt: muitos colchetes não esmagam mais a área do gráfico: o espaço deles vai até 40% da altura do gráfico e os colchetes ficam empilhados dentro desse limite.
