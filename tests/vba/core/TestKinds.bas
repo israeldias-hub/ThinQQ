@@ -354,5 +354,76 @@ Public Sub Test_Style_PaletteRGB()
     AssertEqual RGB(31, 56, 100), Style_PaletteRGB(co.Chart, Style_Palette("padrao")(0))
     AssertEqual RGB(64, 64, 64), Style_PaletteRGB(co.Chart, Style_Palette("cinza")(0))
     AssertEqual wb.Theme.ThemeColorScheme.Colors(msoThemeAccent1).RGB, Style_PaletteRGB(co.Chart, Style_Palette("tema")(0)), "tema: cor de destaque 1 da pasta"
+    AssertEqual RGB(68, 114, 196), Style_PaletteRGB(Nothing, -1), "Onda B: tema sem grafico (leitura falha): cor de reserva"
     CloseTemp wb
+End Sub
+
+' Texto da secao 6 do spec da Fase 3 (a tabela "| feature | tipos |"), lido do arquivo (bytes; so ASCII importa: nomes de recursos e tipos).
+Private Function SpecSection6() As String
+    Dim f As Integer, s As String, p As String, a As Long, b As Long
+    p = RepoPath() & "\docs\superpowers\specs\2026-10-11-thinqq-fase3-design.md"
+    f = FreeFile
+    Open p For Binary Access Read As #f
+    s = Space$(LOF(f))
+    Get #f, , s
+    Close #f
+    a = InStr(s, "## 6. ")
+    b = InStr(a + 1, s, "## 7. ")
+    If a = 0 Or b = 0 Then Err.Raise vbObjectError + 1, "TestKinds", "secao 6 do spec nao encontrada em " & p
+    SpecSection6 = Mid$(s, a, b - a)
+End Function
+
+' Tipos esperados para uma celula "tipos" do spec: lista explicita, "todos" ou "todos exceto a, b"; texto entre parenteses e negrito saem.
+Private Function SpecKinds(cell As String, allKinds As Variant) As String
+    Dim t As String, k As Variant, ex As String, out As String, p As Long, q As Long
+    t = Replace(Replace(cell, "**", ""), "`", "")
+    p = InStr(t, "(")
+    Do While p > 0
+        q = InStr(p, t, ")")
+        If q = 0 Then Exit Do
+        t = Left$(t, p - 1) & Mid$(t, q + 1)
+        p = InStr(t, "(")
+    Loop
+    t = Trim$(t)
+    If Left$(t, 5) = "todos" Then
+        If InStr(t, "exceto") > 0 Then ex = "," & Replace(Replace(Trim$(Mid$(t, InStr(t, "exceto") + 6)), " ", ""), vbTab, "") & ","
+        For Each k In allKinds
+            If InStr(ex, "," & k & ",") = 0 Then out = out & k & ","
+        Next
+        SpecKinds = "," & out
+    Else
+        SpecKinds = "," & Replace(t, " ", "") & ","
+    End If
+End Function
+
+' Onda B (B3.9): a matriz inteira (20 tipos x 20 recursos) conferida contra o TEXTO da tabela da secao 6 do spec (nao contra a propria matriz):
+' cada celula da tabela vira o conjunto esperado e todo par (tipo, recurso) e comparado com Kinds_Supports. A legenda da cascata (so com
+' varias series) e conferida com 2 series e, a parte, com 1.
+Public Sub Test_Kinds_Phase3_Matrix_ExhaustiveFromSpec()
+    Dim sec As String, lines() As String, i As Long, cells() As String, feat As String, expect As String, k As Variant, allKinds As Variant
+    Dim nFeat As Long, nPairs As Long, want As Boolean
+    allKinds = Array("stacked", "clustered", "stacked100", "line", "waterfall", "barstacked", "barclustered", "barstacked100", "barwaterfall", _
+        "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut", "butterfly", "scatter", "bubble")
+    AssertEqual 20, UBound(allKinds) + 1
+    sec = SpecSection6()
+    lines = Split(Replace(sec, vbCr, ""), vbLf)
+    For i = LBound(lines) To UBound(lines)
+        If Left$(lines(i), 2) = "| " Then
+            cells = Split(lines(i), "|")
+            feat = Trim$(Replace(cells(1), "**", ""))
+            If feat <> "feature" And Left$(feat, 3) <> "---" Then
+                nFeat = nFeat + 1
+                expect = SpecKinds(cells(2), allKinds)
+                For Each k In allKinds
+                    want = (InStr(expect, "," & k & ",") > 0)
+                    AssertEqual want, Kinds_Supports(CStr(k), feat, 2), feat & " x " & k & " (spec: " & Trim$(cells(2)) & ")"
+                    nPairs = nPairs + 1
+                Next
+            End If
+        End If
+    Next
+    AssertEqual 20, nFeat, "20 recursos na tabela do spec"
+    AssertEqual 400, nPairs
+    AssertFalse Kinds_Supports("waterfall", "legend", 1), "cascata de uma serie: sem legenda"
+    AssertFalse Kinds_Supports("barwaterfall", "legend"), "numero de series desconhecido: sem legenda"
 End Sub

@@ -6,7 +6,8 @@ Private Const TOTAL_LABEL_MARGIN As Double = 4      ' respiro entre o fim do rot
 ' barclustered, barstacked100) e combinação (kind combo, montada por Combo_Insert: as séries 1..S-1 empilham em colunas e a
 ' última é uma linha; Total, TotalPos e VLine só consideram as colunas).
 ' Bloco (corpo): linha 1 = cabeçalhos; colunas: 1 Categoria | 2 Total | 3 TotalPos | (só 100%) 4..3+S Participação de cada série |
-' P = Pos | P+1 = VLine (as duas últimas, em todos os tipos da família; P = Stacked_PosCol, P+1 = Stacked_VLineCol).
+' P = Pos | P+1 = VLine (as duas últimas ao inserir, em todos os tipos da família; a Fase 3 acrescenta colunas à direita sob demanda
+' (LblPos do corte de eixo, RndD/V_j/Rnd_j da soma consistente): Stacked_PosCol e Stacked_VLineCol acham as duas pelo cabeçalho).
 ' TotalPos = posição plotada do rótulo do total: em empilhadas é a extensão positiva da pilha (soma dos valores > 0;
 ' o RÓTULO continua mostrando o total líquido da coluna 2; sem valores positivos, a extensão negativa); em 100% é 1.
 ' Participação = valor / total da linha (0 se o total é 0 ou a célula não é número).

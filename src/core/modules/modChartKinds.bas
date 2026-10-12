@@ -134,8 +134,8 @@ Public Function Kinds_ExpectedCategoryRefs(kind As String, n As Long) As Long
 End Function
 
 ' Despacho da insercao por familia. Cada Insert desfaz o que criou em caso de falha. Todas as familias validas tem
-' implementacao (o Gantt foi a ultima); o ramo 7200 fica como protecao para um tipo valido sem Case (Core_Insert o
-' trata como aviso ao usuario, sem registrar falha).
+' implementacao (as ultimas foram a borboleta e a dispersao/bolhas, na Fase 3); o ramo 7200 fica como protecao para um tipo valido sem
+' Case (Core_Insert o trata como aviso ao usuario, sem registrar falha).
 Public Function Kinds_Insert(ws As Worksheet, data As clsChartData, kind As String) As ChartObject
     Select Case Kinds_Family(kind)
         Case "stacked"

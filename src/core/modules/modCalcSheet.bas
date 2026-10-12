@@ -395,14 +395,19 @@ End Function
 
 ' Coluna do corpo (1..Columns.Count) cujo cabecalho (linha 1 do corpo) e exatamente header; 0 se nao existe. As familias usam esta
 ' busca em vez da posicao: a Fase 3 acrescenta colunas A DIREITA do bloco sob demanda (Block_Extend), e "as duas ultimas colunas" deixam
-' de ser Pos/VLine.
+' de ser Pos/VLine. header "" devolve 0 (casaria a primeira coluna em branco); um cabecalho com erro (#REF!) nao casa nada e nao interrompe
+' a busca (CStr de um erro levantaria 13).
 Public Function Block_FindCol(blk As Range, header As String) As Long
-    Dim j As Long, hdr As Range
+    Dim j As Long, hdr As Range, v As Variant
     If blk Is Nothing Then Exit Function
+    If Len(header) = 0 Then Exit Function
     If blk.Rows.Count < 2 Then Exit Function
     Set hdr = blk.Rows(2)
     For j = 1 To hdr.Cells.Count
-        If CStr(hdr.Cells(1, j).Value) = header Then Block_FindCol = j: Exit Function
+        v = hdr.Cells(1, j).Value
+        If Not IsError(v) Then
+            If CStr(v) = header Then Block_FindCol = j: Exit Function
+        End If
     Next
 End Function
 

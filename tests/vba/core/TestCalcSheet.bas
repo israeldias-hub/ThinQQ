@@ -640,3 +640,44 @@ Public Sub Test_Area_Cols_ByHeader_AfterExtend()
     AssertEqual p, Area_PosCol(blk): AssertEqual v, Area_VLineCol(blk)
     CloseTemp wb
 End Sub
+
+' Onda B (B3.9): cabecalho procurado vazio nao casa a primeira coluna em branco (0); celula de cabecalho com erro (#REF!) nao interrompe a
+' busca com erro 13 (a celula e lida de forma defensiva e a busca continua).
+Public Sub Test_Block_FindCol_EmptyHeader_And_ErrorCell()
+    Dim wb As Workbook, ws As Worksheet, blk As Range
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    Set blk = ws.Range("B2:G4")                                  ' linha 1 = meta, linha 2 = cabecalhos
+    ws.Range("B3:G3").Value = Array("Categoria", "", "Total", "", "Pos", "VLine")
+    ws.Range("E3").Formula = "=NA()"                             ' cabecalho com erro antes de "Pos"
+    AssertEqual 0, Block_FindCol(blk, ""), "cabecalho vazio: 0 (nao a primeira coluna em branco)"
+    AssertEqual 5, Block_FindCol(blk, "Pos"), "o erro em E3 nao interrompe a busca"
+    AssertEqual 6, Block_FindCol(blk, "VLine")
+    AssertEqual 3, Block_FindCol(blk, "Total")
+    CloseTemp wb
+End Sub
+
+' Onda B (B3.9): caminhos de reserva. Bloco legado sem cabecalhos (Fase 1): Pos/VLine pelas duas ultimas colunas e Area_SeriesCount pela
+' largura; Block_Extend com id desconhecido levanta 6015; Block_SourceRange devolve Nothing com o endereco da origem invalido.
+Public Sub Test_Block_Fallbacks_LegacyBlock_UnknownId_BadSource()
+    Dim wb As Workbook, ws As Worksheet, blk As Range, d As clsChartData, cht As Chart, en As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    Set blk = ws.Range("J1:P3")                                  ' 7 colunas sem cabecalhos
+    AssertEqual 6, Stacked_PosCol(blk), "legado: Pos = penultima": AssertEqual 7, Stacked_VLineCol(blk), "legado: VLine = ultima"
+    AssertEqual 6, Area_PosCol(blk): AssertEqual 7, Area_VLineCol(blk)
+    AssertEqual 1, Area_SeriesCount(blk), "legado: (7 - 5) \ 2 series pela largura"
+    On Error Resume Next
+    Block_Extend wb, "naoexiste", 1
+    en = Err.Number
+    On Error GoTo 0
+    AssertEqual vbObjectError + 6015, en, "Block_Extend com id desconhecido"
+    ws.Range("A1:C1").Value = Array("Ano", "Sul", "Norte")
+    ws.Range("A2:C2").Value = Array(2022, 10, 5): ws.Range("A3:C3").Value = Array(2023, 20, 6)
+    Set d = ChartData_FromRange(ws.Range("A1:C3"))
+    Set cht = Stacked_Insert(ws, d, "stacked").Chart
+    AssertFalse Block_SourceRange(cht) Is Nothing, "premissa: origem resolvida"
+    Registry_Block(cht).Cells(1, 3).Value = "'Planilha que nao existe'!$A$1:$C$3"
+    AssertTrue Block_SourceRange(cht) Is Nothing, "planilha inexistente: Nothing"
+    Registry_Block(cht).Cells(1, 3).Value = "sem exclamacao"
+    AssertTrue Block_SourceRange(cht) Is Nothing, "endereco sem planilha: Nothing"
+    CloseTemp wb
+End Sub

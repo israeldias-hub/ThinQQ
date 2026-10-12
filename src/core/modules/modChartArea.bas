@@ -25,6 +25,7 @@ Private Const AREA_TEXT_HEIGHT As Double = 12       ' altura do texto de um rotu
 Public Function Area_BuildBlock(wb As Workbook, id As String, data As clsChartData, kind As String) As Range
     Dim blk As Range, body As Range, i As Long, j As Long, n As Long, ns As Long, is100 As Boolean
     Dim rowCells As Range, srcAddr As String, totAddr As String, totRange As String, valAddr As String, cumExpr As String
+    Dim midC As Long, posC As Long, vlC As Long
     is100 = (kind = "area100")
     n = data.CategoryCount
     ns = data.SeriesCount
@@ -32,8 +33,10 @@ Public Function Area_BuildBlock(wb As Workbook, id As String, data As clsChartDa
     Set body = Block_Body(blk)
     body.Cells(1, 1).Value = "Categoria": body.Cells(1, 2).Value = "Total": body.Cells(1, 3).Value = "TotalPos"
     For j = 1 To ns: body.Cells(1, Area_ValCol(blk, j)).Value = "Val" & j: Next
-    For j = 1 To ns: body.Cells(1, Area_MidCol(blk, j)).Value = "Mid" & j: Next
-    body.Cells(1, Area_PosCol(blk)).Value = "Pos": body.Cells(1, Area_VLineCol(blk)).Value = "VLine"
+    ' colunas lidas UMA vez (cada Area_*Col percorre os cabecalhos): Mid_j = midC + j - 1
+    midC = Area_MidCol(blk, 1): posC = Area_PosCol(blk): vlC = Area_VLineCol(blk)
+    For j = 1 To ns: body.Cells(1, midC + j - 1).Value = "Mid" & j: Next
+    body.Cells(1, posC).Value = "Pos": body.Cells(1, vlC).Value = "VLine"
     totRange = body.Cells(2, 2).Resize(n, 1).Address(True, True)       ' mesma planilha: sem nome de planilha
     For i = 1 To n
         body.Cells(i + 1, 1).Formula = ChartData_ExternalAddress(data.Source.Cells(i + 1, 1))
@@ -45,7 +48,7 @@ Public Function Area_BuildBlock(wb As Workbook, id As String, data As clsChartDa
         Else
             ' maior acumulado (se positivo) ou o menor: MAX/MIN sobre Mid_j + Val_j / 2 (= o acumulado c_j), em SUMPRODUCT para
             ' avaliar a matriz sem Ctrl+Shift+Enter
-            cumExpr = body.Cells(i + 1, Area_MidCol(blk, 1)).Resize(1, ns).Address(False, False) & "+" & body.Cells(i + 1, Area_ValCol(blk, 1)).Resize(1, ns).Address(False, False) & "/2"
+            cumExpr = body.Cells(i + 1, midC).Resize(1, ns).Address(False, False) & "+" & body.Cells(i + 1, Area_ValCol(blk, 1)).Resize(1, ns).Address(False, False) & "/2"
             body.Cells(i + 1, 3).Formula = "=IF(SUMPRODUCT(MAX(" & cumExpr & "))>0,SUMPRODUCT(MAX(" & cumExpr & ")),SUMPRODUCT(MIN(" & cumExpr & ")))"
         End If
         For j = 1 To ns
@@ -56,13 +59,13 @@ Public Function Area_BuildBlock(wb As Workbook, id As String, data As clsChartDa
                 body.Cells(i + 1, Area_ValCol(blk, j)).Formula = "=IF(ISNUMBER(" & srcAddr & ")," & srcAddr & ",0)"
             End If
             valAddr = body.Cells(i + 1, Area_ValCol(blk, j)).Address(False, False)
-            body.Cells(i + 1, Area_MidCol(blk, j)).Formula = "=SUM(" & body.Cells(i + 1, Area_ValCol(blk, 1)).Address(False, False) & ":" & valAddr & ")-" & valAddr & "/2"
+            body.Cells(i + 1, midC + j - 1).Formula = "=SUM(" & body.Cells(i + 1, Area_ValCol(blk, 1)).Address(False, False) & ":" & valAddr & ")-" & valAddr & "/2"
         Next
-        body.Cells(i + 1, Area_PosCol(blk)).Formula = "=" & (n - i) & ".5"      ' independe do separador decimal da localidade
+        body.Cells(i + 1, posC).Formula = "=" & (n - i) & ".5"      ' independe do separador decimal da localidade
         If is100 Then
-            body.Cells(i + 1, Area_VLineCol(blk)).Formula = "=NA()"
+            body.Cells(i + 1, vlC).Formula = "=NA()"
         Else
-            body.Cells(i + 1, Area_VLineCol(blk)).Formula = "=AVERAGE(" & totRange & ")"
+            body.Cells(i + 1, vlC).Formula = "=AVERAGE(" & totRange & ")"
         End If
     Next
     Set Area_BuildBlock = blk
