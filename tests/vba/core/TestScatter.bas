@@ -401,3 +401,17 @@ Public Sub Test_Bubble_LabelFitsDiameter_CenterOrRightDarkGray()
     AssertFalse sa.Points(3).HasDataLabel
     Teardown wb
 End Sub
+
+' Celula de grupo com erro: o bloco cai em "(sem grupo)" (IFERROR), como GroupNames supoe; o ponto e plotado nessa serie.
+Public Sub Test_Scatter_ErrorGroupCell_GoesToNoGroup()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ws As Worksheet, v As Variant
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("D3").Formula = "=1/0"                                          ' P2: grupo com erro
+    Set cht = Scatter_Insert(ws, d, "scatter").Chart
+    AssertEqual 3, cht.SeriesCollection.Count
+    AssertEqual "(sem grupo)", cht.SeriesCollection(2).Name
+    v = cht.SeriesCollection(2).Values
+    AssertTrue Not (IsError(v(2)) Or IsEmpty(v(2))), "P2 plotado em (sem grupo)"
+    AssertAlmost 0.35, CDbl(v(2)), 0.000001
+    CloseTemp wb
+End Sub

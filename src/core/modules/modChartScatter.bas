@@ -8,7 +8,7 @@ Option Explicit
 ' Tabela: Nome | X | Y [| Grupo] (dispersao) e Nome | X | Y | Tamanho [| Grupo] (bolhas).
 ' Bloco (corpo): linha 1 = cabecalhos; n linhas: 1 Nome | 2 X | 3 Y | 4 Tam | 5 Grupo | 6..5+G Xg_k | 6+G..5+2G Yg_k | 6+2G..5+3G Sg_k,
 ' com Nome = IF(ISBLANK(src),"",src) (no formato numerico da celula de origem), X/Y = IF(ISNUMBER(src),src,NA()),
-' Tam = IF(ISNUMBER(src),IF(src>0,src,NA()),NA()) (dispersao: 1), Grupo = =src&"" (o valor como texto), e
+' Tam = IF(ISNUMBER(src),IF(src>0,src,NA()),NA()) (dispersao: 1), Grupo = IFERROR(src&"","") (o valor como texto; erro = vazio), e
 ' Xg_k = IF(AND(Grupo="<nome k>",ISNUMBER(X),ISNUMBER(Y),ISNUMBER(Tam)),X,NA()) (idem Yg, Sg). DisplayBlanksAs = xlNotPlotted: o ponto NA
 ' nao e desenhado e o seu rotulo tambem nao (medido). Meta: E = AvgX, F = AvgY (AGGREGATE ignora os NA()).
 ' Um grupo que so aparece DEPOIS de inserir nao tem serie: "Alterar dados" recria (documentado no tutorial).
@@ -126,7 +126,9 @@ Public Function Scatter_BuildBlock(wb As Workbook, id As String, data As clsChar
         End If
         If gc > 0 Then
             sg = Mid$(ChartData_ExternalAddress(data.Source.Cells(r, gc)), 2)
-            body.Cells(r, SC_COL_GROUP).Formula = "=" & sg & "&"""""
+            ' erro na celula de grupo = vazio = "(sem grupo)", como GroupNames (sem o IFERROR o erro chegava as colunas por grupo como #DIV/0!,
+            ' que a serie le como 0: medido, Series.Values devolveu 0 no ponto, e nao vazio como o #N/D)
+            body.Cells(r, SC_COL_GROUP).Formula = "=IFERROR(" & sg & "&"""","""")"
         Else
             body.Cells(r, SC_COL_GROUP).Formula = "=""" & Replace(CStr(names(1)), """", """""") & """"
         End If
