@@ -14,6 +14,7 @@ Option Explicit
 Private Const RND_HDR_D As String = "RndD"
 Private Const RND_ERR_RANGE As String = "Selecione uma única coluna ou linha só com números (pelo menos 2)."
 Private Const AGG_PREFIX As String = "=AGGREGATE(9,6,"
+Public Const ROUND_MAX_CELLS As Long = 2000            ' Arredondar intervalo: limite de celulas (custo O(n^2) por recalculo)
 
 Public Function Round_Decimals(numfmtKey As String) As Long
     Select Case numfmtKey
@@ -256,7 +257,8 @@ Fail:
     Err.Raise en, es, ed
 End Sub
 
-' "" se a faixa serve ao Arredondar intervalo (uma area, uma coluna OU uma linha, >= 2 celulas, todas numericas); senao a mensagem.
+' "" se a faixa serve ao Arredondar intervalo (uma area, uma coluna OU uma linha, de 2 a ROUND_MAX_CELLS celulas, todas numericas); senao a
+' mensagem. O limite vem do custo: cada formula percorre a faixa inteira varias vezes (O(n) por celula, O(n^2) por recalculo).
 Public Function Round_ValidateRange(rng As Range) As String
     Dim c As Range
     Round_ValidateRange = RND_ERR_RANGE
@@ -264,6 +266,7 @@ Public Function Round_ValidateRange(rng As Range) As String
     If rng.Areas.Count <> 1 Then Exit Function
     If rng.Rows.Count > 1 And rng.Columns.Count > 1 Then Exit Function
     If rng.Cells.CountLarge < 2 Then Exit Function
+    If rng.Cells.CountLarge > ROUND_MAX_CELLS Then Round_ValidateRange = Round_TooBigText(rng.Cells.CountLarge): Exit Function
     For Each c In rng.Cells
         If IsError(c.Value) Or IsEmpty(c.Value) Or VarType(c.Value) = vbString Or VarType(c.Value) = vbBoolean Then Exit Function
         If Not IsNumeric(c.Value) Then Exit Function
@@ -271,41 +274,97 @@ Public Function Round_ValidateRange(rng As Range) As String
     Round_ValidateRange = ""
 End Function
 
-' "" se a celula de destino serve para as formulas da faixa src (mesma pasta, a saida inteira cabe na planilha e nao sobrepoe a origem);
-' senao a mensagem.
-Public Function Round_ValidateDest(src As Range, dest As Range) As String
-    Dim n As Long, out As Range
-    If dest Is Nothing Then Exit Function
-    If Not dest.Worksheet.Parent Is src.Worksheet.Parent Then Round_ValidateDest = "Escolha a célula de destino na mesma pasta de trabalho da faixa de origem.": Exit Function
+Public Function Round_TooBigText(n As Variant) As String
+    Round_TooBigText = "A faixa tem " & Format$(n, "#,##0") & " células; o Arredondar intervalo aceita no máximo " & Format$(ROUND_MAX_CELLS, "#,##0") & " (cada fórmula percorre a faixa inteira e o recálculo cresceria com o quadrado do tamanho)."
+End Function
+
+' Celulas de saida para a faixa src a partir de dest (a forma da origem); Nothing se nao cabem na planilha.
+Private Function OutputRange(src As Range, dest As Range) As Range
+    Dim n As Long
     n = src.Cells.Count
     If src.Columns.Count = 1 Then
-        If dest.Row + n - 1 > dest.Worksheet.Rows.Count Then Round_ValidateDest = "O resultado não cabe na planilha a partir dessa célula.": Exit Function
-        Set out = dest.Cells(1, 1).Resize(n, 1)
+        If dest.Row + n - 1 > dest.Worksheet.Rows.Count Then Exit Function
+        Set OutputRange = dest.Cells(1, 1).Resize(n, 1)
     Else
-        If dest.Column + n - 1 > dest.Worksheet.Columns.Count Then Round_ValidateDest = "O resultado não cabe na planilha a partir dessa célula.": Exit Function
-        Set out = dest.Cells(1, 1).Resize(1, n)
+        If dest.Column + n - 1 > dest.Worksheet.Columns.Count Then Exit Function
+        Set OutputRange = dest.Cells(1, 1).Resize(1, n)
     End If
+End Function
+
+' "" se a celula de destino serve para as formulas da faixa src (mesma pasta, a saida inteira cabe na planilha, nao sobrepoe a origem, sem
+' celula mesclada, que esconderia parte do resultado, e sem celula bloqueada numa planilha protegida); senao a mensagem.
+Public Function Round_ValidateDest(src As Range, dest As Range) As String
+    Dim out As Range, flag As Variant
+    If dest Is Nothing Then Exit Function
+    If Not dest.Worksheet.Parent Is src.Worksheet.Parent Then Round_ValidateDest = "Escolha a célula de destino na mesma pasta de trabalho da faixa de origem.": Exit Function
+    Set out = OutputRange(src, dest)
+    If out Is Nothing Then Round_ValidateDest = "O resultado não cabe na planilha a partir dessa célula.": Exit Function
     If out.Worksheet Is src.Worksheet Then
         If Not Application.Intersect(out, src) Is Nothing Then Round_ValidateDest = "O resultado não pode ficar sobre a faixa de origem.": Exit Function
+    End If
+    flag = out.MergeCells                                       ' Null = algumas mescladas
+    If IsNull(flag) Then flag = True
+    If flag Then Round_ValidateDest = "O destino tem células mescladas; escolha uma área sem mesclagem.": Exit Function
+    If out.Worksheet.ProtectContents Then
+        flag = out.Locked                                       ' Null = algumas bloqueadas
+        If IsNull(flag) Then flag = True
+        If flag Then Round_ValidateDest = "As células de destino estão protegidas.": Exit Function
     End If
 End Function
 
 ' Grava em dest (celula inicial; a saida tem a forma da origem) uma formula por celula que referencia SO a faixa de origem: portatil.
+' Valida antes (tamanho e destino: erro 7002 com a mensagem, nada gravado). Uma gravacao so (matriz em Range.Formula), com a tela congelada
+' e o calculo manual; tela e modo de calculo voltam aos valores anteriores em toda saida. Transacional: uma falha depois de comecar a
+' gravar devolve as formulas/valores e os formatos anteriores das celulas de saida antes de o erro seguir.
 Public Sub Round_WriteFormulas(src As Range, dest As Range, decimals As Long)
-    Dim n As Long, i As Long, vertical As Boolean, rowRng As String, partRng As String, out As Range, fmt As String
+    Dim n As Long, i As Long, vertical As Boolean, rowRng As String, partRng As String, out As Range, fmt As String, msg As String
+    Dim f() As Variant, prevF As Variant, prevFmt() As String, prevCalc As Long, prevSU As Boolean, started As Boolean
+    Dim en As Long, es As String, ed As String
+    If src.Cells.CountLarge > ROUND_MAX_CELLS Then Err.Raise vbObjectError + 7002, "Round_WriteFormulas", Round_TooBigText(src.Cells.CountLarge)
+    msg = Round_ValidateDest(src, dest)
+    If Len(msg) > 0 Then Err.Raise vbObjectError + 7002, "Round_WriteFormulas", msg
     n = src.Cells.Count
     vertical = (src.Columns.Count = 1)
+    Set out = OutputRange(src, dest)
     rowRng = Mid$(ChartData_ExternalAddress(src), 2)
+    If vertical Then ReDim f(1 To n, 1 To 1) Else ReDim f(1 To 1, 1 To n)
     For i = 1 To n
         If vertical Then
             partRng = Mid$(ChartData_ExternalAddress(src.Cells(1, 1).Resize(i, 1)), 2)
-            Set out = dest.Cells(i, 1)
+            f(i, 1) = Round_Formula(Mid$(ChartData_ExternalAddress(src.Cells(i)), 2), rowRng, partRng, "SUM(" & rowRng & ")", "(" & decimals & ")")
         Else
             partRng = Mid$(ChartData_ExternalAddress(src.Cells(1, 1).Resize(1, i)), 2)
-            Set out = dest.Cells(1, i)
+            f(1, i) = Round_Formula(Mid$(ChartData_ExternalAddress(src.Cells(i)), 2), rowRng, partRng, "SUM(" & rowRng & ")", "(" & decimals & ")")
         End If
-        out.Formula = Round_Formula(Mid$(ChartData_ExternalAddress(src.Cells(i)), 2), rowRng, partRng, "SUM(" & rowRng & ")", "(" & decimals & ")")
     Next
     If decimals > 0 Then fmt = "#,##0." & String$(decimals, "0") Else fmt = "#,##0"
-    If vertical Then dest.Cells(1, 1).Resize(n, 1).NumberFormatLocal = Style_LocalizeCode(fmt) Else dest.Cells(1, 1).Resize(1, n).NumberFormatLocal = Style_LocalizeCode(fmt)
+    prevF = out.Formula
+    ReDim prevFmt(1 To n)
+    For i = 1 To n: prevFmt(i) = out.Cells(i).NumberFormat: Next
+    prevSU = Application.ScreenUpdating
+    prevCalc = Application.Calculation
+    On Error GoTo Fail
+    started = True
+    Application.ScreenUpdating = False
+    If prevCalc <> xlCalculationManual Then Application.Calculation = xlCalculationManual
+    out.Formula = f
+    RoundTestHook "write", "formulas"
+    out.NumberFormatLocal = Style_LocalizeCode(fmt)
+    out.Calculate                                               ' em calculo manual (o do usuario, inclusive) o resultado ja sai calculado
+    If Application.Calculation <> prevCalc Then Application.Calculation = prevCalc
+    If Application.ScreenUpdating <> prevSU Then Application.ScreenUpdating = prevSU
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1                                 ' encerra o tratamento do erro: sem isso o Resume Next abaixo nao protegeria a limpeza
+    On Error Resume Next
+    If started Then
+        out.Formula = prevF
+        For i = 1 To n: out.Cells(i).NumberFormat = prevFmt(i): Next
+    End If
+    If Application.Calculation <> prevCalc Then Application.Calculation = prevCalc
+    If Application.ScreenUpdating <> prevSU Then Application.ScreenUpdating = prevSU
+    If Err.Number <> 0 Then Errors_Log "Round_WriteFormulas/desfazer" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    On Error GoTo 0
+    Err.Raise en, es, ed
 End Sub

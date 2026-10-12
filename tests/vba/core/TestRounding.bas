@@ -338,3 +338,105 @@ Public Sub Test_Round_ValidateDest()
     CloseTemp wb2
     CloseTemp wb
 End Sub
+
+' Arredondar intervalo acima do limite (2.000 celulas): recusa com aviso, nada gravado (pelo comando e chamando a gravacao direto).
+Public Sub Test_Round_RangeAboveCap_RefusesWithoutWriting()
+    Dim wb As Workbook, ws As Worksheet, en As Long, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:A2001").Value = 1
+    AssertEqual Round_TooBigText(2001), Round_ValidateRange(ws.Range("A1:A2001"))
+    AssertTrue InStr(Round_TooBigText(2001), "no máximo") > 0
+    AssertEqual "", Round_ValidateRange(ws.Range("A1:A2000")), "2.000 celulas ainda aceitas"
+    ws.Range("A1:A2001").Select
+    Core_ClearLastNotice
+    Core_RoundRange
+    AssertEqual Round_TooBigText(2001), Core_LastNotice()
+    On Error Resume Next
+    Round_WriteFormulas ws.Range("A1:A2001"), ws.Range("C1"), 0
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    AssertEqual vbObjectError + 7002, en
+    AssertEqual Round_TooBigText(2001), ed
+    AssertEqual 0, Application.WorksheetFunction.CountA(ws.Range("C:C")), "nada gravado"
+    CloseTemp wb
+End Sub
+
+' A gravacao devolve o modo de calculo e a atualizacao de tela anteriores (exatos) depois de gravar com sucesso, e o resultado sai
+' calculado mesmo em calculo manual.
+Public Sub Test_Round_WriteFormulas_RestoresCalcAndScreen()
+    Dim wb As Workbook, ws As Worksheet, prevCalc As Long, prevSU As Boolean
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    prevCalc = Application.Calculation: prevSU = Application.ScreenUpdating
+    ws.Range("A1:A3").Value = Application.Transpose(Array(0.335, 0.335, 0.33))
+    Application.Calculation = xlCalculationAutomatic: Application.ScreenUpdating = True
+    Round_WriteFormulas ws.Range("A1:A3"), ws.Range("C1"), 2
+    AssertEqual xlCalculationAutomatic, Application.Calculation, "automatico de volta"
+    AssertTrue Application.ScreenUpdating, "tela de volta"
+    AssertAlmost 0.34, ws.Range("C2").Value, 0.0000001
+    Application.Calculation = xlCalculationManual: Application.ScreenUpdating = False
+    Round_WriteFormulas ws.Range("A1:A3"), ws.Range("E1"), 2
+    AssertEqual xlCalculationManual, Application.Calculation, "manual de volta"
+    AssertFalse Application.ScreenUpdating, "tela desligada de volta"
+    AssertAlmost 0.33, ws.Range("E1").Value, 0.0000001, "calculado em manual"
+    AssertAlmost 0.34, ws.Range("E2").Value, 0.0000001, "calculado em manual"
+    Application.Calculation = prevCalc: Application.ScreenUpdating = prevSU
+    CloseTemp wb
+End Sub
+
+' Falha no meio da gravacao (gancho de disparo unico depois das formulas): o conteudo e os formatos anteriores do destino voltam, o modo de
+' calculo e a tela voltam, o erro chega ao chamador e o gancho nao fica armado.
+Public Sub Test_Round_WriteFormulas_FailMidway_RestoresAll()
+    Dim wb As Workbook, ws As Worksheet, prevCalc As Long, prevSU As Boolean, en As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    prevCalc = Application.Calculation: prevSU = Application.ScreenUpdating
+    ws.Range("A1:A3").Value = Application.Transpose(Array(0.335, 0.335, 0.33))
+    ws.Range("C1").Value = "a": ws.Range("C2").Formula = "=1+1": ws.Range("C3").Value = 0.5: ws.Range("C3").NumberFormat = "0.0%"
+    Application.Calculation = xlCalculationAutomatic: Application.ScreenUpdating = True
+    Util_FailThinSyncForTest = "round-write:formulas"
+    On Error Resume Next
+    Round_WriteFormulas ws.Range("A1:A3"), ws.Range("C1"), 2
+    en = Err.Number
+    On Error GoTo 0
+    AssertEqual "", Util_FailThinSyncForTest, "o gancho dispara uma vez"
+    Util_FailThinSyncForTest = ""
+    AssertEqual vbObjectError + 9995, en, "o erro chega ao chamador"
+    AssertEqual "a", ws.Range("C1").Value
+    AssertEqual "=1+1", ws.Range("C2").Formula
+    AssertEqual 0.5, ws.Range("C3").Value
+    AssertEqual "0.0%", ws.Range("C3").NumberFormat
+    AssertEqual xlCalculationAutomatic, Application.Calculation
+    AssertTrue Application.ScreenUpdating
+    Application.Calculation = xlCalculationManual
+    Util_FailThinSyncForTest = "round-write:formulas"
+    On Error Resume Next
+    Round_WriteFormulas ws.Range("A1:A3"), ws.Range("C1"), 2
+    On Error GoTo 0
+    Util_FailThinSyncForTest = ""
+    AssertEqual xlCalculationManual, Application.Calculation, "manual de volta tambem no erro"
+    AssertEqual "a", ws.Range("C1").Value
+    Application.Calculation = prevCalc: Application.ScreenUpdating = prevSU
+    CloseTemp wb
+End Sub
+
+' Destino com celula mesclada ou protegida: recusa limpa (7002 com a mensagem), nada gravado.
+Public Sub Test_Round_WriteFormulas_MergedOrProtectedDest_Refuses()
+    Dim wb As Workbook, ws As Worksheet, en As Long, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:A3").Value = Application.Transpose(Array(1, 2, 3))
+    ws.Range("C2:D2").Merge
+    AssertEqual "O destino tem células mescladas; escolha uma área sem mesclagem.", Round_ValidateDest(ws.Range("A1:A3"), ws.Range("C1"))
+    On Error Resume Next
+    Round_WriteFormulas ws.Range("A1:A3"), ws.Range("C1"), 0
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    AssertEqual vbObjectError + 7002, en
+    AssertEqual "O destino tem células mescladas; escolha uma área sem mesclagem.", ed
+    AssertEqual 0, Application.WorksheetFunction.CountA(ws.Range("C1:C3")), "nada gravado"
+    ws.Range("F1:F3").Locked = False
+    ws.Protect
+    AssertEqual "", Round_ValidateDest(ws.Range("A1:A3"), ws.Range("F1")), "celulas desbloqueadas servem"
+    AssertEqual "As células de destino estão protegidas.", Round_ValidateDest(ws.Range("A1:A3"), ws.Range("G1"))
+    AssertEqual "As células de destino estão protegidas.", Round_ValidateDest(ws.Range("A1:A3"), ws.Range("F2")), "F4 bloqueada"
+    ws.Unprotect
+    CloseTemp wb
+End Sub

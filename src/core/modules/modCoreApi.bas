@@ -589,7 +589,11 @@ Public Sub Core_RoundRange()
     Core_Notify "Fórmulas de arredondamento com soma consistente gravadas em " & addr & ".", vbInformation
     Exit Sub
 Fail:
-    Errors_Handle "Core_RoundRange"
+    If Err.Number = vbObjectError + 7002 Then
+        Core_Notify Err.Description, vbExclamation       ' recusa de Round_WriteFormulas (tamanho ou destino): aviso, nada gravado
+    Else
+        Errors_Handle "Core_RoundRange"
+    End If
 End Sub
 
 ' True quando o bloco do gráfico (uma linha de fórmula por categoria) não tem o mesmo número de categorias
