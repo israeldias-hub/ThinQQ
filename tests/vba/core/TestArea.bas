@@ -1485,3 +1485,40 @@ Cleanup:
     CloseTemp wb
     If en <> 0 Then Err.Raise en, es, ed
 End Sub
+
+' Onda A, rodada 1 (menor a): falha depois de subir o maximo primario (antes de registra-lo) ou depois de mudar a escala secundaria: eixos e
+' opcoes voltam ao que eram (um maximo subido e nao registrado pareceria do usuario); o refresh seguinte aplica.
+Public Sub Test_Combo_LineAboveTotals_FailMidway_RollsBack()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ws As Worksheet, px As Axis, sx As Axis, a1 As Double, a2 As Double, en As Long, es As String, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set d = DemoComboFixture(wb): Set ws = d.Source.Worksheet
+    Util_FailThinSyncForTest = "combo-fit:primax"
+    ws.Range("A1:D13").Select
+    Core_Insert "combo"
+    Set cht = Core_ActiveChart()
+    Set px = cht.Axes(xlValue, xlPrimary): Set sx = cht.Axes(xlValue, xlSecondary)
+    AssertEqual "", Util_FailThinSyncForTest, "o gancho disparou"
+    Application.EnableEvents = False
+    Util_FailThinSyncForTest = "combo-fit:primax"
+    ws.Range("B13").Value = 60000                              ' coluna maior: o maximo primario precisa subir
+    Combo_SyncSecondaryScale cht
+    AssertEqual "", Util_FailThinSyncForTest, "o gancho disparou de novo"
+    AssertTrue px.MaximumScaleIsAuto Or Registry_GetOption(cht, "primax", "") <> "", "maximo primario nunca fica fixo sem registro"
+    If Not px.MaximumScaleIsAuto Then AssertAlmost Val(Registry_GetOption(cht, "primax", "")), px.MaximumScale, 0.001
+    a1 = sx.MinimumScale: a2 = sx.MaximumScale
+    Util_FailThinSyncForTest = "combo-fit:secscale"
+    ws.Range("D5").Value = 0.36
+    Combo_SyncSecondaryScale cht
+    AssertEqual "", Util_FailThinSyncForTest, "o gancho disparou (secundario)"
+    AssertAlmost a1, sx.MinimumScale, 0.0000001, "minimo secundario de volta": AssertAlmost a2, sx.MaximumScale, 0.0000001, "maximo secundario de volta"
+    Application.EnableEvents = True
+    Core_SafeRefresh cht
+    AssertLineAboveTotals cht, "sem a falha"
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    Application.EnableEvents = True
+    Watchers_Stop
+    CloseTemp wb
+    If en <> 0 Then Err.Raise en, es, ed
+End Sub

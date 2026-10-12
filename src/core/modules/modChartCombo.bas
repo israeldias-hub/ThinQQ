@@ -188,6 +188,8 @@ Private Function FitAboveTotals(cht As Chart, ax As Axis, lmin As Double, lmax A
     Dim tot As Series, tv As Variant, i As Long, colMax As Double, t As Double, h As Double, yTop As Double, band As Double, yc As Double
     Dim f As Double, m As Double, pax As Axis, pmn As Double, pmx As Double, yBot As Double, a As Double, b As Double, smin As Double
     Dim smax As Double, r As Double, below As Double, free As Boolean, b0 As Double
+    Dim oldPAuto As Boolean, oldPMax As Double, oPri As String, oldSAutoMin As Boolean, oldSMin As Double, oldSAutoMax As Boolean, oldSMax As Double
+    Dim oSmin As String, oSmax As String, en As Long, es As String, ed As String
     If Registry_GetOption(cht, "totals", "0") <> "1" Then Exit Function
     Set tot = Chart_FindSeries(cht, "tqq_total")
     If tot Is Nothing Then Exit Function
@@ -218,6 +220,11 @@ Private Function FitAboveTotals(cht As Chart, ax As Axis, lmin As Double, lmax A
     f = (yc - t) / h
     If f > CB_MAX_TOPFRAC Then Exit Function
     Set pax = cht.Axes(xlValue, xlPrimary)
+    ' estado de antes: uma falha no meio de gravar eixos e opcoes devolve tudo (um maximo subido e nao registrado pareceria do usuario)
+    oldPAuto = pax.MaximumScaleIsAuto: oldPMax = pax.MaximumScale: oPri = Registry_GetOption(cht, "primax", "")
+    oldSAutoMin = ax.MinimumScaleIsAuto: oldSMin = ax.MinimumScale: oldSAutoMax = ax.MaximumScaleIsAuto: oldSMax = ax.MaximumScale
+    oSmin = Registry_GetOption(cht, "secmin", ""): oSmax = Registry_GetOption(cht, "secmax", "")
+    On Error GoTo Fail
     free = (Len(Registry_GetOption(cht, "vmax", "")) = 0 And Len(Registry_GetOption(cht, "vmin", "")) = 0)
     If free And Not pax.MaximumScaleIsAuto Then free = OptIs(cht, "primax", pax.MaximumScale)
     If free Then
@@ -226,6 +233,7 @@ Private Function FitAboveTotals(cht As Chart, ax As Axis, lmin As Double, lmax A
         If pax.MaximumScaleIsAuto Then
             If pax.MaximumScale < m Then
                 pax.MaximumScale = m
+                ComboTestHook "fit", "primax"
                 Registry_SetOption cht, "primax", NumText(m)
             ElseIf Len(Registry_GetOption(cht, "primax", "")) > 0 Then
                 Registry_SetOption cht, "primax", ""                     ' o automatico ja deixa a folga
@@ -234,6 +242,7 @@ Private Function FitAboveTotals(cht As Chart, ax As Axis, lmin As Double, lmax A
             ' histerese: o layout automatico do Excel muda a area interna um pouco quando as colunas mudam (medido: 59.400 -> 59.430 no
             ' refresh seguinte); um ajuste menor que isso cabe nos respiros e nao e regravado (o refresh seguinte nao mexe de novo)
             pax.MaximumScale = m
+            ComboTestHook "fit", "primax"
             Registry_SetOption cht, "primax", NumText(m)
         End If
     ElseIf Len(Registry_GetOption(cht, "primax", "")) > 0 Then
@@ -257,10 +266,42 @@ Private Function FitAboveTotals(cht As Chart, ax As Axis, lmin As Double, lmax A
         End If
     End If
     SetScale ax, smin, smax
+    ComboTestHook "fit", "secscale"
     If Not OptIs(cht, "secmin", smin) Then Registry_SetOption cht, "secmin", NumText(smin)
     If Not OptIs(cht, "secmax", smax) Then Registry_SetOption cht, "secmax", NumText(smax)
     FitAboveTotals = True
+    Exit Function
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If oldPAuto Then pax.MaximumScaleIsAuto = True Else pax.MaximumScale = oldPMax
+    If oldSAutoMin And oldSAutoMax Then
+        ax.MinimumScaleIsAuto = True: ax.MaximumScaleIsAuto = True
+    Else
+        If oldSAutoMax Then ax.MaximumScaleIsAuto = True Else ax.MaximumScale = oldSMax
+        If oldSAutoMin Then ax.MinimumScaleIsAuto = True Else ax.MinimumScale = oldSMin
+        If oldSAutoMax Then ax.MaximumScaleIsAuto = True Else ax.MaximumScale = oldSMax      ' de novo: a ordem pode ter sido recusada
+    End If
+    Registry_SetOption cht, "primax", oPri
+    Registry_SetOption cht, "secmin", oSmin
+    Registry_SetOption cht, "secmax", oSmax
+    On Error GoTo 0
+    Err.Raise en, es, ed
 End Function
+
+' Gancho de teste (Util_FailThinSyncForTest = "combo-<ponto>:<chave>"): falha simulada; dispara UMA vez (limpa o gancho antes). Inerte fora do
+' build Test.
+Private Sub ComboTestHook(site As String, key As String)
+    If BUILD_CONFIG = "Test" Then
+        If Len(Util_FailThinSyncForTest) > 0 Then
+            If Util_FailThinSyncForTest = "combo-" & site & ":" & key Then
+                Util_FailThinSyncForTest = ""
+                Err.Raise vbObjectError + 9992, "ThinQQ", "Falha simulada (teste) " & site & " " & key
+            End If
+        End If
+    End If
+End Sub
 
 ' O que numa combinacao depende dos DADOS e muda depois de inserir (Core_SafeRefresh): a escala do eixo secundario e o formato
 ' dos rotulos da linha (que segue o formato da celula). Nunca propaga erro.
