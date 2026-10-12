@@ -1,9 +1,19 @@
 <#
 .SYNOPSIS  Assina os projetos VBA dos .xlam por linha de comando (SignTool do Windows SDK + Office Subject Interface Packages) ou so diagnostica (-WhatIf).
-.EXAMPLE   pwsh tools/Sign-ThinQQ.ps1 -PfxPath .\dist\cert\ThinQQ-signing.pfx -PfxPassword ... -TimestampUrl http://timestamp.digicert.com
+.EXAMPLE   pwsh tools/Sign-ThinQQ.ps1 -Thumbprint <thumbprint do certificado em Cert:\CurrentUser\My> -TimestampUrl http://timestamp.digicert.com
+.EXAMPLE   pwsh tools/Sign-ThinQQ.ps1 -PfxPath .\dist\cert\ThinQQ-signing.pfx -PfxPassword ... -SkipVerify
 .NOTES     Pre-requisitos (uma vez, com administrador): Windows SDK (signtool.exe) e o pacote "Office Subject Interface Packages for Digitally
            Signing VBA Projects" (Microsoft), com as DLLs registradas por regsvr32 (leia o readme.txt do pacote). Sem eles este script sai com
            codigo 2 e nada e assinado. O VBE (Ferramentas > Assinatura Digital) continua sendo o caminho manual.
+           ESTADO DE VERIFICACAO: so o diagnostico e o caminho de saida com codigo 2 foram exercitados (maquina sem o Windows SDK nem as SIPs).
+           O ramo que chama signtool (sign e verify) NAO foi executado ponta a ponta numa maquina com SDK e SIPs: confira o resultado abrindo o
+           .xlam no Excel (a assinatura de projeto VBA e a do Office) antes de distribuir.
+           Prefira -Thumbprint (certificado em Cert:\CurrentUser\My, sem senha na linha de comando) a -PfxPath/-PfxPassword: uma senha em
+           texto puro fica no historico do shell e e visivel a outros processos do usuario enquanto o signtool roda.
+           VERIFICACAO (`signtool verify /pa`): ela monta a cadeia ate uma raiz confiavel. Um certificado autoassinado confiado so como Editor
+           Confiavel (padrao de New-ThinQQCert) termina em CERT_E_UNTRUSTEDROOT: por padrao isso vira AVISO (assinou, codigo 0); qualquer outra
+           falha da verificacao falha o script. Uma verificacao /pa completa exige New-ThinQQCert -TrustRoot (raiz confiavel do usuario) ou um
+           certificado de uma CA corporativa. -SkipVerify pula a verificacao.
 #>
 param(
     [string[]]$Files = @((Join-Path $PSScriptRoot '..\dist\ThinQQ.xlam'), (Join-Path $PSScriptRoot '..\dist\ThinQQ.core.xlam')),
@@ -11,9 +21,11 @@ param(
     [string]$PfxPassword = '',
     [string]$Thumbprint = '',
     [string]$TimestampUrl = '',
+    [switch]$SkipVerify,
     [switch]$WhatIf
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib\SignVerify.ps1')
 function Find-SignTool {
     $c = Get-Command signtool.exe -ErrorAction SilentlyContinue
     if ($c) { return $c.Source }
@@ -40,7 +52,7 @@ $sip = Test-OfficeSip
 Write-Host ("signtool.exe: " + $(if ($signtool) { $signtool } else { 'NAO ENCONTRADO (instale o Windows SDK)' }))
 Write-Host ("SIP do Office (msosip/msosipx registradas): " + $(if ($sip) { 'presente' } else { 'AUSENTE (instale o pacote Office SIPs e registre as DLLs com regsvr32, como administrador)' }))
 if (-not $signtool -or -not $sip) {
-    Write-Host 'Pre-requisitos ausentes: nada foi assinado. Caminho manual: VBE > Ferramentas > Assinatura Digital (gera assinatura V3).' -ForegroundColor Yellow
+    Write-Host 'Pre-requisitos ausentes: nada foi assinado. Caminho manual: VBE > Ferramentas > Assinatura Digital.' -ForegroundColor Yellow
     exit 2
 }
 if ($WhatIf) { Write-Host 'WhatIf: pre-requisitos presentes; a assinatura rodaria agora.'; exit 0 }
@@ -51,10 +63,17 @@ foreach ($f in $Files) {
     if ($PfxPath) { $stArgs += @('/f', $PfxPath); if ($PfxPassword) { $stArgs += @('/p', $PfxPassword) } } else { $stArgs += @('/sha1', $Thumbprint) }
     if ($TimestampUrl) { $stArgs += @('/tr', $TimestampUrl, '/td', 'SHA256') }
     $stArgs += $f
-    & $signtool @stArgs
-    if ($LASTEXITCODE -ne 0) { throw "signtool sign falhou ($LASTEXITCODE) em $f" }
-    & $signtool verify /pa $f
-    if ($LASTEXITCODE -ne 0) { throw "signtool verify falhou ($LASTEXITCODE) em $f" }
-    Write-Host "Assinado e verificado: $f"
+    $st = Invoke-SignTool $signtool $stArgs
+    if ($st.Code -ne 0) { throw "signtool sign falhou ($($st.Code)) em $f" }
+    if ($SkipVerify) { Write-Host "Assinado (verificacao /pa pulada por -SkipVerify): $f"; continue }
+    $vr = Invoke-SignTool $signtool @('verify', '/pa', $f)
+    switch (Get-SignVerifyOutcome $vr.Code $vr.Output) {
+        'ok' { Write-Host "Assinado e verificado: $f" }
+        'untrusted-root' {
+            Write-Host "Assinado: $f" -ForegroundColor Green
+            Write-Host 'AVISO: a verificacao /pa terminou numa raiz nao confiavel (CERT_E_UNTRUSTEDROOT). E esperado com certificado autoassinado confiado so como Editor Confiavel; a assinatura foi gravada. Uma verificacao /pa completa exige New-ThinQQCert -TrustRoot (raiz confiavel do usuario) ou um certificado de CA corporativa.' -ForegroundColor Yellow
+        }
+        default { throw "signtool verify falhou ($($vr.Code)) em $f" }
+    }
 }
 exit 0

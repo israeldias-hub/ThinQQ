@@ -15,6 +15,22 @@ $exitCode = 1
 $dist = Join-Path $repo 'dist\ThinQQ.xlam'
 $distHash = Get-DistHash $dist
 try {
+    # classificacao do resultado do `signtool verify /pa` (funcao pura, sem signtool): uma raiz nao confiavel (certificado autoassinado confiavel so
+    # como editor) vira aviso; qualquer outra falha continua falhando. Saidas de exemplo no formato do signtool (hex estavel, texto em ingles)
+    . (Join-Path $repo 'tools\lib\SignVerify.ps1')
+    Assert ((Get-SignVerifyOutcome 0 'Successfully verified: x.xlam') -eq 'ok') 'verify: codigo 0 => ok'
+    Assert ((Get-SignVerifyOutcome 0 'A certificate chain processed, but terminated in a root certificate which is not trusted by the trust provider.') -eq 'ok') 'verify: codigo 0 prevalece sobre o texto'
+    Assert ((Get-SignVerifyOutcome 1 "SignTool Error: WinVerifyTrust returned error: 0x800B0109`n`tA certificate chain processed, but terminated in a root certificate which is not trusted by the trust provider.") -eq 'untrusted-root') 'verify: 0x800B0109 => untrusted-root'
+    Assert ((Get-SignVerifyOutcome 1 'SignTool Error: A certificate chain processed, but terminated in a root certificate which is not trusted by the trust provider.') -eq 'untrusted-root') 'verify: texto em ingles => untrusted-root'
+    Assert ((Get-SignVerifyOutcome 1 'SignTool Error: WinVerifyTrust returned error: 0x80096010 The digital signature of the object did not verify.') -eq 'failure') 'verify: assinatura invalida => failure'
+    Assert ((Get-SignVerifyOutcome 1 '') -eq 'failure') 'verify: falha sem texto => failure'
+    Assert ((Get-SignVerifyOutcome 2 $null) -eq 'failure') 'verify: saida nula => failure'
+    Assert ((Get-SignVerifyOutcome 1 '0x80096010 e tambem 0x800B0109') -eq 'failure') 'verify: raiz nao confiavel misturada com outra falha => failure'
+    # Invoke-SignTool com cmd.exe no lugar do signtool: codigo de saida e texto (stdout+stderr) chegam intactos, mesmo com $ErrorActionPreference='Stop'
+    $vr = Invoke-SignTool $env:ComSpec @('/c', 'echo SignTool Error: 0x800B0109 & echo erro-no-stderr 1>&2 & exit 1')
+    Assert ($vr.Code -eq 1 -and $vr.Output -match '0x800B0109' -and $vr.Output -match 'erro-no-stderr') "Invoke-SignTool: codigo/saida ($($vr.Code))"
+    Assert ((Get-SignVerifyOutcome $vr.Code $vr.Output) -eq 'untrusted-root') 'Invoke-SignTool + classificacao de ponta a ponta'
+    Assert ((Invoke-SignTool $env:ComSpec @('/c', 'exit 0')).Code -eq 0) 'Invoke-SignTool: codigo 0'
     $r = & (Join-Path $repo 'tools\New-ThinQQCert.ps1') -Subject $subject -OutDir $tmp -Years 1 -PfxPassword 'teste'
     $thumb = $r.Thumbprint
     Assert ($thumb -match '^[0-9A-F]{40}$') "thumbprint: $thumb"
@@ -38,7 +54,7 @@ try {
     Assert ($out -match 'signtool' -or $out -match 'SIP') "diagnostico cita signtool/SIP: $out"
     if ($code -eq 0 -and (Test-Path $dist)) {
         $global:LASTEXITCODE = 0
-        & (Join-Path $repo 'tools\Sign-ThinQQ.ps1') -Files $copy -PfxPath $r.Pfx -PfxPassword 'teste' *>&1 | Out-Null
+        & (Join-Path $repo 'tools\Sign-ThinQQ.ps1') -Files $copy -PfxPath $r.Pfx -PfxPassword 'teste' -SkipVerify *>&1 | Out-Null
         Assert ($global:LASTEXITCODE -eq 0) 'assinatura real da copia (ferramentas presentes)'
         Write-Host 'Test-Signing: assinatura real executada numa copia'
     } else { Write-Host "Test-Signing: ferramentas de assinatura ausentes (codigo $code): so o diagnostico foi verificado" }
