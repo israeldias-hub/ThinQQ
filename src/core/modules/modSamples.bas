@@ -241,11 +241,13 @@ Public Function Samples_Create() As Workbook
     Ann_AddCagr co.Chart, 1, 4
     Ann_AddDifference co.Chart, 1, 4
 
-    WriteTitle ws, 22, "2) Cascata: escreva 'e' para uma barra de total calculada"
+    WriteTitle ws, 22, "2) Cascata com seta de diferença: escreva 'e' para uma barra de total calculada"
     WriteTable ws.Range("A23"), Array(Array("Etapa", "Valor"), Array("Receita", 1200), Array("Custos", -700), _
                                       Array("Despesas", -250), Array("EBITDA", "e"), Array("Impostos", -80), Array("Lucro", "e"))
     Set d = ChartData_FromRange(ws.Range("A23:B29"))
-    Waterfall_Insert ws, d
+    Set co = Waterfall_Insert(ws, d)
+    co.Chart.PlotArea.Width = co.Chart.PlotArea.Width - 70      ' sem legenda a area de plotagem vai ate a borda: deixa folga a direita para o rotulo da seta
+    Ann_AddDifference co.Chart, 1, 6               ' da primeira barra (Receita) ate a ultima (Lucro): a seta le o valor final de cada barra
 
     WriteTitle ws, 43, "3) Colunas agrupadas"
     WriteTable ws.Range("A44"), Array(Array("Trimestre", "Loja", "Online"), Array("T1", 420, 180), _
