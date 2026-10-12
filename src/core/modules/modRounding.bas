@@ -339,8 +339,9 @@ Private Function AbsAddress(r As Long, c As Long) As String
     AbsAddress = "$" & nm & "$" & r
 End Function
 
-' Devolve uma celula de saida ao que era (formato antes do conteudo: numa celula de texto "@" o valor fica texto). Texto volta com o
-' apostrofo (o Excel converteria "00123" em numero). Erros por celula ficam para o chamador (Resume Next).
+' Devolve uma celula de saida ao que era (formato antes do conteudo: numa celula de texto "@" o valor fica texto). Texto vai sem apostrofo e
+' so ganha o apostrofo se o Excel o converteu (ex.: "00123" virando numero, ou "=x" virando formula) numa celula que nao e "@". Erros por
+' celula ficam para o chamador (Resume Next).
 Private Sub RestoreCell(c As Range, isFormula As Boolean, v As Variant, fmt As String)
     c.NumberFormat = fmt
     If isFormula Then
@@ -348,7 +349,14 @@ Private Sub RestoreCell(c As Range, isFormula As Boolean, v As Variant, fmt As S
     ElseIf IsEmpty(v) Then
         c.ClearContents
     ElseIf VarType(v) = vbString Then
-        c.Value2 = "'" & v
+        c.Value2 = v
+        If fmt <> "@" Then
+            If c.HasFormula Or VarType(c.Value2) <> vbString Then
+                c.Value2 = "'" & v
+            ElseIf CStr(c.Value2) <> CStr(v) Then
+                c.Value2 = "'" & v
+            End If
+        End If
     Else
         c.Value2 = v
     End If

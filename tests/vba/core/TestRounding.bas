@@ -714,9 +714,11 @@ Public Sub Test_Round_WriteFormulas_FailMidway_RestoresTypedConstants()
     big = 1234567890123456#: big = big * 1000 + 789
     ws.Range("C3").Value2 = big
     ws.Range("C4").Formula = "=1+1"
+    ws.Range("A5").Value = 5
+    ws.Range("C5").NumberFormat = "@": ws.Range("C5").Value = "00456"             ' rodada 1: texto em celula "@" volta sem apostrofo
     Util_FailThinSyncForTest = "round-write:formulas"
     On Error Resume Next
-    Round_WriteFormulas ws.Range("A1:A4"), ws.Range("C1"), 0
+    Round_WriteFormulas ws.Range("A1:A5"), ws.Range("C1"), 0
     en = Err.Number
     On Error GoTo 0
     Util_FailThinSyncForTest = ""
@@ -727,6 +729,9 @@ Public Sub Test_Round_WriteFormulas_FailMidway_RestoresTypedConstants()
     AssertEqual "dd/mm/yyyy", ws.Range("C2").NumberFormat
     AssertTrue ws.Range("C3").Value2 = big, "constante longa exata (" & ws.Range("C3").Value2 & ")"
     AssertEqual "=1+1", ws.Range("C4").Formula
+    AssertEqual "@", ws.Range("C5").NumberFormat
+    AssertEqual "00456", ws.Range("C5").Value: AssertEqual "", ws.Range("C5").PrefixCharacter, "celula de texto: sem apostrofo"
+    AssertEqual "'", ws.Range("C1").PrefixCharacter, "texto que viraria numero: com apostrofo, como antes"
     CloseTemp wb
 End Sub
 
