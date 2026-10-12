@@ -417,7 +417,7 @@ try {
     $idx.Tab.Color = 0x79531F
     $idx.Range('A1').Value2 = 'ThinQQ — pasta de demonstração'
     $idx.Range('A1').Font.Bold = $true; $idx.Range('A1').Font.Size = 16
-    $idx.Range('A2').Value2 = "$company: $nS lojas em $($regions.Count) regiões. Nenhuma empresa ou pessoa real; lojas, cidades e números são inventados (gerados por script)."
+    $idx.Range('A2').Value2 = "${company}: $nS lojas em $($regions.Count) regiões. Nenhuma empresa ou pessoa real; lojas, cidades e números são inventados (gerados por script)."
     $idx.Range('A3').Value2 = 'Clique no nome de um exemplo para ir ao gráfico; em cada exemplo, a célula A1 ("Voltar ao índice") traz você de volta. Os dados estão nas planilhas Dados, Lojas e Obras.'
     $idx.Range('A4').Value2 = 'Os gráficos são gráficos nativos do Excel e continuam ligados às tabelas: funcionam com ou sem o ThinQQ instalado. Setas, colchetes, marcas de corte e a escala do Gantt são recalculados só com o ThinQQ instalado; sem ele ficam como estão se os números mudarem.'
     $idx.Range('A2:A4').Font.Color = 0x404040
