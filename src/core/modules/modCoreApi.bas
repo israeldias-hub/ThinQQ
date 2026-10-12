@@ -574,6 +574,8 @@ Public Function Core_ChartSourceMismatch(cht As Chart) As Boolean
     ' categorias no bloco (linhas inseridas no meio da tabela, ou apagadas, mudam o numero de linhas entre a primeira e a ultima)
     If Not Core_ChartSourceMismatch And Len(nOpt) > 0 Then
         If Kinds_Family(Registry_ChartType(cht)) = "mekko" Then Core_ChartSourceMismatch = (Mekko_SourceRowsSpanned(cht) <> CLng(Val(nOpt)))
+        ' dispersao/bolhas: o mesmo (as series apontam para o bloco; o tamanho da tabela so aparece nas referencias da coluna X do bloco)
+        If Kinds_Family(Registry_ChartType(cht)) = "scatter" Then Core_ChartSourceMismatch = (Scatter_SourceRowsSpanned(cht) <> CLng(Val(nOpt)))
     End If
     Exit Function
 Fail:

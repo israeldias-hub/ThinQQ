@@ -331,3 +331,38 @@ Public Sub Test_Bubble_Palette_FillAndLabelContrast_KeepsDeletedLabel()
     AssertEqual Style_ContrastFont(RGB(68, 114, 196)), cht.SeriesCollection(2).Points(2).DataLabel.Font.Color
     CloseTemp wb
 End Sub
+
+' ---------------------------------------------------------------------------------------------------------------------
+' Revisao 1 da Tarefa 2
+' ---------------------------------------------------------------------------------------------------------------------
+
+' As series apontam para o BLOCO (sempre n linhas): a linha inserida no meio da tabela ou apagada so aparece nas referencias do bloco. A
+' extensao da tabela (linha da primeira ate a da ultima referencia) muda e "Alterar dados" e pedido; um refresh comum e uma linha inserida
+' ACIMA da tabela nao avisam.
+Public Sub Test_Scatter_SourceMismatch_InsertDeleteMiddleRow()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ws As Worksheet
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set cht = Scatter_Insert(ws, d, "scatter").Chart
+    AssertEqual 4, Scatter_SourceRowsSpanned(cht)
+    AssertFalse Core_ChartSourceMismatch(cht), "recem-inserido"
+    ws.Range("B2").Value = 15: cht.Refresh: Core_SafeRefresh cht
+    AssertFalse Core_ChartSourceMismatch(cht), "refresh comum nao avisa"
+    ws.Rows(1).Insert                                             ' acima da tabela: as duas pontas descem juntas
+    AssertEqual 4, Scatter_SourceRowsSpanned(cht)
+    AssertFalse Core_ChartSourceMismatch(cht), "linha acima da tabela nao avisa"
+    ws.Rows(4).Insert                                             ' no meio (entre P1 e P2)
+    AssertEqual 5, Scatter_SourceRowsSpanned(cht)
+    AssertTrue Core_ChartSourceMismatch(cht), "linha inserida no meio"
+    Core_ClearLastNotice
+    Core_SafeRefresh cht
+    AssertTrue InStr(Core_LastNotice(), "mudou de tamanho") > 0, "aviso: " & Core_LastNotice()
+    ws.Rows(4).Delete
+    AssertFalse Core_ChartSourceMismatch(cht), "de volta ao tamanho original"
+    ws.Rows(4).Delete                                             ' apaga a linha de P2 (meio)
+    AssertEqual 3, Scatter_SourceRowsSpanned(cht)
+    AssertTrue Core_ChartSourceMismatch(cht), "linha do meio apagada"
+    ws.Rows(3).Delete                                             ' apaga a linha de P1 (a primeira): a referencia vira #REF!
+    AssertEqual -1, Scatter_SourceRowsSpanned(cht)
+    AssertTrue Core_ChartSourceMismatch(cht), "primeira linha apagada"
+    Teardown wb
+End Sub

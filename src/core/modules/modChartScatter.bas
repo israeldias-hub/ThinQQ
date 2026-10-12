@@ -434,3 +434,43 @@ Public Sub Scatter_RefreshAfterDataChange(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Scatter_RefreshAfterDataChange/quad" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Scatter_HideTrendEntries cht
 End Sub
+
+' Numero de linhas da tabela de origem entre o primeiro e o ultimo ponto, lido nas formulas da coluna X do bloco
+' (=IF(ISNUMBER('Planilha'!$B$7),...)). As series apontam para o BLOCO (sempre n linhas), nao para a tabela: o tamanho dela so aparece nessas
+' referencias (como no Mekko). Linhas inseridas no meio da tabela afastam as duas pontas; uma linha apagada no meio as aproxima; a primeira ou a
+' ultima apagada vira #REF!. -1 se nao for possivel ler (Core_ChartSourceMismatch trata como tabela mudada). Nunca propaga erro.
+Public Function Scatter_SourceRowsSpanned(cht As Chart) As Long
+    Dim blk As Range, body As Range, n As Long, r1 As Long, r2 As Long
+    On Error GoTo Fail
+    Scatter_SourceRowsSpanned = -1
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Function
+    If Kinds_Family(CStr(blk.Cells(1, 2).Value)) <> "scatter" Then Exit Function
+    Set body = Block_Body(blk)
+    n = body.Rows.Count - 1
+    If n < 1 Then Exit Function
+    r1 = SourceRefRow(CStr(body.Cells(2, SC_COL_X).Formula))
+    r2 = SourceRefRow(CStr(body.Cells(n + 1, SC_COL_X).Formula))
+    If r1 < 1 Or r2 < r1 Then Exit Function
+    Scatter_SourceRowsSpanned = r2 - r1 + 1
+    Exit Function
+Fail:
+    Scatter_SourceRowsSpanned = -1
+End Function
+
+' Linha da referencia a tabela numa formula do bloco: os digitos depois do ultimo "$" do endereco que segue o ULTIMO "!" (o nome da planilha
+' pode ter "!" ou ","; o endereco termina no primeiro caractere que nao e letra, digito ou "$"). 0 sem referencia legivel (ex.: #REF!).
+Private Function SourceRefRow(f As String) As Long
+    Dim p As Long, i As Long, ch As String, addr As String
+    If InStr(f, "#REF!") > 0 Then Exit Function
+    p = InStrRev(f, "!")
+    If p = 0 Then Exit Function
+    For i = p + 1 To Len(f)
+        ch = Mid$(f, i, 1)
+        If Not (ch Like "[A-Za-z0-9$]") Then Exit For
+        addr = addr & ch
+    Next
+    p = InStrRev(addr, "$")
+    If p = 0 Then Exit Function
+    SourceRefRow = CLng(Val(Mid$(addr, p + 1)))
+End Function
