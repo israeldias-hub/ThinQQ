@@ -371,8 +371,11 @@ try {
                  $ws.Range("A${tr}:D${tr}").Borders.Item(8).LineStyle = 1        # xlEdgeTop
                  $ws.Range('C15:D15').WrapText = $true; $ws.Columns('C:D').ColumnWidth = 14 }
             24 { $rng = Write-Table $ws 'A6' @('Departamento', 'B2C', 'B2B') $deptChannelBody; $co = Add-Chart $ws $rng 'stacked'
-                 $second = [double]$deptChannelBody[1][1] + [double]$deptChannelBody[1][2]           # segundo maior total (a tabela está em ordem de vendas)
-                 $limit = [Math]::Ceiling($second * 1.2 / 1000) * 1000
+                 # corte DENTRO do segmento de cima da coluna cortada (B2C + metade do B2B do cimento): os dois segmentos aparecem e o B2B mantém o
+                 # rótulo; um corte abaixo do topo do B2C (ex.: 1,2 x o 2º maior total) esconderia o B2B inteiro e a coluna pareceria só B2C
+                 $cut = $deptChannelBody[0]; $second = [double]$deptChannelBody[1][1] + [double]$deptChannelBody[1][2]
+                 $limit = [Math]::Ceiling(([double]$cut[1] + 0.5 * [double]$cut[2]) / 1000) * 1000
+                 if ($limit -le $second -or $limit -ge [double]$cut[1] + [double]$cut[2]) { throw "E24: corte $limit fora de (2º maior total $second, total do cimento)" }
                  Invoke-CoreQuiet 'E24 corte de eixo' 'Core_SetAxisBreakAt' ([double]$limit) | Out-Null
                  Set-ChartBox $ws $co 620 320 }
             25 { $big = $stores[$s1].Name; $small = $stores[$sLast].Name

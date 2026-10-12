@@ -123,6 +123,23 @@ try {
             Check ([double]@($ser.Values)[0] -eq $serBefore + 1000) "serie B2C do E01 acompanha a tabela ($serBefore -> $(@($ser.Values)[0]))"
             Check ([string]$tot.Points(1).DataLabel.Text -ne $lblBefore) "rotulo do total do E01 acompanha ($lblBefore -> $($tot.Points(1).DataLabel.Text))"
         }
+        # E24 (corte de eixo): na coluna cortada (total acima do maximo do eixo) nenhum segmento fica inteiro escondido: a base de cada serie de
+        # dados fica abaixo do corte, o ponto tem altura desenhada e o rotulo continua ligado
+        $cb = $wb.Worksheets.Item('E24').ChartObjects(1).Chart
+        $vmax = [double]$cb.Axes(2).MaximumScale
+        $dataSer = @(); foreach ($s in $cb.SeriesCollection()) { if (-not ([string]$s.Name).StartsWith('tqq_')) { $dataSer += $s } }
+        $nCat = @($dataSer[0].Values).Count; $cutCats = 0
+        for ($ci = 1; $ci -le $nCat; $ci++) {
+            $tot = 0.0; foreach ($s in $dataSer) { $tot += [double]@($s.Values)[$ci - 1] }
+            if ($tot -le $vmax) { continue }
+            $cutCats++; $base = 0.0
+            foreach ($s in $dataSer) {
+                $v = [double]@($s.Values)[$ci - 1]; $pt = $s.Points($ci)
+                Check ($base -lt $vmax -and [double]$pt.Height -gt 1 -and $pt.HasDataLabel) "E24: segmento '$($s.Name)' da coluna cortada $ci visivel (base $base < corte $vmax, altura $([Math]::Round([double]$pt.Height, 1)) pt, rotulo $($pt.HasDataLabel))"
+                $base += $v
+            }
+        }
+        Check ($cutCats -eq 1) "E24: exatamente uma coluna cortada ($cutCats)"
         $calc = $null; try { $calc = $wb.Worksheets.Item('_ThinQQ') } catch { }
         Check ($null -ne $calc -and $calc.Visible -eq 2) '_ThinQQ muito oculta'
         $errs = 0
