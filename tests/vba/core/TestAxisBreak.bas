@@ -14,6 +14,24 @@ Private Function Fixture(wb As Workbook) As Range
     Set Fixture = ws.Range("A1:C4")
 End Function
 
+' Onda A (item A): nas empilhadas o corte recusa um limite que deixaria o segmento de cima de uma coluna cortada inteiro acima do eixo. Um
+' segmento inteiro acima do corte continua possivel quando os DADOS sobem depois do corte (o refresh oculta o rotulo dele e poe o de baixo
+' na base): os testes da Tarefa 4 que precisam desse estado cortam com a coluna c em (20, 120) (piso 50) e voltam a (200, 30).
+Private Sub CutThenRaise(cht As Chart, lim As Double, Optional viaCore As Boolean = True)
+    LowerC cht
+    If viaCore Then Core_SetAxisBreakAt lim Else Break_Set cht, lim
+    RaiseC cht
+End Sub
+
+Private Sub LowerC(cht As Chart)
+    cht.Parent.Parent.Range("B4").Value = 20: cht.Parent.Parent.Range("C4").Value = 120
+End Sub
+
+Private Sub RaiseC(cht As Chart)
+    cht.Parent.Parent.Range("B4").Value = 200: cht.Parent.Parent.Range("C4").Value = 30
+    Core_SafeRefresh cht
+End Sub
+
 Private Function YOf(cht As Chart, v As Double) As Double
     Dim ax As Axis
     Set ax = cht.Axes(xlValue, xlPrimary)
@@ -41,7 +59,7 @@ Public Sub Test_Break_Set_ClipsAxis_TotalsAtLimit_LivePos()
     Set cht = Core_ActiveChart()
     Set ax = cht.Axes(xlValue, xlPrimary)
     AssertTrue ax.MaximumScale >= 230, "antes: escala automatica cobre 230"
-    Break_Set cht, 50
+    CutThenRaise cht, 50, False
     AssertEqual "50", Registry_GetOption(cht, "vbreak")
     AssertFalse ax.MaximumScaleIsAuto: AssertEqual 50, ax.MaximumScale
     Set blk = Registry_Block(cht): Set body = Block_Body(blk)
@@ -69,7 +87,7 @@ Public Sub Test_Break_SegmentCrossingLimit_LabelsAndMark()
     rng.Select
     Core_Insert "stacked"
     Set cht = Core_ActiveChart()
-    Core_SetAxisBreakAt 50
+    CutThenRaise cht, 50
     Set s1 = cht.SeriesCollection(1): Set s2 = cht.SeriesCollection(2)
     AssertEqual xlLabelPositionInsideBase, s1.Points(3).DataLabel.Position, "segmento atravessado: rotulo na base"
     AssertFalse s2.Points(3).HasDataLabel, "segmento inteiro acima do corte: sem rotulo"
@@ -97,7 +115,7 @@ Public Sub Test_Break_Remove_RestoresAuto()
     rng.Select
     Core_Insert "stacked"
     Set cht = Core_ActiveChart()
-    Core_SetAxisBreakAt 50
+    CutThenRaise cht, 50
     Core_RemoveAxisBreak
     AssertEqual "", Registry_GetOption(cht, "vbreak", "")
     AssertTrue cht.Axes(xlValue).MaximumScaleIsAuto
@@ -126,7 +144,7 @@ Public Sub Test_Break_Clustered_And_Bars()
     rng.Select
     Core_Insert "barstacked"
     Set cht = Core_ActiveChart()
-    Break_Set cht, 50
+    CutThenRaise cht, 50, False
     AssertEqual 50, cht.Axes(xlValue, xlPrimary).MaximumScale
     Set blk = Registry_Block(cht)
     Set tot = Chart_FindSeries(cht, "tqq_total")
@@ -167,7 +185,7 @@ Public Sub Test_Break_Refusals_SameScale_Rebuild_RemoveAll()
     coll.Add cht: coll.Add c2
     AssertEqual 2, Deco_SameScale(coll, skipped), "mesma escala antes do corte"
     AssertTrue Len(Registry_GetOption(cht, "vmax", "")) > 0
-    Break_Set cht, 50
+    CutThenRaise cht, 50, False
     AssertEqual "", Registry_GetOption(cht, "vmax", ""), "o corte limpa a escala fixa"
     Set coll = New Collection: coll.Add cht: coll.Add c2
     AssertEqual 0, Deco_SameScale(coll, skipped): AssertEqual 1, skipped, "grafico com corte fica fora da mesma escala"
@@ -176,6 +194,7 @@ Public Sub Test_Break_Refusals_SameScale_Rebuild_RemoveAll()
     Ann_RemoveAll cht
     AssertTrue HasShape(cht, "tqq_ann_break_3"), "Remover setas poupa a marca de corte"
     AssertFalse HasShape(cht, "tqq_ann_cagr_1")
+    ws.Range("B4").Value = 20: ws.Range("C4").Value = 120         ' o piso das empilhadas (50) admite o corte nos dados do rebuild
     AssertTrue Core_RebuildFromRange(cht, rng), "rebuild"
     Set cht = Core_ActiveChart()
     AssertEqual "50", Registry_GetOption(cht, "vbreak"), "corte mantido no rebuild"
@@ -191,7 +210,7 @@ Public Sub Test_Break_ThenRoundSum_CoexistInBlock()
     rng.Select
     Core_Insert "stacked"
     Set cht = Core_ActiveChart()
-    Core_SetAxisBreakAt 50
+    CutThenRaise cht, 50
     Core_ClearLastNotice
     Core_SetToggle "roundsum", True
     AssertTrue Core_GetToggle("roundsum"), "soma consistente depois do corte (" & Core_LastNotice() & ")"
@@ -233,7 +252,7 @@ Public Sub Test_Break_UserDeletedLabel_StaysDeleted_HiddenComeBack()
     rng.Select
     Core_Insert "stacked"
     Set cht = Core_ActiveChart()
-    Core_SetAxisBreakAt 50
+    CutThenRaise cht, 50
     Set s1 = cht.SeriesCollection(1): Set s2 = cht.SeriesCollection(2)
     AssertEqual "2.3", Registry_GetOption(cht, "brklbl"), "o corte registra o rotulo que ocultou (serie.ponto)"
     s1.Points(2).HasDataLabel = False                           ' apagado pelo usuario
@@ -275,7 +294,7 @@ Public Sub Test_Break_RoundSumFirst_LinkedLabelsHiddenAndBackLinked()
     Set cht = Core_ActiveChart()
     Core_SetToggle "roundsum", True
     Core_ClearLastNotice
-    Core_SetAxisBreakAt 50
+    CutThenRaise cht, 50
     AssertEqual "", Core_LastNotice()
     Set s1 = cht.SeriesCollection(1): Set s2 = cht.SeriesCollection(2)
     AssertFalse s2.Points(3).HasDataLabel, "ponto cortado: oculto"
@@ -313,10 +332,12 @@ Public Sub Test_Break_Set_FailMidway_RollsBack()
     Registry_SetOption cht, "vmin", "0": Registry_SetOption cht, "vmax", "300"
     Deco_ApplyFixedScale cht
     AssertEqual 300, ax.MaximumScale
+    LowerC cht
     Util_FailThinSyncForTest = "break-set:axis"
     On Error Resume Next
     Break_Set cht, 50
     en = Err.Number: Err.Clear
+    RaiseC cht
     On Error GoTo Cleanup
     AssertEqual vbObjectError + 9994, en, "o erro chega ao chamador"
     AssertEqual "", Util_FailThinSyncForTest, "gancho de uso unico"
@@ -330,12 +351,14 @@ Public Sub Test_Break_Set_FailMidway_RollsBack()
     AssertFalse HasShape(cht, "tqq_ann_break_3")
     AssertTrue cht.SeriesCollection(2).Points(3).HasDataLabel
     AssertEqual "230", Chart_FindSeries(cht, "tqq_total").Points(3).DataLabel.Text, "rotulo do total"
-    Break_Set cht, 50
+    CutThenRaise cht, 50, False
     AssertEqual "", Registry_GetOption(cht, "vmax", "")
+    LowerC cht
     Util_FailThinSyncForTest = "break-set:cell"
     On Error Resume Next
     Break_Set cht, 80
     en = Err.Number: Err.Clear
+    RaiseC cht
     On Error GoTo Cleanup
     AssertEqual vbObjectError + 9994, en
     AssertEqual "50", Registry_GetOption(cht, "vbreak"), "o corte anterior fica"
@@ -350,10 +373,12 @@ Public Sub Test_Break_Set_FailMidway_RollsBack()
     Chart_FindSeries(cht, "tqq_total").HasDataLabels = False
     Chart_FindSeries(cht, "tqq_total").Values = Block_Ref(Block_Body(Registry_Block(cht)).Cells(2, 3).Resize(3, 1))
     Stacked_SetTotals cht, True
+    LowerC cht
     Util_FailThinSyncForTest = "break-repoint:values"
     On Error Resume Next
     Break_Set cht, 50
     en = Err.Number: Err.Clear
+    RaiseC cht
     On Error GoTo Cleanup
     AssertEqual vbObjectError + 9994, en
     AssertEqual "", Registry_GetOption(cht, "vbreak", "")
@@ -376,10 +401,12 @@ Public Sub Test_Break_EnsureColumn_FailMidway_RollsBack()
     Set cht = Core_ActiveChart()
     oldRef = wb.Names(ID_PREFIX & Registry_IdFromChart(cht)).RefersTo
     Set blk = Registry_Block(cht): cols = blk.Columns.Count
+    LowerC cht
     Util_FailThinSyncForTest = "break-ensure:write"
     On Error Resume Next
     Break_Set cht, 50
     en = Err.Number: Err.Clear
+    RaiseC cht
     On Error GoTo Cleanup
     AssertEqual vbObjectError + 9994, en
     AssertEqual oldRef, wb.Names(ID_PREFIX & Registry_IdFromChart(cht)).RefersTo, "nome devolvido"
@@ -387,7 +414,7 @@ Public Sub Test_Break_EnsureColumn_FailMidway_RollsBack()
     AssertEqual 0, Application.WorksheetFunction.CountA(blk.Offset(0, cols).Resize(blk.Rows.Count, 1)), "coluna limpa"
     AssertEqual "", Registry_GetOption(cht, "vbreak", "")
     AssertTrue cht.Axes(xlValue).MaximumScaleIsAuto
-    Break_Set cht, 50
+    CutThenRaise cht, 50, False
     AssertEqual cols + 1, Block_FindCol(Registry_Block(cht), "LblPos"), "criada no mesmo lugar"
 Cleanup:
     en = Err.Number: es = Err.Source: ed = Err.Description
@@ -404,7 +431,7 @@ Public Sub Test_Break_Restore_FailMidway_StaysHiddenAndListed()
     rng.Select
     Core_Insert "stacked"
     Set cht = Core_ActiveChart()
-    Core_SetAxisBreakAt 50
+    CutThenRaise cht, 50
     Set s2 = cht.SeriesCollection(2)
     Application.EnableEvents = False                            ' o refresh so quando o teste chama
     ws.Range("B4").Value = 10: ws.Range("C4").Value = 10
@@ -472,7 +499,7 @@ Public Sub Test_Break_BarsStacked_MarkTotalAndRemove()
     rng.Select
     Core_Insert "barstacked"
     Set cht = Core_ActiveChart()
-    Core_SetAxisBreakAt 50
+    CutThenRaise cht, 50
     Set s1 = cht.SeriesCollection(1): Set tot = Chart_FindSeries(cht, "tqq_total")
     AssertEqual xlLabelPositionInsideBase, s1.Points(3).DataLabel.Position
     AssertFalse cht.SeriesCollection(2).Points(3).HasDataLabel
@@ -522,6 +549,11 @@ Public Sub Test_Core_SetAxisBreak_AnswerHook()
     AssertEqual "", Registry_GetOption(cht, "vbreak", "")
     Core_TestSetAxisBreakAnswer 50
     Core_SetAxisBreak
+    AssertTrue InStr(Core_LastNotice(), "segmento de cima") > 0, "abaixo do piso das empilhadas: aviso (" & Core_LastNotice() & ")"
+    AssertEqual "", Registry_GetOption(cht, "vbreak", "")
+    LowerC cht
+    Core_TestSetAxisBreakAnswer 50
+    Core_SetAxisBreak
     AssertEqual "50", Registry_GetOption(cht, "vbreak", "")
     AssertEqual 50, cht.Axes(xlValue).MaximumScale
     Teardown wb
@@ -536,7 +568,7 @@ Public Sub Test_Break_TotalsAfterBreak_RebuildBelowLimit()
     Core_Insert "stacked"
     Set cht = Core_ActiveChart()
     Core_SetToggle "totals", False
-    Core_SetAxisBreakAt 50
+    CutThenRaise cht, 50
     Core_SetToggle "totals", True
     Set tot = Chart_FindSeries(cht, "tqq_total"): Set blk = Registry_Block(cht)
     AssertTrue InStr(tot.Formula, Block_Body(blk).Cells(2, Block_FindCol(blk, "LblPos")).Resize(3, 1).Address(True, True)) > 0, "nasce em LblPos"
@@ -560,7 +592,7 @@ Public Sub Test_Break_SameScaleNotice_MentionsBreak()
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb): Set ws = rng.Worksheet
     rng.Select
     Core_Insert "stacked"
-    Core_SetAxisBreakAt 50
+    CutThenRaise Core_ActiveChart(), 50
     ws.Range("A10:C10").Value = Array("Cat", "S1", "S2"): ws.Range("A11:C11").Value = Array("x", 1, 2): ws.Range("A12:C12").Value = Array("y", 3, 4)
     ws.Range("A10:C12").Select
     Core_Insert "stacked"
@@ -585,7 +617,10 @@ Public Sub Test_Break_SegmentLabelsKeepTheirValues()
         rng.Select
         Core_Insert CStr(k)
         Set cht = Core_ActiveChart()
+        ws.Range("B5:D5").Value = Array(30, 10, 9)              ' piso das empilhadas em 45: 49 - 0,75 x 9 = 42,25
         Core_SetAxisBreakAt 45
+        ws.Range("B5:D5").Value = Array(160, 40, 9)             ' os dados sobem depois do corte: Online e Atacado de 2024 inteiros acima
+        Core_SafeRefresh cht
         vis = 0
         For Each s In cht.SeriesCollection
             If Not Style_IsHelperSeries(s) Then
@@ -604,5 +639,68 @@ Public Sub Test_Break_SegmentLabelsKeepTheirValues()
         ws.ChartObjects(1).Delete
         CalcSheet_Cleanup wb
     Next
+    Teardown wb
+End Sub
+
+' Onda A, item A: nas empilhadas o corte nunca deixa o segmento de cima de uma coluna cortada inteiro acima do eixo (na demonstracao a coluna
+' do cimento parecia 100% B2C). Piso = base do segmento de cima + 25% dele (29.255 + 0,25 x 14.068 = 32.772): a sugestao respeita o piso e
+' um limite abaixo dele e recusado com aviso (nada gravado). Agrupadas nao tem piso (cada serie e uma coluna inteira).
+Public Sub Test_Break_Stacked_TopSegmentFloor_DemoTable()
+    Dim wb As Workbook, ws As Worksheet, rng As Range, cht As Chart, k As Variant, s2 As Series, sug As Double, en As Long, ed As String
+    Dim fl As Double, vis As Double, ax As Axis
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:C1").Value = Array("Departamento", "B2C", "B2B")
+    ws.Range("A2:C2").Value = Array("Cimento", 29255, 14068): ws.Range("A3:C3").Value = Array("Tintas", 12000, 5000)
+    ws.Range("A4:C4").Value = Array("Hidraulica", 9000, 4000): ws.Range("A5:C5").Value = Array("Eletrica", 7000, 3000)
+    Set rng = ws.Range("A1:C5")
+    fl = 29255 + 0.25 * 14068
+    For Each k In Array("stacked", "barstacked")
+        rng.Select
+        Core_Insert CStr(k)
+        Set cht = Core_ActiveChart()
+        sug = Break_Suggest(cht)
+        AssertTrue sug >= fl And sug < 43323, k & ": sugestao acima do piso do cimento (" & sug & ")"
+        AssertEqual 33000, sug, k & ": piso arredondado para cima a 2 algarismos"
+        Core_ClearLastNotice
+        Core_SetAxisBreakAt 29000
+        AssertTrue InStr(Core_LastNotice(), "Cimento") > 0 And InStr(Core_LastNotice(), "segmento de cima") > 0, k & ": aviso cita a coluna (" & Core_LastNotice() & ")"
+        AssertTrue InStr(Core_LastNotice(), Format$(33000, "#,##0")) > 0, k & ": aviso traz o minimo (" & Core_LastNotice() & ")"
+        AssertEqual "", Registry_GetOption(cht, "vbreak", ""), k & ": nada gravado"
+        AssertTrue cht.Axes(xlValue, xlPrimary).MaximumScaleIsAuto, k & ": eixo automatico"
+        On Error Resume Next
+        Break_Set cht, 32000
+        en = Err.Number: ed = Err.Description: Err.Clear
+        On Error GoTo 0
+        AssertEqual vbObjectError + 7003, en, k & ": Break_Set recusa abaixo do piso (" & ed & ")"
+        Core_ClearLastNotice
+        Core_SetAxisBreakAt sug
+        AssertEqual "", Core_LastNotice(), k & ": a sugestao e aceita"
+        Set s2 = cht.SeriesCollection(2)
+        AssertTrue s2.Points(1).HasDataLabel, k & ": B2B do cimento rotulado"
+        AssertEqual xlLabelPositionInsideBase, s2.Points(1).DataLabel.Position, k & ": B2B atravessado: rotulo na base"
+        AssertEqual "", Registry_GetOption(cht, "brklbl", ""), k & ": nenhum rotulo oculto"
+        ' regra de tres no eixo real: a base do B2B (topo do B2C) fica dentro da area de plotagem, a pelo menos 25% do segmento da borda do
+        ' corte; a base desenhada do ponto confere com a escala (o Excel nao recorta Point.Height: a base e que vale, medido na Tarefa 4)
+        Set ax = cht.Axes(xlValue, xlPrimary)
+        ForceLayout cht
+        If k = "stacked" Then
+            vis = YOf(cht, 29255) - cht.PlotArea.InsideTop
+            AssertAlmost YOf(cht, 29255), s2.Points(1).Top + s2.Points(1).Height, 1.5, k & ": base do B2B na escala real"
+            AssertTrue vis >= 0.25 * 14068 * cht.PlotArea.InsideHeight / (ax.MaximumScale - ax.MinimumScale) - 0.5, k & ": B2B visivel (" & vis & " pt)"
+        Else
+            vis = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth - XOf(cht, 29255)
+            AssertAlmost XOf(cht, 29255), s2.Points(1).Left, 1.5, k & ": base do B2B na escala real"
+            AssertTrue vis >= 0.25 * 14068 * cht.PlotArea.InsideWidth / (ax.MaximumScale - ax.MinimumScale) - 0.5, k & ": B2B visivel (" & vis & " pt)"
+        End If
+        ws.ChartObjects(1).Delete
+        CalcSheet_Cleanup wb
+    Next
+    rng.Select
+    Core_Insert "clustered"
+    Set cht = Core_ActiveChart()
+    Core_ClearLastNotice
+    Core_SetAxisBreakAt 20000
+    AssertEqual "", Core_LastNotice(), "agrupadas: sem piso"
+    AssertEqual "20000", Registry_GetOption(cht, "vbreak", "")
     Teardown wb
 End Sub

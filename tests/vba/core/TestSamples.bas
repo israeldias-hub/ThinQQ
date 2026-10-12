@@ -316,7 +316,8 @@ Private Sub CheckSheet3Labels(wb As Workbook)
     Set cht = ws.ChartObjects(4).Chart
     AssertEqual Format$(0.34, "0%"), cht.SeriesCollection(1).Points(1).DataLabel.Text, "22: 34 + 33 + 33 (empate: a primeira coluna recebe o resto)"
     AssertEqual Format$(0.33, "0%"), cht.SeriesCollection(3).Points(1).DataLabel.Text
-    AssertEqual Format$(230, "#,##0"), Chart_FindSeries(ws.ChartObjects(5).Chart, "tqq_total").Points(3).DataLabel.Text, "23: total real acima do corte"
+    AssertEqual Format$(140, "#,##0"), Chart_FindSeries(ws.ChartObjects(5).Chart, "tqq_total").Points(3).DataLabel.Text, "23: total real acima do corte"
+    AssertTrue ws.ChartObjects(5).Chart.SeriesCollection(2).Points(3).HasDataLabel, "23: o segmento de cima da coluna cortada continua visivel e rotulado"
 End Sub
 
 ' Nenhuma celula das planilhas de exemplos (fora a _ThinQQ, onde NA() e intencional) tem valor de erro (#N/D, #DIV/0!...) e nenhum

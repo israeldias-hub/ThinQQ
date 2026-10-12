@@ -187,14 +187,14 @@ Private Function Samples_CreateSheet3(wb As Workbook) As Worksheet
     Settle co
 
     WriteTitle ws, 85, "23) Colunas empilhadas com corte de eixo em 50"
-    WriteTable ws.Range("A86"), Array(Array("Cat", "S1", "S2"), Array("a", 5, 5), Array("b", 10, 10), Array("c", 200, 30))
+    WriteTable ws.Range("A86"), Array(Array("Cat", "S1", "S2"), Array("a", 5, 5), Array("b", 10, 10), Array("c", 20, 120))
     Set d = ChartData_FromRange(ws.Range("A86:C89"))
     Set co = Kinds_Insert(ws, d, "stacked")
     Break_Set co.Chart, 50
     Settle co
 
     WriteTitle ws, 106, "24) Barras empilhadas com corte de eixo"
-    WriteTable ws.Range("A107"), Array(Array("Cat", "S1", "S2"), Array("a", 5, 5), Array("b", 10, 10), Array("c", 200, 30))
+    WriteTable ws.Range("A107"), Array(Array("Cat", "S1", "S2"), Array("a", 5, 5), Array("b", 10, 10), Array("c", 20, 120))
     Set d = ChartData_FromRange(ws.Range("A107:C110"))
     Set co = Kinds_Insert(ws, d, "barstacked")
     Break_Set co.Chart, 50

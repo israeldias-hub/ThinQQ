@@ -13,6 +13,7 @@ Private Const BK_PREFIX As String = "tqq_ann_break_"
 Private Const BK_LBL_OPT As String = "brklbl"
 Private Const BK_TOP_ROOM As Double = 24        ' folga (pt) acima da area interna para o rotulo do total da coluna cortada
 Private Const BK_RIGHT_MARGIN As Double = 10    ' barras: folga = largura do maior rotulo de total + esta margem
+Private Const BK_TOP_SHARE As Double = 0.25     ' empilhadas: parte minima visivel do segmento de cima de uma coluna cortada (StackedFloor)
 Public Const BREAK_ERR_LIMIT As String = "Corte de eixo: informe um valor maior que zero e menor que o maior valor do gráfico."
 Private mBusy As Boolean                        ' Break_Set/Break_Remove em andamento: o refresh por evento (Calculate) nao interfere
 
@@ -129,10 +130,71 @@ Private Function MaxTop(cht As Chart) As Double
     Next
 End Function
 
-' Sugestao de corte: 1,2 x o segundo maior topo (se menor que o maior), senao metade do maior; arredondada a 2 algarismos significativos
-' (o InputBox mostra um numero redondo) quando o arredondado continua entre 0 e o maior topo.
+' Empilhadas: piso do corte em lim. Um segmento inteiro acima do corte some sem aviso (na demonstracao a coluna do cimento parecia so B2C):
+' em cada categoria CORTADA (topo > lim) o segmento de cima (a ultima serie com valor > 0) precisa mostrar pelo menos BK_TOP_SHARE dele, ou
+' seja, lim >= base dele + BK_TOP_SHARE x ele = topo - (1 - BK_TOP_SHARE) x ele. Devolve o maior piso entre as cortadas (cat = a categoria
+' dele); 0 nas agrupadas (cada serie e uma coluna inteira) ou sem categoria cortada. Subir lim so tira categorias do conjunto: o piso em lim
+' nunca cresce com lim (um valor >= piso(lim) continua valido).
+Private Function StackedFloor(cht As Chart, lim As Double, ByRef cat As Long) As Double
+    Dim n As Long, i As Long, s As Series, v As Variant, x As Double, tops() As Double, lastSeg() As Double, f As Double
+    cat = 0
+    If IsFlatKind(Registry_ChartType(cht)) Then Exit Function
+    n = Geom_ChartCategoryCount(cht)
+    If n < 1 Then Exit Function
+    ReDim tops(1 To n): ReDim lastSeg(1 To n)
+    For Each s In cht.SeriesCollection
+        If Not Style_IsHelperSeries(s) Then
+            v = s.Values
+            For i = 1 To n
+                x = ArrayValue(v, i)
+                If x > 0 Then tops(i) = tops(i) + x: lastSeg(i) = x
+            Next
+        End If
+    Next
+    For i = 1 To n
+        If tops(i) > lim Then
+            f = tops(i) - (1 - BK_TOP_SHARE) * lastSeg(i)
+            If f > StackedFloor Then StackedFloor = f: cat = i
+        End If
+    Next
+End Function
+
+' Menor numero "redondo" >= v e < mx (2, 3, ... 6 algarismos significativos, arredondado para cima); v se nenhum couber.
+Private Function NiceCeil(v As Double, mx As Double) As Double
+    Dim d As Long, p As Double, r As Double
+    NiceCeil = v
+    If v <= 0 Then Exit Function
+    For d = 2 To 6
+        p = 10 ^ (Int(Log(v) / Log(10)) - d + 1)
+        r = -Int(-v / p) * p
+        If r < v Then r = r + p                      ' ruido de ponto flutuante
+        If r < mx Then NiceCeil = r: Exit Function
+    Next
+End Function
+
+' Numero no separador da localidade (Format$), sem a virgula final de um inteiro.
+Private Function NumberText(v As Double) As String
+    If v = Int(v) Then NumberText = Format$(v, "#,##0") Else NumberText = Format$(v, "#,##0.##")
+End Function
+
+' Texto da recusa do piso (7003): a coluna (barra) que define o piso e o menor limite aceito, ja arredondado para cima.
+Private Function FloorText(cht As Chart, cat As Long, fl As Double) As String
+    Dim nm As String, xv As Variant, what As String
+    On Error Resume Next
+    xv = cht.SeriesCollection(1).XValues
+    If IsArray(xv) Then nm = CStr(xv(LBound(xv) + cat - 1))
+    On Error GoTo 0
+    If Len(nm) = 0 Then nm = CStr(cat)
+    If Geom_ChartIsHorizontal(cht) Then what = "barra" Else what = "coluna"
+    FloorText = "Corte de eixo: com esse valor o segmento de cima da " & what & " '" & nm & "' ficaria inteiro acima do corte e não apareceria. "
+    FloorText = FloorText & "Informe pelo menos " & NumberText(NiceCeil(fl, MaxTop(cht))) & "."
+End Function
+
+' Sugestao de corte: 1,2 x o segundo maior topo (se menor que o maior), senao metade do maior; nas empilhadas, nunca abaixo do piso
+' (StackedFloor: o segmento de cima da coluna cortada continua visivel); arredondada a 2 algarismos significativos (o InputBox mostra um
+' numero redondo) quando o arredondado continua entre o piso e o maior topo, senao para cima (NiceCeil).
 Public Function Break_Suggest(cht As Chart) As Double
-    Dim tops() As Double, i As Long, mx As Double, second As Double, v As Double, p As Double, r As Double
+    Dim tops() As Double, i As Long, mx As Double, second As Double, v As Double, p As Double, r As Double, fl As Double, cat As Long
     tops = Break_CategoryTops(cht)
     For i = LBound(tops) To UBound(tops)
         If tops(i) > mx Then
@@ -143,24 +205,34 @@ Public Function Break_Suggest(cht As Chart) As Double
     Next
     If second > 0 And second * 1.2 < mx Then v = second * 1.2 Else v = mx / 2
     If v > 0 Then
+        fl = StackedFloor(cht, v, cat)
+        If fl > v Then v = fl
         p = 10 ^ (Int(Log(v) / Log(10)) - 1)
         r = Round(v / p) * p
-        If r > 0 And r < mx Then v = r
+        If r > 0 And r < mx And r >= StackedFloor(cht, r, cat) Then
+            v = r
+        ElseIf fl > 0 Then
+            v = NiceCeil(v, mx)
+        End If
     End If
     Break_Suggest = v
 End Function
 
 ' Liga (ou muda) o corte em limit; limit <= 0 remove. Recusas: 7002 (tipo sem corte, matriz de capacidades) e 7003 (limite fora de
-' 0 < limit < maior topo), ambas antes de gravar qualquer coisa. Transacional: uma falha depois de comecar volta a celula do limite, as
-' opcoes (vbreak, vmin, vmax) e o eixo ao que eram antes de o erro seguir para o chamador.
+' 0 < limit < maior topo, ou, nas empilhadas, abaixo do piso de StackedFloor: o segmento de cima de uma coluna cortada sumiria; o aviso diz
+' a coluna e o menor valor aceito), todas antes de gravar qualquer coisa. Recusar (e nao subir o limite sozinho) deixa o usuario decidir e
+' nunca grava um valor que ele nao digitou. Transacional: uma falha depois de comecar volta a celula do limite, as opcoes (vbreak, vmin,
+' vmax) e o eixo ao que eram antes de o erro seguir para o chamador.
 Public Sub Break_Set(cht As Chart, limit As Double)
     Dim kind As String, ax As Axis, lc As Range, prevOpt As String, prevMin As String, prevMax As String, prevCell As Variant
     Dim prevAutoMax As Boolean, prevMaxVal As Double, prevAutoMin As Boolean, prevMinVal As Double, started As Boolean, wasBusy As Boolean
-    Dim en As Long, es As String, ed As String
+    Dim en As Long, es As String, ed As String, fl As Double, cat As Long
     kind = Registry_ChartType(cht)
     If Not Kinds_Supports(kind, "break") Then Err.Raise vbObjectError + 7002, "Break_Set", Kinds_NotApplicableText("break")
     If limit <= 0 Then Break_Remove cht: Exit Sub
     If limit >= MaxTop(cht) Then Err.Raise vbObjectError + 7003, "Break_Set", BREAK_ERR_LIMIT
+    fl = StackedFloor(cht, limit, cat)
+    If limit < fl - 0.000000001 * (1 + fl) Then Err.Raise vbObjectError + 7003, "Break_Set", FloorText(cht, cat, fl)
     wasBusy = mBusy: mBusy = True
     On Error GoTo Fail
     Break_EnsureColumn cht                                  ' transacional sozinha; fica criada (sem limite, LblPos = TotalPos)
