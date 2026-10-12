@@ -438,8 +438,15 @@ Public Sub Bfly_SyncThinLabels(cht As Chart)
                             If Err.Number = 0 And Not mine Then list = list & key & ","
                         ElseIf (Not has) And mine And v * ppu >= txtW Then
                             s.Points(i).HasDataLabel = True
-                            FormatSideLabel s, i, fmt, key
-                            If Err.Number = 0 Then list = Replace(list, "," & key & ",", ",")
+                            If Err.Number = 0 Then FormatSideLabel s, i, fmt, key
+                            If Err.Number = 0 Then
+                                list = Replace(list, "," & key & ",", ",")
+                            Else
+                                ' religado mas meio formatado: oculta de novo (a chave fica na lista; a proxima passada tenta outra vez)
+                                Errors_Log "Bfly_SyncThinLabels" & vbTab & key & vbTab & Err.Number & vbTab & Err.Description
+                                Err.Clear
+                                s.Points(i).HasDataLabel = False
+                            End If
                         ElseIf has And mine Then
                             list = Replace(list, "," & key & ",", ",")      ' o rotulo voltou por outro caminho: deixa de ser "oculto pelo ThinQQ"
                         End If

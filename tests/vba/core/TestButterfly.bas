@@ -536,3 +536,24 @@ Public Sub Test_Bfly_ThinSync_EstimateError_PointSkipped()
     AssertEqual "2.2,1.2", Registry_GetOption(cht, "thinlbl", ""), "e registrado como oculto pelo ThinQQ"
     Teardown wb
 End Sub
+
+' Revisao 2: falha no meio da formatacao do rotulo que volta (gancho de teste): o rotulo meio formatado e ocultado de novo e a chave fica na
+' lista; sem a falha, volta completo.
+Public Sub Test_Bfly_ThinSync_FormatError_LabelHiddenAgain()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = TinyFixture(wb)
+    ws.Range("A1:C4").Select
+    Core_Insert "butterfly"
+    Set cht = Core_ActiveChart()
+    AssertFalse Bfly_SideSeries(cht, 1).Points(2).HasDataLabel
+    ws.Range("B3").Value = 900
+    Util_FailThinSyncForTest = "bfly-fmt:1.2"
+    Core_SafeRefresh cht
+    Util_FailThinSyncForTest = ""
+    AssertFalse Bfly_SideSeries(cht, 1).Points(2).HasDataLabel, "meio formatado: oculto de novo"
+    AssertTrue InStr("," & Registry_GetOption(cht, "thinlbl", "") & ",", ",1.2,") > 0, "a chave continua na lista"
+    Core_SafeRefresh cht
+    AssertTrue Bfly_SideSeries(cht, 1).Points(2).HasDataLabel, "sem a falha, volta"
+    AssertEqual "900", Bfly_SideSeries(cht, 1).Points(2).DataLabel.Text
+    Teardown wb
+End Sub
