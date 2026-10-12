@@ -380,7 +380,8 @@ try {
                  Set-NumFmt ($ws.Range("B${tr}")) '0.000%'; Set-NumFmt ($ws.Range("C${tr}:D${tr}")) '0%'
                  $ws.Range("A${tr}:D${tr}").Font.Bold = $true
                  $ws.Range("A${tr}:D${tr}").Borders.Item(8).LineStyle = 1        # xlEdgeTop
-                 $ws.Range('C15:D15').WrapText = $true; $ws.Columns('C:D').ColumnWidth = 14 }
+                 $ws.Range('C15:D15').WrapText = $true; $ws.Columns('C:D').ColumnWidth = 14
+                 $ws.Rows(15).AutoFit() | Out-Null }                                 # cabeçalho em 2 linhas inteiro
             24 { $rng = Write-Table $ws 'A6' @('Departamento', 'B2C', 'B2B') $deptChannelBody; $co = Add-Chart $ws $rng 'stacked'
                  # corte DENTRO do segmento de cima da coluna cortada (B2C + metade do B2B do cimento): os dois segmentos aparecem e o B2B mantém o
                  # rótulo; um corte abaixo do topo do B2C (ex.: 1,2 x o 2º maior total) esconderia o B2B inteiro e a coluna pareceria só B2C
@@ -420,6 +421,8 @@ try {
     $idx.Range('A3').Value2 = 'Clique no nome de um exemplo para ir ao gráfico; em cada exemplo, a célula A1 ("Voltar ao índice") traz você de volta. Os dados estão nas planilhas Dados, Lojas e Obras.'
     $idx.Range('A4').Value2 = 'Os gráficos são gráficos nativos do Excel e continuam ligados às tabelas: funcionam com ou sem o ThinQQ instalado. Setas, colchetes, marcas de corte e a escala do Gantt são recalculados só com o ThinQQ instalado; sem ele ficam como estão se os números mudarem.'
     $idx.Range('A2:A4').Font.Color = 0x404040
+    foreach ($rr in 2, 3, 4) { $m = $idx.Range("A${rr}:E${rr}"); $m.Merge() | Out-Null; $m.WrapText = $true; $m.VerticalAlignment = -4160 }   # textos dentro da largura da tabela
+    $idx.Rows(3).RowHeight = 30; $idx.Rows(4).RowHeight = 30                    # células mescladas não se ajustam sozinhas: 2 linhas
     $hdrRow = 6
     $idx.Range("A${hdrRow}:E${hdrRow}").Value2 = [object[]]('Nº', 'Exemplo (clique para abrir)', 'Tipo de gráfico', 'Recursos em destaque', 'Como criar no ThinQQ')
     $h = $idx.Range("A${hdrRow}:E${hdrRow}"); $h.Font.Bold = $true; $h.Font.Color = 0xFFFFFF; $h.Interior.Color = 0x79531F
@@ -440,10 +443,11 @@ try {
         $r++
     }
     $last = $r - 1
-    $idx.Columns('A').ColumnWidth = 5; $idx.Columns('B').ColumnWidth = 72; $idx.Columns('C').ColumnWidth = 26; $idx.Columns('D').ColumnWidth = 38; $idx.Columns('E').ColumnWidth = 84
+    # ~175 caracteres de largura: cabe numa tela de 1366 px; títulos, recursos e menus longos quebram a linha
+    $idx.Columns('A').ColumnWidth = 5; $idx.Columns('B').ColumnWidth = 60; $idx.Columns('C').ColumnWidth = 22; $idx.Columns('D').ColumnWidth = 30; $idx.Columns('E').ColumnWidth = 58
     $idx.Range("A${hdrRow}:A${last}").HorizontalAlignment = -4108                   # xlCenter
     $idx.Range("A${hdrRow}:E${last}").VerticalAlignment = -4160                     # xlTop
-    $idx.Range("D$($hdrRow + 1):E${last}").WrapText = $true
+    $idx.Range("B$($hdrRow + 1):E${last}").WrapText = $true
     $idx.Range("A$($hdrRow + 1):E${last}").Rows.AutoFit() | Out-Null
     $idx.Range("A${hdrRow}:E${last}").Borders.Item(12).LineStyle = 1               # xlInsideHorizontal
     $idx.Range("A${hdrRow}:E${last}").Borders.Item(12).Color = 0xD9D9D9
