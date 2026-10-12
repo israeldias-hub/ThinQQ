@@ -200,6 +200,7 @@ Public Function Scatter_Insert(ws As Worksheet, data As clsChartData, kind As St
     Style_ApplyBase cht
     Util_TestHookAfterChart
     Scatter_StyleAxes cht, data
+    Scatter_SyncAxisFormats cht
     If isBubble Then
         cht.ChartGroups(1).BubbleScale = 60
         cht.ChartGroups(1).SizeRepresents = xlSizeIsArea
@@ -251,6 +252,77 @@ Private Sub Scatter_StyleAxes(cht As Chart, data As clsChartData)
             .AxisTitle.Font.Bold = False
             .AxisTitle.Font.Color = SC_TEXT_COLOR
         End With
+    Next
+End Sub
+
+' Celula de origem de uma formula X/Y do bloco (=IF(ISNUMBER(<ref>),<ref>,NA())): a referencia aparece duas vezes, entao o tamanho dela sai
+' do tamanho da formula (o Excel pode tirar as aspas do nome da planilha, mas o faz nas duas ocorrencias). Nothing se a formula nao tem essa
+' forma ou a referencia nao resolve (#REF!).
+Private Function SourceCellOf(f As String, wb As Workbook) As Range
+    Const PFX As String = "=IF(ISNUMBER("
+    Const SFX As String = ",NA())"
+    Dim l As Long, ref As String, bang As Long, sh As String
+    On Error GoTo Fail
+    If Left$(f, Len(PFX)) <> PFX Or Right$(f, Len(SFX)) <> SFX Then Exit Function
+    l = Len(f) - Len(PFX) - Len(SFX) - 2
+    If l < 4 Or (l Mod 2) <> 0 Then Exit Function
+    l = l \ 2
+    ref = Mid$(f, Len(PFX) + 1, l)
+    If Mid$(f, Len(PFX) + l + 1, 2) <> ")," Or Mid$(f, Len(PFX) + l + 3, l) <> ref Then Exit Function
+    bang = InStrRev(ref, "!")
+    If bang < 2 Then Exit Function
+    sh = Left$(ref, bang - 1)
+    If Left$(sh, 1) = "'" And Right$(sh, 1) = "'" Then sh = Replace(Mid$(sh, 2, Len(sh) - 2), "''", "'")
+    Set SourceCellOf = wb.Worksheets(sh).Range(Mid$(ref, bang + 1))
+    Exit Function
+Fail:
+    Set SourceCellOf = Nothing
+End Function
+
+' Primeira celula NUMERICA da coluna de origem de X (col = SC_COL_X) ou Y (SC_COL_Y), pelas formulas do bloco (acompanham a tabela movida ou
+' renomeada). Nothing se nenhuma for numerica ou legivel. Para no primeiro numero (no refresh, quase sempre a primeira linha).
+Private Function SourceNumberCell(cht As Chart, col As Long) As Range
+    Dim blk As Range, body As Range, i As Long, n As Long, c As Range, v As Variant
+    On Error GoTo Fail
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Function
+    Set body = Block_Body(blk)
+    n = body.Rows.Count - 1
+    For i = 1 To n
+        Set c = SourceCellOf(CStr(body.Cells(i + 1, col).Formula), Registry_Workbook(cht))
+        If Not c Is Nothing Then
+            v = c.Value2
+            If Not IsError(v) And Not IsEmpty(v) And VarType(v) <> vbString And VarType(v) <> vbBoolean Then
+                If IsNumeric(v) Then Set SourceNumberCell = c: Exit Function
+            End If
+        End If
+    Next
+    Exit Function
+Fail:
+    Set SourceNumberCell = Nothing
+End Function
+
+' Formato dos numeros dos eixos X e Y = o da primeira celula numerica da coluna de origem (sem isso a margem em % aparecia 0,3 / 0,325).
+' Usa o NumberFormatLocal da CELULA: ja na notacao do Excel desta maquina, inclusive datas e textos entre aspas, que Style_LocalizeCode nao
+' traduz. Geral (ou nenhuma celula numerica) = o padrao "General". Na insercao e em todo refresh; so escreve o que mudou. Nunca propaga erro.
+Public Sub Scatter_SyncAxisFormats(cht As Chart)
+    Dim k As Long, c As Range, ax As Axis, want As String
+    On Error Resume Next
+    For k = 1 To 2
+        Set c = Nothing: Set ax = Nothing: want = ""
+        Set c = SourceNumberCell(cht, IIf(k = 1, SC_COL_X, SC_COL_Y))
+        Set ax = cht.Axes(IIf(k = 1, xlCategory, xlValue), xlPrimary)
+        If Err.Number = 0 Then
+            If Not c Is Nothing Then
+                If CStr(c.NumberFormat) <> "General" Then want = CStr(c.NumberFormatLocal)
+            End If
+            If Len(want) = 0 Then
+                If ax.TickLabels.NumberFormat <> "General" Then ax.TickLabels.NumberFormat = "General"
+            ElseIf ax.TickLabels.NumberFormatLocal <> want Then
+                ax.TickLabels.NumberFormatLocal = want
+            End If
+        End If
+        If Err.Number <> 0 Then Errors_Log "Scatter_SyncAxisFormats" & vbTab & k & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Next
 End Sub
 
@@ -507,6 +579,7 @@ End Sub
 Public Sub Scatter_RefreshAfterDataChange(cht As Chart)
     On Error Resume Next
     If Kinds_Family(Registry_ChartType(cht)) <> "scatter" Then Exit Sub
+    Scatter_SyncAxisFormats cht                      ' o formato da coluna de origem pode ter mudado
     If Registry_GetOption(cht, "quad", "0") = "1" Then Scatter_ApplyQuadrants cht
     If Err.Number <> 0 Then Errors_Log "Scatter_RefreshAfterDataChange/quad" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Scatter_HideTrendEntries cht

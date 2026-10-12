@@ -484,3 +484,32 @@ Public Sub Test_Scatter_QuadAverages_OnlyPlottedPoints()
     AssertAlmost (0.2 + 0.35 + 0.25) / 3, CDbl(blk.Cells(1, 6).Value), 0.000001, "AvgY sem a bolha negativa"
     CloseTemp wb
 End Sub
+
+' Onda A, item B: os numeros dos eixos seguem o formato das celulas de origem de X e Y (na demonstracao a margem em % aparecia 0,3 / 0,325),
+' na insercao e no refresh; formato Geral mantem o padrao. Dispersao e bolhas.
+Public Sub Test_Scatter_AxisNumberFormat_FollowsSource()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, k As Variant, d As clsChartData, axX As Axis, axY As Axis
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:D1").Value = Array("Loja", "Margem", "Ticket", "Vendas")
+    ws.Range("A2:D2").Value = Array("L1", 0.3, 33.5, 10): ws.Range("A3:D3").Value = Array("L2", 0.31, 32.5, 20)
+    ws.Range("A4:D4").Value = Array("L3", 0.325, 33, 30): ws.Range("A5:D5").Value = Array("L4", 0.33, 34.25, 40)
+    ws.Range("B2:B5").NumberFormat = "0%"
+    ws.Range("C2:C5").NumberFormat = "0.0"
+    For Each k In Array("scatter", "bubble")
+        Set d = ChartData_FromRange(ws.Range(IIf(k = "scatter", "A1:C5", "A1:D5")))
+        Set cht = Scatter_Insert(ws, d, CStr(k)).Chart
+        Set axX = cht.Axes(xlCategory, xlPrimary): Set axY = cht.Axes(xlValue, xlPrimary)
+        AssertEqual ws.Range("B2").NumberFormatLocal, axX.TickLabels.NumberFormatLocal, k & ": eixo X no formato da coluna X"
+        AssertEqual ws.Range("C2").NumberFormatLocal, axY.TickLabels.NumberFormatLocal, k & ": eixo Y no formato da coluna Y"
+        ws.Range("C2:C5").NumberFormat = "0.00"
+        Core_SafeRefresh cht
+        AssertEqual ws.Range("C2").NumberFormatLocal, axY.TickLabels.NumberFormatLocal, k & ": o refresh acompanha o formato novo"
+        ws.Range("C2:C5").NumberFormat = "General"
+        Core_SafeRefresh cht
+        AssertEqual "General", axY.TickLabels.NumberFormat, k & ": Geral mantem o padrao"
+        ws.Range("C2:C5").NumberFormat = "0.0"
+        ws.ChartObjects(1).Delete
+        CalcSheet_Cleanup wb
+    Next
+    Teardown wb
+End Sub
