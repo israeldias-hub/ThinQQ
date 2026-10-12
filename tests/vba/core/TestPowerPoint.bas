@@ -49,10 +49,10 @@ End Sub
 Private Function FakePres(n As Long) As TestPptFake
     Dim p As TestPptFake, sl As TestPptFake, i As Long
     Set p = New TestPptFake
-    Set p.Slides = New Collection
+    Set p.Slides = New TestPptSlides
     For i = 1 To n
         Set sl = New TestPptFake: sl.SlideIndexValue = i
-        p.Slides.Add sl
+        p.Slides.Append sl
     Next
     Set FakePres = p
 End Function
@@ -62,7 +62,7 @@ End Function
 ' ser outra apresentacao do usuario. So sem janela vale a primeira apresentacao. Nada e criado quando ha apresentacao.
 Public Sub Test_Ppt_TargetSlide_UsesActiveWindowPresentation()
     Dim app As TestPptFake, win As TestPptFake, presA As TestPptFake, presB As TestPptFake, sel As TestPptFake, vw As TestPptFake, master As TestPptFake
-    Dim created As Object
+    Dim created As Object, added As Object, presE As TestPptFake, got As Object
     Set presA = FakePres(2): Set presB = FakePres(3)
     Set win = New TestPptFake: Set win.Presentation = presB      ' View = Nothing: View.Slide falha (Classificador de slides)
     Set app = New TestPptFake
@@ -84,14 +84,24 @@ Public Sub Test_Ppt_TargetSlide_UsesActiveWindowPresentation()
     Set app.ActiveWindow = Nothing                                ' sem janela ativa: a primeira janela, ainda nao Presentations(1)
     AssertTrue Ppt_TargetSlide(app) Is presB.Slides(3), "janela sem foco: a apresentacao dela"
     Set app.Windows = New Collection                              ' sem janela: a primeira apresentacao
-    AssertTrue Ppt_TargetSlide(app, created) Is presA.Slides(2), "sem janela: o ultimo slide de Presentations(1)"
+    AssertTrue Ppt_TargetSlide(app, created, added) Is presA.Slides(2), "sem janela: o ultimo slide de Presentations(1)"
     AssertTrue created Is Nothing
+    AssertTrue added Is Nothing, "apresentacao com slides: nenhum slide acrescentado"
+    Set presE = FakePres(0)                                       ' rodada 1 (Importante 3): apresentacao aberta sem slides
+    Set app.Presentations = New Collection: app.Presentations.Add presE
+    Set got = Ppt_TargetSlide(app, created, added)
+    AssertEqual 1, presE.Slides.AddedCount, "um slide acrescentado"
+    AssertTrue added Is got, "o slide acrescentado volta para quem chama (apagado se falhar depois)"
+    AssertTrue created Is Nothing, "a apresentacao nao foi criada pela chamada"
 End Sub
 
 ' Onda B (B1.3): CreateObject anexa a um PowerPoint ja aberto que a ROT nao ve (aberto so para incorporacao, sem apresentacoes): so e "nosso"
 ' (encerrado numa falha) o PowerPoint aberto quando nao havia NENHUM processo POWERPNT; WMI indisponivel (-1) = na duvida, nao e nosso.
 Public Sub Test_Ppt_CreatedOnlyWithoutPowerPointProcess()
-    AssertEqual PowerPointProcessCount(), Ppt_ProcessCount(), "processos POWERPNT por WMI"
+    Dim a As Long, b As Long
+    a = PowerPointProcessCount(): b = Ppt_ProcessCount()
+    If a <> b Then WaitSeconds 1: a = PowerPointProcessCount(): b = Ppt_ProcessCount()     ' um POWERPNT entrando ou saindo entre as duas leituras
+    AssertEqual a, b, "processos POWERPNT por WMI"
     AssertTrue Ppt_CreatedByUs(0, New Collection), "nenhum processo antes: nosso"
     AssertFalse Ppt_CreatedByUs(1, New Collection), "havia um processo: CreateObject anexou a ele"
     AssertFalse Ppt_CreatedByUs(-1, New Collection), "contagem indisponivel: nao e nosso"
@@ -154,20 +164,24 @@ Public Sub Test_Core_CopyToPowerPoint_Unsaved_Linked_NoticeBeforePowerPoint()
     Teardown wb
 End Sub
 
+' Seguranca dos testes com PowerPoint real (Onda B, rodada 1): o PowerPoint e de instancia unica, entao um PowerPoint ou .pptx que o usuario
+' abra enquanto o teste roda cai NA INSTANCIA DO TESTE. Por isso: (1) o destino das colagens e fixado no slide do proprio teste
+' (Ppt_PinTargetForTest) ou forcado a uma apresentacao nova (forceNew), nunca a janela ativa; (2) antes de cada chamada, uma janela na
+' instancia (o teste so cria apresentacoes sem janela) encerra o teste com o motivo no log; (3) so as apresentacoes que o teste ou a chamada
+' criaram (pelo objeto, nunca por indice) sao fechadas, e o PowerPoint so recebe Quit sem nenhuma apresentacao aberta.
+
 ' Review Focus 5 (parte 2): colagem real. Roda SO quando nenhum PowerPoint esta aberto (aplicativo de instancia unica: CreateObject anexaria
 ' ao do usuario) e o PowerPoint existe; senao sai verde registrando o motivo. Apresentacao sem janela; a instancia e encerrada ao final.
 Public Sub Test_Ppt_RealPaste_WhenAvailable()
     Dim wb As Workbook, rng As Range, app As Object, pres As Object, slide As Object, c As Chart, en As Long, ed As String, shp As Object
-    If Ppt_IsRunning() Then Errors_Log "TestPowerPoint: pulado (ha um PowerPoint aberto)": Exit Sub
-    ' a ROT (GetObject) nao ve um PowerPoint aberto so para incorporacao: confere tambem os processos (regra global: nenhum POWERPNT)
-    If PowerPointProcessCount() > 0 Then Errors_Log "TestPowerPoint: pulado (processo POWERPNT existente)": Exit Sub
-    On Error Resume Next
-    Set app = CreateObject("PowerPoint.Application")
-    On Error GoTo 0
-    If app Is Nothing Then Errors_Log "TestPowerPoint: pulado (PowerPoint nao instalado)": Exit Sub
+    Dim own As New Collection
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
     On Error GoTo Cleanup
     Set pres = app.Presentations.Add(0)
+    own.Add pres
     Set slide = pres.Slides.Add(1, 12)
+    Ppt_PinTargetForTest slide
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
     wb.SaveAs TempDir() & "\ppt-src.xlsx", xlOpenXMLWorkbook
     rng.Select
@@ -177,12 +191,14 @@ Public Sub Test_Ppt_RealPaste_WhenAvailable()
     If Not ClipboardUsable(c) Then Errors_Log "TestPowerPoint: colagem real pulada (area de transferencia do Windows indisponivel)": GoTo Cleanup
     Ppt_SetAppForTest app
     Core_ClearLastNotice
+    If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "image"
     AssertEqual 1, slide.Shapes.Count, "imagem colada"
     AssertEqual 13, slide.Shapes(1).Type, "msoPicture"
     AssertAlmost 432, CDbl(slide.Shapes(1).Height), 2, "limitado pela altura (432 pt = 80% de 540): largura ~710 (" & slide.Shapes(1).Width & ")"
     AssertTrue InStr(Core_LastNotice(), "slide 1") > 0 And InStr(Core_LastNotice(), "como imagem") > 0, Core_LastNotice()
     Core_ClearLastNotice
+    If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "chart"
     AssertEqual 2, slide.Shapes.Count, "grafico colado"
     Set shp = slide.Shapes(2)
@@ -192,23 +208,24 @@ Public Sub Test_Ppt_RealPaste_WhenAvailable()
     AssertTrue InStr(Core_LastNotice(), "gráfico vinculado") > 0, Core_LastNotice()
     rng.Worksheet.Range("B2").Value = 11
     Core_ClearLastNotice
+    If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "chart"
     AssertTrue InStr(Core_LastNotice(), PPT_NOTE_DIRTY) > 0, "aviso de alteracoes nao salvas"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error Resume Next
-    Ppt_SetAppForTest Nothing
-    If Not pres Is Nothing Then pres.Saved = -1: pres.Close                         ' Saved: fecha sem a pergunta de salvar (travaria o teste)
-    If Not app Is Nothing Then If app.Presentations.Count = 0 Then app.Quit      ' alguem anexou a esta instancia e abriu algo: nao encerra
-    Set app = Nothing
+    Set shp = Nothing: Set slide = Nothing: Set pres = Nothing     ' sem referencias: o processo do teste pode terminar depois do Quit
+    StopScratchPowerPoint app, own
     If Not wb Is Nothing Then Teardown wb
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPowerPoint", ed
 End Sub
 
-' Mesmas regras de seguranca do teste anterior (so cria o PowerPoint se nenhum estiver aberto). Devolve Nothing (e registra o motivo) se pulou.
+' So cria o PowerPoint se nenhum estiver aberto (nem na ROT nem como processo POWERPNT: um aberto so para incorporacao nao aparece na ROT).
+' Devolve Nothing (e registra o motivo) se pulou. Desarma os ganchos de um teste anterior.
 Private Function StartScratchPowerPoint() As Object
     Dim app As Object
+    Ppt_ResetTestHooks
     If Ppt_IsRunning() Then Errors_Log "TestPowerPoint: pulado (ha um PowerPoint aberto)": Exit Function
     If PowerPointProcessCount() > 0 Then Errors_Log "TestPowerPoint: pulado (processo POWERPNT existente)": Exit Function
     On Error Resume Next
@@ -218,64 +235,121 @@ Private Function StartScratchPowerPoint() As Object
     Set StartScratchPowerPoint = app
 End Function
 
-' Encerra o PowerPoint criado pelo teste: fecha SO as apresentacoes que o teste (ou a chamada testada) criou, guardadas em own (o usuario
-' pode ter aberto um .pptx nesta instancia enquanto o teste rodava: o PowerPoint e de instancia unica) e so da Quit se nao sobrou nenhuma.
-Private Sub StopScratchPowerPoint(app As Object, own As Collection)
-    Dim p As Variant
+' True (e registra) se apareceu uma janela na instancia do teste: o teste so cria apresentacoes SEM janela, entao a janela e do usuario (que
+' abriu o PowerPoint ou um .pptx durante o teste). Quem chama encerra o teste sem chamar o core de novo.
+Private Function UserWindowAppeared(app As Object) As Boolean
+    Dim n As Long
+    n = -1
     On Error Resume Next
-    Ppt_SetFailForTest ""
-    Ppt_SetAppForTest Nothing
+    n = app.Windows.Count
+    On Error GoTo 0
+    UserWindowAppeared = (n <> 0)
+    If UserWindowAppeared Then Errors_Log "TestPowerPoint: resto do teste pulado (uma janela apareceu na instancia do teste: PowerPoint do usuario)"
+End Function
+
+' True se ha uma apresentacao aberta com esse nome na instancia.
+Private Function PresOpen(app As Object, nm As String) As Boolean
+    Dim p As Object
+    On Error Resume Next
+    For Each p In app.Presentations
+        If CStr(p.Name) = nm Then PresOpen = True: Exit Function
+    Next
+End Function
+
+' Encerra o PowerPoint criado pelo teste: desarma os ganchos (inclusive o destino fixo), fecha SO as apresentacoes de own (as que o teste ou
+' a chamada testada criaram, registradas pelo objeto) que continuam sem janela (com janela nao e do teste), solta as referencias e so da
+' Quit se nao sobrou nenhuma apresentacao; espera (ate 10 s) o processo terminar, para o teste seguinte nao pular por um POWERPNT que ainda
+' esta saindo.
+Private Sub StopScratchPowerPoint(app As Object, own As Collection)
+    Dim p As Variant, nw As Long, left_ As Long, t As Single
+    On Error Resume Next
+    Ppt_ResetTestHooks
     If app Is Nothing Then Exit Sub
     For Each p In own
-        p.Saved = -1
-        p.Close
+        nw = -1
+        nw = p.Windows.Count
+        If nw = 0 Then
+            p.Saved = -1
+            p.Close
+        End If
     Next
-    If app.Presentations.Count = 0 Then app.Quit
+    Set p = Nothing
+    Set own = New Collection
+    left_ = -1
+    left_ = app.Presentations.Count
+    If left_ = 0 Then
+        app.Quit
+        Set app = Nothing
+        t = Timer
+        Do While PowerPointProcessCount() > 0
+            If Timer < t Or Timer - t > 10 Then Exit Do
+            WaitSeconds 0.25
+        Loop
+    Else
+        Errors_Log "TestPowerPoint: o PowerPoint do teste ficou aberto (" & left_ & " apresentacao(oes) que nao sao do teste)"
+        Set app = Nothing
+    End If
+End Sub
+
+Private Sub WaitSeconds(s As Single)
+    Dim t As Single
+    t = Timer
+    Do While Timer >= t And Timer - t < s
+        DoEvents
+    Loop
 End Sub
 
 ' Sem apresentacao aberta (gancho "slide"): a apresentacao criada pela chamada que falhou e fechada; o gancho nao vaza para a chamada
 ' seguinte (nem numa saida antecipada); sem falha, a chamada cria a apresentacao e cola no slide 1. Nao usa a area de transferencia ate o gancho.
+' Destino forcado a uma apresentacao nova (forceNew): uma janela do usuario na instancia nunca vira destino; a apresentacao criada e
+' identificada pelo gancho Ppt_LastCreatedPres*ForTest, nunca por indice.
 Public Sub Test_Ppt_NoPresentation_FailureClosesWhatItCreated_WhenAvailable()
-    Dim wb As Workbook, rng As Range, app As Object, en As Long, ed As String, own As New Collection
+    Dim wb As Workbook, rng As Range, app As Object, en As Long, ed As String, own As New Collection, created As Object, nm As String
     Set app = StartScratchPowerPoint()
     If app Is Nothing Then Exit Sub
     On Error GoTo Cleanup
+    Ppt_PinTargetForTest Nothing, True
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
     wb.SaveAs TempDir() & "\ppt-src3.xlsx", xlOpenXMLWorkbook
     rng.Select
     Core_Insert "stacked"
     Ppt_SetAppForTest app
-    AssertEqual 0, app.Presentations.Count, "ponto de partida: sem apresentacao"
     Core_ClearLastNotice
     Ppt_SetFailForTest "slide"
+    If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "image"
-    AssertEqual 0, app.Presentations.Count, "a apresentacao criada pela chamada que falhou foi fechada"
+    nm = Ppt_LastCreatedPresNameForTest()
+    AssertTrue Len(nm) > 0, "a chamada criou uma apresentacao"
+    AssertFalse PresOpen(app, nm), "a apresentacao criada pela chamada que falhou foi fechada (" & nm & ")"
     AssertTrue InStr(Core_LastNotice(), "falha injetada (slide)") > 0, Core_LastNotice()
     Ppt_SetFailForTest "slide"
     Core_CopyToPowerPoint "xyz"                      ' saida antecipada: o gancho nao pode ficar armado
     Core_ClearLastNotice
+    If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "image"
+    Set created = Ppt_LastCreatedPresForTest()
+    nm = Ppt_LastCreatedPresNameForTest()
+    If PresOpen(app, nm) Then own.Add created         ' criada por esta chamada (pelo objeto): fechada no fim
     If Core_LastNotice() = PPT_ERR_CLIPBOARD Then
         Errors_Log "TestPowerPoint: parte da colagem pulada (area de transferencia do Windows indisponivel)"
-        AssertEqual 0, app.Presentations.Count, "sem area de transferencia: a apresentacao criada e fechada"
+        AssertFalse PresOpen(app, nm), "sem area de transferencia: a apresentacao criada e fechada"
     Else
-        AssertEqual 1, app.Presentations.Count, "apresentacao criada"
-        own.Add app.Presentations(1)                 ' criada pela chamada (havia 0): fechada no fim
-        AssertEqual 1, app.Presentations(1).Slides(1).Shapes.Count, "imagem no slide novo"
-        AssertTrue InStr(Core_LastNotice(), "slide 1 de '" & app.Presentations(1).Name & "'") > 0, Core_LastNotice()
+        AssertTrue PresOpen(app, nm), "apresentacao criada e mantida"
+        AssertEqual 1, created.Slides(1).Shapes.Count, "imagem no slide novo"
+        AssertTrue InStr(Core_LastNotice(), "slide 1 de '" & nm & "'") > 0, Core_LastNotice()
     End If
 Cleanup:
     en = Err.Number: ed = Err.Description
-    StopScratchPowerPoint app, own
-    Set app = Nothing
     On Error Resume Next
+    Set created = Nothing
+    StopScratchPowerPoint app, own
     If Not wb Is Nothing Then Teardown wb
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPowerPoint", ed
 End Sub
 
 ' Falha no ajuste (gancho "place"): a forma colada sai do slide e o aviso explica; o gancho nao vaza; a copia do Excel (CutCopyMode) e
-' cancelada. Com a area de transferencia indisponivel o teste valida so o aviso proprio e que nada foi colado.
+' cancelada. Com a area de transferencia indisponivel o teste valida so o aviso proprio e que nada foi colado. Destino fixo no slide do teste.
 Public Sub Test_Ppt_FailureAfterPaste_RemovesPastedShape_WhenAvailable()
     Dim wb As Workbook, rng As Range, app As Object, pres As Object, slide As Object, c As Chart, en As Long, ed As String, own As New Collection
     Set app = StartScratchPowerPoint()
@@ -284,6 +358,7 @@ Public Sub Test_Ppt_FailureAfterPaste_RemovesPastedShape_WhenAvailable()
     Set pres = app.Presentations.Add(0)
     own.Add pres
     Set slide = pres.Slides.Add(1, 12)
+    Ppt_PinTargetForTest slide
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
     wb.SaveAs TempDir() & "\ppt-src2.xlsx", xlOpenXMLWorkbook
     rng.Select
@@ -293,6 +368,7 @@ Public Sub Test_Ppt_FailureAfterPaste_RemovesPastedShape_WhenAvailable()
     If Not ClipboardUsable(c) Then
         Errors_Log "TestPowerPoint: colagem real pulada (area de transferencia do Windows indisponivel); validando so o aviso"
         Core_ClearLastNotice
+        If UserWindowAppeared(app) Then GoTo Cleanup
         Core_CopyToPowerPoint "image"
         AssertEqual 0, slide.Shapes.Count, "nada colado"
         AssertEqual PPT_ERR_CLIPBOARD, Core_LastNotice()
@@ -300,34 +376,75 @@ Public Sub Test_Ppt_FailureAfterPaste_RemovesPastedShape_WhenAvailable()
     End If
     Core_ClearLastNotice
     Ppt_SetFailForTest "place"
+    If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "image"
     AssertEqual 0, slide.Shapes.Count, "imagem colada e removida quando o ajuste falha"
     AssertTrue InStr(Core_LastNotice(), "Não foi possível colar no PowerPoint") > 0 And InStr(Core_LastNotice(), "falha injetada (place)") > 0, Core_LastNotice()
     Core_ClearLastNotice
     Ppt_SetFailForTest "place"
+    If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "chart"
     AssertEqual 0, slide.Shapes.Count, "grafico colado e removido quando o ajuste falha"
     AssertEqual 0, CLng(Application.CutCopyMode), "modo de copia do Excel cancelado na falha"
     Core_ClearLastNotice
     Ppt_SetFailForTest "after"                       ' Onda B (B1.4): falha DEPOIS de colar e ajustar tambem tira a forma do slide
+    If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "chart"
     AssertEqual 0, slide.Shapes.Count, "falha depois de colar: a forma colada sai do slide"
     AssertTrue InStr(Core_LastNotice(), "falha injetada (after)") > 0, Core_LastNotice()
     Ppt_SetFailForTest "place"
     Core_CopyToPowerPoint "xyz"                      ' saida antecipada: o gancho nao pode ficar armado
     Core_ClearLastNotice
+    If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "image"
     AssertEqual 1, slide.Shapes.Count, "gancho desarmado: a chamada seguinte cola"
     AssertTrue InStr(Core_LastNotice(), "como imagem") > 0, Core_LastNotice()
     Core_ClearLastNotice
+    If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "chart"
     AssertEqual 2, slide.Shapes.Count, "grafico vinculado colado"
     AssertEqual 0, CLng(Application.CutCopyMode), "modo de copia do Excel cancelado apos colar o grafico"
 Cleanup:
     en = Err.Number: ed = Err.Description
-    StopScratchPowerPoint app, own
-    Set app = Nothing
     On Error Resume Next
+    Set slide = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPowerPoint", ed
+End Sub
+
+' Onda B, rodada 1 (Importante 3): apresentacao aberta SEM slides (duble, sem PowerPoint real e sem area de transferencia): a chamada
+' acrescenta um slide e, numa falha depois (gancho "target", logo apos escolher o destino), apaga o slide que acrescentou; uma apresentacao com
+' slides nao ganha nem perde slide. O gancho de destino fixo fica desarmado.
+Public Sub Test_Ppt_AddedSlideRemovedOnFailure_Fake()
+    Dim wb As Workbook, rng As Range, app As TestPptFake, presE As TestPptFake, presF As TestPptFake, en As Long, ed As String
+    On Error GoTo Cleanup
+    Ppt_ResetTestHooks
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    Set presE = FakePres(0)
+    Set app = New TestPptFake
+    Set app.Windows = New Collection
+    Set app.Presentations = New Collection: app.Presentations.Add presE
+    Ppt_SetAppForTest app
+    Core_ClearLastNotice
+    Ppt_SetFailForTest "target"
+    Core_CopyToPowerPoint "image"
+    AssertEqual 1, presE.Slides.AddedCount, "slide acrescentado a apresentacao vazia"
+    AssertTrue presE.Slides(1).Deleted, "a falha depois apaga o slide que a chamada acrescentou"
+    AssertTrue InStr(Core_LastNotice(), "falha injetada (target)") > 0, Core_LastNotice()
+    Set presF = FakePres(2)
+    Set app.Presentations = New Collection: app.Presentations.Add presF
+    Ppt_SetFailForTest "target"
+    Core_CopyToPowerPoint "image"
+    AssertEqual 0, presF.Slides.AddedCount, "apresentacao com slides: nenhum slide novo"
+    AssertFalse presF.Slides(2).Deleted, "o slide do usuario nao e apagado"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error Resume Next
+    Ppt_ResetTestHooks
     If Not wb Is Nothing Then Teardown wb
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPowerPoint", ed

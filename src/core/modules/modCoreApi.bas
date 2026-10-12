@@ -1245,13 +1245,14 @@ End Sub
 Public Sub Core_CopyToPowerPoint(mode As String)
     On Error Resume Next
     CopyToPowerPointImpl mode
-    Ppt_SetFailForTest ""                            ' gancho de teste: desarmado em toda saida (inclusive as antecipadas)
+    Ppt_SetFailForTest ""                            ' gancho de teste: desarmado em toda saida (inclusive as antecipadas); o destino fixo e
+                                                     ' desarmado pelo teste (Ppt_ResetTestHooks), pois vale para varias chamadas
 End Sub
 
 Private Sub CopyToPowerPointImpl(mode As String)
     On Error GoTo Fail
     Dim c As Chart, co As ChartObject, wb As Workbook, app As Object, slide As Object, shp As Object, msg As String, linked As Boolean
-    Dim en As Long, ed As String, created As Boolean, newPres As Object, linkState As Long
+    Dim en As Long, ed As String, created As Boolean, newPres As Object, linkState As Long, newSlide As Object
     Set c = Core_ActiveChart()
     If c Is Nothing Then Exit Sub
     If mode <> "image" And mode <> "chart" Then
@@ -1267,7 +1268,8 @@ Private Sub CopyToPowerPointImpl(mode As String)
     Set app = Ppt_GetApp(True)
     created = Ppt_AppWasCreated()
     If app Is Nothing Then Core_Notify PPT_ERR_NOT_INSTALLED, vbExclamation: Exit Sub
-    Set slide = Ppt_TargetSlide(app, newPres)        ' newPres: a apresentacao que ESTA chamada criou (Nothing se usou uma aberta)
+    Set slide = Ppt_TargetSlide(app, newPres, newSlide)     ' o que ESTA chamada criou: apresentacao nova ou slide numa aberta vazia
+    Ppt_TestHook "target"
     linkState = -1
     If linked Then
         Set co = c.Parent
@@ -1295,8 +1297,11 @@ Fail:
     On Error Resume Next
     Application.CutCopyMode = False
     ' desfaz o que esta chamada criou, pelos objetos (nunca por indice: o usuario pode ter outras apresentacoes abertas): a forma colada,
-    ' a apresentacao nova e o PowerPoint que ela abriu (so se ficou sem apresentacoes)
+    ' o slide que ela acrescentou a uma apresentacao do usuario, a apresentacao nova e o PowerPoint que ela abriu (so sem apresentacoes)
     If Not shp Is Nothing Then shp.Delete
+    If Not newSlide Is Nothing Then
+        If newPres Is Nothing Then newSlide.Delete
+    End If
     If Not newPres Is Nothing Then
         newPres.Saved = -1
         newPres.Close

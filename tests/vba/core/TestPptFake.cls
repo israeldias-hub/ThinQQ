@@ -19,11 +19,12 @@ Public Slide As Object
 Public Selection As Object
 Public SelectedSlide As Object
 Public Presentation As Object
-Public Slides As Collection
+Public Slides As Object                         ' TestPptSlides (Count, Item padrao, Add)
 Public Chart As Object
 Public ChartData As Object
 Public IsLinked As Variant
 Public SlideIndexValue As Long
+Public Deleted As Boolean                       ' Delete foi chamado (slide ou forma apagados pelo desfazer)
 
 Public Property Get SlideIndex() As Long
     If SlideIndexValue <= 0 Then Err.Raise 438, "TestPptFake", "nao e um slide"
@@ -34,3 +35,7 @@ Public Function SlideRange(i As Long) As Object
     If SelectedSlide Is Nothing Then Err.Raise 91, "TestPptFake", "nada selecionado"
     Set SlideRange = SelectedSlide
 End Function
+
+Public Sub Delete()
+    Deleted = True
+End Sub

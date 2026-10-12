@@ -8,6 +8,10 @@ Option Explicit
 Private mTestApp As Object
 Private mTestFail As String                     ' gancho de teste: ponto de falha injetada ("place", "slide"); so no build Test
 Private mCreatedApp As Boolean                  ' a ultima Ppt_GetApp abriu o PowerPoint (nao havia um aberto): quem abre desfaz na falha
+Private mTestPin As Object                      ' gancho de teste: slide fixo de destino (o do proprio teste); so no build Test
+Private mTestForceNew As Boolean                ' gancho de teste: sempre uma apresentacao nova (nunca janela nem Presentations(1))
+Private mTestLastNew As Object                  ' gancho de teste: a ultima apresentacao criada por Ppt_TargetSlide (e o nome dela)
+Private mTestLastNewName As String
 Private Const PPT_LAYOUT_BLANK As Long = 12     ' ppLayoutBlank
 Private Const PPT_FIT As Double = 0.8           ' fracao do slide que o grafico ocupa (largura ou altura, a que limitar)
 Private Const PPT_CLIPBRD_E_CANT_OPEN As Long = -2147221040     ' 0x800401D0: a area de transferencia esta aberta por outro programa
@@ -40,6 +44,36 @@ Private Sub Ppt_Hook(point As String)
     If mTestFail <> point Then Exit Sub
     mTestFail = ""
     Err.Raise 5, "modPowerPoint", "falha injetada (" & point & ")"
+End Sub
+
+' Gancho de teste: fixa o destino de Ppt_TargetSlide no slide do proprio teste (Nothing desfixa) ou, com forceNew, faz cada chamada criar
+' a sua apresentacao (sem janela no build Test). Assim um PowerPoint ou .pptx que o usuario abra na instancia do teste (o PowerPoint e de
+' instancia unica) nunca vira destino. Inerte fora do build Test.
+Public Sub Ppt_PinTargetForTest(slide As Object, Optional forceNew As Boolean = False)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    Set mTestPin = slide
+    mTestForceNew = forceNew
+End Sub
+
+' Gancho de teste: a ultima apresentacao que Ppt_TargetSlide criou (Nothing se nenhuma) e o nome lido ao criar (vale depois de fechada).
+Public Function Ppt_LastCreatedPresForTest() As Object
+    If BUILD_CONFIG <> "Test" Then Exit Function
+    Set Ppt_LastCreatedPresForTest = mTestLastNew
+End Function
+
+Public Function Ppt_LastCreatedPresNameForTest() As String
+    If BUILD_CONFIG <> "Test" Then Exit Function
+    Ppt_LastCreatedPresNameForTest = mTestLastNewName
+End Function
+
+' Gancho de teste: desarma todos os ganchos do modulo (instancia injetada, falha, destino fixo, ultima apresentacao criada).
+Public Sub Ppt_ResetTestHooks()
+    Set mTestApp = Nothing
+    mTestFail = ""
+    Set mTestPin = Nothing
+    mTestForceNew = False
+    Set mTestLastNew = Nothing
+    mTestLastNewName = ""
 End Sub
 
 ' Ponto de falha injetada para quem chama (Core_CopyToPowerPoint: "after", depois de colar). Inerte fora do build Test.
@@ -106,11 +140,17 @@ End Function
 ' Slide de destino. Com janela: o da janela ativa (modo Normal), senao o selecionado nela (Classificador de slides, Estrutura de topicos),
 ' senao o ultimo slide da apresentacao DA JANELA (modos de mestre/anotacoes; sem janela ativa, a primeira janela): nunca Presentations(1),
 ' que pode ser outra apresentacao do usuario. Sem janela: o ultimo slide de Presentations(1); sem apresentacao (ou janela sem apresentacao
-' legivel), uma apresentacao nova, devolvida em createdPres (quem chama a fecha se falhar depois). Propaga erros do PowerPoint.
-Public Function Ppt_TargetSlide(app As Object, Optional ByRef createdPres As Object) As Object
-    Dim pres As Object, slide As Object, win As Object, hasWin As Boolean
-    Set createdPres = Nothing
-    hasWin = (app.Windows.Count > 0)
+' legivel), uma apresentacao nova, devolvida em createdPres (quem chama a fecha se falhar depois). Um slide que esta chamada acrescentou a
+' uma apresentacao ja aberta (sem slides) volta em addedSlide (quem chama o apaga se falhar depois). Propaga erros do PowerPoint.
+Public Function Ppt_TargetSlide(app As Object, Optional ByRef createdPres As Object, Optional ByRef addedSlide As Object) As Object
+    Dim pres As Object, slide As Object, win As Object, hasWin As Boolean, useOpen As Boolean
+    Set createdPres = Nothing: Set addedSlide = Nothing
+    useOpen = True
+    If BUILD_CONFIG = "Test" Then
+        If Not mTestPin Is Nothing Then Set Ppt_TargetSlide = mTestPin: Exit Function
+        useOpen = Not mTestForceNew
+    End If
+    If useOpen Then hasWin = (app.Windows.Count > 0)
     If hasWin Then
         On Error Resume Next
         Set win = app.ActiveWindow
@@ -123,15 +163,24 @@ Public Function Ppt_TargetSlide(app As Object, Optional ByRef createdPres As Obj
         Err.Clear
         On Error GoTo 0
         If Not slide Is Nothing Then Set Ppt_TargetSlide = slide: Exit Function
-    ElseIf app.Presentations.Count > 0 Then
-        Set pres = app.Presentations(1)
+    ElseIf useOpen Then
+        If app.Presentations.Count > 0 Then Set pres = app.Presentations(1)
     End If
     If Not pres Is Nothing Then
-        If pres.Slides.Count = 0 Then Set slide = pres.Slides.Add(1, PPT_LAYOUT_BLANK) Else Set slide = pres.Slides(pres.Slides.Count)
+        If pres.Slides.Count = 0 Then
+            Set slide = pres.Slides.Add(1, PPT_LAYOUT_BLANK)
+            Set addedSlide = slide
+        Else
+            Set slide = pres.Slides(pres.Slides.Count)
+        End If
     Else
         ' msoTrue: com janela, para o usuario ver (no build Test sem janela: nao aparece na area de trabalho)
         Set pres = app.Presentations.Add(IIf(BUILD_CONFIG = "Test", 0, -1))
         Set createdPres = pres
+        If BUILD_CONFIG = "Test" Then
+            Set mTestLastNew = pres
+            mTestLastNewName = CStr(pres.Name)
+        End If
         Ppt_Hook "slide"
         Set slide = pres.Slides.Add(1, PPT_LAYOUT_BLANK)
     End If
