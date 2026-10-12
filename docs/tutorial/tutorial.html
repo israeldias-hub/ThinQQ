@@ -242,7 +242,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 <header class="top">
   <div class="top-in">
     <h1>ThinQQ</h1>
-    <p>Gráficos de apresentação no Excel: colunas, barras, cascata, linha, área, combinação, Mekko, Gantt, pizza e rosca, com totais, rótulos e setas que acompanham os dados, sem sair da planilha.</p>
+    <p>Gráficos de apresentação no Excel: colunas, barras, cascata, linha, área, combinação, Mekko, Gantt, pizza, rosca, borboleta, dispersão e bolhas, com totais, rótulos e setas que acompanham os dados, sem sair da planilha.</p>
 
     <figure class="ribbon" role="group" aria-labelledby="rib-cap" style="margin:0">
       <div class="rb-tabs" aria-hidden="true">
@@ -307,6 +307,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <h2>Neste tutorial</h2>
   <ol>
     <li><a href="#primeiro">Primeiro gráfico</a></li>
+    <li><a href="#demonstracao">Pasta de demonstração</a></li>
     <li><a href="#dados">Como preparar os dados</a></li>
     <li><a href="#tipos">Tipos de gráfico</a></li>
     <li><a href="#barras">Colunas e barras</a></li>
@@ -315,12 +316,18 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li><a href="#mekko">Mekko</a></li>
     <li><a href="#gantt">Gantt</a></li>
     <li><a href="#pizza">Pizza e rosca</a></li>
+    <li><a href="#borboleta">Borboleta</a></li>
+    <li><a href="#dispersao">Dispersão e bolhas</a></li>
     <li><a href="#decoracoes">Linha de valor, 100% e escala</a></li>
     <li><a href="#matriz">O que cada tipo aceita</a></li>
+    <li><a href="#arredondamento">Arredondamento consistente</a></li>
+    <li><a href="#corte">Corte de eixo</a></li>
+    <li><a href="#powerpoint">Copiar para o PowerPoint</a></li>
     <li><a href="#opcoes">Opções do gráfico</a></li>
     <li><a href="#setas">Setas de CAGR e diferença</a></li>
     <li><a href="#atualizar">Atualizações</a></li>
     <li><a href="#instalar">Instalar e desinstalar</a></li>
+    <li><a href="#instalacao-ti">Instalação em empresas (TI)</a></li>
     <li><a href="#problemas">Problemas e mensagens</a></li>
     <li><a href="#faq">Perguntas frequentes</a></li>
     <li><a href="#limites">Limitações</a></li>
@@ -332,7 +339,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
 <section id="primeiro" aria-labelledby="h-primeiro">
   <h2 id="h-primeiro">Seu primeiro gráfico</h2>
-  <p>O ThinQQ cria gráficos do Excel já formatados, com totais, rótulos e setas que se atualizam quando os números mudam. Para ver tudo funcionando, clique em <span class="ui">Exemplos</span>: abre uma pasta de trabalho nova com 26 exemplos em três planilhas, "Exemplos", "Exemplos 2" e "Exemplos 3".</p>
+  <p>O ThinQQ cria gráficos do Excel já formatados, com totais, rótulos e setas que se atualizam quando os números mudam. Para ver tudo funcionando, clique em <span class="ui">Exemplos</span>: abre uma pasta de trabalho nova com 26 exemplos em três planilhas, "Exemplos", "Exemplos 2" e "Exemplos 3". Para um Excel pronto para explorar, abra a <a href="#demonstracao">pasta de demonstração</a> que vem no ZIP.</p>
   <p>Para criar o seu, siga estes passos com a tabela abaixo (ou a sua).</p>
   <div class="tw fit">
   <table class="mini">
@@ -353,7 +360,53 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li>Troque um número na tabela: colunas, totais e rótulos acompanham.</li>
   </ol>
   <div class="note">
-    <p>Os cinco menus do grupo <span class="ui">Inserir gráfico</span> (<span class="ui">Colunas</span>, <span class="ui">Barras</span>, <span class="ui">Cascata</span>, <span class="ui">Linha e área</span> e <span class="ui">Mais tipos</span>) reúnem 17 tipos. Colunas, barras, linha e área usam o formato de tabela deste exemplo; cascata, combinação, Mekko, Gantt, pizza e rosca têm formato próprio. A seção <a href="#tipos">Tipos de gráfico</a> lista todos, e cada tipo tem a sua seção com uma tabela de exemplo.</p>
+    <p>Os cinco menus do grupo <span class="ui">Inserir gráfico</span> (<span class="ui">Colunas</span>, <span class="ui">Barras</span>, <span class="ui">Cascata</span>, <span class="ui">Linha e área</span> e <span class="ui">Mais tipos</span>) reúnem 20 tipos. Colunas, barras, linha e área usam o formato de tabela deste exemplo; cascata, combinação, Mekko, Gantt, pizza, rosca, borboleta, dispersão e bolhas têm formato próprio. A seção <a href="#tipos">Tipos de gráfico</a> lista todos, e cada tipo tem a sua seção com uma tabela de exemplo.</p>
+  </div>
+</section>
+
+<section id="demonstracao" aria-labelledby="h-demonstracao">
+  <h2 id="h-demonstracao">Pasta de demonstração (Excel de exemplo)</h2>
+  <p>Além do tutorial, o ZIP de instalação traz um Excel para você abrir e mexer: <code>exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx</code> (no GitHub: <a href="https://github.com/israeldias-hub/ThinQQ/blob/main/exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx">exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx</a>). É uma rede <strong>fictícia</strong> de materiais de construção, com 8 lojas, 8 departamentos e 24 meses de vendas, e 26 exemplos, de E01 a E26, um por funcionalidade: os 20 tipos de gráfico e os principais recursos. Dados e nomes são inventados.</p>
+  <ol class="steps" role="list">
+    <li>Abra o arquivo no Excel. Se ele abrir em Modo Protegido (veio da internet), clique em <strong>Habilitar edição</strong>.</li>
+    <li>A primeira planilha, <strong>Indice</strong>, lista os exemplos: clique no nome de um exemplo para ir ao gráfico. Em cada planilha (<strong>E01</strong> a <strong>E26</strong>) a legenda diz o que o gráfico mostra e qual menu da aba <span class="ui">ThinQQ</span> o cria, e a célula A1 (<strong>Voltar ao índice</strong>) leva de volta. Os números vêm das planilhas <strong>Dados</strong>, <strong>Lojas</strong> e <strong>Obras</strong>.</li>
+    <li>Mude um número numa tabela de exemplo (ou em <strong>Dados</strong>) e veja o gráfico acompanhar. Com o ThinQQ instalado, clique no gráfico e experimente os controles do grupo <span class="ui">Gráfico selecionado</span>.</li>
+  </ol>
+  <div class="note">
+    <p><strong>Com e sem o ThinQQ.</strong> O arquivo não tem macros e abre em qualquer Excel: os gráficos são nativos, ligados aos dados por fórmulas. As setas de CAGR e de diferença, os colchetes e as marcas de corte de eixo só são recalculados pelo ThinQQ; sem ele, ficam onde estão. O instalador não instala nem abre este arquivo: ele só viaja no ZIP, na pasta <code>exemplos</code>. Não o confunda com <span class="ui">Exemplos</span>, que gera uma pasta de trabalho nova com 26 exemplos menores em três planilhas.</p>
+  </div>
+  <div class="tw" tabindex="0" role="region" aria-label="Os 26 exemplos da pasta de demonstração">
+  <table>
+    <thead><tr><th scope="col">Planilha</th><th scope="col">O que o exemplo mostra</th><th scope="col">Tipo</th></tr></thead>
+    <tbody>
+      <tr data-ex="E01"><th scope="row">E01</th><td>Vendas 2025 por departamento e canal (colunas empilhadas, totais e rótulos)</td><td>Colunas empilhadas</td></tr>
+      <tr data-ex="E02"><th scope="row">E02</th><td>Vendas por loja, 2024 x 2025 (colunas agrupadas, espaço muito largo)</td><td>Colunas agrupadas</td></tr>
+      <tr data-ex="E03"><th scope="row">E03</th><td>Mix de canais B2C/B2B por região (colunas 100% e indicador 100%)</td><td>Colunas 100%</td></tr>
+      <tr data-ex="E04"><th scope="row">E04</th><td>Vendas e custo mensais da loja Aurora Centro (nome no fim da linha)</td><td>Linha</td></tr>
+      <tr data-ex="E05"><th scope="row">E05</th><td>Da receita ao lucro em 2025 (cascata com conectores)</td><td>Cascata (colunas)</td></tr>
+      <tr data-ex="E06"><th scope="row">E06</th><td>Vendas 2025 por região e canal (barras empilhadas e seta de diferença)</td><td>Barras empilhadas</td></tr>
+      <tr data-ex="E07"><th scope="row">E07</th><td>Vendas por loja em R$ (barras agrupadas, rótulos em milhares)</td><td>Barras agrupadas</td></tr>
+      <tr data-ex="E08"><th scope="row">E08</th><td>Mix de canais B2C/B2B por loja (barras 100%)</td><td>Barras 100%</td></tr>
+      <tr data-ex="E09"><th scope="row">E09</th><td>Da receita ao lucro em 2025 (cascata horizontal)</td><td>Cascata (barras)</td></tr>
+      <tr data-ex="E10"><th scope="row">E10</th><td>Vendas trimestrais dos três maiores departamentos (área empilhada e linha de valor)</td><td>Área empilhada</td></tr>
+      <tr data-ex="E11"><th scope="row">E11</th><td>Participação trimestral dos três maiores departamentos (área 100%)</td><td>Área 100%</td></tr>
+      <tr data-ex="E12"><th scope="row">E12</th><td>Vendas por canal e margem % da loja Aurora Centro (combinação com eixo secundário)</td><td>Combinação (colunas + linha)</td></tr>
+      <tr data-ex="E13"><th scope="row">E13</th><td>Regiões x grupos de produto em 2025 (Mekko %)</td><td>Mekko (%)</td></tr>
+      <tr data-ex="E14"><th scope="row">E14</th><td>Regiões x grupos, largura = nº de lojas (Mekko em unidades)</td><td>Mekko (unidades)</td></tr>
+      <tr data-ex="E15"><th scope="row">E15</th><td>Reformas de março a maio (Gantt em semanas, com colchete)</td><td>Gantt</td></tr>
+      <tr data-ex="E16"><th scope="row">E16</th><td>Plano de abertura de uma nova loja (Gantt em meses)</td><td>Gantt</td></tr>
+      <tr data-ex="E17"><th scope="row">E17</th><td>Vendas 2025 por região (pizza, rótulos fora)</td><td>Pizza</td></tr>
+      <tr data-ex="E18"><th scope="row">E18</th><td>Vendas 2025 por região (rosca, paleta em tons de cinza)</td><td>Rosca</td></tr>
+      <tr data-ex="E19"><th scope="row">E19</th><td>Vendas B2C x B2B por loja (borboleta)</td><td>Borboleta</td></tr>
+      <tr data-ex="E20"><th scope="row">E20</th><td>Ticket médio x margem por loja (dispersão, tendência e quadrantes)</td><td>Dispersão</td></tr>
+      <tr data-ex="E21"><th scope="row">E21</th><td>Ticket x margem x vendas por departamento (bolhas)</td><td>Bolhas</td></tr>
+      <tr data-ex="E22"><th scope="row">E22</th><td>Crescimento 2024-2025 de três departamentos (seta CAGR)</td><td>Colunas empilhadas</td></tr>
+      <tr data-ex="E23"><th scope="row">E23</th><td>Participações que somam 100% (soma consistente no gráfico e na tabela)</td><td>Colunas 100%</td></tr>
+      <tr data-ex="E24"><th scope="row">E24</th><td>Cimento e argamassa dominam as vendas: corte de eixo</td><td>Colunas empilhadas</td></tr>
+      <tr data-ex="E25"><th scope="row">E25</th><td>A maior e a menor loja lado a lado (mesma escala)</td><td>Colunas agrupadas</td></tr>
+      <tr data-ex="E26"><th scope="row">E26</th><td>Vendas mensais da loja Aurora Centro (sem legenda)</td><td>Linha</td></tr>
+    </tbody>
+  </table>
   </div>
 </section>
 
@@ -400,9 +453,9 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr><td><span class="ui">Mais tipos</span> › <a href="#gantt"><span class="ui">Gantt</span></a></td><td>Barras de atividades sobre uma escala de datas; o marco aparece como losango.</td><td>Atividade, início e fim (datas, não texto). Fim vazio = marco. Uma 4ª coluna opcional vira o rótulo da barra.</td></tr>
       <tr><td><span class="ui">Mais tipos</span> › <a href="#pizza"><span class="ui">Pizza</span></a></td><td>Fatias dos valores positivos, com rótulos de valor ou de participação.</td><td>Categorias e uma coluna de valores; as demais colunas são ignoradas.</td></tr>
       <tr><td><span class="ui">Mais tipos</span> › <a href="#pizza"><span class="ui">Rosca</span></a></td><td>A pizza com furo; os rótulos ficam sobre o anel.</td><td>O mesmo da pizza.</td></tr>
-      <tr><td><span class="ui">Mais tipos</span> › <span class="ui">Borboleta</span></td><td>Duas séries espelhadas com os nomes no centro; totais no fim da barra direita.</td><td>Categorias e exatamente 2 colunas de valores.</td></tr>
-      <tr><td><span class="ui">Mais tipos</span> › <span class="ui">Dispersão</span></td><td>Pontos em dois eixos de valor, uma série por grupo, nome ao lado de cada ponto.</td><td>Nome, X, Y e, opcionalmente, Grupo.</td></tr>
-      <tr><td><span class="ui">Mais tipos</span> › <span class="ui">Bolhas</span></td><td>Como a dispersão, com o tamanho da bolha.</td><td>Nome, X, Y, Tamanho e, opcionalmente, Grupo.</td></tr>
+      <tr><td><span class="ui">Mais tipos</span> › <a href="#borboleta"><span class="ui">Borboleta</span></a></td><td>Duas séries espelhadas com os nomes no centro; totais no fim da barra direita.</td><td>Categorias e exatamente 2 colunas de valores.</td></tr>
+      <tr><td><span class="ui">Mais tipos</span> › <a href="#dispersao"><span class="ui">Dispersão</span></a></td><td>Pontos em dois eixos de valor, uma série por grupo, nome ao lado de cada ponto.</td><td>Nome, X, Y e, opcionalmente, Grupo.</td></tr>
+      <tr><td><span class="ui">Mais tipos</span> › <a href="#dispersao"><span class="ui">Bolhas</span></a></td><td>Como a dispersão, com o tamanho da bolha.</td><td>Nome, X, Y, Tamanho e, opcionalmente, Grupo.</td></tr>
     </tbody>
   </table>
   </div>
@@ -411,7 +464,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <p>No grupo <span class="ui">Gráfico selecionado</span>, cada controle só fica ativo nos tipos que o aceitam; os demais ficam cinza. Na pizza, por exemplo, <span class="ui">Totais</span>, <span class="ui">Conectores</span> e <span class="ui">Espaço</span> ficam cinzas e <span class="ui">Rótulos fora da pizza</span> fica ativo. As exceções são <span class="ui">Mesma escala</span>, <span class="ui">Escala automática</span> e <span class="ui">Arredondar intervalo...</span> (que age sobre células), que ficam sempre ativos. A tabela completa, tipo por tipo, está em <a href="#matriz">O que cada tipo aceita</a>, e cada controle é explicado em <a href="#opcoes">Opções do gráfico selecionado</a>.</p>
 
   <h3>Sobre os exemplos</h3>
-  <p>As duas planilhas de <span class="ui">Exemplos</span> mostram 14 dos 17 tipos, a seta de diferença, o colchete, a linha de valor, o indicador 100% e a mesma escala. Não há exemplo pronto de Barras agrupadas, Barras 100% e Área 100%, da cascata de cima para baixo e de <span class="ui">Nome no fim da linha</span>: use as tabelas das seções de cada tipo. Os exemplos são gráficos comuns do ThinQQ: clique neles e experimente os controles.</p>
+  <p>As três planilhas de <span class="ui">Exemplos</span> mostram 17 dos 20 tipos, as setas de CAGR e de diferença, o colchete, a linha de valor, o indicador 100%, a mesma escala, a soma consistente e o corte de eixo. Não há exemplo pronto de Barras agrupadas, Barras 100% e Área 100%, da cascata de cima para baixo e de <span class="ui">Nome no fim da linha</span>: use as tabelas das seções de cada tipo ou abra a <a href="#demonstracao">pasta de demonstração</a>, que mostra os 20 tipos. Os exemplos são gráficos comuns do ThinQQ: clique neles e experimente os controles.</p>
 </section>
 
 <section id="barras" aria-labelledby="h-barras">
@@ -536,7 +589,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
   <h3>Área empilhada e Área 100%</h3>
   <ul>
-    <li>As áreas se empilham por categoria; os <span class="ui">Rótulos</span> de cada série ficam no meio da sua faixa (nas categorias das pontas, dentro da faixa, para não sair do gráfico) e os <span class="ui">Totais</span> ficam acima da área.</li>
+    <li>As áreas se empilham por categoria; os <span class="ui">Rótulos</span> de cada série ficam no meio da sua faixa (nas categorias das pontas, dentro da faixa, para não sair do gráfico; se o rótulo da ponta encostaria no do vizinho, o ThinQQ o oculta e o devolve quando cabe) e os <span class="ui">Totais</span> ficam acima da área.</li>
     <li>Na <span class="ui">Área 100%</span> os rótulos mostram a participação de cada série (use <span class="ui">12%</span> ou <span class="ui">12,3%</span>), os totais continuam em valores absolutos e o <span class="ui">Indicador 100%</span> já nasce ligado.</li>
     <li>Evite valores negativos: o Excel empilha as áreas algebricamente e as faixas se sobrepõem.</li>
     <li>As áreas não têm <span class="ui">Espaço</span> nem <span class="ui">Conectores</span>. <span class="ui">Seta CAGR</span> e <span class="ui">Seta diferença</span> valem na área empilhada (na 100%, só a de CAGR).</li>
@@ -555,11 +608,11 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </table>
   </div>
   <ul>
-    <li><strong>Eixo secundário:</strong> o <span class="ui">Eixo secundário (linha)</span> liga sozinho quando a grandeza da linha e a das colunas diferem mais de 5 vezes (aqui, 47% sobre colunas de 160 a 200); o item do menu <span class="ui">Mais opções</span> liga e desliga. O eixo da linha começa em zero quando não há valores negativos.</li>
+    <li><strong>Eixo secundário:</strong> o <span class="ui">Eixo secundário (linha)</span> liga sozinho quando a grandeza da linha e a das colunas diferem mais de 5 vezes (aqui, 47% sobre colunas de 160 a 200); o item do menu <span class="ui">Mais opções</span> liga e desliga. O eixo da linha começa em zero quando não há valores negativos. Com <span class="ui">Totais</span> e o eixo secundário ligados, o ThinQQ põe a linha numa <strong>faixa acima dos totais</strong> das colunas, para que ela não cruze os rótulos de total: para abrir a faixa, as colunas ficam um pouco mais baixas (sobe o máximo do eixo de valores das colunas, que fica oculto). Com <span class="ui">Mesma escala</span> na combinação a faixa não é aplicada e a linha pode voltar a cruzar os totais. Um mínimo ou máximo que você fixar à mão no eixo secundário é respeitado.</li>
     <li><strong>Totais</strong> somam só as colunas; a linha não entra neles nem na linha de valor.</li>
     <li><strong>Formato dos rótulos da linha:</strong> seguem o formato da célula de origem (formate a coluna como percentual, como na tabela acima); o menu <span class="ui">Formato</span> não os altera. Com a célula em Geral, o ThinQQ escolhe sozinho: inteiro, se todos os valores são inteiros; percentual com uma casa, se todos estão entre −1 e 1; senão, duas casas decimais.</li>
     <li>Com menos de 2 colunas de valores o ThinQQ avisa "A combinação precisa de pelo menos 2 colunas de valores: as primeiras viram colunas empilhadas e a última vira linha." e não cria o gráfico.</li>
-    <li>O rótulo da linha pode ficar sobre o rótulo do total de uma coluna quando os dois eixos automáticos colocam os pontos na mesma altura; arraste o rótulo da linha ou aumente o gráfico.</li>
+    <li>Sem a faixa acima dos totais (sem totais, ou com Mesma escala), o rótulo da linha pode ficar sobre o rótulo do total de uma coluna quando os dois eixos automáticos colocam os pontos na mesma altura; arraste o rótulo da linha ou aumente o gráfico.</li>
   </ul>
 
   <h3>Legenda</h3>
@@ -712,7 +765,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <ul>
     <li><strong>Colunas a mais:</strong> se a tabela tem mais de uma coluna de valores, o gráfico usa a primeira e o ThinQQ avisa: "A pizza mostra só a primeira coluna de valores (Vendas). As outras 2 coluna(s) da tabela foram ignoradas." (na rosca, "A rosca mostra...").</li>
     <li><strong>Só valores positivos viram fatia.</strong> Negativos, zero, texto, células vazias e erros valem 0: a fatia some (sem aviso, e a sua tabela não é alterada). A categoria continua na legenda, com a cor da fatia que não aparece.</li>
-    <li><strong>Cores:</strong> cada fatia recebe uma cor da <span class="ui">Paleta</span>, em ordem; a cada 6 fatias as cores se repetem, então com muitas fatias a 7.ª repete a cor da 1.ª. Para que a última fatia não fique ao lado de outra da mesma cor, com 7, 13, 19... fatias ela usa a quarta cor da paleta.</li>
+    <li><strong>Cores:</strong> cada fatia recebe uma cor da <span class="ui">Paleta</span>, em ordem; a paleta tem 10 cores (as 6 primeiras são as de sempre), então até 10 fatias nenhuma cor se repete, e a 11.ª repete a cor da 1.ª. Para que a última fatia não fique ao lado de outra da mesma cor, com 11, 21... fatias ela usa a quarta cor da paleta.</li>
     <li><span class="ui">Formato</span>: <span class="ui">12%</span> e <span class="ui">12,3%</span> mostram a <strong>participação</strong> de cada fatia no total; os outros formatos mostram o valor. <span class="ui">Rótulos</span> liga e desliga os rótulos; <span class="ui">Legenda</span> aceita <span class="ui">Direita</span> e <span class="ui">Nenhuma</span>.</li>
     <li>Não se aplicam à pizza e à rosca: <span class="ui">Totais</span>, <span class="ui">Conectores</span>, <span class="ui">Espaço</span> e as setas, que ficam cinza. Rótulos de fatias muito pequenas podem transbordar a fatia, um limite do Excel.</li>
   </ul>
@@ -723,6 +776,89 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li><strong>A legenda sai</strong> enquanto os rótulos fora estiverem ligados, porque os nomes já estão nos rótulos. Por isso <span class="ui">Legenda</span> › <span class="ui">Direita</span> não tem efeito com os rótulos fora; para recuperar a legenda, desligue <span class="ui">Rótulos fora da pizza</span> (ou os <span class="ui">Rótulos</span>).</li>
     <li><strong>Linhas de chamada:</strong> o Excel só desenha as linhas que ligam o rótulo à fatia depois que você arrasta um rótulo. Antes disso, os rótulos ficam junto à borda das fatias, sem linha.</li>
     <li><strong>Só na pizza:</strong> a rosca mantém os rótulos sobre o anel (o Excel não aceita rótulos fora numa rosca) e o item fica cinza.</li>
+  </ul>
+</section>
+
+<section id="borboleta" aria-labelledby="h-borboleta">
+  <h2 id="h-borboleta">Borboleta</h2>
+  <p>A borboleta compara duas séries espelhadas: a primeira coluna de valores cresce para a esquerda, a segunda para a direita, e os nomes das categorias ficam no centro, no vão entre os dois lados. O total de cada categoria aparece no fim da barra direita. Os dois lados usam a <strong>mesma escala</strong> (o eixo é simétrico), então barras do mesmo tamanho têm o mesmo valor.</p>
+  <dl class="ficha">
+    <dt>Selecione</dt><dd>A tabela inteira, com o cabeçalho, em <span class="ui">Mais tipos</span> › <span class="ui">Borboleta</span>.</dd>
+    <dt>Colunas</dt><dd>Categorias na 1.ª coluna e <strong>exatamente 2</strong> colunas de valores: a 1.ª é o lado esquerdo e a 2.ª, o direito. Os cabeçalhos viram os nomes dos lados (legenda).</dd>
+    <dt>Marcadores</dt><dd>Nenhum.</dd>
+  </dl>
+  <div class="tw fit">
+  <table class="mini">
+    <thead><tr><th>Faixa</th><th class="n">Mulheres</th><th class="n">Homens</th></tr></thead>
+    <tbody>
+      <tr><td>18 a 24</td><td class="n">12</td><td class="n">14</td></tr>
+      <tr><td>25 a 34</td><td class="n">28</td><td class="n">31</td></tr>
+      <tr><td>35 a 44</td><td class="n">22</td><td class="n">20</td></tr>
+      <tr><td>45 ou mais</td><td class="n">15</td><td class="n">10</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Com esta tabela o gráfico mostra Mulheres à esquerda e Homens à direita, com as faixas no meio e os totais (26, 59, 42 e 25) depois das barras da direita. É o exemplo 19 de "Exemplos 3" e o E19 da <a href="#demonstracao">pasta de demonstração</a>.</p>
+  <h3>Limites e comportamento</h3>
+  <ul>
+    <li><strong>Exatamente 2 colunas de valores.</strong> Com outra quantidade o ThinQQ avisa "A borboleta precisa de exatamente 2 colunas de valores (lado esquerdo e lado direito)." e não cria o gráfico.</li>
+    <li>Valores negativos, texto, células vazias e erros valem 0 (as barras só crescem para fora do centro).</li>
+    <li><strong>O vão central</strong> é calculado pelo ThinQQ a partir do maior nome de categoria e recalculado ao redimensionar o gráfico, ao mudar os nomes e em <span class="ui">Atualizar</span>. Um nome muito longo ocupa no máximo metade da largura útil: acima disso ele transborda em vez de fazer as barras sumirem; num grupo de <span class="ui">Mesma escala</span>, na borboleta que define a escala, um nome longo pode encostar nas barras. Sem o ThinQQ, o vão continua proporcional ao maior valor, mas deixa de se adaptar a nomes ou tamanhos novos.</li>
+    <li><strong>Rótulos de barras muito finas</strong> (que não cabem dentro da barra) passam para fora dela, em cinza-escuro, e o total da linha se desloca para depois do rótulo; só ficam ocultos se nem fora cabem, e voltam quando o gráfico ou o valor cresce. Um rótulo que você apagar continua apagado.</li>
+  </ul>
+  <h3>Controles</h3>
+  <p>Valem <span class="ui">Totais</span>, <span class="ui">Rótulos</span>, <span class="ui">Formato</span>, <span class="ui">Paleta</span>, <span class="ui">Espaço</span>, <span class="ui">Legenda</span> (<span class="ui">Direita</span> ou <span class="ui">Nenhuma</span>) e <span class="ui">Mesma escala</span>. <span class="ui">Conectores</span>, <span class="ui">Linha de valor (média)</span>, <span class="ui">Indicador 100%</span>, as setas e os demais itens de <span class="ui">Mais opções</span> ficam cinza.</p>
+  <div class="warn">
+    <p><strong>Mesma escala só entre borboletas.</strong> Aplicada a uma borboleta e a gráficos de outro tipo, a união das escalas tira a borboleta do centro (e os outros ganham um mínimo negativo). Use <span class="ui">Mesma escala</span> só entre borboletas.</p>
+  </div>
+</section>
+
+<section id="dispersao" aria-labelledby="h-dispersao">
+  <h2 id="h-dispersao">Dispersão e bolhas</h2>
+  <p>A <strong>dispersão</strong> põe cada linha da tabela como um ponto em dois eixos de valor (X e Y), com o nome ao lado do ponto. As <strong>bolhas</strong> são a dispersão com o tamanho de cada ponto numa terceira coluna. Os dois ficam em <span class="ui">Mais tipos</span>.</p>
+  <dl class="ficha">
+    <dt>Dispersão</dt><dd>Nome, X, Y e, opcionalmente, <strong>Grupo</strong>: no mínimo 3 colunas.</dd>
+    <dt>Bolhas</dt><dd>Nome, X, Y, <strong>Tamanho</strong> e, opcionalmente, Grupo: no mínimo 4 colunas.</dd>
+    <dt>Grupos</dt><dd>Cada valor diferente da coluna de grupo vira uma série (cor e entrada de legenda próprias), no máximo 6. Sem coluna de grupo há uma série só, com o nome do cabeçalho de Y.</dd>
+  </dl>
+  <h3>Dispersão com grupos</h3>
+  <div class="tw fit">
+  <table class="mini">
+    <thead><tr><th>Loja</th><th class="n">Ticket</th><th class="n">Margem</th><th>Grupo</th></tr></thead>
+    <tbody>
+      <tr><td>Aurora</td><td class="n">310</td><td class="n">31%</td><td>Sul</td></tr>
+      <tr><td>Boreal</td><td class="n">295</td><td class="n">33%</td><td>Sul</td></tr>
+      <tr><td>Cedro</td><td class="n">340</td><td class="n">29%</td><td>Norte</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>Bolhas</h3>
+  <div class="tw fit">
+  <table class="mini">
+    <thead><tr><th>Produto</th><th class="n">Preço</th><th class="n">Margem</th><th class="n">Volume</th></tr></thead>
+    <tbody>
+      <tr><td>Piso</td><td class="n">80</td><td class="n">28%</td><td class="n">500</td></tr>
+      <tr><td>Tinta</td><td class="n">120</td><td class="n">35%</td><td class="n">300</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Exemplos: 20 e 26 (dispersão) e 21 (bolhas) das planilhas de <span class="ui">Exemplos</span>; E20 e E21 da <a href="#demonstracao">pasta de demonstração</a>.</p>
+  <h3>O que o ThinQQ faz</h3>
+  <ul>
+    <li><strong>Nomes por ponto:</strong> cada rótulo é ligado à célula da coluna Nome (à direita do ponto na dispersão; no centro da bolha, com a cor da fonte pelo contraste, nas bolhas; se o nome não cabe na bolha, ele vai para a direita em cinza-escuro). Em nuvens densas, rótulos de pontos vizinhos podem se sobrepor: aumente o gráfico ou arraste o rótulo. Um X ou Y que não seja número (e, nas bolhas, um tamanho zero, negativo ou texto) deixa o ponto de fora.</li>
+    <li><strong>Títulos dos eixos</strong> ligados aos cabeçalhos das colunas X e Y.</li>
+    <li><strong>Eixos:</strong> os números seguem o formato da coluna de origem (percentual, casas decimais, moeda) e, quando os dados ficam longe do zero (e ocupam menos de dois terços do maior valor), os eixos se apertam em volta dos dados em vez de começar em zero. Se você fixar a escala ou o formato de um eixo à mão, o ThinQQ respeita e não o sobrescreve.</li>
+    <li><span class="ui">Linha de tendência</span> (em <span class="ui">Mais opções</span>): regressão linear de cada série, tracejada na cor da série, sem entrada na legenda.</li>
+    <li><span class="ui">Quadrantes (médias)</span> (em <span class="ui">Mais opções</span>): as linhas dos eixos passam a cruzar nas médias de X e de Y e dividem o gráfico em quatro quadrantes. Sem o ThinQQ, elas ficam na última posição aplicada.</li>
+    <li><span class="ui">Rótulos</span>, <span class="ui">Paleta</span> e <span class="ui">Legenda</span> valem; <span class="ui">Totais</span>, <span class="ui">Formato</span>, <span class="ui">Espaço</span>, <span class="ui">Mesma escala</span> e as setas ficam cinza.</li>
+  </ul>
+  <h3>Mensagens e limites</h3>
+  <ul>
+    <li>"Dispersão: a tabela precisa de nome, X e Y (e, nas bolhas, tamanho)." (faltam colunas) e "No máximo 6 grupos (coluna de grupo)." (mais de 6 grupos): nada é criado.</li>
+    <li>Maiúsculas e minúsculas contam como o mesmo grupo ("A" e "a"). Um <strong>grupo novo</strong> criado depois na tabela não tem série: use <span class="ui">Alterar dados</span>; renomear um grupo também. <strong>Colunas extras depois da coluna de grupo</strong> são ignoradas.</li>
+    <li>Uma linha acrescentada <strong>depois da última linha da tabela</strong> não é detectada (como no Mekko); inserir ou remover linhas no meio avisa ("A tabela de origem mudou de tamanho...") e pede <span class="ui">Alterar dados</span>.</li>
+    <li>Inserir 300 linhas com 4 grupos leva cerca de 28 s.</li>
+    <li>O ThinQQ regrava a posição e a cor de um <strong>rótulo de bolha que você mudou à mão</strong> no próximo cálculo.</li>
   </ul>
 </section>
 
@@ -760,11 +896,11 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li>Clique em <span class="ui">Mais opções</span> › <span class="ui">Mesma escala</span>. O ThinQQ aplica a todos o menor mínimo e o maior máximo entre eles e informa quantos receberam a escala ("Mesma escala aplicada a 2 gráfico(s).").</li>
   </ol>
   <ul>
-    <li><strong>Entram:</strong> colunas, barras, linha, área, cascata, combinação (só o eixo das colunas; o eixo secundário da linha segue independente) e Mekko (unidades). <strong>Não entram:</strong> gráficos 100%, Mekko (%), pizza e Gantt: ficam de fora e a mensagem diz quantos foram ignorados.</li>
+    <li><strong>Entram:</strong> colunas, barras, linha, área, cascata, combinação (só o eixo das colunas; o eixo secundário da linha segue independente), Mekko (unidades) e borboleta (só entre borboletas: com outros tipos ela perde o centro). <strong>Não entram:</strong> gráficos 100%, Mekko (%), pizza, rosca, dispersão, bolhas, Gantt e gráficos com corte de eixo: ficam de fora e a mensagem diz quantos foram ignorados (os de corte de eixo, à parte).</li>
     <li><strong>A escala é fixa</strong>, não acompanha os dados. Depois de mudar muito os números, aplique <span class="ui">Mesma escala</span> de novo. Se os dados passarem do máximo gravado, as barras ficam cortadas e o ThinQQ avisa uma vez por gráfico e por sessão: "Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'."</li>
     <li>Os dois botões ficam <strong>sempre ativos</strong>, mesmo com uma célula, uma pizza ou um Gantt selecionado.</li>
     <li>O ThinQQ reaplica a escala a cada cálculo e a cada redimensionamento: <strong>um ajuste manual do eixo desses gráficos é desfeito</strong> no cálculo seguinte.</li>
-    <li>Com menos de dois gráficos de escala livre, o ThinQQ avisa "Mesma escala: selecione dois ou mais gráficos do ThinQQ (ou nenhum, para usar todos os gráficos da planilha)." ou "Mesma escala: são necessários dois ou mais gráficos com escala livre (100%, Mekko (%), pizza e Gantt não entram)."</li>
+    <li>Com menos de dois gráficos de escala livre, o ThinQQ avisa "Mesma escala: selecione dois ou mais gráficos do ThinQQ (ou nenhum, para usar todos os gráficos da planilha)." ou "Mesma escala: são necessários dois ou mais gráficos com escala livre (100%, Mekko (%), pizza e Gantt não entram)." (com gráficos de corte de eixo no grupo, a mensagem acrescenta "Gráficos com corte de eixo também ficam de fora.")</li>
     <li><span class="ui">Mais opções</span> › <span class="ui">Escala automática</span> desfaz a escala fixa de <span class="ui">Mesma escala</span> no gráfico selecionado (ou nos selecionados) e informa quantos foram restaurados: <strong>com um só gráfico selecionado age só nele</strong>, e sem nenhum selecionado age em todos os da planilha. Nesses gráficos também descarta um tamanho manual dado à área de plotagem; um gráfico sem a escala fixa (eixo ajustado à mão, por exemplo) fica como está. Num gráfico sem escala livre (100%, Mekko (%), pizza ou Gantt) ele só avisa "Escala automática: o gráfico não tem escala livre".</li>
   </ul>
 
@@ -857,7 +993,105 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <ul>
     <li>No Gantt, <span class="ui">Espaço</span> é o espaçamento entre as linhas. No Mekko (%), <span class="ui">Totais</span> mostra a largura de cada coluna; nas unidades, o total.</li>
     <li><span class="ui">Rótulos</span> e <span class="ui">Paleta</span> valem em todos os tipos. <span class="ui">Formato</span> não altera os rótulos da linha da combinação (eles seguem o formato da célula).</li>
+    <li>A dispersão e as bolhas usam só <span class="ui">Rótulos</span>, <span class="ui">Paleta</span> e <span class="ui">Legenda</span>, mais <span class="ui">Linha de tendência</span> e <span class="ui">Quadrantes (médias)</span>; a borboleta usa <span class="ui">Totais</span>, <span class="ui">Rótulos</span>, <span class="ui">Formato</span>, <span class="ui">Paleta</span>, <span class="ui">Espaço</span>, <span class="ui">Legenda</span> e <span class="ui">Mesma escala</span>. Veja <a href="#borboleta">Borboleta</a> e <a href="#dispersao">Dispersão e bolhas</a>.</li>
     <li><span class="ui">Mais opções</span> (com <span class="ui">Mesma escala</span> e <span class="ui">Escala automática</span>) e <span class="ui">Atualizar</span> ficam ativos mesmo sem gráfico selecionado; <span class="ui">Alterar dados</span> e <span class="ui">Remover setas</span> valem em qualquer gráfico do ThinQQ.</li>
+  </ul>
+</section>
+
+<section id="arredondamento" aria-labelledby="h-arredondamento">
+  <h2 id="h-arredondamento">Arredondamento consistente</h2>
+  <p>Arredondar cada número separadamente pode fazer a soma não bater: três participações de 33,3% mostradas sem decimais dão 33% + 33% + 33% = 99%, e o total diz 100%. O ThinQQ resolve isso de dois jeitos, ambos pelo método do <strong>maior resto</strong> (as unidades que faltam ou sobram vão para os números com maior resto na casa que se perde), sempre com fórmulas comuns da planilha.</p>
+
+  <h3>Rótulos com soma consistente (nos gráficos)</h3>
+  <p><span class="ui">Mais opções</span> › <span class="ui">Rótulos com soma consistente</span> faz os rótulos dos segmentos somarem exatamente o total mostrado. Vale em colunas e barras empilhadas e 100% e em áreas empilhadas e 100%; nos outros tipos o ThinQQ avisa que não se aplica.</p>
+  <ul>
+    <li><strong>Como funciona:</strong> na primeira vez, o ThinQQ acrescenta colunas de fórmulas à direita do bloco do gráfico na planilha oculta <code>_ThinQQ</code> e liga os rótulos dos segmentos a elas. O rótulo do total continua ligado ao total, que pelo formato aparece arredondado e agora é a soma dos rótulos. São fórmulas da planilha: acompanham os dados e continuam certas num Excel sem o ThinQQ.</li>
+    <li><strong>Casas decimais:</strong> seguem o <span class="ui">Formato</span> (<span class="ui">1.234</span>: inteiros; <span class="ui">1.234,5</span>: uma casa; <span class="ui">12%</span> e <span class="ui">12,3%</span>: percentuais inteiros e com uma casa; <span class="ui">Milhares (1.234 → 1)</span> e <span class="ui">Milhões (1,2)</span>: a unidade que aparece). Em empate, a unidade extra vai para a primeira série.</li>
+    <li>Desligar o item volta aos rótulos simples (as colunas de fórmulas ficam). Ligar ou desligar refaz os rótulos de segmento, então um que você tinha apagado volta.</li>
+    <li>É o exemplo 22 de "Exemplos 3" (colunas 100% com 34 + 33 + 33), o 25 (área) e o E23 da <a href="#demonstracao">pasta de demonstração</a>.</li>
+    <li><strong>Limites:</strong> os rótulos são ligados às colunas de fórmulas pela <strong>ordem das séries</strong>: se você reordenou as séries à mão, o ThinQQ as associa por posição, não pelo nome. Se você apagou uma série à mão antes de ligar o item, ele recusa e pede <span class="ui">Alterar dados</span> ("As séries do gráfico não correspondem mais às colunas da tabela de origem; use 'Alterar dados' para reconstruí-lo."); se apagar uma série depois de ligar, os segmentos voltam aos rótulos simples, sem aviso.</li>
+  </ul>
+
+  <h3>Arredondar intervalo... (na planilha, sem gráfico)</h3>
+  <p>Para a mesma coisa numa tabela comum, <span class="ui">Mais opções</span> › <span class="ui">Arredondar intervalo...</span> grava fórmulas que arredondam uma coluna ou linha de números de modo que a soma dos arredondados seja o total arredondado. Não precisa de gráfico.</p>
+  <ol class="steps" role="list">
+    <li>Selecione <strong>uma única coluna ou linha só com números</strong> (pelo menos 2 células e no máximo 1.000 células).</li>
+    <li>Clique em <span class="ui">Mais opções</span> › <span class="ui">Arredondar intervalo...</span>. A primeira pergunta é "Casas decimais do resultado (0 = inteiros; 1 ou 2 = decimais; -3 = milhares):" (de -15 a 15).</li>
+    <li>A segunda é "Célula onde o resultado começa (cada célula recebe uma fórmula que referencia só os valores de origem):". Clique na primeira célula do destino.</li>
+    <li>Se o destino já tiver conteúdo, o ThinQQ pergunta "As células D2:D6 já têm conteúdo. Substituir? Esta ação não pode ser desfeita." (o endereço é o do seu destino).</li>
+    <li>Pronto: "Fórmulas de arredondamento com soma consistente gravadas em D2:D6." Uma coluna gera uma coluna e uma linha gera uma linha, e cada célula tem uma fórmula que usa só a faixa de origem.</li>
+  </ol>
+  <ul>
+    <li><strong>Sem o ThinQQ:</strong> as fórmulas não dependem do ThinQQ: funcionam, recalculam e se copiam em qualquer Excel. Por isso não existe uma função como <code>TQQ.ROUND</code>: ela viraria um vínculo externo para o <code>.xlam</code> quando a pasta fosse aberta sem o ThinQQ.</li>
+    <li><strong>Formato do resultado:</strong> as casas pedidas. Se a origem está formatada como percentual, as casas valem para a fração (use 2 para inteiros, como 34%, e 3 para uma casa) e o resultado <strong>continua em percentual</strong>; se o "%" é só texto de formato (como em <code>0,0"%"</code>), o resultado é um número simples.</li>
+    <li><strong>Recusas</strong> (nada é gravado): "Selecione uma única coluna ou linha só com números (pelo menos 2)."; "A faixa tem N células; o Arredondar intervalo aceita no máximo 1.000 (cada fórmula percorre a faixa inteira e o recálculo cresceria com o quadrado do tamanho)."; destino em outra pasta de trabalho, que não cabe na planilha, sobre a origem ou com células mescladas.</li>
+    <li><strong>Planilha protegida:</strong> o destino precisa estar desbloqueado e a proteção precisa permitir <strong>Formatar células</strong>; senão: "A planilha de destino está protegida sem a permissão de formatar células: desproteja-a ou escolha um destino em outra planilha."</li>
+    <li>Se algo falhar no meio da gravação, o ThinQQ devolve o conteúdo e o formato anteriores. A sobrescrita que você confirmou, porém, <strong>não pode ser desfeita</strong>. Texto digitado depois na origem faz o resultado mostrar <code>#VALOR!</code>: corrija a origem.</li>
+  </ul>
+</section>
+
+<section id="corte" aria-labelledby="h-corte">
+  <h2 id="h-corte">Corte de eixo</h2>
+  <p>Quando uma coluna (ou barra) é muito maior que as outras, ela achata as demais. O <span class="ui">Corte de eixo...</span> corta o eixo de valores num número que você informa: as colunas maiores ficam <strong>cortadas</strong> na altura desse número, com uma marca de corte, e as menores ganham altura para serem comparadas. O rótulo do total continua mostrando o valor real.</p>
+  <ol class="steps" role="list">
+    <li>Clique no gráfico (colunas ou barras, empilhadas ou agrupadas) e abra <span class="ui">Mais opções</span> › <span class="ui">Corte de eixo...</span>.</li>
+    <li>Na janela, o ThinQQ sugere um valor (1,2 vez o segundo maior total, quando isso fica abaixo do maior; senão, metade do maior; nas empilhadas, nunca abaixo do mínimo descrito adiante). Confirme ou digite outro: precisa ser maior que zero e menor que o maior valor do gráfico.</li>
+    <li>Para voltar ao normal, <span class="ui">Mais opções</span> › <span class="ui">Remover corte de eixo</span> devolve o eixo e tira as marcas.</li>
+  </ol>
+  <p>É o exemplo 23 (colunas) e o 24 (barras) de "Exemplos 3" e o E24 da <a href="#demonstracao">pasta de demonstração</a>.</p>
+
+  <h3>O que acontece no gráfico</h3>
+  <ul>
+    <li>Cada coluna acima do corte recebe a <strong>marca de corte</strong> e o <strong>rótulo do total real</strong> acima dela (o total vem de uma coluna de fórmulas que o ThinQQ acrescenta à direita do bloco, então continua vivo).</li>
+    <li>Nas empilhadas, o rótulo do segmento que atravessa o corte fica na base da parte visível (nas agrupadas, o da coluna cortada); os segmentos inteiros acima do corte ficam sem rótulo e voltam se os dados descerem. Um rótulo que você apagou continua apagado e um que você posicionou à mão é mantido. Se a parte visível tem menos de uns 14 pontos, o rótulo da base fica oculto para não ficar sob a marca.</li>
+    <li><span class="ui">Seta CAGR</span> e <span class="ui">Seta diferença</span> ancoram na borda do corte, não acima do gráfico.</li>
+  </ul>
+
+  <h3>O mínimo do corte nas empilhadas</h3>
+  <p>O ThinQQ não aceita um corte que esconda o segmento de cima de uma coluna cortada: o limite precisa deixar visível, abaixo do corte, pelo menos um quarto desse segmento. Abaixo disso aparece, e nada muda: "Corte de eixo: com esse valor o segmento de cima da coluna 'Cimento' ficaria quase invisível (menos de um quarto dele abaixo do corte). Informe pelo menos 33.000." (o nome da coluna e o número são os do seu gráfico). A sugestão já respeita esse mínimo. Nas agrupadas e nas empilhadas de uma série só não há esse mínimo.</p>
+
+  <h3>Limites</h3>
+  <ul>
+    <li><strong>Não é compressão de escala:</strong> a escala continua linear até o corte e, acima dele, a coluna é simplesmente cortada (um eixo nativo do Excel não tem "quebra").</li>
+    <li><strong>Só em colunas e barras empilhadas e agrupadas.</strong> Nos outros tipos o item fica cinza e o aviso diz que não se aplica. O valor tem de ser maior que zero e menor que o maior valor, senão: "Corte de eixo: informe um valor maior que zero e menor que o maior valor do gráfico."</li>
+    <li><strong>A linha de valor (média) que fica acima do corte some</strong> do gráfico. Ao ligar a linha ou o corte o ThinQQ avisa (sem bloquear): "A linha de valor (média 1.250) fica acima do corte de eixo (500) e não aparece no gráfico."</li>
+    <li><strong>Mesma escala e corte são excludentes:</strong> ligar o corte tira o gráfico do grupo de <span class="ui">Mesma escala</span> ("O gráfico saiu do grupo de Mesma escala: corte de eixo e Mesma escala são excludentes."), e <span class="ui">Mesma escala</span> não inclui gráficos com corte: a mensagem os conta à parte ("1 com corte de eixo fora do grupo..."). <span class="ui">Escala automática</span> não remove o corte; use <span class="ui">Remover corte de eixo</span>.</li>
+    <li><span class="ui">Alterar dados</span> mantém o corte. Se, com os dados novos, o limite deixa de ficar abaixo do maior valor, o corte é retirado e o ThinQQ avisa ("Corte de eixo retirado: o limite anterior (N) não fica abaixo do maior valor dos dados novos."); se o corte passa a esconder o segmento de cima de uma coluna, ele avisa o valor mínimo ("Corte de eixo: com os dados novos, o corte em N esconde o segmento de cima da coluna 'X'. Informe pelo menos M (Corte de eixo...) para que ele apareça.").</li>
+    <li><strong>Sem o ThinQQ:</strong> o eixo fixo e o total real continuam vivos (são fórmulas e escala do próprio Excel); os rótulos dos segmentos e as marcas de corte ficam como na última vez que o ThinQQ os ajustou.</li>
+  </ul>
+</section>
+
+<section id="powerpoint" aria-labelledby="h-powerpoint">
+  <h2 id="h-powerpoint">Copiar para o PowerPoint</h2>
+  <p>O menu <span class="ui">PowerPoint</span> (grupo <span class="ui">Gráfico selecionado</span>) cola o gráfico selecionado num slide, sem copiar e colar à mão. Só fica ativo com um gráfico do ThinQQ selecionado.</p>
+  <div class="tw" tabindex="0" role="region" aria-label="As duas formas de copiar para o PowerPoint">
+  <table>
+    <thead><tr><th scope="col">Item</th><th scope="col">O que cola</th></tr></thead>
+    <tbody>
+      <tr><td><span class="ui">Copiar como imagem</span></td><td>Uma imagem do gráfico, com as setas e os colchetes, em 80% da largura do slide e centralizada. Não depende do arquivo do Excel.</td></tr>
+      <tr><td><span class="ui">Copiar como gráfico vinculado</span></td><td>Um gráfico do próprio PowerPoint (editável e formatável lá) <strong>vinculado a esta pasta de trabalho</strong>: os dados vêm do arquivo do Excel. As setas e os colchetes do ThinQQ, que são formas dentro do gráfico, vêm junto.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>Onde o gráfico é colado</h3>
+  <ul>
+    <li><strong>Com o PowerPoint aberto:</strong> no slide em exibição na <strong>janela ativa</strong> (a apresentação dessa janela). No Classificador de Slides e na Estrutura de Tópicos, o slide selecionado; nos modos de mestre e de anotações, o último slide da apresentação. Uma apresentação aberta ainda sem slides recebe um slide em branco.</li>
+    <li><strong>Com o PowerPoint fechado (ou sem apresentação):</strong> o ThinQQ abre o PowerPoint e cria uma apresentação nova com um slide em branco.</li>
+    <li>O ThinQQ nunca fecha o PowerPoint nem as apresentações que você já tinha abertos. No sucesso, o PowerPoint vem para o primeiro plano e o aviso diz o slide: "Gráfico copiado para o slide N de 'apresentação' como imagem." (ou "como gráfico vinculado.").</li>
+  </ul>
+  <h3>Gráfico vinculado</h3>
+  <ul>
+    <li><strong>A pasta de trabalho precisa estar salva</strong>: o vínculo aponta para o arquivo salvo. Pasta nova: "Salve a pasta de trabalho antes de copiar o gráfico vinculado: o vínculo aponta para o arquivo salvo."</li>
+    <li>Com alterações não salvas, o gráfico é colado mas o aviso acrescenta "A pasta tem alterações não salvas: o PowerPoint lê o arquivo salvo nas atualizações do vínculo."</li>
+    <li>No PowerPoint, use <strong>Dados &gt; Editar Vínculos</strong> para atualizar os dados ou trocar o arquivo de origem e <strong>Quebrar vínculo</strong> para incorporar os dados ao slide (o gráfico deixa de acompanhar o Excel). <strong>Renomear ou mover o arquivo do Excel quebra o vínculo.</strong></li>
+    <li>Se o PowerPoint colar o gráfico mas não manter o vínculo, o aviso diz: "Gráfico copiado para o slide N de 'apresentação' como gráfico do PowerPoint, mas sem vínculo com a pasta (o PowerPoint não manteve o vínculo): ele não acompanha as alterações dos dados." Uma pasta de trabalho aberta de um endereço da web (SharePoint ou OneDrive) pode não manter o vínculo: salve uma cópia no disco local.</li>
+  </ul>
+  <h3>Mensagens e limites</h3>
+  <ul>
+    <li>"O PowerPoint não está instalado neste computador (ou não pôde ser iniciado)."</li>
+    <li>"A área de transferência do Windows não está disponível (outro programa a mantém aberta). Tente novamente em instantes." (o ThinQQ já tenta 3 vezes antes de avisar).</li>
+    <li>"O PowerPoint está ocupado (uma caixa de diálogo aberta ou um texto em edição). Termine o que está fazendo nele e tente de novo."</li>
+    <li>A colagem usa a <strong>área de transferência do Windows</strong>: o que você tinha copiado antes é substituído.</li>
   </ul>
 </section>
 
@@ -868,11 +1102,11 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <table>
     <thead><tr><th scope="col">Controle</th><th scope="col">O que faz</th></tr></thead>
     <tbody>
-      <tr><td><span class="ui">Totais</span></td><td>Mostra ou oculta o total de cada categoria: em negrito acima da coluna ou da área, no fim da barra. Vale para empilhadas, 100%, áreas, combinação (só as colunas) e Mekko (a largura da coluna no Mekko (%); o total nas unidades). Não vale para agrupadas, linha, cascata, pizza e Gantt.</td></tr>
+      <tr><td><span class="ui">Totais</span></td><td>Mostra ou oculta o total de cada categoria: em negrito acima da coluna ou da área, no fim da barra. Vale para empilhadas, 100%, áreas, combinação (só as colunas), Mekko (a largura da coluna no Mekko (%); o total nas unidades) e borboleta (no fim da barra direita). Não vale para agrupadas, linha, cascata, pizza, rosca, dispersão, bolhas e Gantt.</td></tr>
       <tr><td><span class="ui">Rótulos</span></td><td>Mostra ou oculta os valores nos segmentos, barras, pontos, fatias e (no Gantt) as datas ou o texto à direita das barras. Os rótulos acompanham os dados.</td></tr>
       <tr><td><span class="ui">Conectores</span></td><td>Linhas entre os segmentos de colunas e barras empilhadas (inclusive 100% e combinação) e entre as barras da cascata. Em agrupadas, linha, área, Mekko, pizza e Gantt não há conectores.</td></tr>
-      <tr><td><span class="ui">Formato</span></td><td>Formato dos números: <span class="ui">1.234</span>, <span class="ui">1.234,5</span>, <span class="ui">1.234,56</span>, <span class="ui">12%</span>, <span class="ui">12,3%</span>, <span class="ui">Milhares (1.234 → 1)</span> ou <span class="ui">Milhões (1,2)</span>. As duas últimas dividem por mil ou por um milhão só na exibição. <strong>Em gráficos 100%</strong> os rótulos dos segmentos mostram a <em>participação</em> de cada série no total da linha (por padrão <span class="ui">12%</span>; escolhendo <span class="ui">12,3%</span> ficam com uma casa decimal) e o formato escolhido vale para os <em>totais</em>, que continuam em valores absolutos (os formatos percentuais não se aplicam aos totais: eles ficam em inteiro). No Mekko (%) só <span class="ui">12%</span> e <span class="ui">12,3%</span> fazem diferença; na pizza e na rosca, <span class="ui">12%</span> e <span class="ui">12,3%</span> mostram a participação. Não vale no Gantt, e não altera os rótulos da linha da combinação (eles seguem o formato da célula).</td></tr>
-      <tr><td><span class="ui">Paleta</span></td><td><span class="ui">Padrão ThinQQ</span> (azul-marinho, azul, azul-claro, cinza, verde-azulado e âmbar), <span class="ui">Tons de cinza</span> ou <span class="ui">Cores do tema</span> (as cores do tema da pasta de trabalho). Vale em todos os tipos; na pizza, colore as fatias.</td></tr>
+      <tr><td><span class="ui">Formato</span></td><td>Formato dos números: <span class="ui">1.234</span>, <span class="ui">1.234,5</span>, <span class="ui">1.234,56</span>, <span class="ui">12%</span>, <span class="ui">12,3%</span>, <span class="ui">Milhares (1.234 → 1)</span> ou <span class="ui">Milhões (1,2)</span>. As duas últimas dividem por mil ou por um milhão só na exibição. <strong>Em gráficos 100%</strong> os rótulos dos segmentos mostram a <em>participação</em> de cada série no total da linha (por padrão <span class="ui">12%</span>; escolhendo <span class="ui">12,3%</span> ficam com uma casa decimal) e o formato escolhido vale para os <em>totais</em>, que continuam em valores absolutos (os formatos percentuais não se aplicam aos totais: eles ficam em inteiro). No Mekko (%) só <span class="ui">12%</span> e <span class="ui">12,3%</span> fazem diferença; na pizza e na rosca, <span class="ui">12%</span> e <span class="ui">12,3%</span> mostram a participação. Não vale no Gantt, na dispersão nem nas bolhas (os eixos delas seguem o formato da coluna de origem), e não altera os rótulos da linha da combinação (eles seguem o formato da célula). O formato inicial de um gráfico novo vem da <strong>primeira célula de valor</strong> da tabela: uma casa decimal começa em <span class="ui">1.234,5</span>, duas ou mais em <span class="ui">1.234,56</span>, percentual em <span class="ui">12%</span> ou <span class="ui">12,3%</span>, e formatos em milhares ou milhões também são reconhecidos (na pizza e na rosca o percentual só vale quando a coluna soma 100%); troque-o quando quiser.</td></tr>
+      <tr><td><span class="ui">Paleta</span></td><td><span class="ui">Padrão ThinQQ</span> (azul-marinho, azul, azul-claro, cinza, verde-azulado e âmbar; na pizza e na rosca com 7 a 10 fatias entram também roxo, verde, pêssego e tijolo), <span class="ui">Tons de cinza</span> ou <span class="ui">Cores do tema</span> (as cores do tema da pasta de trabalho; as fatias 7 a 10 usam tons escurecidos dos primeiros destaques). Vale em todos os tipos; na pizza e na rosca, colore as fatias.</td></tr>
       <tr><td><span class="ui">Espaço</span></td><td>Largura do vão entre as colunas ou barras: <span class="ui">Estreito (30%)</span>, <span class="ui">Normal (50%)</span>, <span class="ui">Largo (80%)</span> ou <span class="ui">Muito largo (120%)</span>. No Gantt, é o espaçamento entre as linhas. Não se aplica a linha, área, Mekko e pizza.</td></tr>
       <tr><td><span class="ui">Legenda</span></td><td><span class="ui">Direita</span>, <span class="ui">Nenhuma</span> ou <span class="ui">Nome no fim da linha</span> (só em linha e combinação). Na cascata, só existe com várias séries; no Gantt, não existe. Veja <a href="#linha-area">Linha, área e combinação</a>.</td></tr>
       <tr><td><span class="ui">Mais opções</span></td><td>Menu com <span class="ui">Indicador 100%</span>, <span class="ui">Linha de valor (média)</span>, <span class="ui">Eixo secundário (linha)</span>, <span class="ui">Rótulos fora da pizza</span>, <span class="ui">Rótulos com soma consistente</span>, <span class="ui">Linha de tendência</span>, <span class="ui">Quadrantes (médias)</span>, <span class="ui">Corte de eixo...</span>, <span class="ui">Remover corte de eixo</span>, <span class="ui">Arredondar intervalo...</span>, <span class="ui">Mesma escala</span> e <span class="ui">Escala automática</span>. Fica ativo mesmo sem gráfico selecionado; os alternadores e os dois itens de corte de eixo só ficam ativos nos tipos que os aceitam.</td></tr>
@@ -880,21 +1114,21 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr><td><span class="ui">Linha de valor (média)</span></td><td>Linha na média dos valores, com o rótulo "Média" e o número. Em colunas e barras empilhadas e agrupadas, linha, área empilhada, combinação e Mekko (unidades); não nos gráficos 100%, na cascata, no Mekko (%), na pizza e no Gantt.</td></tr>
       <tr><td><span class="ui">Eixo secundário (linha)</span></td><td>Só na combinação: a linha usa um eixo próprio. Já nasce ligado quando as grandezas da linha e das colunas diferem mais de 5 vezes.</td></tr>
       <tr><td><span class="ui">Rótulos fora da pizza</span></td><td>Só na pizza: rótulos fora das fatias, com o nome da categoria; a legenda sai enquanto eles estiverem ligados.</td></tr>
-      <tr><td><span class="ui">Rótulos com soma consistente</span></td><td>Arredonda os rótulos dos segmentos para que somem exatamente o total mostrado (34% + 33% + 33% = 100%), pelo método do maior resto, com fórmulas da planilha. Em colunas, barras e áreas empilhadas e 100%.</td></tr>
-      <tr><td><span class="ui">Linha de tendência</span></td><td>Regressão linear por série, na dispersão e nas bolhas.</td></tr>
+      <tr><td><span class="ui">Rótulos com soma consistente</span></td><td>Arredonda os rótulos dos segmentos para que somem exatamente o total mostrado (34% + 33% + 33% = 100%), pelo método do maior resto, com fórmulas da planilha. Em colunas, barras e áreas empilhadas e 100%. Veja <a href="#arredondamento">Arredondamento consistente</a>.</td></tr>
+      <tr><td><span class="ui">Linha de tendência</span></td><td>Regressão linear por série, na dispersão e nas bolhas. Veja <a href="#dispersao">Dispersão e bolhas</a>.</td></tr>
       <tr><td><span class="ui">Quadrantes (médias)</span></td><td>Os eixos passam a cruzar nas médias de X e de Y e dividem o gráfico em quatro quadrantes. Na dispersão e nas bolhas.</td></tr>
-      <tr><td><span class="ui">Corte de eixo...</span></td><td>Pede um valor e corta o eixo de valores nele: as colunas ou barras maiores ficam cortadas, com uma marca, e o total continua no rótulo. Em colunas e barras empilhadas e agrupadas.</td></tr>
+      <tr><td><span class="ui">Corte de eixo...</span></td><td>Pede um valor e corta o eixo de valores nele: as colunas ou barras maiores ficam cortadas, com uma marca, e o total continua no rótulo. Em colunas e barras empilhadas e agrupadas. Veja <a href="#corte">Corte de eixo</a>.</td></tr>
       <tr><td><span class="ui">Remover corte de eixo</span></td><td>Devolve o eixo de valores ao normal e tira as marcas de corte.</td></tr>
-      <tr><td><span class="ui">Arredondar intervalo...</span></td><td>Com uma coluna ou linha de números selecionada, grava a partir da célula que você escolher fórmulas que arredondam os valores de modo que a soma dos arredondados seja o total arredondado. Não precisa de gráfico.</td></tr>
-      <tr><td><span class="ui">Mesma escala</span></td><td>Aplica a mesma escala do eixo de valores a dois ou mais gráficos selecionados (com um só selecionado ou nenhum, a todos os da planilha); o botão fica sempre ativo. Gráficos 100%, Mekko (%), pizza e Gantt não entram. A escala fica fixa até você usar <span class="ui">Escala automática</span>.</td></tr>
+      <tr><td><span class="ui">Arredondar intervalo...</span></td><td>Com uma coluna ou linha de números selecionada, grava a partir da célula que você escolher fórmulas que arredondam os valores de modo que a soma dos arredondados seja o total arredondado (até 1.000 células). Não precisa de gráfico. Veja <a href="#arredondamento">Arredondamento consistente</a>.</td></tr>
+      <tr><td><span class="ui">Mesma escala</span></td><td>Aplica a mesma escala do eixo de valores a dois ou mais gráficos selecionados (com um só selecionado ou nenhum, a todos os da planilha); o botão fica sempre ativo. Gráficos 100%, Mekko (%), pizza, rosca, dispersão, bolhas, Gantt e gráficos com corte de eixo não entram. A escala fica fixa até você usar <span class="ui">Escala automática</span>.</td></tr>
       <tr><td><span class="ui">Escala automática</span></td><td>Devolve ao automático o eixo de valores fixado por <span class="ui">Mesma escala</span> no gráfico (ou nos gráficos) selecionado(s); sem nenhum selecionado, em todos os da planilha. Sempre ativo.</td></tr>
       <tr><td><span class="ui">Setas</span></td><td>Menu com <span class="ui">Seta CAGR</span>, <span class="ui">Seta diferença</span>, <span class="ui">Colchete (Gantt)</span> e <span class="ui">Remover setas</span>. Cada seta só fica ativa nos tipos que a aceitam; a pizza não tem setas.</td></tr>
       <tr><td><span class="ui">Seta CAGR</span></td><td>No menu <span class="ui">Setas</span>: seta de crescimento anual composto entre duas categorias (veja a próxima seção). Não existe no Mekko, na pizza e no Gantt.</td></tr>
       <tr><td><span class="ui">Seta diferença</span></td><td>No menu <span class="ui">Setas</span>: seta com a diferença absoluta e relativa entre dois totais. Não existe nos gráficos 100%, no Mekko, na pizza e no Gantt.</td></tr>
       <tr><td><span class="ui">Colchete (Gantt)</span></td><td>No menu <span class="ui">Setas</span>: colchete sobre uma ou mais atividades do Gantt, com o período. Só existe no Gantt.</td></tr>
       <tr><td><span class="ui">Remover setas</span></td><td>No menu <span class="ui">Setas</span>: apaga as setas e os colchetes do gráfico. Os conectores da cascata e o indicador 100% ficam.</td></tr>
-      <tr><td><span class="ui">PowerPoint</span></td><td>Menu com <span class="ui">Copiar como imagem</span> e <span class="ui">Copiar como gráfico vinculado</span>. Só fica ativo com um gráfico do ThinQQ selecionado.</td></tr>
-      <tr><td><span class="ui">Copiar como imagem</span></td><td>No menu <span class="ui">PowerPoint</span>: cola uma imagem do gráfico no slide ativo, abrindo o PowerPoint se preciso.</td></tr>
+      <tr><td><span class="ui">PowerPoint</span></td><td>Menu com <span class="ui">Copiar como imagem</span> e <span class="ui">Copiar como gráfico vinculado</span>. Só fica ativo com um gráfico do ThinQQ selecionado. Veja <a href="#powerpoint">Copiar para o PowerPoint</a>.</td></tr>
+      <tr><td><span class="ui">Copiar como imagem</span></td><td>No menu <span class="ui">PowerPoint</span>: cola uma imagem do gráfico no slide da janela ativa, abrindo o PowerPoint se preciso.</td></tr>
       <tr><td><span class="ui">Copiar como gráfico vinculado</span></td><td>No menu <span class="ui">PowerPoint</span>: cola um gráfico do PowerPoint vinculado a esta pasta de trabalho, que precisa estar salva.</td></tr>
       <tr><td><span class="ui">Atualizar</span></td><td>Reposiciona setas e rótulos, recalcula a escala do Gantt e remove dados internos de gráficos que você apagou. Funciona também sem gráfico selecionado: atualiza todos os gráficos ThinQQ da planilha ativa.</td></tr>
       <tr><td><span class="ui">Alterar dados</span></td><td>Pede uma nova tabela de origem e recria o gráfico no mesmo lugar, com o mesmo tipo e as mesmas opções. A tabela precisa estar na mesma pasta de trabalho do gráfico. Use também depois de inserir ou remover linhas na origem. As setas e os colchetes não são preservados: coloque-os de novo.</td></tr>
@@ -937,6 +1171,9 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li><span class="ui">Configurações</span> mostra a fonte de atualização e permite trocá-la: o endereço (<code>https://...</code>) do <code>manifest.json</code>, ou o caminho de uma pasta ou arquivo, inclusive de rede ou de uma pasta do OneDrive/Teams sincronizada. Variáveis como <code>%USERPROFILE%</code> funcionam. Deixe em branco para voltar à fonte padrão (o repositório do ThinQQ no GitHub).</li>
     <li><span class="ui">Sobre</span> mostra as versões do carregador e do núcleo e a pasta de instalação.</li>
   </ul>
+  <div class="warn">
+    <p><strong>Repositório privado:</strong> a fonte padrão é o <code>release/manifest.json</code> do repositório do ThinQQ no GitHub. Enquanto o repositório for privado, quem não tem acesso a ele não alcança o manifesto: a consulta falha em silêncio (sem aviso de versão nova) e as releases não podem ser baixadas. Quem mantém o ThinQQ pode dar acesso às pessoas, abrir o repositório ou publicar o ZIP e o manifesto numa pasta compartilhada (e cada pessoa aponta <span class="ui">Configurações</span> para o <code>manifest.json</code> dela). O tutorial online (GitHub Pages) também não abre sem acesso a um repositório privado; o tutorial do ZIP, aberto por <span class="ui">Tutorial</span>, funciona sempre.</p>
+  </div>
   <div class="ok">
     <p><strong>Segurança:</strong> o ThinQQ só instala um arquivo se o código SHA-256 dele conferir com o do manifesto. O manifesto precisa trazer esses códigos; um manifesto sem eles é recusado, e se o arquivo baixado estiver diferente nada é instalado.</p>
   </div>
@@ -963,7 +1200,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li>Abra o Excel: a aba <span class="ui">ThinQQ</span> aparece na faixa de opções.</li>
   </ol>
   <p>Para <strong>desinstalar</strong>, feche o Excel e, na pasta onde descompactou o ZIP, execute <code>powershell -ExecutionPolicy Bypass -File uninstall.ps1</code>. Isso remove o suplemento, o local confiável, as configurações e a pasta <code>%LOCALAPPDATA%\ThinQQ</code>.</p>
-  <p>Se o script for bloqueado pela política da empresa, use a instalação manual do <code>LEIA-ME.txt</code>.</p>
+  <p>Se o script for bloqueado pela política da empresa, use a instalação manual do <code>LEIA-ME.txt</code>; para assinatura digital e políticas de macros, veja <a href="#instalacao-ti">Instalação em empresas (TI)</a>. O ZIP também traz a pasta <code>exemplos</code> com o Excel de demonstração (veja <a href="#demonstracao">Pasta de demonstração</a>); o instalador não o instala nem o abre.</p>
   <h3>O que o instalador altera</h3>
   <ul>
     <li>Copia os arquivos para <code>%LOCALAPPDATA%\ThinQQ</code> (o carregador na raiz, o núcleo e o tutorial em <code>versions\&lt;versão&gt;</code>), sem precisar de administrador.</li>
@@ -974,6 +1211,27 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </ul>
 </section>
 
+<section id="instalacao-ti" aria-labelledby="h-instalacao-ti">
+  <h2 id="h-instalacao-ti">Instalação em empresas (TI)</h2>
+  <p>Esta seção é para quem administra os computadores. O ThinQQ chega sem assinatura digital de fábrica: a integridade das atualizações vem da conferência SHA-256 contra o manifesto, e o instalador cria um Local Confiável <strong>por usuário</strong>, que uma política da empresa pode ignorar ou proibir. Em ambientes que bloqueiam macros não assinadas, o roteiro é assinar os dois arquivos com um certificado da própria empresa.</p>
+  <h3>O que a TI pode fazer</h3>
+  <ol class="steps" role="list">
+    <li><strong>Certificado interno.</strong> Peça (à autoridade certificadora da empresa) um certificado de assinatura de código.</li>
+    <li><strong>Assinar os dois <code>.xlam</code></strong> (<code>ThinQQ.xlam</code> e <code>ThinQQ.core.xlam</code>). Caminho manual, sempre disponível: abra o arquivo no Excel, no Editor do VBA (Alt+F11) use <strong>Ferramentas &gt; Assinatura Digital</strong>, escolha o certificado e salve (assinatura V3 do projeto VBA). Caminho automático, num servidor de build: <code>signtool</code> do Windows SDK mais os <em>Office Subject Interface Packages</em> (as DLLs de assinatura de projetos VBA, registradas com administrador), com <code>tools/Sign-ThinQQ.ps1</code> ou <code>build/release.ps1 -SignPfx</code> (que assina antes de calcular os SHA-256 do manifesto).</li>
+    <li><strong>Distribuir o certificado em Editores Confiáveis</strong> (Trusted Publishers) por política de grupo (GPO): Configuração do Computador &gt; Políticas &gt; Configurações do Windows &gt; Configurações de Segurança &gt; Políticas de Chave Pública &gt; Editores Confiáveis. Para um único usuário, <code>tools/Trust-ThinQQPublisher.ps1 -CerPath arquivo.cer</code> (com <code>-Scope LocalMachine</code>, exige administrador).</li>
+    <li><strong>Ou um local confiável corporativo.</strong> O instalador já registra <code>%LOCALAPPDATA%\ThinQQ</code> (com subpastas) como Local Confiável do usuário; a empresa também pode distribuir um local confiável por GPO.</li>
+    <li><strong>Política do Office:</strong> com "Only trust VBA macros that use V3 signatures" os projetos precisam ter a assinatura V3 que o Editor do VBA grava.</li>
+    <li><strong>Reassine a cada release</strong> (os arquivos do build são novos a cada versão) e publique os SHA-256 dos arquivos assinados.</li>
+  </ol>
+  <h3>O que o repositório entrega</h3>
+  <ul>
+    <li><code>tools/New-ThinQQCert.ps1</code>: cria um certificado autoassinado de teste (por usuário, sem administrador), exporta o <code>.cer</code> e o <code>.pfx</code> e instala o <code>.cer</code> em Editores Confiáveis. Com <code>-TrustRoot</code> também o instala nas autoridades raiz do usuário (o Windows pede confirmação); sem a raiz o Office mostra o editor como "não verificado". Serve para testar; em produção use o certificado da empresa.</li>
+  </ul>
+  <div class="warn">
+    <p><strong>Limites.</strong> Sem o Windows SDK e as SIPs a assinatura automática não roda: o script sai com código 2 e instruções, e o <code>release.ps1 -SignPfx</code> não gera o release. O ramo <code>signtool</code> mais SIPs <strong>não foi executado ponta a ponta</strong> na máquina de desenvolvimento (sem SDK nem SIPs): abra o <code>.xlam</code> assinado no Excel e confira antes de distribuir. A verificação do <code>signtool</code> com raiz não confiável (autoassinado) vira aviso; <code>-SkipVerify</code> a pula. O caminho manual pelo Editor do VBA é o garantido.</p>
+  </div>
+</section>
+
 <section id="problemas" aria-labelledby="h-problemas">
   <h2 id="h-problemas">Problemas comuns e mensagens</h2>
   <div class="tw" tabindex="0" role="region" aria-label="Tabela de problemas e soluções">
@@ -981,6 +1239,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <thead><tr><th scope="col">O que você vê</th><th scope="col">O que fazer</th></tr></thead>
     <tbody>
       <tr><td>&quot;As macros foram desabilitadas&quot; ou a aba <span class="ui">ThinQQ</span> não aparece</td><td>Feche o Excel e rode o <code>Instalar-ThinQQ.cmd</code> de novo: ele desbloqueia os arquivos e cria o local confiável. Na instalação manual, desbloqueie cada <code>.xlam</code> (Propriedades, Desbloquear) e adicione <code>%LOCALAPPDATA%\ThinQQ</code> como Local Confiável. Se a política da empresa bloquear macros em pastas do usuário, fale com a TI.</td></tr>
+      <tr><td>O antivírus ou o proxy bloqueou o download, ou o <code>ThinQQ.xlam</code> sumiu</td><td>Confira a quarentena do antivírus e restaure o arquivo (ou peça à TI para liberar <code>%LOCALAPPDATA%\ThinQQ</code>). Se o download pelo atualizador falhar atrás de um proxy, baixe o ZIP pelo navegador e reinstale.</td></tr>
       <tr><td>A aba existe, mas os botões não fazem nada</td><td>O núcleo do ThinQQ não carregou. Use <span class="ui">Verificar atualizações</span> ou reinstale; confira a pasta <code>%LOCALAPPDATA%\ThinQQ\versions</code>.</td></tr>
       <tr><td>Botões do grupo <span class="ui">Gráfico selecionado</span> em cinza</td><td>Eles só funcionam com um gráfico criado pelo ThinQQ selecionado. Clique no gráfico, não em uma célula. Com um gráfico selecionado, o que o tipo dele não aceita também fica cinza: veja <a href="#matriz">O que cada tipo aceita</a>.</td></tr>
       <tr><td>Setas fora do lugar</td><td>Clique em <span class="ui">Atualizar</span>. As posições são recalculadas pelo tamanho atual do gráfico.</td></tr>
@@ -1001,6 +1260,8 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <table>
     <thead><tr><th scope="col">Mensagem</th><th scope="col">Quando aparece e o que fazer</th></tr></thead>
     <tbody>
+      <tr><td>Mensagens da borboleta, da dispersão e das bolhas, do corte de eixo, do <span class="ui">Arredondar intervalo...</span> e do menu <span class="ui">PowerPoint</span></td><td>O texto de cada uma e o que fazer estão na seção do recurso: <a href="#borboleta">Borboleta</a>, <a href="#dispersao">Dispersão e bolhas</a>, <a href="#corte">Corte de eixo</a>, <a href="#arredondamento">Arredondamento consistente</a> e <a href="#powerpoint">Copiar para o PowerPoint</a>.</td></tr>
+      <tr><td>Atualize o ThinQQ para usar este recurso.</td><td>O carregador é novo, mas o núcleo instalado é antigo e não tem o recurso (<span class="ui">Arredondar intervalo...</span> ou o menu <span class="ui">PowerPoint</span>). Use <span class="ui">Verificar atualizações</span> ou reinstale pelo ZIP.</td></tr>
       <tr><td>A cascata aceita no máximo 6 séries.</td><td>A tabela da cascata tem 7 ou mais colunas de valores. Use até 6.</td></tr>
       <tr><td>A combinação precisa de pelo menos 2 colunas de valores: as primeiras viram colunas empilhadas e a última vira linha.</td><td>Falta uma coluna na tabela da combinação.</td></tr>
       <tr><td>Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas.</td><td>Inclua a coluna de largura logo depois das categorias e ao menos uma série.</td></tr>
@@ -1031,7 +1292,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </details>
   <details>
     <summary>Posso colar o gráfico no PowerPoint?</summary>
-    <div><p>Sim. Copie o gráfico no Excel e cole no PowerPoint como imagem ou mantendo o vínculo com o Excel, como faria com qualquer gráfico.</p></div>
+    <div><p>Sim, de duas formas. Pelo ThinQQ: o menu <span class="ui">PowerPoint</span> cola o gráfico como imagem ou como gráfico vinculado (veja <a href="#powerpoint">Copiar para o PowerPoint</a>). À mão: copie o gráfico no Excel e cole no PowerPoint como imagem ou mantendo o vínculo com o Excel, como faria com qualquer gráfico.</p></div>
   </details>
   <details>
     <summary>O que é a planilha <code>_ThinQQ</code>?</summary>
@@ -1055,7 +1316,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </details>
   <details>
     <summary>O ThinQQ tem assinatura digital? Posso confiar nas atualizações?</summary>
-    <div><p>Ainda não: a assinatura de código do projeto VBA é um item da Fase 3. Hoje a proteção é a conferência SHA-256 dos arquivos baixados contra o manifesto. Isso significa que <strong>quem controla a branch <code>main</code> do repositório e os arquivos de uma release controla o código que roda no Excel dos colegas</strong>. Proteja a conta do GitHub com autenticação em dois fatores e limite quem pode publicar. Em ambientes corporativos, prefira uma fonte de atualização interna (pasta de rede) sob controle da TI.</p></div>
+    <div><p>Os arquivos do ThinQQ <strong>não vêm assinados</strong>; a TI pode assinar os dois <code>.xlam</code> com um certificado da empresa (veja <a href="#instalacao-ti">Instalação em empresas (TI)</a>). Sem assinatura, a proteção das atualizações é a conferência SHA-256 dos arquivos baixados contra o manifesto. Isso significa que <strong>quem controla a branch <code>main</code> do repositório e os arquivos de uma release controla o código que roda no Excel dos colegas</strong>. Proteja a conta do GitHub com autenticação em dois fatores e limite quem pode publicar. Em ambientes corporativos, prefira uma fonte de atualização interna (pasta de rede) sob controle da TI.</p></div>
   </details>
   <details>
     <summary>O ThinQQ envia meus dados para algum lugar?</summary>
@@ -1065,15 +1326,18 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 
 <section id="limites" aria-labelledby="h-limites">
   <h2 id="h-limites">Limitações</h2>
-  <p>O que o ThinQQ 1.1.0 não faz, ou faz com ressalvas. Os limites de cada tipo também aparecem na seção dele.</p>
+  <p>O que o ThinQQ 1.2.0 não faz, ou faz com ressalvas. Os limites de cada tipo também aparecem na seção dele.</p>
 
   <h3>Em geral</h3>
   <ul>
     <li>Somente Excel para Windows, Office 16.0 (2016 ou mais novo); testado só no Excel 2019 de 32 bits, e as outras versões são esperadas. Não há versão para Mac nem para o Excel na web. O código não usa chamadas ao Windows, então deve funcionar em 32 e 64 bits, mas só o 32 bits foi testado.</li>
     <li>Mudanças no tamanho da tabela de origem exigem <span class="ui">Alterar dados</span> (o aviso aparece uma vez por gráfico e por sessão); linhas filtradas ou ocultas continuam plotadas; <code>.xls</code> não é suportado.</li>
     <li>Os eventos que reposicionam as setas só rodam com o gráfico visível: se algo parecer fora do lugar, use <span class="ui">Atualizar</span>.</li>
-    <li>Macros precisam estar habilitadas para o ThinQQ funcionar; a política da sua empresa pode exigir um local confiável ou uma assinatura digital (a assinatura de código é da Fase 3).</li>
+    <li>Macros precisam estar habilitadas para o ThinQQ funcionar; a política da sua empresa pode exigir um local confiável ou uma assinatura digital (a TI assina os dois <code>.xlam</code>: veja <a href="#instalacao-ti">Instalação em empresas (TI)</a>).</li>
     <li>Gráficos copiados ou movidos para uma planilha de gráfico mantêm os dados, mas deixam de ser reconhecidos como gráficos do ThinQQ.</li>
+    <li>Ao copiar uma planilha inteira com um gráfico do ThinQQ (<em>Mover ou copiar &gt; Criar uma cópia</em>), o aviso aparece uma vez e você usa <span class="ui">Alterar dados</span> no gráfico da cópia, para separá-lo do original.</li>
+    <li>O <strong>texto</strong> das setas de CAGR e de diferença e dos colchetes é calculado e gravado pelo ThinQQ: sem ele, o texto <strong>não se recalcula</strong> quando os números mudam (e a posição só é refeita por ele).</li>
+    <li>O menu <span class="ui">PowerPoint</span> usa a área de transferência do Windows e substitui o que estava nela; uma pasta de trabalho aberta de um endereço da web (SharePoint ou OneDrive) pode não manter o vínculo do gráfico vinculado.</li>
   </ul>
 
   <h3>Escalas, espaço e layout</h3>
@@ -1083,6 +1347,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li>Trocar a <span class="ui">Legenda</span>, desligar o <span class="ui">Indicador 100%</span> ou a <span class="ui">Linha de valor (média)</span> e usar <span class="ui">Escala automática</span> num gráfico com <span class="ui">Mesma escala</span> devolvem a área de plotagem ao layout automático e descartam um tamanho manual dado a ela.</li>
     <li>Os colchetes do Gantt não devolvem o espaço aberto no alto quando são removidos; o espaço deles vai até 40% da altura do gráfico, e com muitos colchetes os rótulos podem se encostar.</li>
     <li>A <span class="ui">Linha de valor (média)</span> só existe na média dos valores, não em um valor qualquer. <span class="ui">Nome no fim da linha</span> só existe em linha e combinação.</li>
+    <li><span class="ui">Mesma escala</span> entre uma borboleta e gráficos de outro tipo tira a borboleta do centro (use só entre borboletas); rosca, dispersão, bolhas e gráficos com corte de eixo ficam fora do grupo.</li>
   </ul>
 
   <h3>Por tipo</h3>
@@ -1090,10 +1355,15 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li><strong>Colunas e barras:</strong> empilhadas com sinais misturados têm o rótulo do total líquido no topo da parte positiva; segmentos muito finos deixam os rótulos sobrepostos; a <span class="ui">Linha de valor (média)</span> pode riscar o rótulo do total de uma coluna que fica perto da média, e a caixa "Média" cobre parte da última coluna.</li>
     <li><strong>Cascata:</strong> até 6 séries (a 6.ª repete a cor da 1.ª); com várias séries, o rótulo de um segmento mais fino que o texto fica oculto; nas colunas, um rótulo abaixo de uma barra perto do mínimo do eixo pode encostar nos nomes das categorias; as setas ligam as pontas das barras e podem passar sobre rótulos do meio.</li>
     <li><strong>Combinação:</strong> o rótulo da linha pode ficar sobre o total de uma coluna; a <span class="ui">Linha de valor (média)</span> e o rótulo "Média" podem cobrir o total da última coluna.</li>
-    <li><strong>Área:</strong> valores negativos empilham algebricamente e as faixas se sobrepõem.</li>
+    <li><strong>Área:</strong> valores negativos empilham algebricamente e as faixas se sobrepõem; o rótulo da ponta (primeira ou última categoria) que encosta no do vizinho fica oculto e volta quando cabe.</li>
+    <li><strong>Borboleta:</strong> exatamente 2 colunas de valores; na borboleta que define a <span class="ui">Mesma escala</span>, um nome longo pode encostar nas barras; rótulos de barras muito finas ficam fora da barra (ocultos só se nem fora cabem).</li>
+    <li><strong>Dispersão e bolhas:</strong> inserir 300 linhas com 4 grupos leva cerca de 28 s; uma linha acrescentada depois da última linha da tabela não é detectada; o ThinQQ regrava a posição e a cor de um rótulo de bolha mudado à mão; um grupo novo exige <span class="ui">Alterar dados</span>; colunas extras depois da coluna de grupo são ignoradas.</li>
+    <li><strong>Arredondamento:</strong> o <span class="ui">Arredondar intervalo...</span> aceita até 1.000 células; texto na origem dá <code>#VALOR!</code>; a sobrescrita do destino não pode ser desfeita; origem em percentual mantém o percentual; planilha protegida precisa permitir Formatar células; nos rótulos com soma consistente, série só reordenada à mão é ligada por posição e, depois de apagar uma série à mão, os segmentos voltam aos rótulos simples sem aviso.</li>
+    <li><strong>Corte de eixo:</strong> só em colunas e barras empilhadas e agrupadas; não é compressão de escala; a linha de valor (média) acima do corte some; não convive com <span class="ui">Mesma escala</span>.</li>
+    <li><strong>Copiar para o PowerPoint:</strong> usa e substitui a área de transferência do Windows; o gráfico vinculado exige a pasta salva e perde o vínculo se o arquivo do Excel for renomeado ou movido.</li>
     <li><strong>Mekko:</strong> sem setas; colunas estreitas e muitas categorias sobrepõem rótulos e nomes; no Mekko (%) os valores negativos entram como zero; nas unidades, texto, vazio, zero ou negativo na largura apagam a coluna; o eixo de valores fica oculto.</li>
     <li><strong>Gantt:</strong> sem sombreamento de fins de semana, colunas de responsável e observação separadas, âncoras, setas de processo nem escala de dias; os separadores ficam sobre as barras; o intervalo do eixo só é recalculado pelo ThinQQ; fim antes do início dá barra de largura zero, texto no fim vira marco e linhas só com fim estendem o eixo; acima de uns 39 anos de intervalo a escala de anos passa de 40 marcas, e a de trimestres vai só até 3.500 dias.</li>
-    <li><strong>Pizza e rosca:</strong> só a primeira coluna de valores; valores negativos, zero, texto e erros viram fatias vazias; com muitas fatias as cores se repetem; a rosca não tem rótulos fora; as linhas de chamada da pizza só aparecem depois que você arrasta um rótulo (limite do Excel); rótulos de fatias pequenas podem transbordar.</li>
+    <li><strong>Pizza e rosca:</strong> só a primeira coluna de valores; valores negativos, zero, texto e erros viram fatias vazias; com mais de 10 fatias as cores se repetem; a rosca não tem rótulos fora; as linhas de chamada da pizza só aparecem depois que você arrasta um rótulo (limite do Excel); rótulos de fatias pequenas podem transbordar.</li>
   </ul>
 </section>
 
@@ -1104,6 +1374,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li><strong>Gráficos nativos:</strong> colunas, barras, linha, área, pizza e rosca são os tipos comuns do Excel. A combinação é uma série de linha sobre colunas empilhadas, e o Mekko é uma área empilhada sobre um eixo de datas, o que dá a largura variável. O Gantt é uma barra empilhada com uma série de início invisível, mais séries de dispersão (XY) para os marcos, a escala e os rótulos.</li>
     <li><strong>Séries auxiliares:</strong> totais, rótulos, linhas de valor e a escala do Gantt são séries cujo nome começa com <code>tqq_</code>, escondidas da legenda. Nos gráficos horizontais (barras, cascata horizontal e Gantt), onde o Excel não combina barras com linhas, elas são séries XY no grupo secundário de eixos.</li>
     <li><strong>O bloco em <code>_ThinQQ</code></strong> é maior nos tipos novos: o Mekko usa 5 linhas por categoria (as bordas e o centro de cada coluna) e o Gantt tem pelo menos 40 linhas de escala, calculada por fórmula (semanas, meses, trimestres ou anos). Alguns ajustes são feitos por código e não por fórmula: o intervalo do eixo do Gantt, a escala fixa de <span class="ui">Mesma escala</span>, o mínimo do eixo secundário da combinação (um mínimo que você fixar à mão fica), o lado dos rótulos conforme o sinal (acima ou abaixo, à direita ou à esquerda) e o nome das fatias de valor 0 na pizza com rótulos fora.</li>
+    <li><strong>Tipos da 1.2.0:</strong> a borboleta é uma barra empilhada com duas séries auxiliares sem preenchimento que abrem o vão central (a largura do vão é um número, <code>GapK</code>, que o ThinQQ recalcula pelo maior nome) e séries XY para os nomes e os totais; a dispersão e as bolhas têm uma série por grupo, com <code>NA()</code> nas linhas dos outros grupos para o ponto não ser desenhado; as colunas da soma consistente e a coluna <code>LblPos</code> do corte de eixo são acrescentadas à direita do bloco (o nome do bloco passa a cobri-las).</li>
     <li><strong>Capacidades por tipo:</strong> uma única matriz no núcleo diz o que cada tipo aceita; a faixa de opções, os comandos e <span class="ui">Alterar dados</span> consultam a mesma matriz (é a tabela de <a href="#matriz">O que cada tipo aceita</a>).</li>
   </ul>
   <p>O código-fonte e o histórico de versões estão em <a href="https://github.com/israeldias-hub/ThinQQ">github.com/israeldias-hub/ThinQQ</a>.</p>
@@ -1113,7 +1384,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
 </div>
 
 <footer>
-  <p>ThinQQ 1.1.0. Dúvidas e sugestões: abra uma <a href="https://github.com/israeldias-hub/ThinQQ/issues">issue no GitHub</a>.</p>
+  <p>ThinQQ 1.2.0. Dúvidas e sugestões: abra uma <a href="https://github.com/israeldias-hub/ThinQQ/issues">issue no GitHub</a>.</p>
 </footer>
 <script>
 (function () {

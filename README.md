@@ -1,12 +1,110 @@
 # ThinQQ
 
 Suplemento do Excel (VBA, Windows) para criar gráficos de apresentação no estilo think-cell: colunas e barras
-(empilhadas, agrupadas e 100%), cascata (ponte, com várias séries), linha, área, combinação, Mekko, Gantt, pizza e
-rosca, com totais, rótulos vivos, conectores, setas de CAGR e de diferença, linha de valor, indicador 100% e mesma
-escala. Os gráficos gerados são gráficos nativos do Excel, ligados aos dados por fórmulas: quem recebe o arquivo
-não precisa ter o ThinQQ instalado.
+(empilhadas, agrupadas e 100%), cascata (ponte, com várias séries), linha, área, combinação, Mekko, Gantt, pizza,
+rosca, borboleta, dispersão e bolhas, com totais, rótulos vivos, conectores, setas de CAGR e de diferença, linha de
+valor, indicador 100%, mesma escala, soma consistente, corte de eixo e cópia para o PowerPoint. Os gráficos gerados são
+gráficos nativos do Excel, ligados aos dados por fórmulas: quem recebe o arquivo não precisa ter o ThinQQ instalado.
 
 Repositório: <https://github.com/israeldias-hub/ThinQQ>
+
+**Para instalar, vá direto à seção [Instalação](#instalação)** (baixar o ZIP em Releases, extrair a pasta inteira e dar dois cliques em `Instalar-ThinQQ.cmd`). Para conhecer os recursos sem montar nada, abra o Excel de demonstração
+[`exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx`](exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx), que também vai dentro do ZIP.
+
+## Instalação
+
+Para quem vai **usar** o ThinQQ: não precisa saber programar nem ser administrador, e leva uns 5 minutos.
+
+### Requisitos
+
+- Windows com o **Excel do Office 16.0 para desktop**: Excel 2016, 2019, 2021 ou Microsoft 365 (o aplicativo instalado). Não funciona no Mac nem no Excel na web.
+- Não precisa de administrador: tudo é instalado só para o seu usuário do Windows.
+- Os testes automatizados rodaram só no Excel 2019 de 32 bits; o 2016, o 2021 e o Microsoft 365 são esperados, não testados. O código não faz chamadas à API do Windows (nenhuma instrução `Declare`), então deve servir em 32 e 64 bits por construção.
+- Acesso à página de [Releases](https://github.com/israeldias-hub/ThinQQ/releases) do repositório (veja "O repositório é privado", abaixo).
+
+### Passo a passo
+
+1. **Baixe o ZIP.** Na página de [Releases](https://github.com/israeldias-hub/ThinQQ/releases), abra a versão mais nova e, em "Assets", baixe `ThinQQ-x.y.z.zip` (por exemplo `ThinQQ-1.2.0.zip`).
+2. **Descompacte a pasta inteira:** botão direito no ZIP > **Extrair tudo...**. Não execute o instalador de dentro do ZIP e não separe os arquivos: o instalador precisa de todos eles na mesma pasta. Se o ZIP veio da internet, antes de extrair clique nele com o botão direito > Propriedades e marque **Desbloquear** (se a opção aparecer) > OK: isso evita avisos de segurança.
+3. **Feche o Excel** (todas as janelas).
+4. **Dê dois cliques em `Instalar-ThinQQ.cmd`.** Se o Windows perguntar se quer executar, clique em **Executar**. Uma janela mostra o andamento e termina com "INSTALACAO CONCLUIDA".
+5. **Abra o Excel e procure a aba ThinQQ**, ao lado de Inserir. Para ver o ThinQQ funcionando, abra `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` (vem no ZIP, na pasta `exemplos`; no GitHub: [exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx](exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx)): a primeira aba é um índice; clique no nome do exemplo para ir ao gráfico. Os gráficos também funcionam sem o ThinQQ instalado, mas setas, colchetes e marcas de corte só se recalculam com ele. ThinQQ > Exemplos e ThinQQ > Tutorial também estão na aba.
+
+### O repositório é privado: quem consegue baixar
+
+Hoje o repositório é **privado**. Quem não tem acesso a ele **não consegue abrir a página de Releases nem baixar o ZIP**, e o atualizador do ThinQQ também não alcança o manifesto (`release/manifest.json` no GitHub): a consulta falha em silêncio, sem aviso de versão nova. O tutorial online (GitHub Pages) tampouco abre para o público: no plano gratuito do GitHub o Pages exige repositório público (em repositório privado só existe em plano pago). Por isso o tutorial vai dentro do ZIP e ThinQQ > Tutorial abre o instalado.
+
+Opções para quem mantém o repositório:
+
+1. **Convidar as pessoas como colaboradores** (Settings > Collaborators; acesso de leitura basta): cada uma precisa de uma conta no GitHub.
+2. **Tornar o repositório público**, só depois da limpeza de privacidade descrita em "Antes de distribuir". As releases têm a mesma visibilidade do repositório; para ter releases públicas sem abrir o código, publique o ZIP e o manifesto num repositório público à parte e use o endereço dele em `-BaseUrl` e `-ManifestUrl`.
+3. **Publicar o ZIP e o manifesto numa pasta compartilhada** (rede, OneDrive ou SharePoint sincronizado), sem passar pelo GitHub: `pwsh build/release.ps1 -Version x.y.z -BaseUrl '\\servidor\ThinQQ' -PublishTo '\\servidor\ThinQQ'`. Quem instala por esse ZIP passa a consultar `<pasta>\manifest.json` (o instalador grava esse caminho como fonte de atualização); quem já tem o ThinQQ pode apontar ThinQQ > Configurações para o `manifest.json` da pasta.
+
+Quem recebeu o ZIP por outro caminho (e-mail, Teams, pasta de rede) instala normalmente pelo passo a passo acima; só as atualizações dependem da fonte configurada em ThinQQ > Configurações.
+
+### Como as atualizações chegam
+
+- Ao abrir o Excel, o ThinQQ consulta a fonte de atualização no máximo **uma vez por dia**. Se houver versão nova, abre uma janela com as novidades e os botões **Atualizar agora** e **Depois** (a verificação automática traz também **Pular esta versão**).
+- ThinQQ > Verificar atualizações consulta na hora e diz também quando você já está na versão mais recente.
+- Os arquivos baixados são conferidos pelo SHA-256 do manifesto antes de serem instalados. O núcleo é trocado na hora, sem reiniciar o Excel; se a versão traz um loader novo, ele é trocado logo em seguida, também sem reiniciar.
+- A fonte (um endereço `https://...` ou uma pasta ou arquivo de rede) pode ser trocada em ThinQQ > Configurações. Sem acesso ao repositório privado, as atualizações não chegam (veja acima).
+
+### Desinstalar
+
+Feche o Excel e, na pasta onde você descompactou o ZIP, execute:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File uninstall.ps1
+```
+
+Isso remove o registro do suplemento, o Local Confiável, as configurações do atualizador e a pasta `%LOCALAPPDATA%\ThinQQ` (o parâmetro `-KeepFiles` mantém os arquivos). Os gráficos que você já criou continuam nas suas pastas de trabalho, como gráficos comuns do Excel.
+
+### Instalação manual
+
+Use se a política da empresa bloquear o script. Os arquivos estão no ZIP (`ThinQQ.xlam`, `ThinQQ.core.xlam`, `tutorial.html` e `manifest.json`, que traz a versão):
+
+1. Crie a pasta `%LOCALAPPDATA%\ThinQQ` (cole esse caminho na barra de endereços do Explorador de Arquivos).
+2. Copie `ThinQQ.xlam` para essa pasta, e `ThinQQ.core.xlam` e `tutorial.html` para `%LOCALAPPDATA%\ThinQQ\versions\<versão>\` (a versão está no `manifest.json`, por exemplo `versions\1.2.0\`).
+3. Em cada `.xlam`: botão direito > Propriedades > marque **Desbloquear** > OK.
+4. Excel > Arquivo > Opções > Central de Confiabilidade > Configurações da Central de Confiabilidade > Locais Confiáveis > Adicionar novo local: `%LOCALAPPDATA%\ThinQQ`, marcando "Subpastas também são confiáveis".
+5. Excel > Arquivo > Opções > Suplementos > Gerenciar: Suplementos do Excel > Ir... > Procurar, e escolha `%LOCALAPPDATA%\ThinQQ\ThinQQ.xlam` > OK.
+
+A mesma instalação manual, com a recuperação de uma atualização do loader que falhou, está em `installer/LEIA-ME.txt` (incluído no ZIP).
+
+### Problemas mais comuns
+
+1. **Macros bloqueadas, ou arquivo bloqueado pelo Windows.** *O que você vê:* uma faixa de aviso de segurança sobre macros, ou a aba ThinQQ não aparece depois de instalar. *O que fazer:* feche o Excel e rode `Instalar-ThinQQ.cmd` de novo (ele desbloqueia os arquivos e cria o local confiável). Se instalou à mão: botão direito em `ThinQQ.xlam` e em `ThinQQ.core.xlam` > Propriedades > marque **Desbloquear** > OK. Um arquivo baixado da internet fica "bloqueado" até isso.
+2. **Central de Confiabilidade.** *O que você vê:* "As macros foram desabilitadas", ou o ThinQQ não carrega. *O que fazer:* Arquivo > Opções > Central de Confiabilidade > Configurações da Central de Confiabilidade > Configurações de Macro. Com "Desabilitar todas as macros, exceto as assinadas digitalmente", o ThinQQ só funciona a partir de um Local Confiável (item seguinte) ou com os `.xlam` assinados pela TI (veja "Ambientes corporativos (TI)"). Só mude essa configuração se a política da empresa permitir.
+3. **Local Confiável.** *O que você vê:* aviso de macros a cada abertura, ou o instalador não conseguiu criar o local. *O que fazer:* Arquivo > Opções > Central de Confiabilidade > Configurações da Central de Confiabilidade > Locais Confiáveis > Adicionar novo local: `%LOCALAPPDATA%\ThinQQ`, marcando "Subpastas também são confiáveis" (o core fica em `versions\<versão>`). O instalador já cria esse local; refaça-o se uma política da empresa o removeu.
+4. **Antivírus ou proxy.** *O que você vê:* o download do ZIP bloqueado ou incompleto, a mensagem "Pacote corrompido ou adulterado" (o SHA-256 não confere), o `ThinQQ.xlam` que sumiu da pasta (quarentena do antivírus) ou "Erro ao atualizar" atrás de um proxy. *O que fazer:* baixe o ZIP de novo pelo navegador, restaure o arquivo da quarentena do antivírus e peça à TI para liberar `%LOCALAPPDATA%\ThinQQ`; atrás de um proxy, reinstale pelo ZIP em vez de usar o atualizador.
+5. **A aba ThinQQ não aparece.** *O que você vê:* o Excel abre sem a aba depois de instalar. *O que fazer:* feche **todas** as janelas do Excel (confira o Gerenciador de Tarefas), rode `Instalar-ThinQQ.cmd` de novo e abra o Excel. Em Arquivo > Opções > Suplementos > Gerenciar: Suplementos do Excel > Ir..., o ThinQQ precisa estar marcado (se estiver em "Itens Desabilitados", reabilite). Com a aba visível, ThinQQ > Sobre mostra as versões do carregador e do núcleo instalados. Se o instalador disser "Feche o Excel antes de instalar", encerre todas as janelas e tente de novo.
+
+### Ambientes corporativos (TI)
+
+Para quem administra os computadores. O ThinQQ chega **sem assinatura digital**, e o instalador cria um Local Confiável **por usuário**, que uma política da empresa pode ignorar ou proibir. Em ambientes que bloqueiam macros não assinadas, o roteiro é assinar os dois arquivos com um certificado da própria empresa:
+
+1. **Certificado interno de assinatura de código**, emitido pela autoridade certificadora da empresa.
+2. **Assinar os dois `.xlam`** (`ThinQQ.xlam` e `ThinQQ.core.xlam`):
+   - *Manual (sempre disponível):* abra o arquivo no Excel, Alt+F11 (Editor do VBA) > Ferramentas > **Assinatura Digital** > escolha o certificado > salve (assinatura V3 do projeto VBA).
+   - *Automático, num servidor de build:* `signtool` do Windows SDK mais os **Office Subject Interface Packages** (DLLs de assinatura de projetos VBA, registradas com administrador), pelo `tools/Sign-ThinQQ.ps1` ou por `pwsh build/release.ps1 ... -SignPfx <arquivo.pfx>` (assina os `.xlam` antes de calcular os SHA-256 do manifesto).
+3. **Distribuir o certificado em Editores Confiáveis** (Trusted Publishers) por GPO: Configuração do Computador > Políticas > Configurações do Windows > Configurações de Segurança > Políticas de Chave Pública > Editores Confiáveis. Para um único usuário, `tools/Trust-ThinQQPublisher.ps1 -CerPath arquivo.cer` (`-Scope LocalMachine` exige administrador).
+4. **Ou um local confiável corporativo:** o instalador já registra `%LOCALAPPDATA%\ThinQQ` (com subpastas) por usuário; uma GPO pode distribuir um local confiável.
+5. **Política do Office:** com "Only trust VBA macros that use V3 signatures" os projetos precisam ter a assinatura V3 que o Editor do VBA grava.
+6. **Reassine a cada release** (os arquivos do build são novos a cada versão) e publique os SHA-256 dos arquivos assinados.
+
+O que o repositório entrega:
+
+- `tools/New-ThinQQCert.ps1`: cria um certificado autoassinado de **teste** (por usuário, sem administrador), exporta o `.cer` e o `.pfx` e instala o `.cer` em Editores Confiáveis; com `-TrustRoot` também o instala nas autoridades raiz do usuário (o Windows pede confirmação), sem o que o Office mostra o editor como "não verificado". Em produção use o certificado da empresa.
+- `tools/Trust-ThinQQPublisher.ps1` e `tools/Sign-ThinQQ.ps1` (acima) e o parâmetro `-SignPfx` do `build/release.ps1`.
+
+Limites: sem o Windows SDK e as SIPs a assinatura automática não roda (o script sai com código 2 e instruções, e o `release.ps1 -SignPfx` não gera o release). O ramo `signtool` mais SIPs **não foi executado ponta a ponta** na máquina de desenvolvimento (sem SDK nem SIPs): abra o `.xlam` assinado no Excel e confira antes de distribuir. A verificação do `signtool` com raiz não confiável (certificado autoassinado) vira aviso, e `-SkipVerify` a pula. O caminho manual pelo Editor do VBA é o garantido.
+
+## Primeiros passos
+
+1. Digite uma tabela com cabeçalho e categorias à esquerda e clique numa célula dela.
+2. Na aba **ThinQQ**, grupo **Inserir gráfico**, abra **Colunas** e clique em **Colunas empilhadas**: o gráfico aparece à direita, com totais e rótulos.
+3. Troque um número da tabela: colunas, totais e rótulos acompanham.
+4. Para ver o que mais o ThinQQ faz, abra a pasta de demonstração `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` (vem no ZIP; [no GitHub](exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx)): a primeira aba é um índice com 26 exemplos, de E01 a E26; clique no nome do exemplo para ir ao gráfico. Os gráficos também funcionam sem o ThinQQ instalado, mas setas, colchetes e marcas de corte só se recalculam com ele. ThinQQ > Exemplos gera 26 exemplos menores numa pasta nova e ThinQQ > Tutorial abre o tutorial (`docs/tutorial/tutorial.html`), que também explica a pasta de demonstração.
 
 ## Recursos
 
@@ -32,9 +130,20 @@ Repositório: <https://github.com/israeldias-hub/ThinQQ>
   Legenda (Direita, Nenhuma, Nome no fim da linha).
 - Mekko (%) e Mekko (unidades), Gantt (escala automática de semanas a anos, marcos, colchetes), Pizza e Rosca.
 - Linha de valor (média), Indicador 100% (ligado por padrão nos 100% e no Mekko (%)), Mesma escala e Escala automática.
-- 26 exemplos em três planilhas (ThinQQ > Exemplos) e tutorial com uma seção por tipo.
+- 18 exemplos em duas planilhas (ThinQQ > Exemplos; na 1.2.0 são 26, em três) e tutorial com uma seção por tipo.
 
-### Galeria de gráficos (1.1.0)
+**Fase 3 (1.2.0)**
+
+- Três tipos novos no menu Mais tipos (a faixa passa a oferecer 20 tipos): **Borboleta** (duas séries espelhadas, com os nomes no centro e os totais no fim da barra direita), **Dispersão** e **Bolhas** (uma série por grupo, nomes por ponto, Linha de tendência e Quadrantes (médias)).
+- **Rótulos com soma consistente** (os rótulos dos segmentos somam exatamente o total mostrado: 34% + 33% + 33% = 100%) e **Arredondar intervalo...** (a mesma conta numa tabela comum, em fórmulas da planilha que não dependem do ThinQQ, em até 1.000 células).
+- **Corte de eixo...** em colunas e barras empilhadas e agrupadas: a coluna gigante é cortada, com marca de corte, e o total real continua no rótulo.
+- Menu **PowerPoint**: Copiar como imagem e Copiar como gráfico vinculado (a esta pasta de trabalho) no slide da janela ativa do PowerPoint.
+- **Pasta de demonstração** `exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx`, com 26 exemplos (E01 a E26) e um índice de links, distribuída dentro do ZIP; a planilha Exemplos 3 completa os 26 exemplos de ThinQQ > Exemplos.
+- Ícones próprios na faixa de opções; scripts de certificado e de assinatura digital para a TI (`tools/`) e `release.ps1 -SignPfx`.
+- Acertos de aparência: eixos da dispersão no formato da origem e apertados em volta dos dados, pizza e rosca com até 10 cores, linha da combinação acima dos totais, formato inicial dos rótulos pela primeira célula de valor, rótulos das pontas da área e das barras finas da borboleta.
+- Seção **Instalação** completa (passo a passo, atualizações, desinstalação, problemas comuns, repositório privado) e roteiro para a TI.
+
+### Galeria de gráficos (1.2.0)
 
 | Menu | Tipos | Tabela de origem |
 |---|---|---|
@@ -42,27 +151,27 @@ Repositório: <https://github.com/israeldias-hub/ThinQQ>
 | Barras | Barras empilhadas, Barras agrupadas, Barras 100% | a mesma das colunas |
 | Cascata | Cascata (colunas), Cascata (barras) | etapa e 1 a 6 colunas de valores; `e` marca um total |
 | Linha e área | Linha, Área empilhada, Área 100%, Combinação (colunas + linha) | a mesma das colunas; a combinação precisa de 2 ou mais colunas de valores |
-| Mais tipos | Mekko (%), Mekko (unidades), Gantt, Pizza, Rosca | Mekko (unidades): 2ª coluna = largura; Gantt: atividade, início, fim; pizza e rosca: categorias e uma coluna de valores |
+| Mais tipos | Mekko (%), Mekko (unidades), Gantt, Pizza, Rosca, Borboleta, Dispersão, Bolhas | Mekko (unidades): 2ª coluna = largura; Gantt: atividade, início, fim; pizza e rosca: categorias e uma coluna de valores; borboleta: categorias e exatamente 2 colunas de valores; dispersão: nome, X, Y e grupo opcional; bolhas: nome, X, Y, tamanho e grupo opcional |
 
 O tutorial (`docs/tutorial/tutorial.html`, aberto por ThinQQ > Tutorial) traz a tabela de dados de cada tipo, a tabela
 do que cada tipo aceita, as mensagens do ThinQQ e os limites conhecidos.
 
 ## Antes de distribuir (checklist do responsável pela publicação)
 
-**Esta lista é de ações suas, fora do código** (as branches já estão no GitHub, em `israeldias-hub/ThinQQ`). A primeira versão a ser publicada é a **1.1.0**: a 1.0.0 (Fase 1) nunca saiu.
+**Esta lista é de ações suas, fora do código** (as branches já estão no GitHub, em `israeldias-hub/ThinQQ`). A primeira versão a ser publicada é a **1.2.0**: a 1.0.0 (Fase 1) e a 1.1.0 (Fase 2) nunca foram publicadas (não há tags nem releases).
 
-- [ ] Decidir a visibilidade do repositório. Enquanto ele for **privado**, ninguém sem acesso ao repositório consegue baixar a release (ZIP e arquivos) nem o `release/manifest.json`: o atualizador dos colegas falha em silêncio (sem aviso de versão nova) e o GitHub Pages do tutorial não fica público (no plano gratuito o Pages exige repositório público). Para distribuir, torne o repositório público (depois da limpeza de privacidade abaixo) ou use uma fonte de atualização interna (pasta de rede) e o tutorial que vai no ZIP.
-- [ ] Gerar os arquivos com `build/release.ps1` e publicar a release **v1.1.0** com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`).
-- [ ] Fazer commit de `release/manifest.json` (com URLs reais) e de `version.json` (já em `{ "loader": "1.1.0", "core": "1.1.0" }`) na `main`.
+- [ ] Decidir a visibilidade do repositório. Enquanto ele for **privado**, ninguém sem acesso ao repositório consegue baixar a release (ZIP e arquivos) nem o `release/manifest.json`: o atualizador dos colegas falha em silêncio (sem aviso de versão nova) e o GitHub Pages do tutorial não fica público (no plano gratuito o Pages exige repositório público). Para distribuir, torne o repositório público (depois da limpeza de privacidade abaixo) ou use uma fonte de atualização interna (pasta de rede) e o tutorial que vai no ZIP. As opções estão em "O repositório é privado", na seção Instalação.
+- [ ] Gerar os arquivos com `build/release.ps1` e publicar a release **v1.2.0** com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`). O ZIP traz a pasta `exemplos` (o Excel de demonstração e um LEIA-ME) ao lado de `Instalar-ThinQQ.cmd`: confira o conteúdo, e que a pasta de demonstração foi regenerada com o core final (`tools/New-DemoWorkbook.ps1`).
+- [ ] Fazer commit de `release/manifest.json` (com URLs reais) e de `version.json` (já em `{ "loader": "1.2.0", "core": "1.2.0" }`) na `main`.
 - [ ] **Privacidade antes de publicar** (o repositório ou o Pages): os arquivos versionados já foram limpos (caminhos de perfil do Windows, ids de máquina, PIDs do Excel do autor e e-mail corporativo) e `tests/ps/Test-Privacy.ps1` (rodado por `build/run-tests.ps1`) falha se algum voltar. O que sobra é o **histórico do Git**: o autor e o e-mail dos commits e o texto antigo dos arquivos continuam nos commits antigos. Para publicar só o estado atual, crie um repositório novo a partir da árvore de trabalho (`git archive HEAD`); para manter o histórico, reescreva-o antes de publicar (`git filter-repo --mailmap <arquivo>` troca nome e e-mail dos autores; `git filter-repo --replace-text <arquivo>` troca o texto antigo; instale o `git-filter-repo`, rode numa cópia e confira com `git log --format='%an <%ae>'` e `git grep` no histórico).
-- [ ] Habilitar o GitHub Pages para o tutorial online (veja "Tutorial online (GitHub Pages)": pela pasta `/docs`, tudo o que está em `docs/` fica público, inclusive a especificação e o plano em `docs/superpowers`).
-- [ ] Verificar a verificação de atualização a partir de um perfil limpo (usuário do Windows novo ou máquina sem o ThinQQ): instalar uma versão anterior (como a 1.1.0 é a primeira publicada, use um ensaio local com uma versão menor) e conferir que o aviso de atualização aparece e atualiza.
+- [ ] Habilitar o GitHub Pages para o tutorial online (veja "Tutorial online (GitHub Pages)": pela pasta `/docs`, tudo o que está em `docs/` fica público, inclusive a especificação e o plano em `docs/superpowers`; em repositório privado o Pages só existe em plano pago).
+- [ ] Verificar a verificação de atualização a partir de um perfil limpo (usuário do Windows novo ou máquina sem o ThinQQ): instalar uma versão anterior (como a 1.2.0 é a primeira publicada, use um ensaio local com uma versão menor) e conferir que o aviso de atualização aparece e atualiza.
 - [ ] Ativar autenticação em dois fatores na conta do GitHub (veja Segurança abaixo).
 - [ ] Rodar o roteiro manual no Excel real (seção "Verificações manuais no Excel real"), a começar pela conferência de que a aba ThinQQ aparece.
 
 ## Segurança e confiança
 
-- **A assinatura de código (certificado no projeto VBA) é da Fase 3.** Até lá, a integridade das atualizações vem só da conferência SHA-256 contra o manifesto.
+- **Os arquivos não vêm assinados digitalmente.** A integridade das atualizações vem da conferência SHA-256 contra o manifesto; a TI pode assinar os dois `.xlam` com um certificado da empresa (veja "Ambientes corporativos (TI)", na seção Instalação).
 - **Quem controla a branch `main` do repositório e os assets das releases controla o código que roda no Excel dos colegas** (o manifesto padrão vem de lá). Proteja a conta com autenticação em dois fatores e limite quem pode publicar; em empresas, use uma fonte de atualização interna.
 - O SHA-256 é calculado em VBA puro (módulo `modSha256`), sem iniciar processos externos (nada de `certutil`).
 - Downloads ficam em `%TEMP%\ThinQQ`, fora do local confiável; só depois de conferidos vão para `%LOCALAPPDATA%\ThinQQ`.
@@ -73,22 +182,12 @@ do que cada tipo aceita, as mensagens do ThinQQ e os limites conhecidos.
 - `HKCU\Software\Microsoft\Office\16.0\Excel\Options`: valor `OPEN` (ou `OPEN1`, `OPEN2`...) que registra o suplemento.
 - `HKCU\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\LocationThinQQ`: local confiável para `%LOCALAPPDATA%\ThinQQ\` **com subpastas**.
 - `HKCU\Software\VB and VBA Program Settings\ThinQQ`: configurações do atualizador.
+- O ZIP também traz a pasta `exemplos` (o Excel de demonstração e um LEIA-ME): o instalador não a instala nem a abre.
 - Nada em `HKLM`. O `uninstall.ps1` desfaz tudo.
 
 ### Frequência das verificações
 
 O valor `CheckIntervalHours` (horas; padrão 24) em `HKCU\Software\VB and VBA Program Settings\ThinQQ\Updater` controla o intervalo da verificação automática. Para praticamente desligá-la, grave um número muito grande (por exemplo `876000`); o botão de verificação manual continua funcionando sob demanda.
-
-## Instalação (usuários)
-
-Requisitos: Excel do Office 16.0 para Windows. Os testes automatizados rodaram só no Excel 2019 de 32 bits; o 2016, o 2021 e o Microsoft 365 são esperados, não testados. O código não faz chamadas à API do Windows (nenhuma instrução `Declare`), então é compatível com 32 e 64 bits por construção.
-
-1. Baixe `ThinQQ-x.y.z.zip` da página de [Releases](https://github.com/israeldias-hub/ThinQQ/releases) e descompacte a pasta inteira.
-2. Feche o Excel e dê dois cliques em `Instalar-ThinQQ.cmd`.
-3. Abra o Excel: a aba ThinQQ aparece na faixa de opções.
-
-A instalação manual (se o script for bloqueado), a desinstalação e a solução de problemas estão em
-`installer/LEIA-ME.txt` (incluída no ZIP) e no tutorial (`docs/tutorial/tutorial.html`).
 
 ## Desenvolvimento
 
@@ -108,15 +207,19 @@ pwsh build/run-tests.ps1 -LoaderSwap                              # + teste de t
 pwsh build/run-tests.ps1 -Target core -Filter "TestBars|TestGantt" -TimeoutSec 240   # só os testes cujo Modulo.Teste contém o texto (pula as suítes PowerShell)
 pwsh tests/ps/Test-Docs.ps1                                       # só a consistência da documentação (tutorial, README, CHANGELOG, faixa)
 pwsh tests/ps/Test-Privacy.ps1                                    # só a privacidade: nenhum arquivo versionado com caminho de perfil, id de máquina ou e-mail corporativo
+pwsh tests/ps/Test-ReleaseGuard.ps1                                  # só a guarda do release: módulos de teste nos artefatos, manifesto e conteúdo do ZIP (exemplos\, sem macros)
+pwsh tests/ps/Test-DemoWorkbook.ps1                                  # só a pasta de demonstração (Excel próprio, somente leitura)
+pwsh tests/ps/Test-Signing.ps1                                       # só o ciclo do certificado de teste e o diagnóstico da assinatura (remove o que criou)
+pwsh tools/New-DemoWorkbook.ps1 -CoreXlam <core de teste>            # regenera exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx (Excel novo e invisível; use o core de TESTE de uma cópia em C:\temp)
 ```
 
 Os testes VBA ficam em `tests/vba/core` e `tests/vba/loader` (`Test*.bas`, importados pelo build sem registro manual).
 No core, um arquivo por área: `TestKinds` (matriz de capacidades), `TestStacked`, `TestBars`, `TestWaterfall` e
 `TestWaterfall2` (cascata, várias séries, horizontal), `TestArea` (área, combinação, legenda), `TestPie`, `TestMekko`,
-`TestGantt`, `TestDecorations` (linha de valor, indicador 100%, mesma escala), além de `TestAnnotations`,
+`TestGantt`, `TestDecorations` (linha de valor, indicador 100%, mesma escala), `TestButterfly`, `TestScatter`, `TestRounding` (soma consistente e Arredondar intervalo), `TestAxisBreak` (corte de eixo) e `TestPowerPoint` (com dublês do PowerPoint), além de `TestAnnotations`,
 `TestGeometry`, `TestCalcSheet`, `TestCoreApi`, `TestSamples` e outros. `tests/ps/Test-Docs.ps1` confere que os rótulos do
-tutorial existem na faixa, que a tabela "O que cada tipo aceita" bate com `Kinds_Supports` e que as mensagens citadas
-existem no código.
+tutorial existem na faixa, que a tabela "O que cada tipo aceita" bate com `Kinds_Supports`, que as mensagens citadas
+existem no código, que as seções novas, os 26 exemplos da pasta de demonstração e os limites documentados estão no tutorial e no README.
 
 Formatos numéricos: rótulos e células de números do bloco usam `NumberFormatLocal` com `Style_LocalizeCode` (ou
 `Style_AssignNumberFormat`). `Range.NumberFormat =` direto só com código invariante (lido em inglês pelo Excel) ou copiado da origem;
@@ -142,9 +245,9 @@ publicado: o `release.ps1` recusa artefatos com módulos de teste.
 
    Parâmetros: `-Version` (x.y.z, vira a versão do core), `-LoaderVersion` (opcional, só quando o loader muda),
    `-BaseUrl` (base das URLs do manifesto), `-PublishTo` (copia os arquivos para uma pasta), `-NotesFile` e `-ManifestUrl`
-   (opcional; veja abaixo).
+   (opcional; veja abaixo); `-SignPfx`, `-SignPassword` e `-SignTimestampUrl` (assinatura opcional dos `.xlam`; veja "Ambientes corporativos (TI)").
    O script recusa o tutorial-esqueleto, grava `version.json`, monta a configuração Release e gera
-   `dist/manifest.json` (com os SHA-256) e `dist/ThinQQ-x.y.z.zip`.
+   `dist/manifest.json` (com os SHA-256) e `dist/ThinQQ-x.y.z.zip`. O ZIP leva também a pasta `exemplos` (o Excel de demonstração, copiado de `exemplos/`, e um LEIA-ME curto, `installer/LEIA-ME-exemplos.txt`); o script recusa o release se o ZIP tiver outro `.xlsx` ou `.xlsm`, se o xlsx do ZIP diferir (SHA-256) do do repositório ou se tiver macros.
 3. No GitHub, crie a release `vx.y.z` e anexe como assets o ZIP e os arquivos soltos de `dist/`
    (`ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`): o atualizador baixa esses arquivos individualmente.
 4. Copie `dist/manifest.json` para `release/manifest.json` e faça commit junto com `version.json` na
@@ -169,7 +272,7 @@ Detalhes em `release/README.md`.
 
 O botão ThinQQ > Tutorial abre o `tutorial.html` da versão instalada; se ele não existir, abre
 <https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html>. Para essa página existir, habilite uma vez
-em Settings > Pages > "Deploy from a branch", branch `main`, pasta `/docs`.
+em Settings > Pages > "Deploy from a branch", branch `main`, pasta `/docs`. Em repositório privado, o GitHub Pages só existe em plano pago: sem ele, o tutorial que vai no ZIP é o que vale.
 
 Atenção: o Pages por branch só serve a raiz (`/`) ou a pasta `/docs`, então mover o tutorial para outra subpasta de `docs/` (como `docs/tutorial-site`) **não** reduz o que é publicado: com `/docs`, tudo sob `docs/` vai ao ar, inclusive `docs/superpowers` (especificação e plano). Para publicar só o tutorial há duas saídas: (1) publicar por um workflow do GitHub Actions (Settings > Pages > Source: GitHub Actions) que envie apenas a pasta do tutorial, mantendo o caminho `tutorial/tutorial.html` para que `TUTORIAL_URL` em `src/loader/modules/modRibbon.bas` continue valendo; ou (2) tirar a especificação e os planos de `docs/` (por exemplo para `design/`) e manter o Pages em `/docs`. Em qualquer caso, confira antes o item de privacidade da checklist acima (o histórico do Git).
 
@@ -197,12 +300,15 @@ Atenção: o Pages por branch só serve a raiz (`/`) ou a pasta `/docs`, então 
 build/       build, testes e release (PowerShell 7)
 src/loader/  fonte do loader (módulos, formulário, faixa de opções em menus: customUI14.xml)
 src/core/    fonte do core: um módulo por família de gráfico (modChartStacked: colunas, barras e linha;
-             modChartWaterfall; modChartArea; modChartCombo; modChartMekko; modChartGantt; modChartPie),
+             modChartWaterfall; modChartArea; modChartCombo; modChartMekko; modChartGantt; modChartPie; modChartButterfly;
+             modChartScatter), modRounding (soma consistente), modAxisBreak (corte de eixo), modPowerPoint,
              a matriz de capacidades (modChartKinds), decorações (modDecorations), anotações, geometria,
              rótulos, estilo, exemplos (modSamples), classes e o formulário de setas
 tests/       testes VBA (TAP), testes PowerShell, servidor Node de fixtures
 installer/   instalador e desinstalador por usuário, LEIA-ME.txt
 release/     notas e manifesto publicado
+tools/       certificado e assinatura (New-ThinQQCert, Trust-ThinQQPublisher, Sign-ThinQQ) e gerador da pasta de demonstração
+exemplos/    ThinQQ-Demonstracao-Materiais-Construcao.xlsx (Excel de exemplo; vai no ZIP da release)
 docs/        tutorial (tutorial.html), especificações e planos
 ```
 
@@ -213,12 +319,15 @@ Fase 2 (1.1.0): adendo à especificação, com a pesquisa do think-cell, as téc
 cada tipo e a matriz de capacidades: `docs/superpowers/specs/2026-10-11-thinqq-fase2-design.md`. Plano de execução:
 `docs/superpowers/plans/2026-10-11-thinqq-fase2.md`.
 
+Fase 3 (1.2.0): pesquisa, sondas em Excel e PowerPoint reais, decisões e matriz 20 x 20 em
+`docs/superpowers/specs/2026-10-11-thinqq-fase3-design.md`. Plano de execução: `docs/superpowers/plans/2026-10-11-thinqq-fase3.md`.
+
 ## Verificações manuais no Excel real
 
-Os testes automáticos usam um Excel invisível; estas verificações precisam de uma sessão de Excel real (depois de `Instalar-ThinQQ.cmd` ou de `build.ps1 -Install`), com uma tabela 4x3 com cabeçalho para os itens 1 a 11 e as tabelas de exemplo de cada tipo (planilha "Exemplos 2") para os demais:
+Os testes automáticos usam um Excel invisível; estas verificações precisam de uma sessão de Excel real (depois de `Instalar-ThinQQ.cmd` ou de `build.ps1 -Install`), com uma tabela 4x3 com cabeçalho para os itens 1 a 11 e as tabelas de exemplo de cada tipo (planilhas "Exemplos 2" e "Exemplos 3") para os demais:
 
 1. A aba ThinQQ aparece na faixa de opções, ao lado de Inserir, com os cinco menus de inserção (Colunas, Barras, Cascata, Linha e área, Mais tipos). Esta é a primeira conferência: sem a aba, nenhum outro item vale.
-2. Com células selecionadas, só os cinco menus, Mais opções (com Mesma escala e Escala automática), Atualizar e o grupo ThinQQ ficam ativos; o resto do grupo "Gráfico selecionado" fica cinza.
+2. Com células selecionadas, só os cinco menus, Mais opções (com Mesma escala, Escala automática e Arredondar intervalo...), Atualizar e o grupo ThinQQ ficam ativos; o resto do grupo "Gráfico selecionado" (inclusive os menus Setas e PowerPoint) fica cinza.
 3. ThinQQ > Colunas > Colunas empilhadas insere o gráfico à direita, selecionado; Totais e Rótulos pressionados; Totais e Conectores ligam e desligam.
 4. Formato, Paleta e Espaço (que fica cinza em gráfico de linha); Colunas 100% mostra participações nos segmentos e nasce com "100%" à esquerda.
 5. Setas > Seta CAGR abre o formulário e desenha o texto; mudar um valor atualiza; Seta diferença; Remover setas; redimensionar reposiciona.
@@ -242,7 +351,22 @@ Os testes automáticos usam um Excel invisível; estas verificações precisam d
 23. Estado dos controles por tipo: pizza (Totais, Conectores, Espaço e as três setas cinza; Rótulos fora da pizza ativo), rosca (Rótulos fora da pizza cinza), Gantt (Colchete (Gantt) ativo; Seta CAGR, Seta diferença, Formato e Legenda cinza), cascata de 1 série (Legenda cinza), Colunas 100% (Seta diferença cinza; Indicador 100% pressionado), linha (Totais, Conectores e Espaço cinza), combinação (Eixo secundário (linha) ativo), Mekko (%) (setas cinza).
 24. Trocar a seleção entre gráficos de tipos diferentes da mesma planilha, só clicando: a faixa muda sem outro gesto.
 25. ThinQQ > Exemplos abre uma pasta com três planilhas; percorrer "Exemplos 2" e "Exemplos 3" e conferir cada gráfico contra o título.
-26. ThinQQ > Tutorial abre o tutorial novo (cinco menus na maquete, uma seção por tipo) e ThinQQ > Sobre mostra Loader 1.1.0 e Core 1.1.0 depois da instalação pelo ZIP.
+26. ThinQQ > Tutorial abre o tutorial novo (cinco menus na maquete, uma seção por tipo e as seções Borboleta, Dispersão e bolhas, Arredondamento consistente, Corte de eixo, Copiar para o PowerPoint, Pasta de demonstração e Instalação em empresas (TI)) e ThinQQ > Sobre mostra Loader 1.2.0 e Core 1.2.0 depois da instalação pelo ZIP.
+27. Borboleta (tabela Faixa, Mulheres, Homens com 4 linhas): Mais tipos > Borboleta mostra os dois lados espelhados, os nomes no centro e os totais depois das barras da direita; mudar um valor atualiza; um nome de 25 caracteres abre o vão sem esconder as barras e redimensionar o gráfico recalcula o vão; uma barra muito fina tem o rótulo fora dela; com 3 colunas de valores o aviso "A borboleta precisa de exatamente 2 colunas de valores (lado esquerdo e lado direito)." aparece; Mesma escala entre duas borboletas mantém as duas centralizadas.
+28. Dispersão com a coluna Grupo (3 grupos) e Bolhas (com Tamanho): uma série por grupo, nomes ao lado dos pontos, títulos dos eixos iguais aos cabeçalhos, eixos no formato da coluna (percentual) e apertados em volta dos dados; Linha de tendência e Quadrantes (médias) ligam e desligam; um 7.º grupo dá "No máximo 6 grupos (coluna de grupo)."; um grupo novo exige Alterar dados.
+29. Rótulos com soma consistente numa coluna 100% (34, 33, 33): os rótulos somam 100%; trocar o Formato muda as casas; desligar volta aos rótulos simples; o mesmo numa área empilhada; num tipo sem o recurso o aviso diz que não se aplica.
+30. Arredondar intervalo...: com uma coluna de 5 números selecionada, as duas perguntas aparecem, o destino já preenchido pede "Substituir?", e o aviso final traz o endereço; uma faixa com texto, uma faixa de mais de 1.000 células e uma planilha protegida sem Formatar células são recusadas sem gravar nada; numa origem em percentual, 2 casas dão percentuais inteiros.
+31. Corte de eixo... numa coluna empilhada com uma coluna muito maior (exemplo 23): a sugestão aparece; um valor abaixo do mínimo é recusado com a mensagem do quarto do segmento; com o corte aceito há a marca de corte, o total real no rótulo e o rótulo do segmento atravessado na base; ligar a Linha de valor (média) acima do corte avisa; Remover corte de eixo devolve o eixo; Mesma escala não inclui o gráfico com corte; Alterar dados com valores menores retira o corte e avisa.
+32. PowerPoint, imagem, com o PowerPoint fechado: Copiar como imagem abre o PowerPoint, cria uma apresentação com um slide em branco e cola a imagem (80% da largura, centralizada); o aviso diz o slide.
+33. PowerPoint, com uma apresentação aberta: a imagem entra no slide em exibição; no Classificador de Slides, no slide selecionado; nada fecha nem troca a apresentação que já estava aberta (inclusive com duas apresentações abertas, a da janela ativa recebe o gráfico).
+34. PowerPoint, gráfico vinculado (pasta salva): o gráfico colado é do PowerPoint, Dados > Editar Vínculos mostra a pasta, as setas de CAGR vêm junto; mudar um valor no Excel, salvar e atualizar o vínculo atualiza o gráfico; Quebrar vínculo incorpora os dados; renomear o arquivo do Excel quebra o vínculo.
+35. PowerPoint, avisos: com alterações não salvas o aviso acrescenta a nota da pasta; numa pasta nova o aviso pede para salvar e nada é colado; com a área de transferência ocupada por outro programa o aviso pede para tentar de novo; com o PowerPoint em edição de texto o aviso diz que ele está ocupado; sem o PowerPoint instalado o aviso diz que ele não está instalado; com uma célula selecionada o menu PowerPoint fica cinza.
+36. PowerPoint, segurança: depois de qualquer cópia, o PowerPoint e as apresentações que já estavam abertas continuam abertas e intactas; o que o ThinQQ criou (a apresentação nova) fica aberto para você; rodar `pwsh build/run-tests.ps1 -Target core -Filter PowerPoint` com nenhum PowerPoint aberto (os testes reais criam o deles e o fecham; a colagem substitui a área de transferência).
+37. Ícones próprios: os controles com ícone do ThinQQ (Colunas, Barras, Cascata, Linha e área, Mais tipos, Borboleta, Dispersão, Bolhas, Mais opções, Rótulos com soma consistente, Linha de tendência, Quadrantes (médias), Corte de eixo..., Arredondar intervalo..., Setas e PowerPoint) desenham o próprio ícone, nenhum em branco (confira também com os itens cinza).
+38. Pasta de demonstração: abrir `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` do ZIP, com e sem o ThinQQ instalado: a primeira aba é o índice, cada nome leva ao exemplo e "Voltar ao índice" (A1) volta; os 26 exemplos mostram o que a legenda diz; sem macros e sem aviso de vínculo externo.
+39. Instalação pelo ZIP num perfil limpo: o ZIP traz a pasta `exemplos`, `Instalar-ThinQQ.cmd` conclui e o Excel abre com a aba ThinQQ; ThinQQ > Verificar atualizações informa a versão; `uninstall.ps1` deixa o perfil como estava.
+40. Com um core 1.1.0 e o loader 1.2.0 (ou um core de teste antigo), Arredondar intervalo... e o menu PowerPoint respondem "Atualize o ThinQQ para usar este recurso." em vez de não fazer nada.
+41. Assinatura (TI): com um certificado de teste de `tools/New-ThinQQCert.ps1` (e depois remover o certificado pelo `certmgr.msc`), assinar um `.xlam` pelo Editor do VBA (Ferramentas > Assinatura Digital) e abri-lo; em uma máquina com Windows SDK e Office SIPs, rodar `tools/Sign-ThinQQ.ps1` (ainda não foi executado ponta a ponta) e conferir o resultado no Excel.
 
 ## Limitações conhecidas
 
@@ -253,15 +377,24 @@ Os detalhes de cada tipo estão na seção "Limitações" do tutorial.
 - Cópias de gráficos do ThinQQ e gráficos movidos para planilha de gráfico mantêm os dados, mas deixam de ser reconhecidos como gráficos do ThinQQ (sem botões nem setas automáticas).
 - Copiar uma planilha inteira (Mover ou copiar > Criar uma cópia) copia o gráfico com o mesmo nome: a cópia divide o bloco e as opções com o original e as séries auxiliares (totais, rótulos) continuam na tabela original. O ThinQQ avisa uma vez ao abrir a planilha copiada; use Alterar dados no gráfico da cópia para separá-lo.
 - Somente Excel para Windows, Office 16.0; sem Mac nem Excel na web. A compatibilidade com Excel 64 bits é por construção (sem `Declare`), ainda não verificada em teste.
-- Cascata com no máximo 6 séries. Pizza e rosca usam só a primeira coluna de valores; valores negativos, zero, texto e erros viram fatias vazias.
+- Cascata com no máximo 6 séries. Pizza e rosca usam só a primeira coluna de valores; valores negativos, zero, texto e erros viram fatias vazias. As cores se repetem a partir da 11.ª fatia (a paleta tem 10 cores).
 - A seta de diferença não existe em gráficos 100%, Mekko, pizza e Gantt; a seta CAGR não existe em Mekko, pizza e Gantt; o colchete só existe no Gantt.
-- Mesma escala é uma escala fixa, não dinâmica: depois de mudar muito os dados, use de novo ou Escala automática; um ajuste manual do eixo é desfeito no próximo cálculo ou redimensionamento. Gráficos 100%, Mekko (%), pizza e Gantt não entram. Com um só gráfico selecionado (ou nenhum), a Mesma escala vale para todos os gráficos ThinQQ da planilha.
+- Mesma escala é uma escala fixa, não dinâmica: depois de mudar muito os dados, use de novo ou Escala automática; um ajuste manual do eixo é desfeito no próximo cálculo ou redimensionamento. Gráficos 100%, Mekko (%), pizza, rosca, dispersão, bolhas, Gantt e gráficos com corte de eixo não entram. Mesma escala entre uma borboleta e gráficos de outro tipo tira a borboleta do centro (use só entre borboletas). Com um só gráfico selecionado (ou nenhum), a Mesma escala vale para todos os gráficos ThinQQ da planilha.
 - A linha de valor só existe na média dos valores. Nome no fim da linha só em linha e combinação.
 - Gantt: sem sombreamento de fins de semana, colunas de responsável e observação (só uma 4ª coluna, que vira o rótulo da barra), âncoras, setas de processo nem escala de dias; os separadores da escala são desenhados sobre as barras; o intervalo do eixo só é recalculado pelo ThinQQ (Atualizar ou eventos de cálculo).
 - Mekko: sem setas; colunas estreitas ou muitas categorias deixam os rótulos e os nomes sobrepostos.
 - O espaço reservado para setas, totais e legenda só é refeito pelos comandos do ThinQQ; trocar a Legenda, desligar o Indicador 100% ou a Linha de valor e usar Escala automática descartam um layout manual da área de plotagem.
 - Os eventos que reposicionam as setas só disparam com o gráfico visível; Atualizar refaz o layout.
-- Macros precisam estar habilitadas; políticas corporativas podem exigir local confiável ou assinatura digital.
+- **Borboleta:** exatamente 2 colunas de valores; na borboleta que define a Mesma escala, um nome longo pode encostar nas barras; o vão central é recalculado pelo ThinQQ (Atualizar, redimensionar); rótulos de barras muito finas ficam fora da barra e só ficam ocultos se nem fora cabem.
+- **Dispersão e bolhas:** inserir 300 linhas com 4 grupos leva cerca de 28 s; uma linha acrescentada depois da última linha da tabela não é detectada; o ThinQQ regrava a posição e a cor de um rótulo de bolha mudado à mão; um grupo novo exige Alterar dados; colunas extras depois da coluna de grupo são ignoradas; rótulos de pontos vizinhos podem se sobrepor.
+- **Arredondamento:** o Arredondar intervalo... aceita até 1.000 células; texto digitado na origem dá `#VALOR!`; uma origem em % mantém o %; planilha protegida precisa permitir Formatar células; a sobrescrita do destino não pode ser desfeita. Nos rótulos com soma consistente, uma série só reordenada à mão é ligada por posição, e depois de apagar uma série à mão os segmentos voltam aos rótulos simples, sem aviso.
+- **Corte de eixo:** só em colunas e barras empilhadas e agrupadas; não é compressão de escala; a linha de valor (média) que fica acima do corte some (com aviso ao ligar); um gráfico com corte não entra num grupo de Mesma escala (os dois são excludentes).
+- **Combinação:** com Totais e eixo secundário a linha sobe para uma faixa acima dos totais (e o máximo do eixo das colunas, oculto, sobe junto); com Mesma escala o comportamento anterior volta e a linha pode cruzar os totais.
+- **Área:** o rótulo da primeira ou da última categoria que encosta no do vizinho fica oculto e volta quando cabe.
+- **Copiar para o PowerPoint:** a colagem usa a área de transferência do Windows e substitui o que estava nela; o destino é o slide da janela ativa do PowerPoint; uma pasta de trabalho aberta de um endereço da web (SharePoint ou OneDrive) pode não manter o vínculo do gráfico vinculado; renomear ou mover o arquivo do Excel quebra o vínculo.
+- O texto das setas de CAGR e de diferença e dos colchetes é calculado pelo ThinQQ: sem ele, o texto não se recalcula quando os números mudam.
+- **Assinatura:** os arquivos não vêm assinados; o ramo `signtool` mais Office SIPs de `tools/Sign-ThinQQ.ps1` nunca foi executado ponta a ponta na máquina de desenvolvimento (sem SDK nem SIPs); o caminho garantido é Ferramentas > Assinatura Digital no Editor do VBA.
+- Macros precisam estar habilitadas; políticas corporativas podem exigir local confiável ou assinatura digital (veja "Ambientes corporativos (TI)").
 
 ## Licença
 

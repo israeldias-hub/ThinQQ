@@ -4,6 +4,48 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.2.0] - 2026-10-12
+
+### Adicionado
+- Borboleta (menu Mais tipos): duas séries espelhadas, com os nomes das categorias no centro, o total no fim da barra direita, os dois lados na mesma escala (eixo simétrico) e um vão central calculado pelo maior nome. Exige exatamente 2 colunas de valores; os rótulos de barras muito finas ficam fora da barra.
+- Dispersão e Bolhas (menu Mais tipos): tabela Nome, X, Y (e Tamanho nas bolhas) com coluna de Grupo opcional (uma série por grupo, até 6), nome ao lado de cada ponto, títulos dos eixos ligados aos cabeçalhos, eixos no formato da coluna de origem e apertados em volta dos dados, Linha de tendência (regressão linear por série) e Quadrantes (médias).
+- Rótulos com soma consistente (Mais opções): os rótulos dos segmentos de colunas e barras empilhadas e 100% e de áreas somam exatamente o total mostrado (método do maior resto, em fórmulas da planilha que continuam certas sem o ThinQQ).
+- Arredondar intervalo... (Mais opções): grava, a partir da célula escolhida, fórmulas de arredondamento com soma consistente para uma coluna ou linha de até 1.000 células; elas só referenciam a faixa de origem e não precisam de gráfico nem do ThinQQ.
+- Corte de eixo... e Remover corte de eixo (Mais opções), em colunas e barras empilhadas e agrupadas: as colunas maiores são cortadas num valor que você informa, com marca de corte e o total real no rótulo; nas empilhadas o corte nunca esconde o segmento de cima.
+- Menu PowerPoint (Copiar como imagem e Copiar como gráfico vinculado): cola o gráfico no slide da janela ativa do PowerPoint (abre o PowerPoint ou cria uma apresentação, se preciso) sem nunca fechar o que você já tinha aberto.
+- Ícones próprios na faixa de opções (PNG gerados no build; `build.ps1 -RibbonIcons Mso` volta aos ícones do Office).
+- Certificado e assinatura digital: `tools/New-ThinQQCert.ps1` (certificado autoassinado de teste, por usuário), `tools/Trust-ThinQQPublisher.ps1` (Editores Confiáveis) e `tools/Sign-ThinQQ.ps1` (signtool + Office SIPs; sai com código 2 e instruções sem os pré-requisitos), além de `release.ps1 -SignPfx`.
+- Pasta de trabalho de demonstração `exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx` (rede fictícia de materiais de construção, 26 exemplos E01 a E26 com índice de links, sem macros), distribuída dentro do ZIP da release, na pasta `exemplos`, com um LEIA-ME curto.
+- Exemplos 3: terceira planilha de ThinQQ > Exemplos, com os 8 exemplos novos (26 exemplos no total).
+- Documentação: seção "Instalação" completa no README (requisitos, passo a passo, atualizações, desinstalação, instalação manual, problemas comuns e o que fazer com o repositório privado) e subseção "Ambientes corporativos (TI)"; no tutorial, seções Borboleta, Dispersão e bolhas, Arredondamento consistente, Corte de eixo, Copiar para o PowerPoint, Pasta de demonstração e Instalação em empresas (TI).
+- Com o loader 1.2.0 e um core anterior, os botões sempre ativos (Arredondar intervalo e PowerPoint) avisam "Atualize o ThinQQ para usar este recurso." em vez de não fazer nada.
+
+### Alterado
+- Faixa de opções: passa a oferecer 20 tipos (Mais tipos ganha Borboleta, Dispersão e Bolhas); Mais opções ganha Rótulos com soma consistente, Linha de tendência, Quadrantes (médias), Corte de eixo..., Remover corte de eixo e Arredondar intervalo...; novo menu PowerPoint no grupo Gráfico selecionado. A matriz de capacidades (20 tipos x 20 recursos) é conferida por teste contra a especificação.
+- Mesma escala: a borboleta entra (use só entre borboletas); rosca, dispersão, bolhas e gráficos com corte de eixo ficam fora do grupo, e a mensagem conta os de corte de eixo à parte.
+- Combinação com Totais e eixo secundário: a linha passa a ocupar uma faixa acima dos totais das colunas (o máximo do eixo de valores das colunas, que fica oculto, sobe; com Mesma escala volta o comportamento anterior).
+- Formato inicial dos rótulos de um gráfico novo: vem da primeira célula de valor da tabela (uma, duas ou mais casas decimais, percentual, milhares ou milhões), em vez de sempre inteiro.
+- Pizza e rosca: paletas de 10 cores (as 6 primeiras como antes); até 10 fatias nenhuma cor se repete.
+- O bloco da planilha oculta `_ThinQQ` localiza as colunas Pos e VLine (e as novas) pelo cabeçalho, para aceitar colunas acrescentadas à direita (soma consistente e corte de eixo); blocos antigos continuam funcionando.
+- `build/release.ps1`: o ZIP passa a levar a pasta `exemplos` (o Excel de demonstração e um LEIA-ME), com nomes de entrada com `/`; o release é recusado se o ZIP tiver outro `.xlsx` ou `.xlsm`, se o xlsx diferir (SHA-256) do repositório ou se tiver macros; `-SignPfx` assina os `.xlam` antes dos SHA-256 do manifesto.
+- `build/run-tests.ps1` passa a rodar também Test-Signing e Test-DemoWorkbook; `Test-Docs` confere as seções novas, a lista dos 26 exemplos da demonstração, as mensagens e os limites documentados.
+
+### Corrigido
+- Corte de eixo: em colunas e barras empilhadas o corte não esconde mais por inteiro o segmento de cima de uma coluna cortada (o ThinQQ recusa o valor e diz o mínimo); posições de rótulo que você ajustou são mantidas; o aviso aparece quando a linha de valor (média) fica acima do corte, quando o gráfico sai de um grupo de Mesma escala e quando Alterar dados retira o corte ou o deixa escondendo um segmento; o rótulo de base que ficaria sob a marca é ocultado; um mínimo de eixo fixado à mão acima do corte volta ao automático.
+- Dispersão e bolhas: os números dos eixos seguem o formato da coluna de origem (um percentual aparecia como 0,3) e os eixos não começam mais em zero quando os dados estão longe dele; a escala ou o formato que você fixar são respeitados.
+- Pizza e rosca com mais de 6 fatias repetiam cores (a 7.ª repetia a 1.ª).
+- Combinação com totais: a linha do eixo secundário cruzava os rótulos de total das colunas.
+- Rótulos iniciais inteiros em tabelas com casas decimais, em percentual ou em milhares.
+- Área: os rótulos da primeira e da última categoria colidiam com os vizinhos (o que encosta agora fica oculto e volta quando cabe).
+- Borboleta: o rótulo de uma barra fina desaparecia (agora aparece fora da barra, e o total vem depois dele).
+- Arredondar intervalo: teto de 1.000 células (acima disso o recálculo ficava lento); recusa, antes de gravar, uma planilha protegida sem a permissão Formatar células; uma origem com "%" só no formato (como em `0,0"%"`) dá número simples, e não 3400%; ao desfazer por uma falha, devolve as constantes digitadas (como "00123") do jeito que estavam.
+- Copiar para o PowerPoint: o destino é a apresentação da janela ativa (nunca a de outra janela); só fecha o que a própria chamada criou e remove a forma colada se algo falhar depois; avisa quando o PowerPoint está ocupado, quando a área de transferência está indisponível e quando o PowerPoint cola o gráfico sem manter o vínculo.
+- Testes: os de PowerPoint nunca miram nem fecham o PowerPoint do usuário; os ganchos de teste do Arredondar intervalo, do corte de eixo e das bolhas são zerados em toda saída.
+
+### Segurança
+- Guarda do release: o ZIP só pode conter os arquivos esperados, e o Excel de demonstração vai sem macros e idêntico ao do repositório.
+- `tools/Sign-ThinQQ.ps1` e `release.ps1 -SignPfx` permitem à TI distribuir os dois `.xlam` assinados (veja "Ambientes corporativos (TI)" no README). O ramo `signtool` + Office SIPs não foi executado ponta a ponta na máquina de desenvolvimento: confira o resultado no Excel.
+
 ## [1.1.0] - 2026-10-11
 
 ### Adicionado

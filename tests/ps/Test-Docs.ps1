@@ -101,6 +101,28 @@ if ($parsed) {
         Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='$id']")) "tutorial tem a seção #$id"
         Check ($null -ne $xml.SelectSingleNode("//nav//a[@href='#$id']")) "o índice leva à seção #$id"
     }
+    # Fase 3 (1.2.0): seções novas, todas no índice
+    foreach ($id in 'borboleta', 'dispersao', 'arredondamento', 'corte', 'powerpoint', 'demonstracao', 'instalacao-ti') {
+        Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='$id']")) "tutorial tem a seção #$id"
+        Check ($null -ne $xml.SelectSingleNode("//nav//a[@href='#$id']")) "o índice leva à seção #$id"
+    }
+    # a tabela de #tipos liga as linhas novas às suas seções
+    foreach ($id in 'borboleta', 'dispersao') {
+        Check ($null -ne $xml.SelectSingleNode("//*[@id='tipos']//a[@href='#$id']")) "a tabela de #tipos leva à seção #$id"
+    }
+    # #demonstracao: uma linha por exemplo da lista de cobertura (a mesma que o gerador e o Test-DemoWorkbook usam): número, título e tipo
+    . (Join-Path $RepoRoot 'tools\DemoCoverage.ps1')
+    $demoCov = @(Get-TqqDemoCoverage)
+    $demoSec = $xml.SelectSingleNode("//*[local-name()='section'][@id='demonstracao']")
+    if ($demoSec) {
+        $demoRows = @($demoSec.SelectNodes(".//tr[@data-ex]"))
+        Check ($demoRows.Count -eq $demoCov.Count) "#demonstracao tem uma linha por exemplo da cobertura ($($demoRows.Count) de $($demoCov.Count))"
+        foreach ($it in $demoCov) {
+            $row = $demoSec.SelectSingleNode(".//tr[@data-ex='$($it.Sheet)']")
+            $cells = @(); if ($row) { $cells = @($row.SelectNodes('th|td') | ForEach-Object { ($_.InnerText -replace '\s+', ' ').Trim() }) }
+            Check ($cells.Count -eq 3 -and $cells[0] -eq $it.Sheet -and $cells[1] -eq $it.Title -and $cells[2] -eq $it.KindName) "#demonstracao lista o exemplo $($it.Sheet) com o título e o tipo da cobertura"
+        }
+    }
     Check ($null -ne $xml.SelectSingleNode("//*[@id='matriz']")) 'tutorial tem a tabela "O que cada tipo aceita" (#matriz)'
     $noToc = @($xml.SelectNodes("//*[local-name()='section'][@id]") | ForEach-Object { $_.GetAttribute('id') } | Where-Object { $null -eq $xml.SelectSingleNode("//nav//a[@href='#$_']") })
     Check ($noToc.Count -eq 0) "toda seção do tutorial está no índice: $($noToc -join ', ')"
@@ -202,6 +224,26 @@ Check ($readme -match 'https://github\.com/israeldias-hub/ThinQQ') 'README cita 
 Check ($readme -match 'AccessVBOM|Confiar no acesso ao modelo de objeto') 'README cita a configuração de confiança do VBA'
 Check ($readme -match 'Settings.*Pages|Pages' -and $readme -match 'github\.io/ThinQQ/tutorial/tutorial\.html') 'README cita o GitHub Pages do tutorial'
 Check ($readme -cnotmatch 'TODO|TBD|FIXME') 'README sem pendências'
+
+# ---- README: a seção "Instalação" (para quem não é técnico) e a subseção para a TI (Fase 3, §4.5 e §4.9 da especificação)
+Check ($readme -match '(?m)^## Instalação') 'README tem a seção "Instalação"'
+Check ($readme -notmatch 'Instalação \(usuários\)') 'README sem o título antigo "Instalação (usuários)"'
+foreach ($t in 'Instalar-ThinQQ.cmd', 'Desbloquear', 'Central de Confiabilidade', 'Local Confiável', 'antivírus', 'Desinstala', 'Instalação manual', 'Releases') { Check ($readme -match [regex]::Escape($t)) "README/Instalação cita '$t'" }
+foreach ($t in 'Requisitos', 'Passo a passo', 'Como as atualizações chegam', 'Problemas mais comuns') { Check ($readme -match "(?m)^###+ $([regex]::Escape($t))") "README/Instalação tem o subtítulo '$t'" }
+Check ($readme -match '(?m)^### Ambientes corporativos \(TI\)') 'README tem "Ambientes corporativos (TI)"'
+foreach ($t in 'Editores Confiáveis', 'tools/New-ThinQQCert.ps1', 'tools/Sign-ThinQQ.ps1', 'tools/Trust-ThinQQPublisher.ps1', 'Assinatura Digital', 'Subject Interface Packages', 'Only trust VBA macros that use V3 signatures', '-SignPfx', '-SkipVerify', 'ponta a ponta') { Check ($readme -cmatch [regex]::Escape($t)) "README/TI cita '$t'" }
+# repositório privado: o que isso significa para quem instala e as saídas
+foreach ($t in 'privado', 'colaborador', 'público', '-PublishTo', 'GitHub Pages') { Check ($readme -match [regex]::Escape($t)) "README/Instalação explica o repositório privado ('$t')" }
+# pasta de demonstração: no ZIP, no README (com o link relativo para quem lê no GitHub) e no tutorial
+Check ($readme -match 'ThinQQ-Demonstracao-Materiais-Construcao\.xlsx') 'README cita a pasta de demonstração'
+Check ($readme -match '\]\(exemplos/ThinQQ-Demonstracao-Materiais-Construcao\.xlsx\)') 'README liga a pasta de demonstração por link relativo'
+Check ($html -match 'ThinQQ-Demonstracao-Materiais-Construcao\.xlsx') 'tutorial cita a pasta de demonstração'
+. (Join-Path $RepoRoot 'tools\DemoCoverage.ps1')
+$nDemo = @(Get-TqqDemoCoverage).Count
+$demoRange = 'E01 a E' + ('{0:00}' -f $nDemo)
+Check ($nDemo -ge 26) "a cobertura da demonstração tem $nDemo exemplos"
+Check ($readme -match "$nDemo exemplos" -and $html -match "$nDemo exemplos") "README e tutorial citam os $nDemo exemplos da demonstração"
+Check ($readme -match [regex]::Escape($demoRange) -and $html -match [regex]::Escape($demoRange)) "README e tutorial citam '$demoRange'"
 # Parâmetros do release citados existem no script
 $rel = Read-Utf8 (Join-Path $RepoRoot 'build\release.ps1')
 foreach ($p in 'Version', 'BaseUrl', 'PublishTo') { Check ($rel -match "\`$$p" -and $readme -match "-$p") "README e release.ps1 concordam no parâmetro -$p" }
@@ -210,14 +252,15 @@ foreach ($p in 'Version', 'BaseUrl', 'PublishTo') { Check ($rel -match "\`$$p" -
 $cl = Read-Utf8 $changelogPath
 $ver = ((Read-Utf8 (Join-Path $RepoRoot 'version.json')) | ConvertFrom-Json).core
 Check ($cl -match "(?m)^## \[$([regex]::Escape($ver))\] - \d{4}-\d{2}-\d{2}") "CHANGELOG tem a seção da versão $ver"
+Check ($cl -match '(?m)^## \[1\.2\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG tem a seção 1.2.0'
 Check ($cl -match '(?m)^## \[1\.1\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG tem a seção 1.1.0'
 Check ($cl -match '(?m)^## \[1\.0\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG mantém a seção 1.0.0'
 Check ($cl -match '(?m)^## \[Não lançado\]\s+## \[') 'CHANGELOG mantém a seção [Não lançado] vazia no topo'
 
-# ---- versões: a faixa em menus (Fase 2) exige o loader 1.1.0 ou mais novo; o tutorial, o README e o LEIA-ME seguem o version.json
+# ---- versões: a Fase 3 é a 1.2.0 (loader e core); o tutorial, o README, o LEIA-ME e as notas seguem o version.json
 $vj = (Read-Utf8 (Join-Path $RepoRoot 'version.json')) | ConvertFrom-Json
-Check ($vj.loader -match '^\d+\.\d+\.\d+$' -and [version]$vj.loader -ge [version]'1.1.0') "loader 1.1.0 ou mais novo ($($vj.loader))"
-Check ($ver -match '^\d+\.\d+\.\d+$' -and [version]$ver -ge [version]'1.1.0') "core 1.1.0 ou mais novo ($ver)"
+Check ($vj.loader -eq '1.2.0') 'loader 1.2.0'
+Check ($ver -eq '1.2.0') 'core 1.2.0'
 Check ($html -match "ThinQQ $([regex]::Escape($ver))\.") "rodapé do tutorial mostra a versão $ver"
 Check ($readme -match "v$([regex]::Escape($ver))") "README cita a release v$ver"
 Check ($readme -notmatch 'v1\.0\.0') 'README não cita mais a release v1.0.0'
@@ -230,7 +273,7 @@ Check (@($notesLines | Where-Object { -not $_.StartsWith([string][char]0x2022) }
 $samplesSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modSamples.bas')
 $exNums = @([regex]::Matches($samplesSrc, 'WriteTitle ws, \d+, "(?<n>\d+)\)') | ForEach-Object { [int]$_.Groups['n'].Value })
 $nEx = ($exNums | Measure-Object -Maximum).Maximum
-Check ($nEx -ge 18) "Samples_Create tem os exemplos numerados até $nEx"
+Check ($nEx -ge 26) "Samples_Create tem os exemplos numerados até $nEx"
 Check ($html -match "$nEx exemplos" -and $readme -match "$nEx exemplos") "tutorial e README citam $nEx exemplos"
 Check ($html -notmatch 'seis tabelas' -and $html -notmatch 'ainda não existem') 'tutorial sem a contagem nem a limitação da Fase 1'
 Check ($readme -notmatch 'ficam para a Fase 2') 'README sem a limitação "ficam para a Fase 2"'
@@ -258,12 +301,82 @@ $messages = @(
     'não se aplica a este tipo de gráfico',
     'mostra só a primeira coluna de valores (',
     '). As outras ',
-    ' coluna(s) da tabela foram ignoradas.'
+    ' coluna(s) da tabela foram ignoradas.',
+    'A borboleta precisa de exatamente 2 colunas de valores (lado esquerdo e lado direito).',
+    'Dispersão: a tabela precisa de nome, X e Y (e, nas bolhas, tamanho).',
+    'No máximo 6 grupos (coluna de grupo).',
+    'Corte de eixo: informe um valor maior que zero e menor que o maior valor do gráfico.',
+    'ficaria quase invisível (menos de um quarto dele abaixo do corte).',
+    'O PowerPoint não está instalado neste computador (ou não pôde ser iniciado).',
+    'Salve a pasta de trabalho antes de copiar o gráfico vinculado: o vínculo aponta para o arquivo salvo.',
+    'A pasta tem alterações não salvas: o PowerPoint lê o arquivo salvo nas atualizações do vínculo.',
+    'A área de transferência do Windows não está disponível (outro programa a mantém aberta). Tente novamente em instantes.',
+    'O PowerPoint está ocupado (uma caixa de diálogo aberta ou um texto em edição). Termine o que está fazendo nele e tente de novo.',
+    'Selecione uma única coluna ou linha só com números (pelo menos 2).',
+    'Fórmulas de arredondamento com soma consistente gravadas em',
+    ' já têm conteúdo. Substituir? Esta ação não pode ser desfeita.',
+    'A planilha de destino está protegida sem a permissão de formatar células: desproteja-a ou escolha um destino em outra planilha.',
+    'células; o Arredondar intervalo aceita no máximo ',
+    'O gráfico saiu do grupo de Mesma escala: corte de eixo e Mesma escala são excludentes.'
 )
 foreach ($msg in $messages) {
     Check ($html -match [regex]::Escape($msg)) "tutorial cita a mensagem '$msg'"
     Check ($coreSrc -match [regex]::Escape($msg)) "o core emite a mensagem '$msg'"
 }
 
+# loader 1.2.0 com core anterior: o aviso vem do loader (modRibbon.bas), não do core
+$loaderSrc = (Get-ChildItem (Join-Path $RepoRoot 'src\loader') -Recurse -Include '*.bas', '*.vba' | ForEach-Object { Read-Utf8 $_.FullName }) -join "`n"
+$updMsg = 'Atualize o ThinQQ para usar este recurso.'
+Check ($html -match [regex]::Escape($updMsg)) "tutorial cita a mensagem '$updMsg'"
+Check ($loaderSrc -match [regex]::Escape($updMsg)) "o loader emite a mensagem '$updMsg'"
+
+# ---- o limite do Arredondar intervalo vem do código (ROUND_MAX_CELLS) e a documentação cita o mesmo número
+$rndSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modRounding.bas')
+$rndMax = [int][regex]::Match($rndSrc, 'Public Const ROUND_MAX_CELLS As Long = (\d+)').Groups[1].Value
+$rndText = ('{0:N0}' -f $rndMax -replace '[\s\u00A0,]', '.') + ' células'
+Check ($rndMax -ge 100) "ROUND_MAX_CELLS lido do código ($rndMax)"
+Check ($html -match [regex]::Escape($rndText) -and $readme -match [regex]::Escape($rndText)) "tutorial e README citam o limite do Arredondar intervalo ($rndText)"
+
+# ---- limites e avisos que as revisões da Fase 3 deixaram para a documentação: cada item tem uma frase-chave no tutorial
+# (tutorialOnly) ou no tutorial e no README (both). Se uma frase for reescrita, atualize-a aqui junto.
+$mustDocument = [ordered]@{
+    'borboleta: nome longo pode encostar nas barras (Mesma escala)'  = @('both', 'encostar nas barras')
+    'borboleta: rótulos de barras finas ficam fora ou ocultos'       = @('tutorial', 'barras muito finas')
+    'borboleta: Mesma escala só entre borboletas'                    = @('both', 'só entre borboletas')
+    'dispersão: 300 linhas x 4 grupos levam cerca de 28 s'           = @('both', '28 s')
+    'dispersão: linha depois da última não é detectada'              = @('both', 'depois da última linha da tabela')
+    'dispersão: refresh regrava posição e cor do rótulo de bolha'    = @('tutorial', 'rótulo de bolha que você mudou')
+    'dispersão: grupo novo exige Alterar dados'                      = @('tutorial', 'grupo novo')
+    'dispersão: colunas extras depois do grupo são ignoradas'        = @('tutorial', 'depois da coluna de grupo')
+    'dispersão: eixos seguem o formato da origem e se apertam'       = @('tutorial', 'em volta dos dados')
+    'arredondamento: texto na origem dá #VALOR!'                     = @('tutorial', '#VALOR!')
+    'arredondamento: a sobrescrita não pode ser desfeita'            = @('tutorial', 'não pode ser desfeita')
+    'arredondamento: origem em % mantém %'                           = @('tutorial', 'continua em percentual')
+    'arredondamento: planilha protegida precisa de Formatar células' = @('tutorial', 'Formatar células')
+    'arredondamento: série só reordenada à mão mapeia por posição'   = @('tutorial', 'reordenou as séries')
+    'arredondamento: série apagada à mão volta aos rótulos simples'  = @('tutorial', 'apagar uma série')
+    'corte: só colunas e barras empilhadas e agrupadas'              = @('both', 'colunas e barras empilhadas e agrupadas')
+    'corte: a linha de valor (média) acima do corte some'            = @('both', 'fica acima do corte')
+    'corte: piso do segmento de cima em empilhadas'                  = @('tutorial', 'quarto')
+    'corte: Mesma escala e corte são excludentes'                    = @('both', 'excludentes')
+    'Mesma escala: rosca, dispersão, bolhas e gráfico com corte não entram' = @('both', 'rosca, dispersão, bolhas')
+    'PowerPoint: colar sobrescreve a área de transferência'          = @('both', 'área de transferência')
+    'PowerPoint: pasta aberta de URL (SharePoint/OneDrive)'          = @('both', 'SharePoint')
+    'PowerPoint: Editar Vínculos e Quebrar vínculo'                  = @('tutorial', 'Quebrar vínculo')
+    'PowerPoint: destino é a apresentação da janela ativa'           = @('tutorial', 'janela ativa')
+    'combinação: a linha sobe acima dos totais (e o máximo oculto)'  = @('tutorial', 'faixa acima dos totais')
+    'formato inicial dos rótulos vem da primeira célula de valor'    = @('tutorial', 'primeira célula de valor')
+    'pizza e rosca: 10 cores sem repetição'                          = @('tutorial', '10 fatias')
+    'área: o rótulo da ponta que encosta no vizinho fica oculto'     = @('tutorial', 'rótulo da ponta')
+    'texto das setas não se recalcula sem o ThinQQ'                  = @('both', 'não se recalcula')
+    'copiar a planilha: avisa uma vez e usa Alterar dados na cópia'  = @('both', 'Alterar dados')
+    'assinatura: o ramo signtool + SIPs não rodou ponta a ponta'     = @('both', 'ponta a ponta')
+    'assinatura: roteiro manual pelo VBE (Ferramentas > Assinatura Digital)' = @('both', 'Assinatura Digital')
+}
+foreach ($k in $mustDocument.Keys) {
+    $scope = $mustDocument[$k][0]; $phrase = $mustDocument[$k][1]
+    Check ($html -cmatch [regex]::Escape($phrase)) "tutorial documenta: $k ('$phrase')"
+    if ($scope -eq 'both') { Check ($readme -cmatch [regex]::Escape($phrase)) "README documenta: $k ('$phrase')" }
+}
 if ($script:fail -gt 0) { Write-Host "FALHAS Test-Docs: $script:fail"; exit 1 }
 Write-Host 'Test-Docs: OK'

@@ -1,7 +1,7 @@
-• Barras horizontais (empilhadas, agrupadas e 100%) e cascata horizontal, com totais e rótulos que acompanham os dados.
-• Cascata com várias séries (até 6) e "de cima para baixo" (e na primeira linha e um número na última).
-• Área (empilhada e 100%) e combinação de colunas com linha, com eixo secundário e nome da série no fim da linha.
-• Mekko (% e unidades), Gantt (escala de semanas a anos, marcos e colchetes), pizza e rosca.
-• Linha de valor na média, indicador 100% e Mesma escala / Escala automática entre gráficos.
-• Faixa de opções em menus por tipo; os controles ficam cinza quando o tipo de gráfico não os aceita.
-• 18 exemplos em duas planilhas e tutorial reescrito, com uma seção para cada tipo.
+• Borboleta, dispersão e bolhas: agora são 20 tipos de gráfico (menu Mais tipos).
+• Rótulos com soma consistente e Arredondar intervalo...: somas que fecham 100%, em fórmulas da planilha.
+• Corte de eixo para colunas e barras: uma coluna gigante deixa de achatar as outras.
+• Menu PowerPoint: copia o gráfico como imagem ou como gráfico vinculado ao Excel.
+• Excel de demonstração com 26 exemplos (pasta exemplos do ZIP) e ícones próprios na faixa.
+• Acertos: eixos da dispersão, cores da pizza até 10 fatias, combinação com totais, borboleta e área.
+• Instalação completa no README e roteiro de assinatura digital para a TI.
