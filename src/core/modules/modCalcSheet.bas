@@ -392,3 +392,48 @@ Public Function CalcSheet_Cleanup(wb As Workbook) As Long
     Next
     CalcSheet_Cleanup = removed
 End Function
+
+' Coluna do corpo (1..Columns.Count) cujo cabecalho (linha 1 do corpo) e exatamente header; 0 se nao existe. As familias usam esta
+' busca em vez da posicao: a Fase 3 acrescenta colunas A DIREITA do bloco sob demanda (Block_Extend), e "as duas ultimas colunas" deixam
+' de ser Pos/VLine.
+Public Function Block_FindCol(blk As Range, header As String) As Long
+    Dim j As Long, hdr As Range
+    If blk Is Nothing Then Exit Function
+    If blk.Rows.Count < 2 Then Exit Function
+    Set hdr = blk.Rows(2)
+    For j = 1 To hdr.Cells.Count
+        If CStr(hdr.Cells(1, j).Value) = header Then Block_FindCol = j: Exit Function
+    Next
+End Function
+
+' Acrescenta extraCols colunas vazias a direita do bloco tqq_<id> (os blocos se empilham a partir da coluna A: a area a direita e livre) e
+' reescreve o nome para cobri-las. Devolve o bloco novo. Recusa (6014) se alguma celula a direita estiver ocupada: nunca sobrescreve.
+Public Function Block_Extend(wb As Workbook, id As String, extraCols As Long) As Range
+    Dim blk As Range, ext As Range, newBlk As Range
+    Set blk = CalcSheet_FindBlock(wb, id)
+    If blk Is Nothing Then Err.Raise vbObjectError + 6015, "Block_Extend", "Bloco inexistente: " & id
+    If extraCols < 1 Then Set Block_Extend = blk: Exit Function
+    Set ext = blk.Offset(0, blk.Columns.Count).Resize(blk.Rows.Count, extraCols)
+    If Application.WorksheetFunction.CountA(ext) > 0 Then Err.Raise vbObjectError + 6014, "Block_Extend", "Há dados à direita do bloco " & id & "; o bloco não pode ser estendido."
+    ext.Clear
+    Set newBlk = blk.Resize(blk.Rows.Count, blk.Columns.Count + extraCols)
+    wb.Names(ID_PREFIX & id).RefersTo = "='" & CALC_SHEET & "'!" & newBlk.Address(True, True)
+    Set Block_Extend = newBlk
+End Function
+
+' Tabela de origem do grafico (endereco gravado na meta, coluna C, sem o "="), resolvida na pasta do grafico; Nothing se nao resolver.
+Public Function Block_SourceRange(cht As Chart) As Range
+    Dim blk As Range, a As String, bang As Long, sh As String
+    On Error GoTo Fail
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Function
+    a = CStr(blk.Cells(1, 3).Value)
+    bang = InStrRev(a, "!")
+    If bang < 2 Then Exit Function
+    sh = Left$(a, bang - 1)
+    If Left$(sh, 1) = "'" And Right$(sh, 1) = "'" Then sh = Replace(Mid$(sh, 2, Len(sh) - 2), "''", "'")
+    Set Block_SourceRange = Registry_Workbook(cht).Worksheets(sh).Range(Mid$(a, bang + 1))
+    Exit Function
+Fail:
+    Set Block_SourceRange = Nothing
+End Function

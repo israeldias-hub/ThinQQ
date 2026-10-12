@@ -1617,3 +1617,19 @@ Public Sub Test_Core_CopiedSheet_ChartSharingId_NotifiedOnce_AndRebuildSeparates
     AssertEqual 0, Core_NoticeCount(), "sem copia, sem aviso"
     Teardown wb
 End Sub
+
+' Temporario: a Tarefa 2 o remove ao implementar dispersao/bolhas (os ultimos tipos novos). Tipo valido ainda sem
+' implementacao avisa e nao deixa bloco.
+Public Sub Test_Core_Insert_NewKindsNotReady_NotifiesWithoutChart()
+    Dim wb As Workbook, ws As Worksheet, k As Variant
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    For Each k In Array("butterfly", "scatter", "bubble")
+        ws.Range("A1:C5").Select
+        Core_ClearLastNotice
+        Core_Insert CStr(k)
+        AssertEqual 0, ws.ChartObjects.Count, CStr(k)
+        AssertEqual 0, TqqNameCount(wb), CStr(k)
+        AssertTrue InStr(Core_LastNotice(), "ainda não está disponível") > 0, CStr(k) & ": " & Core_LastNotice()
+    Next
+    Teardown wb
+End Sub

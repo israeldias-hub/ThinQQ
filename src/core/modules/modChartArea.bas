@@ -27,10 +27,8 @@ Public Function Area_BuildBlock(wb As Workbook, id As String, data As clsChartDa
     Set blk = CalcSheet_AllocateBlock(wb, id, kind, Mid$(ChartData_ExternalAddress(data.Source), 2), n + 1, 5 + 2 * ns)
     Set body = Block_Body(blk)
     body.Cells(1, 1).Value = "Categoria": body.Cells(1, 2).Value = "Total": body.Cells(1, 3).Value = "TotalPos"
-    For j = 1 To ns
-        body.Cells(1, Area_ValCol(blk, j)).Value = "Val" & j
-        body.Cells(1, Area_MidCol(blk, j)).Value = "Mid" & j
-    Next
+    For j = 1 To ns: body.Cells(1, Area_ValCol(blk, j)).Value = "Val" & j: Next
+    For j = 1 To ns: body.Cells(1, Area_MidCol(blk, j)).Value = "Mid" & j: Next
     body.Cells(1, Area_PosCol(blk)).Value = "Pos": body.Cells(1, Area_VLineCol(blk)).Value = "VLine"
     totRange = body.Cells(2, 2).Resize(n, 1).Address(True, True)       ' mesma planilha: sem nome de planilha
     For i = 1 To n
@@ -66,9 +64,16 @@ Public Function Area_BuildBlock(wb As Workbook, id As String, data As clsChartDa
     Set Area_BuildBlock = blk
 End Function
 
-' Numero de series de dados do bloco (5 colunas fixas + 2 por serie).
+' Numero de series de dados: cabecalhos Val1, Val2, ... contiguos a partir da coluna 4 (a Fase 3 estende o bloco a direita; a largura
+' ja nao diz quantas series ha). Reserva (bloco sem cabecalho Val1): (Columns.Count - 5) \ 2, como antes.
 Public Function Area_SeriesCount(blk As Range) As Long
-    Area_SeriesCount = (blk.Columns.Count - 5) \ 2
+    Dim j As Long, body As Range
+    Set body = Block_Body(blk)
+    For j = 4 To body.Columns.Count
+        If CStr(body.Cells(1, j).Value) <> "Val" & (j - 3) Then Exit For
+        Area_SeriesCount = Area_SeriesCount + 1
+    Next
+    If Area_SeriesCount = 0 Then Area_SeriesCount = (blk.Columns.Count - 5) \ 2
 End Function
 
 Public Function Area_ValCol(blk As Range, j As Long) As Long
@@ -80,11 +85,13 @@ Public Function Area_MidCol(blk As Range, j As Long) As Long
 End Function
 
 Public Function Area_PosCol(blk As Range) As Long
-    Area_PosCol = blk.Columns.Count - 1
+    Area_PosCol = Block_FindCol(blk, "Pos")
+    If Area_PosCol = 0 Then Area_PosCol = blk.Columns.Count - 1
 End Function
 
 Public Function Area_VLineCol(blk As Range) As Long
-    Area_VLineCol = blk.Columns.Count
+    Area_VLineCol = Block_FindCol(blk, "VLine")
+    If Area_VLineCol = 0 Then Area_VLineCol = blk.Columns.Count
 End Function
 
 Public Function Area_Insert(ws As Worksheet, data As clsChartData, kind As String) As ChartObject

@@ -183,7 +183,7 @@ table.mx td { white-space: nowrap; }
 table.mx thead th { vertical-align: bottom; min-width: 4.6rem; }
 table.mx thead th:first-child, table.mx tbody th { text-align: left; position: sticky; left: 0; z-index: 1; background: var(--soft); min-width: 7.5rem; }
 table.mx tbody th { box-shadow: 1px 0 0 var(--line); }
-table.mx .ui { background: none; padding: 0; color: inherit; font-weight: 600; white-space: normal; }
+table.mx .ui, table.mx .k { background: none; padding: 0; color: inherit; font-weight: 600; white-space: normal; }
 table.mx td { color: var(--muted); }
 table.mx td.y { color: var(--ok-ink); background: var(--ok-bg); font-weight: 700; }
 table.mx td.w { color: var(--warn-ink); background: var(--warn-bg); font-weight: 600; white-space: normal; }
@@ -788,6 +788,9 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td>—</td></tr>
       <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
       <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="butterfly"><th scope="row"><span class="k">Borboleta</span></th><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="scatter"><th scope="row"><span class="k">Dispersão</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="bubble"><th scope="row"><span class="k">Bolhas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
     </tbody>
   </table>
   </div>
@@ -813,6 +816,37 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
       <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td>—</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="butterfly"><th scope="row"><span class="k">Borboleta</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="scatter"><th scope="row"><span class="k">Dispersão</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="bubble"><th scope="row"><span class="k">Bolhas</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h4>Arredondamento, corte e análise</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Tabela do que cada tipo aceita: arredondamento, corte e análise (em telas estreitas, role para os lados)">
+  <table class="mx">
+    <thead><tr><th scope="col">Tipo</th><th scope="col" data-f="roundsum"><span class="k">Rótulos com soma consistente</span></th><th scope="col" data-f="break"><span class="k">Corte de eixo</span></th><th scope="col" data-f="trend"><span class="k">Linha de tendência</span></th><th scope="col" data-f="quad"><span class="k">Quadrantes (médias)</span></th></tr></thead>
+    <tbody>
+      <tr data-kind="stacked"><th scope="row"><span class="ui">Colunas empilhadas</span></th><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td>—</td></tr>
+      <tr data-kind="clustered"><th scope="row"><span class="ui">Colunas agrupadas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td></tr>
+      <tr data-kind="stacked100"><th scope="row"><span class="ui">Colunas 100%</span></th><td class="y">Sim</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="barstacked"><th scope="row"><span class="ui">Barras empilhadas</span></th><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td>—</td></tr>
+      <tr data-kind="barclustered"><th scope="row"><span class="ui">Barras agrupadas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td></tr>
+      <tr data-kind="barstacked100"><th scope="row"><span class="ui">Barras 100%</span></th><td class="y">Sim</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="waterfall"><th scope="row"><span class="ui">Cascata (colunas)</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="barwaterfall"><th scope="row"><span class="ui">Cascata (barras)</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="line"><th scope="row"><span class="ui">Linha</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="area"><th scope="row"><span class="ui">Área empilhada</span></th><td class="y">Sim</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="area100"><th scope="row"><span class="ui">Área 100%</span></th><td class="y">Sim</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="combo"><th scope="row"><span class="ui">Combinação (colunas + linha)</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="mekko"><th scope="row"><span class="ui">Mekko (%)</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="mekkounits"><th scope="row"><span class="ui">Mekko (unidades)</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="gantt"><th scope="row"><span class="ui">Gantt</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="pie"><th scope="row"><span class="ui">Pizza</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="doughnut"><th scope="row"><span class="ui">Rosca</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="butterfly"><th scope="row"><span class="k">Borboleta</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="scatter"><th scope="row"><span class="k">Dispersão</span></th><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td></tr>
+      <tr data-kind="bubble"><th scope="row"><span class="k">Bolhas</span></th><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td></tr>
     </tbody>
   </table>
   </div>

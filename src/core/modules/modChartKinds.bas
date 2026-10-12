@@ -2,7 +2,7 @@ Attribute VB_Name = "modChartKinds"
 Option Explicit
 ' Fonte unica dos tipos de grafico e do que cada um suporta (faixa, Core_SetToggle/SetOption, Rebuild).
 ' A matriz e dado, nao logica: listas separadas por virgula consultadas com InStr (como WF_MARKERS).
-Private Const KINDS As String = ",stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,gantt,pie,doughnut,"
+Private Const KINDS As String = ",stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,gantt,pie,doughnut,butterfly,scatter,bubble,"
 
 ' Os nomes sao procurados dentro de listas separadas por virgula: um nome com virgula ("stacked,clustered") casaria
 ' com dois tipos vizinhos da lista e seria aceito como se fosse um tipo. Por isso uma virgula recusa o nome.
@@ -20,7 +20,7 @@ End Function
 
 ' Barras horizontais: o eixo de categorias e vertical e o de valores horizontal.
 Public Function Kinds_IsHorizontal(kind As String) As Boolean
-    Kinds_IsHorizontal = InList("barstacked,barclustered,barstacked100,barwaterfall,gantt", kind)
+    Kinds_IsHorizontal = InList("barstacked,barclustered,barstacked100,barwaterfall,gantt,butterfly", kind)
 End Function
 
 ' Tipos cujos segmentos mostram participacao (valor / total da linha).
@@ -44,10 +44,14 @@ Public Function Kinds_Family(kind As String) As String
         Kinds_Family = "gantt"
     ElseIf InList("pie,doughnut", kind) Then
         Kinds_Family = "pie"
+    ElseIf kind = "butterfly" Then
+        Kinds_Family = "butterfly"
+    ElseIf InList("scatter,bubble", kind) Then
+        Kinds_Family = "scatter"
     End If
 End Function
 
-' Matriz de capacidades (design da Fase 2, secao 7). False para tipo ou recurso desconhecido. A matriz e estatica por tipo;
+' Matriz de capacidades (design da Fase 3, secao 6). False para tipo ou recurso desconhecido. A matriz e estatica por tipo;
 ' a unica excecao e a legenda da cascata (waterfall/barwaterfall), que so existe com VARIAS series de dados: quem pergunta
 ' informa o numero de series (seriesCount; omitido = desconhecido = sem legenda). Core_Supports le o numero no bloco.
 Public Function Kinds_Supports(kind As String, feature As String, Optional seriesCount As Long = 0) As Boolean
@@ -55,12 +59,12 @@ Public Function Kinds_Supports(kind As String, feature As String, Optional serie
     If Not Kinds_IsValid(kind) Then Exit Function
     allKinds = Mid$(KINDS, 2, Len(KINDS) - 2)
     Select Case feature
-        Case "totals":     list = "stacked,stacked100,barstacked,barstacked100,area,area100,combo,mekko,mekkounits"
+        Case "totals":     list = "stacked,stacked100,barstacked,barstacked100,area,area100,combo,mekko,mekkounits,butterfly"
         Case "labels":     list = allKinds
         Case "connectors": list = "stacked,stacked100,barstacked,barstacked100,waterfall,barwaterfall,combo"
-        Case "numfmt":     list = Replace(allKinds, ",gantt", "")
+        Case "numfmt":     list = "stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,pie,doughnut,butterfly"
         Case "palette":    list = allKinds
-        Case "gap":        list = "stacked,clustered,stacked100,barstacked,barclustered,barstacked100,waterfall,barwaterfall,combo,gantt"
+        Case "gap":        list = "stacked,clustered,stacked100,barstacked,barclustered,barstacked100,waterfall,barwaterfall,combo,gantt,butterfly"
         Case "legend":     list = Replace(allKinds, ",gantt", "")      ' waterfall/barwaterfall: so com varias series (abaixo)
         Case "lineend":    list = "line,combo"                         ' legenda "nome no fim da linha" (Deco_SetLegend)
         Case "ind100":     list = "stacked100,barstacked100,area100,mekko"
@@ -70,7 +74,11 @@ Public Function Kinds_Supports(kind As String, feature As String, Optional serie
         Case "cagr":       list = "stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo"
         Case "diff":       list = "stacked,clustered,line,waterfall,barstacked,barclustered,barwaterfall,area,combo"
         Case "bracket":    list = "gantt"
-        Case "samescale":  list = "stacked,clustered,line,waterfall,barstacked,barclustered,barwaterfall,area,combo,mekkounits"
+        Case "samescale":  list = "stacked,clustered,line,waterfall,barstacked,barclustered,barwaterfall,area,combo,mekkounits,butterfly"
+        Case "roundsum":   list = "stacked,stacked100,barstacked,barstacked100,area,area100"
+        Case "break":      list = "stacked,clustered,barstacked,barclustered"
+        Case "trend":      list = "scatter,bubble"
+        Case "quad":       list = "scatter,bubble"
         Case Else: Exit Function
     End Select
     Kinds_Supports = InList(list, kind)
@@ -92,6 +100,10 @@ Public Function Kinds_FeatureLabel(feature As String) As String
         Case "legend":     Kinds_FeatureLabel = "Legenda"
         Case "numfmt":     Kinds_FeatureLabel = "Formato"
         Case "palette":    Kinds_FeatureLabel = "Paleta"
+        Case "roundsum":   Kinds_FeatureLabel = "Rótulos com soma consistente"
+        Case "break":      Kinds_FeatureLabel = "Corte de eixo"
+        Case "trend":      Kinds_FeatureLabel = "Linha de tendência"
+        Case "quad":       Kinds_FeatureLabel = "Quadrantes (médias)"
     End Select
 End Function
 

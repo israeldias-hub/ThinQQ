@@ -320,3 +320,39 @@ Public Sub Test_Kinds_FeatureLabel_ExactRibbonLabels()
     AssertEqual "Paleta", Kinds_FeatureLabel("palette")
     AssertEqual "", Kinds_FeatureLabel("xyz"), "recurso desconhecido: texto vazio"
 End Sub
+
+Public Sub Test_Kinds_Phase3_TypesAndFamilies()
+    AssertTrue Kinds_IsValid("butterfly"): AssertTrue Kinds_IsValid("scatter"): AssertTrue Kinds_IsValid("bubble")
+    AssertEqual "butterfly", Kinds_Family("butterfly")
+    AssertEqual "scatter", Kinds_Family("scatter"): AssertEqual "scatter", Kinds_Family("bubble")
+    AssertTrue Kinds_IsHorizontal("butterfly"): AssertFalse Kinds_IsHorizontal("scatter")
+    AssertFalse Kinds_Is100("butterfly")
+    AssertEqual 3, Kinds_ExpectedCategoryRefs("scatter", 3)
+End Sub
+
+Public Sub Test_Kinds_Phase3_Matrix()
+    AssertTrue Kinds_Supports("butterfly", "totals"): AssertTrue Kinds_Supports("butterfly", "gap"): AssertTrue Kinds_Supports("butterfly", "samescale")
+    AssertFalse Kinds_Supports("butterfly", "cagr"): AssertFalse Kinds_Supports("butterfly", "connectors"): AssertFalse Kinds_Supports("butterfly", "vline")
+    AssertTrue Kinds_Supports("scatter", "trend"): AssertTrue Kinds_Supports("bubble", "quad"): AssertTrue Kinds_Supports("scatter", "legend")
+    AssertFalse Kinds_Supports("scatter", "numfmt"): AssertFalse Kinds_Supports("bubble", "gap"): AssertFalse Kinds_Supports("scatter", "samescale")
+    AssertFalse Kinds_Supports("stacked", "trend"): AssertFalse Kinds_Supports("stacked", "quad")
+    AssertTrue Kinds_Supports("stacked", "roundsum"): AssertTrue Kinds_Supports("area100", "roundsum"): AssertFalse Kinds_Supports("clustered", "roundsum")
+    AssertFalse Kinds_Supports("mekko", "roundsum"): AssertFalse Kinds_Supports("pie", "roundsum")
+    AssertTrue Kinds_Supports("stacked", "break"): AssertTrue Kinds_Supports("barclustered", "break"): AssertFalse Kinds_Supports("stacked100", "break")
+    AssertFalse Kinds_Supports("area", "break"): AssertFalse Kinds_Supports("waterfall", "break")
+    AssertTrue Kinds_Supports("pie", "numfmt"): AssertFalse Kinds_Supports("gantt", "numfmt")
+    AssertEqual "Rótulos com soma consistente", Kinds_FeatureLabel("roundsum")
+    AssertEqual "Corte de eixo", Kinds_FeatureLabel("break")
+    AssertEqual "Linha de tendência", Kinds_FeatureLabel("trend")
+    AssertEqual "Quadrantes (médias)", Kinds_FeatureLabel("quad")
+End Sub
+
+Public Sub Test_Style_PaletteRGB()
+    Dim wb As Workbook, ws As Worksheet, co As ChartObject
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    Set co = ws.ChartObjects.Add(10, 10, 100, 100)
+    AssertEqual RGB(31, 56, 100), Style_PaletteRGB(co.Chart, Style_Palette("padrao")(0))
+    AssertEqual RGB(64, 64, 64), Style_PaletteRGB(co.Chart, Style_Palette("cinza")(0))
+    AssertEqual wb.Theme.ThemeColorScheme.Colors(msoThemeAccent1).RGB, Style_PaletteRGB(co.Chart, Style_Palette("tema")(0)), "tema: cor de destaque 1 da pasta"
+    CloseTemp wb
+End Sub

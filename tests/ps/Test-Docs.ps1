@@ -43,7 +43,7 @@ $html = Read-Utf8 $tutorialPath
 $bytes = (Get-Item $tutorialPath).Length
 Check ($html -notmatch 'THINQQ-TUTORIAL-STUB') 'tutorial sem marcador de esqueleto'
 Check ($bytes -ge 2000) "tutorial com tamanho mínimo ($bytes bytes)"
-Check ($bytes -le 122880) "tutorial com até 120 KB ($bytes bytes)"
+Check ($bytes -le 163840) "tutorial com até 160 KB ($bytes bytes)"
 Check ($html -match '<html lang="pt-BR">' -and $html -match 'name="viewport"') 'idioma pt-BR e viewport'
 Check ($html -match 'prefers-color-scheme:\s*dark' -and $html -match '@media print') 'modo escuro e impressão'
 Check ($html -match 'class="skip"' -and $html -match '<nav[^>]*aria-label' -and $html -match '<main') 'link de pular, nav e main'
@@ -116,8 +116,8 @@ if ($parsed) {
         else { $rep = [regex]::Match($v, '"(?<r>[^"]*)",').Groups['r'].Value; $list = ($allKinds -join ',').Replace($rep, '').Split(',') }
         $matrix[$m.Groups['f'].Value] = $list
     }
-    Check ($allKinds.Count -eq 17) "17 tipos de gráfico em modChartKinds.bas ($($allKinds.Count))"
-    Check ($matrix.Count -eq 16) "16 recursos na matriz de capacidades de modChartKinds.bas ($($matrix.Count))"
+    Check ($allKinds.Count -eq 20) "20 tipos de gráfico em modChartKinds.bas ($($allKinds.Count))"
+    Check ($matrix.Count -eq 20) "20 recursos na matriz de capacidades de modChartKinds.bas ($($matrix.Count))"
     # Rótulo de cada recurso: Kinds_FeatureLabel (modChartKinds.bas) ou, nos que ela não cobre, o controle da faixa que o aciona
     $featureLabel = @{}
     foreach ($m in [regex]::Matches($kindsSrc, 'Case "(?<f>[a-z0-9]+)":\s*Kinds_FeatureLabel = "(?<l>[^"]*)"')) { $featureLabel[$m.Groups['f'].Value] = $m.Groups['l'].Value }

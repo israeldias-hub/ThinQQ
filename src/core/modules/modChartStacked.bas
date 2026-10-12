@@ -63,13 +63,16 @@ Public Function Stacked_BuildBlock(wb As Workbook, id As String, data As clsChar
     Set Stacked_BuildBlock = blk
 End Function
 
-' Coluna Pos (posição da categoria) e coluna VLine (linha de valor): as duas últimas do bloco.
+' Coluna Pos (posição da categoria) e coluna VLine (linha de valor): achadas pelo cabeçalho (a Fase 3 pode acrescentar colunas à direita);
+' sem cabeçalho (bloco ainda sendo montado ou de versão anterior), as duas últimas colunas, como antes.
 Public Function Stacked_PosCol(blk As Range) As Long
-    Stacked_PosCol = blk.Columns.Count - 1
+    Stacked_PosCol = Block_FindCol(blk, "Pos")
+    If Stacked_PosCol = 0 Then Stacked_PosCol = blk.Columns.Count - 1
 End Function
 
 Public Function Stacked_VLineCol(blk As Range) As Long
-    Stacked_VLineCol = blk.Columns.Count
+    Stacked_VLineCol = Block_FindCol(blk, "VLine")
+    If Stacked_VLineCol = 0 Then Stacked_VLineCol = blk.Columns.Count
 End Function
 
 Public Function Stacked_Insert(ws As Worksheet, data As clsChartData, kind As String) As ChartObject

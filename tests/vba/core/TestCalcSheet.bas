@@ -592,3 +592,51 @@ Cleanup:
     CloseTemp wb
     Err.Raise en, es, ed
 End Sub
+
+Public Sub Test_Block_FindCol_Extend_SourceRange()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, blk As Range, blk2 As Range, cols As Long, src As Range, calc As Worksheet
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Ano", "Sul", "Norte")
+    ws.Range("A2:C2").Value = Array(2022, 10, 5): ws.Range("A3:C3").Value = Array(2023, 20, 6)
+    Set d = ChartData_FromRange(ws.Range("A1:C3"))
+    Set cht = Stacked_Insert(ws, d, "stacked").Chart
+    Set blk = Registry_Block(cht)
+    cols = blk.Columns.Count
+    AssertEqual cols - 1, Block_FindCol(blk, "Pos"): AssertEqual cols, Block_FindCol(blk, "VLine")
+    AssertEqual 0, Block_FindCol(blk, "NaoExiste")
+    AssertEqual cols - 1, Stacked_PosCol(blk): AssertEqual cols, Stacked_VLineCol(blk)
+    Set blk2 = Block_Extend(wb, Registry_IdFromChart(cht), 3)
+    AssertEqual cols + 3, blk2.Columns.Count
+    AssertEqual cols + 3, Registry_Block(cht).Columns.Count, "o nome tqq_<id> cobre as colunas novas"
+    AssertEqual blk.Row, blk2.Row: AssertEqual blk.Rows.Count, blk2.Rows.Count
+    AssertEqual cols - 1, Stacked_PosCol(blk2), "Pos continua sendo achada pelo cabecalho depois da extensao"
+    AssertEqual cols, Stacked_VLineCol(blk2)
+    AssertEqual "", CStr(Block_Body(blk2).Cells(1, cols + 1).Value), "colunas novas vazias"
+    Set src = Block_SourceRange(cht)
+    AssertEqual "$A$1:$C$3", src.Address(True, True): AssertEqual "Dados", src.Worksheet.Name
+    ' extensao recusada quando ha dado a direita (nunca sobrescreve)
+    Set calc = wb.Worksheets(CALC_SHEET)
+    calc.Cells(blk2.Row + 1, blk2.Column + blk2.Columns.Count).Value = "x"
+    On Error Resume Next
+    Block_Extend wb, Registry_IdFromChart(cht), 1
+    AssertEqual vbObjectError + 6014, Err.Number, "Block_Extend com celula ocupada a direita"
+    On Error GoTo 0
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Area_Cols_ByHeader_AfterExtend()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, blk As Range, p As Long, v As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Ano", "Sul", "Norte")
+    ws.Range("A2:C2").Value = Array(2022, 10, 5): ws.Range("A3:C3").Value = Array(2023, 20, 6)
+    Set d = ChartData_FromRange(ws.Range("A1:C3"))
+    Set cht = Area_Insert(ws, d, "area").Chart
+    Set blk = Registry_Block(cht)
+    AssertEqual 2, Area_SeriesCount(blk): p = Area_PosCol(blk): v = Area_VLineCol(blk)
+    AssertEqual "Mid1", Block_Body(blk).Cells(1, Area_MidCol(blk, 1)).Value: AssertEqual "Mid2", Block_Body(blk).Cells(1, Area_MidCol(blk, 2)).Value
+    AssertEqual "Pos", Block_Body(blk).Cells(1, p).Value: AssertEqual "VLine", Block_Body(blk).Cells(1, v).Value
+    Set blk = Block_Extend(wb, Registry_IdFromChart(cht), 5)
+    AssertEqual 2, Area_SeriesCount(blk), "numero de series pelo cabecalho Val<k>, nao pela largura"
+    AssertEqual p, Area_PosCol(blk): AssertEqual v, Area_VLineCol(blk)
+    CloseTemp wb
+End Sub

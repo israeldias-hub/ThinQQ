@@ -192,6 +192,8 @@ Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
         Exit Sub
     End If
     If Kinds_Family(Registry_ChartType(cht)) = "gantt" Then Exit Sub     ' Gantt: sem formato numerico (datas e texto; numfmt nao se aplica)
+    If Kinds_Family(Registry_ChartType(cht)) = "scatter" Then Exit Sub   ' Dispersao/bolhas: sem formato numerico de serie (numfmt nao se aplica)
+    If Kinds_Family(Registry_ChartType(cht)) = "butterfly" Then Exit Sub ' Borboleta: a Tarefa 1 troca por Bfly_ApplyNumberFormat cht: Exit Sub
     If Kinds_Family(Registry_ChartType(cht)) = "mekko" Then
         ' Mekko: segmentos com o formato dos segmentos (pct0/pct1 no percentual), totais pct0 no percentual (largura) e numfmt nas
         ' unidades; por ponto (as auxiliares tem pontos sem rotulo que a escrita no nivel da serie recriaria)
@@ -237,3 +239,17 @@ End Function
 Public Sub Style_AssignNumberFormat(target As Object, fmt As String)
     target.NumberFormatLocal = Style_LocalizeCode(fmt)
 End Sub
+
+' RGB de uma cor da paleta (Style_Palette): o proprio valor ou, na paleta "tema" (-1..-6 = destaque 1..6), a cor do tema da pasta do
+' grafico. Para marcadores XY (dispersao, bolhas, marcos), cujo Format.Fill nao aceita a cor (medido na Fase 2).
+Public Function Style_PaletteRGB(cht As Chart, v As Variant) As Long
+    On Error GoTo Fail
+    If v >= 0 Then
+        Style_PaletteRGB = CLng(v)
+    Else
+        Style_PaletteRGB = Registry_Workbook(cht).Theme.ThemeColorScheme.Colors(msoThemeAccent1 + (-v - 1)).RGB
+    End If
+    Exit Function
+Fail:
+    Style_PaletteRGB = RGB(68, 114, 196)
+End Function
