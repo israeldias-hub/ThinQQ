@@ -1650,7 +1650,9 @@ Public Sub Test_Core_Insert_InitialNumFmt_FromFirstValueCell()
             ws.Range("A1:C5").Select
             Core_Insert CStr(k)
             Set cht = Core_ActiveChart()
-            AssertEqual want(i), Registry_GetOption(cht, "numfmt"), k & ": formato '" & f(i) & "'"
+            pt = want(i)
+            If k = "pie" And Left$(pt, 3) = "pct" Then pt = "dec2"           ' pizza: % que nao soma 100% mostra o valor (rodada 1)
+            AssertEqual pt, Registry_GetOption(cht, "numfmt"), k & ": formato '" & f(i) & "'"
             If k = "stacked" Or k = "clustered" Or k = "line" Then
                 txt = cht.SeriesCollection(1).Points(1).DataLabel.Text
                 Select Case want(i)
@@ -1678,3 +1680,41 @@ Public Sub Test_Core_Insert_InitialNumFmt_FromFirstValueCell()
     AssertEqual "int", Registry_GetOption(Core_ActiveChart(), "numfmt"), "o usuario troca depois"
     Teardown wb
 End Sub
+
+' Onda A, rodada 1 (menor c): escala (milhares, milhoes), colchetes ([Red]), primeira celula de texto, vazia ou data, a familia de tipos com
+' numfmt (100%, area, combinacao, borboleta, rosca) e a pizza/rosca: pct so quando a origem em % ja e participacao (soma ~100%).
+Public Sub Test_Core_Insert_InitialNumFmt_ScaledOddCellsKinds()
+    Dim wb As Workbook, ws As Worksheet, f As Variant, want As Variant, i As Long, k As Variant
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    f = Array("#,##0,", "0.0,,", "[Red]0.0", "R$ #,##0.00", "dd/mm/yyyy")
+    want = Array("mil", "mi", "dec1", "dec2", "int")
+    For i = 0 To UBound(f)
+        ws.Range("B2:C5").NumberFormat = f(i)
+        AssertEqual want(i), InsertedNumFmt(ws, "stacked"), "formato '" & f(i) & "'"
+    Next
+    ws.Range("B2:C5").NumberFormat = "0.0"
+    ws.Range("B2").Value = "n/d"
+    AssertEqual "dec1", InsertedNumFmt(ws, "stacked"), "1a celula texto: a 1a numerica decide"
+    ws.Range("B2").ClearContents
+    ws.Range("B2").NumberFormat = "General"
+    AssertEqual "dec1", InsertedNumFmt(ws, "stacked"), "1a celula vazia: a 1a numerica decide"
+    ws.Range("B2").Value = 100: ws.Range("B2:C5").NumberFormat = "0.0"
+    For Each k In Array("stacked100", "barstacked100", "area", "area100", "combo", "butterfly", "doughnut", "barclustered", "waterfall")
+        AssertEqual "dec1", InsertedNumFmt(ws, CStr(k)), k & ": formato '0.0'"
+    Next
+    ws.Range("B2:B5").Value = Application.Transpose(Array(0.5, 0.3, 0.15, 0.05)): ws.Range("B2:C5").NumberFormat = "0%"
+    AssertEqual "pct0", InsertedNumFmt(ws, "pie"), "pizza: % que soma 100% = participacao"
+    AssertEqual "pct0", InsertedNumFmt(ws, "doughnut")
+    ws.Range("B2:B5").Value = Application.Transpose(Array(0.3, 0.4, 0.5, 0.2))
+    AssertEqual "dec2", InsertedNumFmt(ws, "pie"), "pizza: % que nao soma 100% mostra o valor"
+    AssertEqual "pct0", InsertedNumFmt(ws, "stacked"), "colunas: o % da tabela"
+    Teardown wb
+End Sub
+
+Private Function InsertedNumFmt(ws As Worksheet, kind As String) As String
+    ws.Range("A1:C5").Select
+    Core_Insert kind
+    InsertedNumFmt = Registry_GetOption(Core_ActiveChart(), "numfmt", "?")
+    ws.ChartObjects(1).Delete
+    CalcSheet_Cleanup ws.Parent
+End Function

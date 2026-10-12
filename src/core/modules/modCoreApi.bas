@@ -166,27 +166,15 @@ Fail:
     End If
 End Sub
 
-' Chave de numfmt que corresponde a um codigo de formato de celula (ingles): percentual -> pct0 (sem casas) ou pct1; 1 casa -> dec1; 2 ou
-' mais -> dec2; senao (Geral, inteiro, data, texto) int. So a primeira secao conta; textos entre aspas e colchetes ([Red], [$R$-416]) sao
-' ignorados.
+' Chave de numfmt que corresponde a um codigo de formato de celula (ingles): percentual -> pct0 (sem casas) ou pct1; escala de milhares
+' ("#,##0,") -> mil e de milhoes ("0.0,,") -> mi; 1 casa -> dec1; 2 ou mais -> dec2; senao (Geral, inteiro, data, texto) int. So a primeira
+' secao conta, limpa por Style_CleanFormatSection (textos, colchetes como [Red] e [$R$-416], literais).
 Private Function NumFmtKeyFromCode(code As String) As String
-    Dim sec As String, i As Long, ch As String, inQ As Boolean, inB As Boolean, clean As String, p As Long, d As Long
+    Dim clean As String, i As Long, ch As String, p As Long, d As Long, last As Long, commas As Long
     On Error GoTo Fail
     NumFmtKeyFromCode = "int"
     If Len(code) = 0 Or code = "General" Or code = "@" Then Exit Function
-    sec = Split(code & ";", ";")(0)
-    For i = 1 To Len(sec)
-        ch = Mid$(sec, i, 1)
-        If ch = """" And Not inB Then
-            inQ = Not inQ
-        ElseIf ch = "[" And Not inQ Then
-            inB = True
-        ElseIf ch = "]" And inB Then
-            inB = False
-        ElseIf Not inQ And Not inB Then
-            clean = clean & ch
-        End If
-    Next
+    clean = Style_CleanFormatSection(code)
     If clean Like "*[dDmMyYhHsS]*" Then Exit Function              ' data ou hora
     p = InStr(clean, ".")
     If p > 0 Then
@@ -195,8 +183,22 @@ Private Function NumFmtKeyFromCode(code As String) As String
             If ch = "0" Or ch = "#" Or ch = "?" Then d = d + 1 Else Exit For
         Next
     End If
+    ' escala: virgulas logo depois do ULTIMO digito do formato ("#,##0," = milhares; "0.0,," = milhoes)
+    For i = 1 To Len(clean)
+        ch = Mid$(clean, i, 1)
+        If ch = "0" Or ch = "#" Or ch = "?" Then last = i
+    Next
+    If last > 0 Then
+        For i = last + 1 To Len(clean)
+            If Mid$(clean, i, 1) = "," Then commas = commas + 1 Else Exit For
+        Next
+    End If
     If InStr(clean, "%") > 0 Then
         NumFmtKeyFromCode = IIf(d = 0, "pct0", "pct1")
+    ElseIf commas >= 2 Then
+        NumFmtKeyFromCode = "mi"
+    ElseIf commas = 1 Then
+        NumFmtKeyFromCode = "mil"
     ElseIf d = 1 Then
         NumFmtKeyFromCode = "dec1"
     ElseIf d >= 2 Then
@@ -207,22 +209,30 @@ Fail:
     NumFmtKeyFromCode = "int"
 End Function
 
-' Formato inicial (numfmt) do grafico recem-inserido pelo formato da primeira celula NUMERICA da primeira coluna de valores (a primeira celula
-' se nenhuma for numerica): uma tabela com 1 casa decimal ou em % nao vira rotulos inteiros. So nos tipos com numfmt na matriz e so quando o
-' tipo nasceu com "int" (o Mekko (%) escolhe pct0 para as participacoes). O usuario continua trocando o formato depois. Uma falha aqui nao
-' desfaz a insercao: fica registrada e o grafico mantem "int". Nunca propaga erro.
+' Formato inicial (numfmt) do grafico recem-inserido pelo formato da primeira celula NUMERICA da primeira coluna de valores (texto, vazio e erro
+' sao pulados; a primeira celula se nenhuma for numerica): uma tabela com 1 casa decimal, em milhares ou em % nao vira rotulos inteiros. So nos
+' tipos com numfmt na matriz e so quando o tipo nasceu com "int" (o Mekko (%) escolhe pct0 para as participacoes). Pizza e rosca: pct0/pct1
+' MOSTRAM A PARTICIPACAO de cada fatia no total; so ficam quando a origem em % ja e participacao (a coluna soma ~100%); senao o valor em
+' decimais (dec2). O usuario continua trocando o formato depois. Uma falha aqui nao desfaz a insercao: fica registrada e o grafico mantem
+' "int". Nunca propaga erro.
 Private Sub ApplySourceNumFmt(cht As Chart, kind As String, data As clsChartData)
-    Dim i As Long, c As Range, v As Variant, key As String
+    Dim i As Long, c As Range, v As Variant, key As String, sum As Double
     On Error GoTo Fail
     If Not Kinds_Supports(kind, "numfmt") Then Exit Sub
     If Registry_GetOption(cht, "numfmt", "int") <> "int" Then Exit Sub
     For i = 1 To data.CategoryCount
         v = data.ValueCell(i, 1).Value2
-        If Not IsError(v) And Not IsEmpty(v) And VarType(v) <> vbString And VarType(v) <> vbBoolean Then Set c = data.ValueCell(i, 1): Exit For
+        If Not IsError(v) And Not IsEmpty(v) And VarType(v) <> vbString And VarType(v) <> vbBoolean Then
+            If c Is Nothing Then Set c = data.ValueCell(i, 1)
+            sum = sum + CDbl(v)
+        End If
     Next
     If c Is Nothing Then Set c = data.ValueCell(1, 1)
     If IsNull(c.NumberFormat) Then Exit Sub
     key = NumFmtKeyFromCode(CStr(c.NumberFormat))
+    If Kinds_Family(kind) = "pie" And (key = "pct0" Or key = "pct1") Then
+        If Abs(sum - 1) > 0.01 Then key = "dec2"                    ' % que nao e participacao: o valor, nao a fatia do total
+    End If
     If key <> "int" Then ApplyOption cht, "numfmt", key
     Exit Sub
 Fail:
