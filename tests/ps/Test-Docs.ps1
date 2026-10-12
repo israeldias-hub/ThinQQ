@@ -43,7 +43,8 @@ $html = Read-Utf8 $tutorialPath
 $bytes = (Get-Item $tutorialPath).Length
 Check ($html -notmatch 'THINQQ-TUTORIAL-STUB') 'tutorial sem marcador de esqueleto'
 Check ($bytes -ge 2000) "tutorial com tamanho mínimo ($bytes bytes)"
-Check ($bytes -le 163840) "tutorial com até 160 KB ($bytes bytes)"
+# limite de 192 KB (decisao da revisao final da Fase 3, era 160 KB): o tutorial e um arquivo unico e autocontido e cresce a cada fase
+Check ($bytes -le 196608) "tutorial com até 192 KB ($bytes bytes)"
 Check ($html -match '<html lang="pt-BR">' -and $html -match 'name="viewport"') 'idioma pt-BR e viewport'
 Check ($html -match 'prefers-color-scheme:\s*dark' -and $html -match '@media print') 'modo escuro e impressão'
 Check ($html -match 'class="skip"' -and $html -match '<nav[^>]*aria-label' -and $html -match '<main') 'link de pular, nav e main'
