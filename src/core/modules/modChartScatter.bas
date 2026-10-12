@@ -308,7 +308,9 @@ End Function
 
 ' Formato dos numeros dos eixos X e Y = o da primeira celula numerica da coluna de origem (sem isso a margem em % aparecia 0,3 / 0,325).
 ' Usa o NumberFormatLocal da CELULA: ja na notacao do Excel desta maquina, inclusive datas e textos entre aspas, que Style_LocalizeCode nao
-' traduz. Geral (ou nenhuma celula numerica) = o padrao "General". Na insercao e em todo refresh; so escreve o que mudou. Nunca propaga erro.
+' traduz. Geral (ou nenhuma celula numerica) = o padrao do eixo novo: ligado a origem (o bloco, em Geral). Nao grava o codigo "General" por
+' NumberFormat: medido, isso (com um grafico movido para folha de grafico na mesma sessao) fazia o DataLabels.NumberFormat de OUTROS graficos
+' devolver o codigo local. Na insercao e em todo refresh; so escreve o que mudou. Nunca propaga erro.
 Public Sub Scatter_SyncAxisFormats(cht As Chart)
     Dim k As Long, c As Range, ax As Axis, want As String
     On Error Resume Next
@@ -321,7 +323,7 @@ Public Sub Scatter_SyncAxisFormats(cht As Chart)
                 If CStr(c.NumberFormat) <> "General" Then want = CStr(c.NumberFormatLocal)
             End If
             If Len(want) = 0 Then
-                If ax.TickLabels.NumberFormat <> "General" Then ax.TickLabels.NumberFormat = "General"
+                If Not ax.TickLabels.NumberFormatLinked Then ax.TickLabels.NumberFormatLinked = True       ' padrao do eixo novo (Geral, ligado ao bloco)
             ElseIf ax.TickLabels.NumberFormatLocal <> want Then
                 ax.TickLabels.NumberFormatLocal = want
             End If

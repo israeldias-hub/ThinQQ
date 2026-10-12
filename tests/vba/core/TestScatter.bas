@@ -506,7 +506,7 @@ Public Sub Test_Scatter_AxisNumberFormat_FollowsSource()
         AssertEqual ws.Range("C2").NumberFormatLocal, axY.TickLabels.NumberFormatLocal, k & ": o refresh acompanha o formato novo"
         ws.Range("C2:C5").NumberFormat = "General"
         Core_SafeRefresh cht
-        AssertEqual "General", axY.TickLabels.NumberFormat, k & ": Geral mantem o padrao"
+        AssertTrue axY.TickLabels.NumberFormatLinked, k & ": Geral volta ao padrao (ligado a origem)"
         ws.Range("C2:C5").NumberFormat = "0.0"
         ws.ChartObjects(1).Delete
         CalcSheet_Cleanup wb
