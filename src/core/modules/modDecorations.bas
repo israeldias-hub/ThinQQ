@@ -460,12 +460,13 @@ End Function
 ' Mekko (%), pizza e Gantt) devolve o eixo ao automatico, le o minimo e o maximo e aplica a TODOS a uniao (o menor minimo e o maior
 ' maximo), persistindo em vmin/vmax para o refresh reaplicar (Deco_ApplyFixedScale). Chamar de novo recalcula a partir das escalas
 ' automaticas de agora (a escala e fixa, nao dinamica). Devolve quantos receberam a escala; skipped = quantos foram ignorados pelo
-' TIPO. Com menos de dois graficos aceitos nada e feito (uma escala "igual a de si mesma" so fixaria o eixo) e devolve 0. Um grafico
-' cuja leitura falha e registrado e fica de fora. Nunca propaga erro por grafico.
-Public Function Deco_SameScale(charts As Collection, ByRef skipped As Long) As Long
+' TIPO e brkSkipped = quantos ficaram de fora pelo corte de eixo (contados a parte: o tipo deles tem escala livre). Com menos de dois
+' graficos aceitos nada e feito (uma escala "igual a de si mesma" so fixaria o eixo) e devolve 0. Um grafico cuja leitura falha e registrado
+' e fica de fora. Nunca propaga erro por grafico.
+Public Function Deco_SameScale(charts As Collection, ByRef skipped As Long, Optional ByRef brkSkipped As Long) As Long
     Dim c As Variant, cht As Chart, ok As Collection, got As Collection, los() As Double, his() As Double, n As Long, i As Long
     Dim lo As Double, hi As Double, gLo As Double, gHi As Double
-    skipped = 0
+    skipped = 0: brkSkipped = 0
     If charts Is Nothing Then Exit Function
     Set ok = New Collection
     For Each c In charts
@@ -473,6 +474,7 @@ Public Function Deco_SameScale(charts As Collection, ByRef skipped As Long) As L
         Select Case FreeScaleKind(cht)
             Case 1: ok.Add cht
             Case 0: skipped = skipped + 1
+            Case 2: brkSkipped = brkSkipped + 1
         End Select                                                ' -1 (grafico ilegivel, registrado): fica de fora sem contar como "tipo"
     Next
     If ok.Count < 2 Then Exit Function
@@ -509,11 +511,17 @@ Public Function Deco_SameScale(charts As Collection, ByRef skipped As Long) As L
     Next
 End Function
 
-' 1 = o grafico tem escala livre (Kinds_Supports "samescale"), 0 = nao tem (tipo, ou corte de eixo gravado: mesma escala e corte sao
-' excludentes), -1 = nao foi possivel ler o tipo (grafico invalido; registrado).
+' 1 = o grafico tem escala livre (Kinds_Supports "samescale"), 0 = o tipo nao tem, 2 = tem, mas com corte de eixo gravado (mesma escala e
+' corte sao excludentes), -1 = nao foi possivel ler o tipo (grafico invalido; registrado).
 Private Function FreeScaleKind(cht As Chart) As Long
     On Error GoTo Fail
-    FreeScaleKind = IIf(Kinds_Supports(Registry_ChartType(cht), "samescale") And Len(Registry_GetOption(cht, "vbreak", "")) = 0, 1, 0)
+    If Not Kinds_Supports(Registry_ChartType(cht), "samescale") Then
+        FreeScaleKind = 0
+    ElseIf Len(Registry_GetOption(cht, "vbreak", "")) > 0 Then
+        FreeScaleKind = 2
+    Else
+        FreeScaleKind = 1
+    End If
     Exit Function
 Fail:
     Errors_Log "Deco_SameScale/tipo" & vbTab & Err.Number & vbTab & Err.Description

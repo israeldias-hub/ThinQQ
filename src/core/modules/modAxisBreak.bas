@@ -14,6 +14,7 @@ Private Const BK_LBL_OPT As String = "brklbl"
 Private Const BK_TOP_ROOM As Double = 24        ' folga (pt) acima da area interna para o rotulo do total da coluna cortada
 Private Const BK_RIGHT_MARGIN As Double = 10    ' barras: folga = largura do maior rotulo de total + esta margem
 Private Const BK_TOP_SHARE As Double = 0.25     ' empilhadas: parte minima visivel do segmento de cima de uma coluna cortada (StackedFloor)
+Private Const BK_BASE_ROOM As Double = 14       ' rotulo na base (InsideBase) so com pelo menos isto (pt) entre a base e o corte (senao fica sob a marca)
 Public Const BREAK_ERR_LIMIT As String = "Corte de eixo: informe um valor maior que zero e menor que o maior valor do gráfico."
 Private mBusy As Boolean                        ' Break_Set/Break_Remove em andamento: o refresh por evento (Calculate) nao interfere
 Private mPendingNotice As String                 ' aviso de Break_TryReapply guardado ate "Alterar dados" trocar o grafico (Break_TakeNotice)
@@ -376,13 +377,17 @@ Fail:
     Err.Raise en, es, ed
 End Sub
 
-' Reaplica o maximo fixo se o eixo voltou ao automatico (ex.: o usuario mexeu no eixo) ou difere do limite. Sem corte nao faz nada.
+' Reaplica o maximo fixo se o eixo voltou ao automatico (ex.: o usuario mexeu no eixo) ou difere do limite; um minimo manual >= limite volta ao
+' automatico antes (o Excel recusa maximo abaixo do minimo). Sem corte nao faz nada.
 Public Sub Break_ApplyAxis(cht As Chart)
     Dim lim As Double, ax As Axis
     lim = Break_Limit(cht)
     If lim <= 0 Then Exit Sub
     Set ax = cht.Axes(xlValue, xlPrimary)
     If ax.MaximumScaleIsAuto Or Abs(ax.MaximumScale - lim) > 0.000000001 * (1 + lim) Then
+        If Not ax.MinimumScaleIsAuto Then
+            If ax.MinimumScale >= lim Then ax.MinimumScaleIsAuto = True     ' minimo manual acima do corte: o Excel recusaria o maximo a cada calculo
+        End If
         ax.MaximumScale = lim
         If Geom_ChartIsHorizontal(cht) Then Chart_SyncSecondaryX cht
     End If
@@ -478,11 +483,14 @@ End Sub
 ' limite, todos voltam ao normal. So o ThinQQ religa o que ELE ocultou (lista brklbl): um rotulo ausente fora da lista foi apagado pelo
 ' usuario e fica apagado. Transacional por ponto: um ponto cuja leitura falha fica como esta; um par so entra na lista quando ocultar deu
 ' certo e so sai quando religar deu certo; a lista e gravada tambem na saida por erro. So escreve o que mudou. Nunca propaga erro.
+' Onda B: um rotulo visivel sai da lista (entrada obsoleta traria de volta um rotulo que o usuario apagasse depois); so muda a posicao de um
+' rotulo que ainda esta numa posicao que o corte aplica (a normal ou InsideBase): a posicao escolhida pelo usuario fica; o rotulo que iria para
+' a base com menos de BK_BASE_ROOM pt entre a base e o corte (ficaria sob a marca) e ocultado como os de cima.
 Public Sub Break_SyncLabels(cht As Chart)
     Dim lim As Double, flat As Boolean, n As Long, i As Long, j As Long, s As Series, v As Variant, x As Double, base() As Double
     Dim want As Long, hide As Boolean, has As Boolean, readOk As Boolean, normalPos As Long, cur As Long, fc As Long
     Dim list0 As String, list As String, key As String, rs As Boolean, blk As Range, body As Range, rc As Long, rcRef As String, sheetRef As String
-    Dim en As Long, ed As String
+    Dim en As Long, ed As String, ptsPerUnit As Double, ax As Axis
     On Error GoTo Done
     list0 = Registry_GetOption(cht, BK_LBL_OPT, ""): list = list0
     If Registry_GetOption(cht, "labels", "1") <> "1" Then GoTo Done
@@ -501,6 +509,20 @@ Public Sub Break_SyncLabels(cht As Chart)
                 sheetRef = "='" & Replace(blk.Worksheet.Name, "'", "''") & "'!"
             End If
         End If
+    End If
+    If lim > 0 Then                                  ' pontos por unidade do eixo (0 se a leitura falha: sem a regra da base)
+        On Error Resume Next
+        Set ax = cht.Axes(xlValue, xlPrimary)
+        If ax.MaximumScale > ax.MinimumScale Then
+            If Geom_ChartIsHorizontal(cht) Then
+                ptsPerUnit = cht.PlotArea.InsideWidth / (ax.MaximumScale - ax.MinimumScale)
+            Else
+                ptsPerUnit = cht.PlotArea.InsideHeight / (ax.MaximumScale - ax.MinimumScale)
+            End If
+        End If
+        If Err.Number <> 0 Then ptsPerUnit = 0
+        Err.Clear
+        On Error GoTo Done
     End If
     ReDim base(1 To n)
     For Each s In cht.SeriesCollection
@@ -521,6 +543,7 @@ Public Sub Break_SyncLabels(cht As Chart)
                         hide = True
                     ElseIf base(i) + x > lim Then
                         want = xlLabelPositionInsideBase
+                        If (lim - base(i)) * ptsPerUnit < BK_BASE_ROOM And ptsPerUnit > 0 Then hide = True      ' sob a marca do corte
                     End If
                 End If
                 If x > 0 And Not flat Then base(i) = base(i) + x
@@ -536,12 +559,13 @@ Public Sub Break_SyncLabels(cht As Chart)
                             If Err.Number = 0 Then list = ListAdd(list, key)
                         End If
                     ElseIf has Then
+                        If ListHas(list, key) Then list = ListRemove(list, key)      ' visivel: a entrada ficou obsoleta
                         cur = s.Points(i).DataLabel.Position
                         If Err.Number = 0 Then
-                            If cur <> want Then
+                            If cur <> want And (cur = normalPos Or cur = xlLabelPositionInsideBase) Then
                                 s.Points(i).DataLabel.Position = want
                                 s.Points(i).DataLabel.Font.Color = LabelFontColor(s, want)
-                            ElseIf want = xlLabelPositionInsideBase Then
+                            ElseIf cur = want And want = xlLabelPositionInsideBase Then
                                 fc = LabelFontColor(s, want)       ' a paleta pode ter mudado o preenchimento (agrupadas: a serie nao recolore a base)
                                 If s.Points(i).DataLabel.Font.Color <> fc Then s.Points(i).DataLabel.Font.Color = fc
                             End If
@@ -752,6 +776,25 @@ Fail:
     Registry_SetOption cht, "vbreak", ""
     If en = vbObjectError + 7003 Then mPendingNotice = "Corte de eixo retirado: o limite anterior (" & NumberText(lim) & ") não fica abaixo do maior valor dos dados novos."
 End Sub
+
+' Aviso nao bloqueante: com o corte, a linha de valor (media) acima do limite fica fora da area de plotagem e some. "" se nao ha o que avisar
+' (sem corte, linha desligada, media <= limite ou ilegivel). Nunca propaga erro.
+Public Function Break_VLineHiddenText(cht As Chart) As String
+    Dim lim As Double, vc As Range, v As Variant
+    On Error GoTo Fail
+    lim = Break_Limit(cht)
+    If lim <= 0 Then Exit Function
+    If Registry_GetOption(cht, "vline", "0") <> "1" Then Exit Function
+    Set vc = Deco_VLineCells(cht)
+    If vc Is Nothing Then Exit Function
+    v = vc.Cells(1, 1).Value2
+    If IsError(v) Or IsEmpty(v) Then Exit Function
+    If Not IsNumeric(v) Then Exit Function
+    If CDbl(v) > lim Then Break_VLineHiddenText = "A linha de valor (média " & NumberText(CDbl(v)) & ") fica acima do corte de eixo (" & NumberText(lim) & ") e não aparece no gráfico."
+    Exit Function
+Fail:
+    Break_VLineHiddenText = ""
+End Function
 
 ' O aviso que Break_TryReapply guardou (um so por chamada: o ultimo grafico reaplicado), devolvido e limpo. "Alterar dados" o mostra so DEPOIS de
 ' trocar o grafico (uma falha antes disso mantem o grafico antigo, cortado, e o aviso e descartado).

@@ -157,7 +157,7 @@ Public Sub Test_Break_Clustered_And_Bars()
 End Sub
 
 Public Sub Test_Break_Refusals_SameScale_Rebuild_RemoveAll()
-    Dim wb As Workbook, ws As Worksheet, rng As Range, cht As Chart, c2 As Chart, coll As New Collection, skipped As Long, en As Long
+    Dim wb As Workbook, ws As Worksheet, rng As Range, cht As Chart, c2 As Chart, coll As New Collection, skipped As Long, en As Long, brk As Long
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb): Set ws = rng.Worksheet
     rng.Select
     Core_Insert "stacked100"
@@ -188,7 +188,8 @@ Public Sub Test_Break_Refusals_SameScale_Rebuild_RemoveAll()
     CutThenRaise cht, 50, False
     AssertEqual "", Registry_GetOption(cht, "vmax", ""), "o corte limpa a escala fixa"
     Set coll = New Collection: coll.Add cht: coll.Add c2
-    AssertEqual 0, Deco_SameScale(coll, skipped): AssertEqual 1, skipped, "grafico com corte fica fora da mesma escala"
+    AssertEqual 0, Deco_SameScale(coll, skipped, brk): AssertEqual 1, brk, "grafico com corte fica fora da mesma escala"
+    AssertEqual 0, skipped, "contado a parte, nao como tipo sem escala livre (Onda B)"
     AssertEqual 50, cht.Axes(xlValue).MaximumScale, "o corte nao foi desfeito"
     Ann_AddCagr cht, 1, 3
     Ann_RemoveAll cht
@@ -793,4 +794,183 @@ Cleanup:
     Util_FailThinSyncForTest = ""
     Teardown wb
     If en <> 0 Then Err.Raise en, es, ed
+End Sub
+
+' Onda B (B2.5a): entrada obsoleta em brklbl (o rotulo do par ja esta visivel) sai da lista na sincronizacao; se o usuario apaga o rotulo depois,
+' ele continua apagado (a entrada nao o traz de volta).
+Public Sub Test_Break_ObsoleteListEntry_Dropped_DeletedStaysDeleted()
+    Dim wb As Workbook, rng As Range, cht As Chart, s1 As Series
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    CutThenRaise cht, 50
+    Set s1 = cht.SeriesCollection(1)
+    AssertEqual "2.3", Registry_GetOption(cht, "brklbl")
+    AssertTrue s1.Points(1).HasDataLabel, "premissa: 1.1 visivel"
+    Registry_SetOption cht, "brklbl", "2.3,1.1"                   ' entrada obsoleta (versao anterior, ou religado por fora)
+    Break_SyncLabels cht
+    AssertEqual "2.3", Registry_GetOption(cht, "brklbl"), "visivel: a entrada obsoleta sai"
+    s1.Points(1).HasDataLabel = False                           ' o usuario apaga
+    Break_SyncLabels cht
+    AssertFalse s1.Points(1).HasDataLabel, "apagado pelo usuario continua apagado"
+    Teardown wb
+End Sub
+
+' Onda B (B2.5e): o usuario poe o eixo no automatico e um minimo manual acima do corte: Break_ApplyAxis (refresh) volta o minimo ao automatico
+' antes de fixar o maximo (o Excel recusava o maximo abaixo do minimo a cada calculo, so no log).
+Public Sub Test_Break_ApplyAxis_ManualMinAboveLimit()
+    Dim wb As Workbook, rng As Range, cht As Chart, ax As Axis, en As Long
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    CutThenRaise cht, 50
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    Application.EnableEvents = False
+    ax.MaximumScaleIsAuto = True
+    ax.MinimumScale = 60
+    Application.EnableEvents = True
+    On Error Resume Next
+    Break_ApplyAxis cht
+    en = Err.Number
+    On Error GoTo 0
+    AssertEqual 0, en, "sem erro"
+    AssertEqual 50, ax.MaximumScale, "corte reaplicado"
+    AssertTrue ax.MinimumScaleIsAuto, "minimo de volta ao automatico"
+    Application.EnableEvents = False                            ' maximo manual (nao automatico) acima do corte e minimo manual acima do corte
+    ax.MaximumScale = 300
+    ax.MinimumScale = 60
+    Application.EnableEvents = True
+    On Error Resume Next
+    Break_ApplyAxis cht
+    en = Err.Number
+    On Error GoTo 0
+    AssertEqual 0, en, "sem erro (maximo manual)"
+    AssertEqual 50, ax.MaximumScale, "corte reaplicado (maximo manual)"
+    AssertTrue ax.MinimumScaleIsAuto, "minimo de volta ao automatico (maximo manual)"
+    Teardown wb
+End Sub
+
+' Onda B (B2.5f): a sincronizacao so muda a posicao de rotulos que estao numa posicao do proprio corte (a normal ou InsideBase): a posicao que
+' o usuario escolheu fica, no refresh e na sincronizacao seguinte.
+Public Sub Test_Break_SyncLabels_KeepsUserPosition()
+    Dim wb As Workbook, rng As Range, cht As Chart, s1 As Series
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    CutThenRaise cht, 50
+    Set s1 = cht.SeriesCollection(1)
+    s1.Points(1).DataLabel.Position = xlLabelPositionInsideEnd     ' personalizado pelo usuario
+    Core_SafeRefresh cht
+    Break_SyncLabels cht
+    AssertEqual xlLabelPositionInsideEnd, s1.Points(1).DataLabel.Position, "posicao do usuario mantida"
+    AssertEqual xlLabelPositionInsideBase, s1.Points(3).DataLabel.Position, "o atravessado continua na base"
+    AssertEqual xlLabelPositionCenter, s1.Points(2).DataLabel.Position, "os demais no centro"
+    Teardown wb
+End Sub
+
+' Onda B (B2.5i): rotulo que iria para a base de um segmento atravessado com menos de ~14 pt visiveis abaixo do corte (ficaria sob a marca) e
+' ocultado e volta (na base) quando a parte visivel cresce.
+Public Sub Test_Break_BaseLabel_TooCloseToMark_Hidden()
+    Dim wb As Workbook, rng As Range, cht As Chart, ws As Worksheet, s2 As Series, ax As Axis
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb): Set ws = rng.Worksheet
+    ws.Range("B4").Value = 48: ws.Range("C4").Value = 30           ' c: S2 de 48 a 78, so 2 unidades abaixo de 50
+    rng.Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    Break_Set cht, 50, False                                    ' sem o piso (como os dados que sobem depois do corte)
+    Core_SafeRefresh cht
+    Set s2 = cht.SeriesCollection(2): Set ax = cht.Axes(xlValue, xlPrimary)
+    ForceLayout cht
+    AssertTrue 2 * cht.PlotArea.InsideHeight / (ax.MaximumScale - ax.MinimumScale) < 14, "premissa: 2 unidades < 14 pt"
+    AssertFalse s2.Points(3).HasDataLabel, "rotulo sob a marca: oculto"
+    AssertTrue InStr("," & Registry_GetOption(cht, "brklbl", "") & ",", ",2.3,") > 0, "registrado para voltar"
+    ws.Range("B4").Value = 25                                   ' S2 de 25 a 55: 25 unidades visiveis
+    Core_SafeRefresh cht
+    AssertTrue s2.Points(3).HasDataLabel, "volta"
+    AssertEqual xlLabelPositionInsideBase, s2.Points(3).DataLabel.Position
+    Teardown wb
+End Sub
+
+' Onda B (B2.5h): soma consistente ligada ANTES do corte: depois de Break_Set o texto de cada rotulo de segmento visivel e o da Rnd_j (os da
+' categoria somam o total arredondado), nao o valor cru. Ja valia antes da Onda B (teste de cobertura).
+Public Sub Test_Break_RoundSumFirst_SegmentTextsAreRnd()
+    Dim wb As Workbook, rng As Range, ws As Worksheet, cht As Chart, blk As Range, body As Range, s As Series, j As Long, i As Long, vis As Long
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb): Set ws = rng.Worksheet
+    rng.Select
+    Core_Insert "stacked"                                       ' formato inteiro (a 1a celula de valor e inteira)
+    Set cht = Core_ActiveChart()
+    ws.Range("B2:C2").Value = Array(5.4, 5.4)                   ' total 10,8 -> 11: 5 + 6 com a soma consistente (5 + 5 sem)
+    Core_SetToggle "roundsum", True
+    CutThenRaise cht, 50
+    Set blk = Registry_Block(cht): Set body = Block_Body(blk)
+    For Each s In cht.SeriesCollection
+        If Not Style_IsHelperSeries(s) Then
+            j = j + 1
+            For i = 1 To s.Points.Count
+                If s.Points(i).HasDataLabel Then
+                    vis = vis + 1
+                    AssertEqual CStr(body.Cells(i + 1, Round_RCol(blk, j)).Value), s.Points(i).DataLabel.Text, s.Name & " ponto " & i
+                End If
+            Next
+        End If
+    Next
+    AssertEqual 5, vis, "6 segmentos menos o de cima da coluna cortada"
+    AssertEqual "6", cht.SeriesCollection(1).Points(1).DataLabel.Text: AssertEqual "5", cht.SeriesCollection(2).Points(1).DataLabel.Text, "6 + 5 = 11 (empate: a primeira recebe)"
+    Teardown wb
+End Sub
+
+' Onda B (B2.5g): a Mesma escala conta a parte o grafico com corte (nao e "tipo sem escala livre"); ligar o corte num grafico do grupo avisa
+' em uma linha que ele saiu do grupo.
+Public Sub Test_Break_SameScale_CountedApart_LeavingGroupNotice()
+    Dim wb As Workbook, rng As Range, ws As Worksheet, c3 As Chart
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb): Set ws = rng.Worksheet
+    ws.Range("A10:C10").Value = Array("Cat", "S1", "S2"): ws.Range("A11:C11").Value = Array("x", 1, 2): ws.Range("A12:C12").Value = Array("y", 3, 4)
+    ws.Range("A10:C12").Select: Core_Insert "stacked"
+    ws.Range("A10:C12").Select: Core_Insert "clustered"
+    rng.Select: Core_Insert "stacked"
+    Set c3 = Core_ActiveChart()
+    LowerC c3                                                   ' c = (20, 120): o corte em 50 passa no piso
+    ws.Range("A1").Select
+    Core_SameScale
+    AssertTrue Len(Registry_GetOption(c3, "vmax", "")) > 0, "premissa: no grupo"
+    c3.Parent.Select
+    Core_ClearLastNotice
+    Core_SetAxisBreakAt 50
+    AssertEqual "50", Registry_GetOption(c3, "vbreak", "")
+    AssertEqual "O gráfico saiu do grupo de Mesma escala: corte de eixo e Mesma escala são excludentes.", Core_LastNotice()
+    ws.Range("A1").Select
+    Core_ClearLastNotice
+    Core_SameScale
+    AssertEqual "Mesma escala aplicada a 2 gráfico(s). 1 com corte de eixo fora do grupo (corte de eixo e Mesma escala são excludentes).", Core_LastNotice()
+    Teardown wb
+End Sub
+
+' Onda B (B2.5d): a linha de valor (media) acima do corte some do grafico: aviso nao bloqueante ao ligar a linha com o corte e ao ligar o corte
+' com a linha; media abaixo do corte: sem aviso.
+Public Sub Test_Break_VLineAboveLimit_Notice()
+    Dim wb As Workbook, rng As Range, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb): Set ws = rng.Worksheet
+    rng.Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    LowerC cht                                                  ' totais 10, 20, 140: media 56,67
+    Core_ClearLastNotice
+    Core_SetAxisBreakAt 50
+    AssertEqual "", Core_LastNotice(), "linha desligada: sem aviso"
+    Core_SetToggle "vline", True
+    AssertTrue InStr(Core_LastNotice(), "linha de valor") > 0 And InStr(Core_LastNotice(), "acima do corte de eixo (50)") > 0, Core_LastNotice()
+    Core_RemoveAxisBreak
+    Core_ClearLastNotice
+    Core_SetAxisBreakAt 50
+    AssertTrue InStr(Core_LastNotice(), "linha de valor") > 0, "ligar o corte com a linha ligada: " & Core_LastNotice()
+    Core_SetToggle "vline", False
+    Core_RemoveAxisBreak
+    Core_ClearLastNotice
+    Core_SetAxisBreakAt 100                                     ' media 56,67 < 100
+    Core_SetToggle "vline", True
+    AssertEqual "", Core_LastNotice(), "media abaixo do corte: sem aviso"
+    Teardown wb
 End Sub

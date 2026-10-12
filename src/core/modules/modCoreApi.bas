@@ -431,11 +431,15 @@ End Function
 
 Public Sub Core_SetToggle(key As String, value As Boolean)
     On Error GoTo Fail
-    Dim c As Chart
+    Dim c As Chart, msg As String
     Set c = Core_ActiveChart()
     If c Is Nothing Then Exit Sub
     ApplyToggle c, key, value
     Core_SafeRefresh c
+    If key = "vline" And value Then
+        msg = Break_VLineHiddenText(c)                   ' aviso nao bloqueante: a media acima do corte de eixo nao aparece
+        If Len(msg) > 0 Then Core_Notify msg, vbInformation
+    End If
     Exit Sub
 Fail:
     If Err.Number = vbObjectError + 7002 Then
@@ -596,38 +600,28 @@ End Function
 ' ignorados pelo tipo (100%, Mekko (%), pizza e Gantt nao tem escala livre). A escala fica fixa: quem mudar muito os dados usa de novo.
 Public Sub Core_SameScale()
     On Error GoTo Fail
-    Dim coll As Collection, n As Long, skipped As Long, msg As String
+    Dim coll As Collection, n As Long, skipped As Long, brk As Long, msg As String
     Set coll = Core_SelectedCharts()
     If coll.Count < 2 Then Set coll = SheetThinQQCharts()
     If coll.Count < 2 Then
         Core_Notify "Mesma escala: selecione dois ou mais gráficos do ThinQQ (ou nenhum, para usar todos os gráficos da planilha).", vbInformation
         Exit Sub
     End If
-    n = Deco_SameScale(coll, skipped)
+    n = Deco_SameScale(coll, skipped, brk)
     If n < 2 Then
         msg = "Mesma escala: são necessários dois ou mais gráficos com escala livre (100%, Mekko (%), pizza e Gantt não entram)."
-        If AnyAxisBreak(coll) Then msg = msg & " Gráficos com corte de eixo também ficam de fora."
+        If brk > 0 Then msg = msg & " Gráficos com corte de eixo também ficam de fora."
         Core_Notify msg, vbInformation
         Exit Sub
     End If
     msg = "Mesma escala aplicada a " & n & " gráfico(s)."
     If skipped > 0 Then msg = msg & " " & skipped & " ignorado(s): tipo sem escala livre (100%, Mekko (%), pizza, Gantt)."
-    If AnyAxisBreak(coll) Then msg = msg & " Gráficos com corte de eixo também ficam de fora."
+    If brk > 0 Then msg = msg & " " & brk & " com corte de eixo fora do grupo (corte de eixo e Mesma escala são excludentes)."
     Core_Notify msg, vbInformation
     Exit Sub
 Fail:
     Errors_Handle "Core_SameScale"
 End Sub
-
-' True se algum grafico da colecao tem corte de eixo (Mesma escala o ignora: o aviso diz por que). False em qualquer duvida.
-Private Function AnyAxisBreak(coll As Collection) As Boolean
-    Dim c As Variant, cht As Chart
-    On Error Resume Next
-    For Each c In coll
-        Set cht = c
-        If Len(Registry_GetOption(cht, "vbreak", "")) > 0 Then AnyAxisBreak = True: Exit Function
-    Next
-End Function
 
 ' Escala automatica: devolve ao automatico o eixo de valores do grafico ThinQQ ativo ou dos selecionados (sem nenhum, de todos os da
 ' planilha ativa, como a Mesma escala) e limpa a escala gravada. So os graficos com a escala fixa do ThinQQ (Deco_ResetScale): um eixo ajustado
@@ -745,14 +739,21 @@ Fail:
 End Sub
 
 ' Aplica o corte em limit no grafico ativo (limit <= 0 remove). Recusas (tipo sem corte, limite fora de 0 < limit < maior topo): aviso, nada
-' gravado.
+' gravado. Avisos nao bloqueantes (uma caixa so): o grafico saiu do grupo de Mesma escala (corte e Mesma escala sao excludentes) e a linha de
+' valor ficou acima do corte (some).
 Public Sub Core_SetAxisBreakAt(limit As Double)
     On Error GoTo Fail
-    Dim c As Chart
+    Dim c As Chart, hadScale As Boolean, msg As String
     Set c = Core_ActiveChart()
     If c Is Nothing Then Exit Sub
+    hadScale = (Len(Registry_GetOption(c, "vmax", "")) > 0)
     Break_Set c, limit
     Core_SafeRefresh c
+    If hadScale And limit > 0 Then
+        If Len(Registry_GetOption(c, "vmax", "")) = 0 Then msg = "O gráfico saiu do grupo de Mesma escala: corte de eixo e Mesma escala são excludentes."
+    End If
+    msg = Trim$(msg & " " & Break_VLineHiddenText(c))
+    If Len(msg) > 0 Then Core_Notify msg, vbInformation
     Exit Sub
 Fail:
     If Err.Number = vbObjectError + 7002 Or Err.Number = vbObjectError + 7003 Then
