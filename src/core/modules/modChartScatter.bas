@@ -10,7 +10,7 @@ Option Explicit
 ' com Nome = IF(ISBLANK(src),"",src) (no formato numerico da celula de origem), X/Y = IF(ISNUMBER(src),src,NA()),
 ' Tam = IF(ISNUMBER(src),IF(src>0,src,NA()),NA()) (dispersao: 1), Grupo = LEFT(IFERROR(src&"",""),255) (o valor como texto; erro = vazio), e
 ' Xg_k = IF(AND(Grupo="<nome k>",ISNUMBER(X),ISNUMBER(Y),ISNUMBER(Tam)),X,NA()) (idem Yg, Sg). DisplayBlanksAs = xlNotPlotted: o ponto NA
-' nao e desenhado e o seu rotulo tambem nao (medido). Meta: E = AvgX, F = AvgY (AGGREGATE ignora os NA()).
+' nao e desenhado e o seu rotulo tambem nao (medido). Meta: E = AvgX, F = AvgY sobre Xg e Yg (so os pontos plotados; AGGREGATE ignora os NA()).
 ' Um grupo que so aparece DEPOIS de inserir nao tem serie: "Alterar dados" recria (documentado no tutorial).
 Public Const SC_COL_NAME As Long = 1
 Public Const SC_COL_X As Long = 2
@@ -155,8 +155,10 @@ Public Function Scatter_BuildBlock(wb As Workbook, id As String, data As clsChar
             body.Cells(r, Scatter_SgCol(blk, k)).Formula = "=IF(" & cond & "," & t & ",NA())"
         Next
     Next
-    blk.Cells(1, SC_META_AVGX).Formula = "=IFERROR(AGGREGATE(1,6," & body.Cells(2, SC_COL_X).Resize(n, 1).Address(True, True) & "),0)"
-    blk.Cells(1, SC_META_AVGY).Formula = "=IFERROR(AGGREGATE(1,6," & body.Cells(2, SC_COL_Y).Resize(n, 1).Address(True, True) & "),0)"
+    ' medias so dos pontos PLOTADOS: as colunas por grupo (Xg, Yg) ja sao NA() fora do grupo e com X/Y invalido, tamanho <= 0 ou grupo
+    ' com erro; cada linha tem no maximo um valor nelas (um grupo so)
+    blk.Cells(1, SC_META_AVGX).Formula = "=IFERROR(AGGREGATE(1,6," & body.Cells(2, Scatter_XgCol(blk, 1)).Resize(n, g).Address(True, True) & "),0)"
+    blk.Cells(1, SC_META_AVGY).Formula = "=IFERROR(AGGREGATE(1,6," & body.Cells(2, Scatter_YgCol(blk, 1)).Resize(n, g).Address(True, True) & "),0)"
     Set Scatter_BuildBlock = blk
 End Function
 

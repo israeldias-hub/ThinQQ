@@ -465,3 +465,22 @@ Public Sub Test_Scatter_SpecialGroupNames_EqualsHelperPrefixLong()
     AssertEqual 1, cht.SeriesCollection(2).Trendlines.Count, "o grupo tqq_g tambem ganha tendencia"
     CloseTemp wb
 End Sub
+
+' As medias dos quadrantes contam so os pontos PLOTADOS: Y invalido (dispersao) e tamanho <= 0 (bolhas) ficam fora da media de X e de Y.
+Public Sub Test_Scatter_QuadAverages_OnlyPlottedPoints()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, blk As Range
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    d.Source.Worksheet.Range("C3").Value = "x"                              ' P2: Y invalido
+    Set cht = Scatter_Insert(d.Source.Worksheet, d, "scatter").Chart
+    Set blk = Registry_Block(cht)
+    AssertAlmost (10 + 30 + 40) / 3, CDbl(blk.Cells(1, 5).Value), 0.000001, "AvgX sem P2"
+    AssertAlmost (0.2 + 0.25 + 0.5) / 3, CDbl(blk.Cells(1, 6).Value), 0.000001, "AvgY sem P2"
+    CloseTemp wb
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb, True, True)
+    d.Source.Worksheet.Range("D5").Value = -20                              ' P4: tamanho negativo
+    Set cht = Scatter_Insert(d.Source.Worksheet, d, "bubble").Chart
+    Set blk = Registry_Block(cht)
+    AssertAlmost (10 + 20 + 30) / 3, CDbl(blk.Cells(1, 5).Value), 0.000001, "AvgX sem a bolha negativa"
+    AssertAlmost (0.2 + 0.35 + 0.25) / 3, CDbl(blk.Cells(1, 6).Value), 0.000001, "AvgY sem a bolha negativa"
+    CloseTemp wb
+End Sub
