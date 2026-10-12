@@ -166,6 +166,26 @@ Public Sub Test_Core_RebuildFromRange_KeepsPositionOptionsToggles()
     Teardown wb
 End Sub
 
+' Alterar dados no build Test: sai antes do InputBox (modal travaria o Excel invisivel), como Corte de eixo e Arredondar intervalo; o
+' grafico continua o mesmo (nenhum aviso, nenhum grafico novo, mesmo bloco). Sem grafico ativo: nada.
+Public Sub Test_Core_ChangeSource_TestBuild_NoInputBox()
+    Dim wb As Workbook, ws As Worksheet, nm As String
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    nm = ws.ChartObjects(1).Name
+    Core_ClearLastNotice
+    Core_ChangeSource
+    AssertEqual "", Core_LastNotice()
+    AssertEqual 1, ws.ChartObjects.Count, "nenhum grafico novo"
+    AssertEqual nm, ws.ChartObjects(1).Name, "o mesmo grafico"
+    AssertEqual 1, TqqNameCount(wb), "o mesmo bloco"
+    ws.Range("A1").Select
+    Core_ChangeSource
+    AssertEqual "", Core_LastNotice(), "sem grafico: nada"
+    Teardown wb
+End Sub
+
 Public Sub Test_Watchers_Rehook_CountsOnlyActiveSheetCharts()
     Dim wb As Workbook, ws As Worksheet
     Set wb = NewTempWorkbook(): Set ws = Fixture(wb)

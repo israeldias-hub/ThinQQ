@@ -926,12 +926,14 @@ Fail:
     Errors_Handle "Core_Refresh"
 End Sub
 
-' Troca a fonte de dados: pede a nova faixa e recria o gráfico no mesmo lugar, com as mesmas opções.
+' Troca a fonte de dados: pede a nova faixa e recria o gráfico no mesmo lugar, com as mesmas opções. Em build Test sai antes do InputBox
+' (modal travaria o Excel invisivel); os testes chamam Core_RebuildFromRange.
 Public Sub Core_ChangeSource()
     On Error GoTo Fail
     Dim c As Chart, rng As Range
     Set c = Core_ActiveChart()
     If c Is Nothing Then Exit Sub
+    If BUILD_CONFIG = "Test" Then Exit Sub                ' build Test: sem InputBox
     On Error Resume Next
     Set rng = Application.InputBox("Selecione a nova tabela (cabeçalho + categorias):", APP_NAME, Type:=8)
     On Error GoTo Fail
