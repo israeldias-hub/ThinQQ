@@ -10,6 +10,8 @@ Private mClipSeen As Collection     ' ids de gráficos já avisados de dados aci
 Private mCopySeen As Collection     ' ids de gráficos já avisados de cópia em outra planilha (planilha copiada)
 Private mTestFamily As String       ' gancho de teste: familia de despacho forcada (so no build Test); "" = a familia real do tipo
 Private mLastConfirm As String      ' ultima pergunta de Core_Confirm (usada pelos testes)
+Private mTestRoundDec As Variant    ' gancho de teste: respostas do Arredondar intervalo no build Test (Core_TestSetRoundRangeAnswers)
+Private mTestRoundDest As Range
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
 Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,"
 
@@ -582,16 +584,25 @@ Public Sub Core_RoundRange()
     Set rng = Selection
     msg = Round_ValidateRange(rng)
     If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
-    If BUILD_CONFIG = "Test" Then Exit Sub
-    dec = Application.InputBox("Casas decimais do resultado (0 = inteiros; 1 ou 2 = decimais; -3 = milhares):", APP_NAME, 0, Type:=1)
+    If BUILD_CONFIG = "Test" Then
+        ' build Test: sem InputBox (modais travariam o Excel invisivel); as respostas vem do gancho Core_TestSetRoundRangeAnswers (uso unico)
+        If mTestRoundDest Is Nothing Then Exit Sub
+        dec = mTestRoundDec: Set dest = mTestRoundDest
+        Set mTestRoundDest = Nothing: mTestRoundDec = Empty
+    Else
+        dec = Application.InputBox("Casas decimais do resultado (0 = inteiros; 1 ou 2 = decimais; -3 = milhares):", APP_NAME, 0, Type:=1)
+    End If
     If VarType(dec) = vbBoolean Then Exit Sub
+    If Not IsNumeric(dec) Then dec = 0.5                       ' cai na mensagem abaixo
     If dec <> Int(dec) Or dec < -15 Or dec > 15 Then
         Core_Notify "Informe um número inteiro de casas decimais (de -15 a 15).", vbExclamation
         Exit Sub
     End If
-    On Error Resume Next
-    Set dest = Application.InputBox("Célula onde o resultado começa (cada célula recebe uma fórmula que referencia só os valores de origem):", APP_NAME, Type:=8)
-    On Error GoTo Fail
+    If dest Is Nothing Then
+        On Error Resume Next
+        Set dest = Application.InputBox("Célula onde o resultado começa (cada célula recebe uma fórmula que referencia só os valores de origem):", APP_NAME, Type:=8)
+        On Error GoTo Fail
+    End If
     If dest Is Nothing Then Exit Sub
     msg = Round_ValidateDest(rng, dest.Cells(1, 1))
     If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
@@ -930,6 +941,15 @@ Public Sub Core_TestSetFamilyOverride(fam As String)
     On Error Resume Next
     If BUILD_CONFIG <> "Test" Then Exit Sub
     mTestFamily = fam
+End Sub
+
+' Gancho de teste: as respostas dos dois InputBox do Arredondar intervalo (casas decimais e celula de destino) para a PROXIMA chamada de
+' Core_RoundRange (uso unico); dest Nothing desarma. Inerte em Release.
+Public Sub Core_TestSetRoundRangeAnswers(dec As Variant, dest As Range)
+    On Error Resume Next
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestRoundDec = dec
+    Set mTestRoundDest = dest
 End Sub
 
 Private Sub ApplyPendingLoaderImpl()

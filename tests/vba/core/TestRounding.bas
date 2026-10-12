@@ -209,6 +209,35 @@ Public Sub Test_Core_RoundRange_TestBuild_ValidatesWithoutInputBox()
     Core_ClearLastNotice
     Core_RoundRange                                             ' build Test: sai antes do InputBox, sem aviso
     AssertEqual "", Core_LastNotice()
+    AssertEqual 0, Application.WorksheetFunction.CountA(ws.Range("B1:Z10")), "sem respostas: nada gravado"
+    ' com as respostas do gancho (as dos dois InputBox): grava a partir de C1 e avisa o endereco
+    Core_TestSetRoundRangeAnswers 0, ws.Range("C1")
+    Core_ClearLastNotice
+    Core_RoundRange
+    AssertEqual "Fórmulas de arredondamento com soma consistente gravadas em C1:C3.", Core_LastNotice()
+    AssertEqual 1, ws.Range("C1").Value: AssertEqual 2, ws.Range("C2").Value: AssertEqual 3, ws.Range("C3").Value
+    AssertTrue InStr(ws.Range("C2").Formula, "SUMPRODUCT") > 0, "formula viva"
+    ' destino preenchido: pergunta (o build Test responde Nao) e nada muda
+    ws.Range("E2").Value = "manter"
+    Core_TestSetRoundRangeAnswers 0, ws.Range("E1")
+    Core_ClearLastNotice
+    Core_RoundRange
+    AssertEqual "As células E1:E3 já têm conteúdo. Substituir? Esta ação não pode ser desfeita.", Core_LastConfirm()
+    AssertEqual "", Core_LastNotice(), "Nao: sem aviso de sucesso"
+    AssertEqual "manter", ws.Range("E2").Value
+    AssertTrue IsEmpty(ws.Range("E1").Value), "nada gravado"
+    ' casas decimais invalidas e destino sobre a origem: avisos, nada gravado; o gancho e de uso unico
+    Core_TestSetRoundRangeAnswers 1.5, ws.Range("G1")
+    Core_RoundRange
+    AssertEqual "Informe um número inteiro de casas decimais (de -15 a 15).", Core_LastNotice()
+    AssertTrue IsEmpty(ws.Range("G1").Value)
+    Core_TestSetRoundRangeAnswers 0, ws.Range("A2")
+    Core_RoundRange
+    AssertEqual "O resultado não pode ficar sobre a faixa de origem.", Core_LastNotice()
+    AssertEqual 2, ws.Range("A2").Value
+    Core_ClearLastNotice
+    Core_RoundRange
+    AssertEqual "", Core_LastNotice(), "gancho de uso unico: sem respostas, sai"
     CloseTemp wb
 End Sub
 
@@ -555,4 +584,48 @@ Public Sub Test_Round_Rebuild_LinksLabelsOnce()
         AssertEqual 0, Round_RelinkCountForTest(), k & ": ligar o que ja esta ligado nao religa"
         Teardown wb
     Next
+End Sub
+
+' Empilhadas com negativo: -1,4 / 2,6 / 2,6 (total 3,8 -> 4; arredondados -1 + 3 + 3 = 5; K = -1; os tres restos sao -0,4: a primeira
+' perde a unidade) -> -2 / 3 / 3. Categoria sem valores: total 0, nenhum rotulo e nenhum erro nas Rnd.
+Public Sub Test_Round_Stacked_NegativeAndEmptyCategory()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, blk As Range, j As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    Fixture(ws, Array(-1.4, 2.6, 2.6, 1, 1, 1)).Select
+    ws.Range("B3:D3").ClearContents
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    Core_SetToggle "roundsum", True
+    AssertEqual "-2", cht.SeriesCollection(1).Points(1).DataLabel.Text
+    AssertEqual "3", cht.SeriesCollection(2).Points(1).DataLabel.Text
+    AssertEqual "3", cht.SeriesCollection(3).Points(1).DataLabel.Text
+    AssertEqual "4", Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Text
+    Set blk = Registry_Block(cht)
+    For j = 1 To 3
+        AssertFalse IsError(Block_Body(blk).Cells(3, Round_RCol(blk, j)).Value), "categoria vazia: Rnd" & j & " sem erro"
+        AssertEqual 0, Block_Body(blk).Cells(3, Round_RCol(blk, j)).Value
+        AssertEqual "", cht.SeriesCollection(j).Points(2).DataLabel.Text, "categoria vazia: sem rotulo"
+    Next
+    Teardown wb
+End Sub
+
+' Mudar o formato depois de ligar muda o arredondamento: 1,25 / 1,25 / 1,5 em inteiros 1 / 1 / 2 (total 4); com 1 casa 1,2 / 1,3 / 1,5
+' (arredondados 1,3 + 1,3 + 1,5 = 4,1 contra 4,0: K = -1, empate de restos -0,5 entre as duas primeiras: a primeira perde).
+Public Sub Test_Round_NumfmtChange_ChangesRounding()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, dec As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    Fixture(ws, Array(1.25, 1.25, 1.5, 1, 2, 3)).Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    Core_SetToggle "roundsum", True
+    AssertEqual "1", cht.SeriesCollection(1).Points(1).DataLabel.Text
+    AssertEqual "1", cht.SeriesCollection(2).Points(1).DataLabel.Text
+    AssertEqual "2", cht.SeriesCollection(3).Points(1).DataLabel.Text
+    Core_SetOption "numfmt", "dec1"
+    dec = Application.International(xlDecimalSeparator)
+    AssertEqual "1" & dec & "2", cht.SeriesCollection(1).Points(1).DataLabel.Text
+    AssertEqual "1" & dec & "3", cht.SeriesCollection(2).Points(1).DataLabel.Text
+    AssertEqual "1" & dec & "5", cht.SeriesCollection(3).Points(1).DataLabel.Text
+    AssertEqual "4" & dec & "0", Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Text
+    Teardown wb
 End Sub
