@@ -704,3 +704,37 @@ Public Sub Test_Break_Stacked_TopSegmentFloor_DemoTable()
     AssertEqual "20000", Registry_GetOption(cht, "vbreak", "")
     Teardown wb
 End Sub
+
+' Onda A, rodada 1 (Importante 1): numa empilhada de UMA serie (ou categoria com base 0) o unico segmento sempre atravessa o corte: nada pode
+' sumir e nao ha piso. 10 / 12 / 200 aceita o corte em 15 e a sugestao volta a 1,2 x o 2o maior topo (14,4 -> 14). A tabela da demonstracao
+' continua recusada abaixo do piso, com o texto novo (segmento de cima quase invisivel) e o minimo.
+Public Sub Test_Break_Stacked_SingleSeries_NoFloor()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:B1").Value = Array("Cat", "S1")
+    ws.Range("A2:B2").Value = Array("a", 10): ws.Range("A3:B3").Value = Array("b", 12): ws.Range("A4:B4").Value = Array("c", 200)
+    ws.Range("A1:B4").Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    AssertEqual 14, Break_Suggest(cht), "sugestao de antes (1,2 x 12 = 14,4 -> 14)"
+    Core_ClearLastNotice
+    Core_SetAxisBreakAt 15
+    AssertEqual "", Core_LastNotice(), "uma serie: sem piso"
+    AssertEqual "15", Registry_GetOption(cht, "vbreak", "")
+    AssertEqual xlLabelPositionInsideBase, cht.SeriesCollection(1).Points(3).DataLabel.Position, "o segmento unico atravessa: rotulo na base"
+    ws.ChartObjects(1).Delete
+    CalcSheet_Cleanup wb
+    ws.Range("A1:C1").Value = Array("Departamento", "B2C", "B2B")
+    ws.Range("A2:C2").Value = Array("Cimento", 29255, 14068): ws.Range("A3:C3").Value = Array("Tintas", 12000, 5000)
+    ws.Range("A4:C4").Value = Array("Hidraulica", 9000, 4000)
+    ws.Range("A1:C4").Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    Core_ClearLastNotice
+    Core_SetAxisBreakAt 30000                                   ' acima da base (29.255) e abaixo do piso: o B2B quase nao apareceria
+    AssertTrue InStr(Core_LastNotice(), "quase invisível") > 0 And InStr(Core_LastNotice(), "Cimento") > 0, "texto novo (" & Core_LastNotice() & ")"
+    AssertTrue InStr(Core_LastNotice(), "inteiro acima") = 0, "sem dizer que some inteiro"
+    AssertTrue InStr(Core_LastNotice(), Format$(33000, "#,##0")) > 0, "o minimo"
+    AssertEqual "", Registry_GetOption(cht, "vbreak", "")
+    Teardown wb
+End Sub

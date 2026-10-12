@@ -133,7 +133,8 @@ End Function
 ' Empilhadas: piso do corte em lim. Um segmento inteiro acima do corte some sem aviso (na demonstracao a coluna do cimento parecia so B2C):
 ' em cada categoria CORTADA (topo > lim) o segmento de cima (a ultima serie com valor > 0) precisa mostrar pelo menos BK_TOP_SHARE dele, ou
 ' seja, lim >= base dele + BK_TOP_SHARE x ele = topo - (1 - BK_TOP_SHARE) x ele. Devolve o maior piso entre as cortadas (cat = a categoria
-' dele); 0 nas agrupadas (cada serie e uma coluna inteira) ou sem categoria cortada. Subir lim so tira categorias do conjunto: o piso em lim
+' dele); 0 nas agrupadas (cada serie e uma coluna inteira) ou sem categoria cortada. Categoria com base 0 (uma serie so, ou so o segmento de
+' cima positivo) fica de fora: o unico segmento sempre atravessa o corte e nada pode sumir. Subir lim so tira categorias do conjunto: o piso em lim
 ' nunca cresce com lim (um valor >= piso(lim) continua valido).
 Private Function StackedFloor(cht As Chart, lim As Double, ByRef cat As Long) As Double
     Dim n As Long, i As Long, s As Series, v As Variant, x As Double, tops() As Double, lastSeg() As Double, f As Double
@@ -152,7 +153,7 @@ Private Function StackedFloor(cht As Chart, lim As Double, ByRef cat As Long) As
         End If
     Next
     For i = 1 To n
-        If tops(i) > lim Then
+        If tops(i) > lim And tops(i) - lastSeg(i) > 0 Then      ' base 0 (uma serie so): o unico segmento sempre atravessa o corte
             f = tops(i) - (1 - BK_TOP_SHARE) * lastSeg(i)
             If f > StackedFloor Then StackedFloor = f: cat = i
         End If
@@ -186,7 +187,7 @@ Private Function FloorText(cht As Chart, cat As Long, fl As Double) As String
     On Error GoTo 0
     If Len(nm) = 0 Then nm = CStr(cat)
     If Geom_ChartIsHorizontal(cht) Then what = "barra" Else what = "coluna"
-    FloorText = "Corte de eixo: com esse valor o segmento de cima da " & what & " '" & nm & "' ficaria inteiro acima do corte e não apareceria. "
+    FloorText = "Corte de eixo: com esse valor o segmento de cima da " & what & " '" & nm & "' ficaria quase invisível (menos de um quarto dele abaixo do corte). "
     FloorText = FloorText & "Informe pelo menos " & NumberText(NiceCeil(fl, MaxTop(cht))) & "."
 End Function
 
