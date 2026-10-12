@@ -84,6 +84,7 @@ End Function
 
 ' Última pergunta feita por Core_Confirm ("" se nenhuma desde Core_ClearLastNotice). Gancho de teste (inofensivo em Release).
 Public Function Core_LastConfirm() As String
+    On Error Resume Next
     Core_LastConfirm = mLastConfirm
 End Function
 
