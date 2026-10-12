@@ -739,9 +739,10 @@ End Sub
 ' de teste (%TEMP%\ThinQQ-test-logs); a afirmacao so pega um custo absurdo. Com 2.000 (o teto anterior) gravar levava ~5 s e cada edicao da
 ' origem 1 a 2 s: o teto baixou para 1.000.
 Public Sub Test_Round_Timing_AtCap()
-    Dim wb As Workbook, ws As Worksheet, t As Double, tw As Double, te As Double, tp As Double, prevCalc As Long
+    Dim wb As Workbook, ws As Worksheet, t As Double, tw As Double, te As Double, tp As Double, prevCalc As Long, en As Long, es As String, ed As String
+    On Error GoTo Cleanup
     Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
-    prevCalc = Application.Calculation
+    prevCalc = Application.Calculation                          ' depois de abrir a pasta: sem pasta aberta a leitura falha (erro 13, medido)
     Application.Calculation = xlCalculationAutomatic
     ws.Range("A1").Resize(ROUND_MAX_CELLS, 1).Formula = "=ROW()/7"
     ws.Range("A1").Resize(ROUND_MAX_CELLS, 1).Value = ws.Range("A1").Resize(ROUND_MAX_CELLS, 1).Value
@@ -755,9 +756,15 @@ Public Sub Test_Round_Timing_AtCap()
     ws.Range("E1").Resize(ROUND_MAX_CELLS, 1).Formula = ws.Range("C1").Resize(ROUND_MAX_CELLS, 1).Formula     ' so o Excel: interpretar e calcular
     tp = Timer - t
     Errors_Log "TestRounding/tempo " & ROUND_MAX_CELLS & " celulas" & vbTab & "gravar " & Format$(tw, "0.00") & " s" & vbTab & "editar a origem " & Format$(te, "0.00") & " s" & vbTab & "regravar as formulas " & Format$(tp, "0.00") & " s"
-    Application.Calculation = prevCalc
     AssertTrue tw < 15 And te < 10, "gravar " & tw & " s, editar " & te & " s"
-    CloseTemp wb
+    Err.Clear                                                   ' um erro ja tratado (On Error Resume Next) em Errors_Log nao e falha do teste
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error Resume Next
+    If prevCalc <> 0 Then Application.Calculation = prevCalc   ' o modo de calculo volta em toda saida
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, es, ed
 End Sub
 
 ' Onda B (B2.7e): os enderecos montados em texto (sem chamar o Excel por celula) acertam colunas de duas letras e a faixa parcial.

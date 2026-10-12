@@ -711,7 +711,9 @@ End Sub
 ' Onda B (B2.6): Scatter_SyncBubbleLabels escreve com os eventos desligados e barra a reentrada (cada escrita disparava Calculate e o refresh
 ' entrava de novo: convergia, mas fundo). Uma chamada = uma passada que faz o trabalho; EnableEvents volta ao que era (ligado ou desligado).
 Public Sub Test_Bubble_SyncLabels_NoReentry_EventsRestored()
-    Dim wb As Workbook, d As clsChartData, cht As Chart, s As Series, i As Long
+    Dim wb As Workbook, d As clsChartData, cht As Chart, s As Series, i As Long, prevEv As Boolean, en As Long, es As String, ed As String
+    prevEv = Application.EnableEvents
+    On Error GoTo Cleanup
     Set wb = NewTempWorkbook(): Set d = Fixture(wb, True, True)
     d.Source.Select
     Core_Insert "bubble"
@@ -732,6 +734,12 @@ Public Sub Test_Bubble_SyncLabels_NoReentry_EventsRestored()
     Application.EnableEvents = False
     Scatter_SyncBubbleLabels cht
     AssertFalse Application.EnableEvents, "desligado antes: continua desligado"
-    Application.EnableEvents = True
-    Teardown wb
+    Err.Clear                                                   ' um erro ja tratado (On Error Resume Next) no core nao e falha do teste
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error Resume Next
+    Application.EnableEvents = prevEv                          ' os eventos voltam em toda saida
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, es, ed
 End Sub
