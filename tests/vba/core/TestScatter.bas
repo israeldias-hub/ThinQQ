@@ -669,3 +669,17 @@ Cleanup:
     Teardown wb
     If en <> 0 Then Err.Raise en, es, ed
 End Sub
+
+' Onda A, rodada 1 (menor d): "[Red]0%" na origem: o passo da escala apertada respeita a resolucao do formato (1 ponto percentual); antes o
+' "d" de [Red] fazia o formato parecer data (resolucao 0, passo de 0,5% que repetiria "30%").
+Public Sub Test_Scatter_TightAxes_BracketFormatUnit()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, d As clsChartData
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Loja", "Margem", "Ticket")
+    ws.Range("A2:C2").Value = Array("L1", 0.3, 20): ws.Range("A3:C3").Value = Array("L2", 0.33, 50)
+    ws.Range("B2:B3").NumberFormat = "[Red]0%"
+    Set d = ChartData_FromRange(ws.Range("A1:C3"))
+    Set cht = Scatter_Insert(ws, d, "scatter").Chart
+    AssertAlmost 0.01, cht.Axes(xlCategory, xlPrimary).MajorUnit, 0.0000001, "passo de 1 ponto percentual"
+    Teardown wb
+End Sub

@@ -396,20 +396,13 @@ Public Function Scatter_NiceRange(lo As Double, hi As Double, minUnit As Double,
     Scatter_NiceRange = True
 End Function
 
-' Resolucao de um codigo de formato (ingles, da celula de origem): 10^-casas (dividida por 100 com %) da primeira secao; 0 para Geral, datas e
+' Resolucao de um codigo de formato (ingles, da celula de origem): 10^-casas (dividida por 100 com %) da primeira secao limpa
+' (Style_CleanFormatSection); 0 para Geral, datas e
 ' horas (sem restricao de passo).
 Private Function FormatUnit(code As String) As Double
-    Dim sec As String, i As Long, ch As String, inQ As Boolean, clean As String, p As Long, d As Long
+    Dim i As Long, ch As String, clean As String, p As Long, d As Long
     If Len(code) = 0 Or code = "General" Then Exit Function
-    sec = Split(code & ";", ";")(0)
-    For i = 1 To Len(sec)
-        ch = Mid$(sec, i, 1)
-        If ch = """" Then
-            inQ = Not inQ
-        ElseIf Not inQ Then
-            clean = clean & ch
-        End If
-    Next
+    clean = Style_CleanFormatSection(code)                      ' sem textos, colchetes ([Red] tem um d) e literais
     If clean Like "*[dDmMyYhHsS]*" Then Exit Function
     p = InStr(clean, ".")
     If p > 0 Then

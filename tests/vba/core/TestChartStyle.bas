@@ -84,3 +84,12 @@ Public Sub Test_Style_ApplyNumberFormat_OnLabels()
     AssertEqual "#,##0.00;-#,##0.00;", cht.SeriesCollection(1).DataLabels.NumberFormat
     CloseTemp wb
 End Sub
+
+' Onda A, rodada 1 (menor d): a secao limpa do formato tira textos, colchetes ([Red] tem um "d", que parecia data) e literais.
+Public Sub Test_Style_CleanFormatSection()
+    AssertEqual "0.0%", Style_CleanFormatSection("[Red]0.0%;-0.0%")
+    AssertEqual " #,##0.00", Style_CleanFormatSection("""R$"" #,##0.00")
+    AssertEqual "#,##0", Style_CleanFormatSection("[$R$-416]#,##0")
+    AssertEqual "0", Style_CleanFormatSection("\d0")
+    AssertEqual "dd/mm/yyyy", Style_CleanFormatSection("dd/mm/yyyy")
+End Sub

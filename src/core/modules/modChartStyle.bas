@@ -269,3 +269,29 @@ Public Function Style_PaletteRGB(cht As Chart, v As Variant) As Long
 Fail:
     Style_PaletteRGB = RGB(68, 114, 196)
 End Function
+' Primeira secao de um codigo de formato (ingles) so com o que define o numero: sem textos entre aspas, sem secoes entre colchetes ([Red],
+' [$R$-416], [>=1000]) e sem o caractere que segue "\", "_" ou "*" (literal, espaco e preenchimento). Usada para ler casas, percentual, escala
+' e datas do formato da celula de origem (numfmt inicial, passo da escala da dispersao). Pura.
+Public Function Style_CleanFormatSection(code As String) As String
+    Dim sec As String, i As Long, ch As String, inQ As Boolean, inB As Boolean, out As String, skipNext As Boolean
+    sec = Split(code & ";", ";")(0)
+    For i = 1 To Len(sec)
+        ch = Mid$(sec, i, 1)
+        If skipNext Then
+            skipNext = False
+        ElseIf inQ Then
+            If ch = """" Then inQ = False
+        ElseIf inB Then
+            If ch = "]" Then inB = False
+        ElseIf ch = """" Then
+            inQ = True
+        ElseIf ch = "[" Then
+            inB = True
+        ElseIf ch = "\" Or ch = "_" Or ch = "*" Then
+            skipNext = True
+        Else
+            out = out & ch
+        End If
+    Next
+    Style_CleanFormatSection = out
+End Function
