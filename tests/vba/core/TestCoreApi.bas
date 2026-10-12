@@ -351,7 +351,11 @@ Public Sub Test_Core_Refresh_NoActiveChart_NoThrow()
     Dim wb As Workbook, ws As Worksheet
     Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
     ws.Range("A1").Select
+    Core_ClearLastNotice
     Core_Refresh
+    AssertEqual 0, Core_NoticeCount(), "sem grafico ativo: nenhum aviso (" & Core_LastNotice() & ")"
+    AssertEqual 0, ws.ChartObjects.Count, "nada criado"
+    AssertEqual "A1", Selection.Address(False, False), "a selecao do usuario fica"
     Teardown wb
 End Sub
 

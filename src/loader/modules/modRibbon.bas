@@ -30,6 +30,7 @@ End Sub
 
 ' Unico ponto de MsgBox do modulo: em build de Teste apenas registra (nunca bloqueia).
 Private Sub RxMsg(prompt As String, Optional style As Long = vbInformation)
+    Loader_LastMsg = prompt                         ' a ultima mensagem da faixa tambem (lida pelos testes)
     If BUILD_CONFIG = "Test" Then
         Loader_Log "RxMsg (teste): " & prompt
     Else

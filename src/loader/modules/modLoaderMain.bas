@@ -4,7 +4,7 @@ Public Const APP_NAME As String = "ThinQQ"
 Private mRootOverride As String
 Private mStartupCheckAt As Date
 Private Const SWAP_FLAG_MAX_MINUTES As Double = 5
-Public Loader_LastMsg As String      ' ultima mensagem enviada por Loader_Msg (usada nos testes)
+Public Loader_LastMsg As String      ' ultima mensagem enviada por Loader_Msg ou pela faixa (RxMsg) (usada nos testes)
 
 Public Function Loader_Ping() As String
     Loader_Ping = "pong"

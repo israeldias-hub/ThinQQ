@@ -320,7 +320,22 @@ End Sub
 
 ' Sem core com Core_InsertSamples (Tarefa 15) o botao nao pode bloquear nem propagar erro.
 Public Sub Test_Ribbon_OnSamples_WithoutCoreProc_DoesNotBlock()
+    Dim n0 As Long, w As Workbook, found As Boolean, sh As Object
+    n0 = Application.Workbooks.Count
+    Loader_LastMsg = ""
     Rx_OnSamples Nothing
+    AssertTrue InStr(Loader_LastMsg, "Não foi possível") = 0, "sem falha ao inserir os exemplos: " & Loader_LastMsg
+    If Loader_CoreWorkbook() Is Nothing Then
+        AssertTrue InStr(Loader_LastMsg, "não está carregado") > 0, "sem core: o aviso de core ausente (" & Loader_LastMsg & ")"
+    Else
+        AssertEqual n0 + 1, Application.Workbooks.Count, "com o core: a pasta de exemplos foi aberta"
+        For Each w In Application.Workbooks
+            For Each sh In w.Worksheets
+                If sh.Name = "Exemplos" Then found = True
+            Next
+        Next
+        AssertTrue found, "a pasta aberta tem a planilha Exemplos"
+    End If
 End Sub
 
 Public Sub Test_Ribbon_TutorialUrl_IsGithubPages()
