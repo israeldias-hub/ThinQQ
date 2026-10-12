@@ -154,6 +154,8 @@ Public Function Kinds_Insert(ws As Worksheet, data As clsChartData, kind As Stri
             Set Kinds_Insert = Gantt_Insert(ws, data)
         Case "butterfly"
             Set Kinds_Insert = Bfly_Insert(ws, data)
+        Case "scatter"
+            Set Kinds_Insert = Scatter_Insert(ws, data, kind)
         Case Else
             Err.Raise vbObjectError + 7200, "Kinds_Insert", "Este tipo de gráfico ainda não está disponível nesta versão: " & kind
     End Select

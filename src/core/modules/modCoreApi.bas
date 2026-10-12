@@ -10,7 +10,7 @@ Private mClipSeen As Collection     ' ids de gráficos já avisados de dados aci
 Private mCopySeen As Collection     ' ids de gráficos já avisados de cópia em outra planilha (planilha copiada)
 Private mTestFamily As String       ' gancho de teste: familia de despacho forcada (so no build Test); "" = a familia real do tipo
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
-Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,"
+Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,"
 
 ' Última mensagem enviada ao usuário por Core_Notify ("" se nenhuma). Gancho de teste (inofensivo em Release).
 Public Function Core_LastNotice() As String
@@ -179,7 +179,7 @@ End Function
 Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
     Dim kind As String, fam As String
     Select Case key
-        Case "totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout"
+        Case "totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad"
         Case Else: Exit Sub
     End Select
     kind = Registry_ChartType(c)
@@ -204,6 +204,7 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
                 Case "gantt": Gantt_SetLabels c, value
                 Case "pie": Pie_SetLabels c, value
                 Case "butterfly": Bfly_SetLabels c, value             ' borboleta: rotulos nativos dos dois lados (esquerdo absoluto)
+                Case "scatter": Scatter_SetLabels c, value            ' dispersao e bolhas: o nome de cada ponto (ligado a coluna Nome do bloco)
                 Case "stacked", "combo": Stacked_SetLabels c, value     ' colunas, barras, linha e a combinacao
                 Case Else: RefuseUndispatched key, c, fam
             End Select
@@ -221,6 +222,10 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
             Combo_SetSecondary c, value
         Case "pieout"
             Pie_SetOutside c, value
+        Case "trend"
+            If fam = "scatter" Then Scatter_SetTrend c, value Else RefuseUndispatched key, c, fam     ' linha de tendencia linear por grupo
+        Case "quad"
+            If fam = "scatter" Then Scatter_SetQuad c, value Else RefuseUndispatched key, c, fam      ' quadrantes: eixos cruzando nas medias
     End Select
 End Sub
 
@@ -296,6 +301,7 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
                 Case "mekko": Mekko_ApplyColors c, value        ' separadores de 1,5 pt e contraste dos rotulos (por ponto)
                 Case "gantt": Gantt_ApplyColors c, value        ' barras pal(1) e marcos pal(0) (as series do Gantt sao todas tqq_*)
                 Case "butterfly": Bfly_ApplyColors c, value     ' as duas series de dados; vaos invisiveis; contraste dos rotulos
+                Case "scatter": Scatter_ApplyColors c, value    ' marcadores/bolhas por grupo, tendencias e contraste dos rotulos das bolhas
                 Case "stacked", "combo": Style_ApplySeriesColors c, value
                 Case Else: RefuseUndispatched key, c, fam       ' (inalcancavel: PALETTE_FAMILIES ja recusou antes de gravar)
             End Select
@@ -650,6 +656,8 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Pie" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Bfly_RefreshAfterDataChange cht                  ' borboleta: o vao central acompanha o maior nome e o tamanho do grafico
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Bfly" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Scatter_RefreshAfterDataChange cht               ' dispersao/bolhas: quadrantes nas medias atuais e tendencias fora da legenda
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Scatter" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Gantt_RefreshScale cht                           ' Gantt: a escala calculada no bloco (unidade e intervalo) vai para o eixo; antes dos colchetes
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Gantt" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Ann_Refresh cht
@@ -788,7 +796,7 @@ Private Sub ReapplyOptions(nc As Chart)
     If Kinds_Supports(kind, "numfmt") Then ApplyOption nc, "numfmt", Registry_GetOption(nc, "numfmt", "int")
     ApplyOption nc, "palette", Registry_GetOption(nc, "palette", "padrao")
     If Kinds_Supports(kind, "gap") And Len(Registry_GetOption(nc, "gap", "")) > 0 Then ApplyOption nc, "gap", Registry_GetOption(nc, "gap", "")
-    For Each k In Array("totals", "labels", "connectors", "secondary", "ind100", "vline", "pieout")
+    For Each k In Array("totals", "labels", "connectors", "secondary", "ind100", "vline", "pieout", "trend", "quad")
         If Kinds_Supports(kind, CStr(k)) Then
             dflt = IIf(k = "labels" Or k = "ind100", "1", "0")
             ApplyToggle nc, CStr(k), (Registry_GetOption(nc, CStr(k), dflt) = "1")      ' pizza: rotulos fora (pieout) tambem aplicados aqui

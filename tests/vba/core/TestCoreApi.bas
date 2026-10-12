@@ -1129,6 +1129,15 @@ Private Function FixtureFor(ws As Worksheet, kind As String) As Range
             ws.Range("A2:C2").Value = Array("0-14", 120, 130): ws.Range("A3:C3").Value = Array("15-29", 200, 210)
             ws.Range("A4:C4").Value = Array("30-59", 310, 290)
             Set FixtureFor = ws.Range("A1:C4")
+        Case "scatter"
+            ws.Range("A1:D1").Value = Array("Produto", "Preço", "Margem", "Grupo")
+            ws.Range("A2:D2").Value = Array("P1", 10, 0.2, "A"): ws.Range("A3:D3").Value = Array("P2", 20, 0.35, "B")
+            ws.Range("A4:D4").Value = Array("P3", 30, 0.25, "A")
+            If kind = "bubble" Then
+                ws.Columns("D").Insert
+                ws.Range("D1").Value = "Volume": ws.Range("D2:D4").Value = Application.Transpose(Array(50, 120, 80))
+            End If
+            Set FixtureFor = ws.Range("A1").CurrentRegion
         Case Else
             ws.Range("A1:D1").Value = Array("Ano", "Sul", "Sudeste", "Nordeste")
             ws.Range("A2:D2").Value = Array(2022, 10, 20, 5): ws.Range("A3:D3").Value = Array(2023, 12, 22, 6)
@@ -1149,7 +1158,7 @@ End Function
 ' mostra se alguma escolha foi sobrescrita pelo estado real do grafico novo (ex.: indicador 100% desligado voltando ligado).
 Private Function ChoicesSnapshot() As String
     Dim k As Variant
-    For Each k In Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "numfmt", "palette", "gap", "legend", "n")
+    For Each k In Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "numfmt", "palette", "gap", "legend", "n")
         ChoicesSnapshot = ChoicesSnapshot & k & "=" & Core_GetOption(CStr(k)) & ";"
     Next
 End Function
@@ -1208,6 +1217,9 @@ Private Sub AssertRealState(c As Chart, kind As String, tag As String)
     AssertEqual Kinds_Supports(kind, "secondary"), sec, tag & ": eixo secundario"
     AssertEqual Kinds_Supports(kind, "vline"), Not Chart_FindSeries(c, "tqq_vline") Is Nothing, tag & ": linha de valor"
     AssertFalse Ann_HasInd100(c), tag & ": indicador 100% desligado pelo usuario continua desligado"
+    ' dispersao/bolhas: tendencia e quadrantes ficaram ligados pelo teste (estado real: linha de tendencia na serie, eixo cruzando na media)
+    If Kinds_Supports(kind, "trend") Then AssertEqual 1, c.SeriesCollection(1).Trendlines.Count, tag & ": tendencia ligada"
+    If Kinds_Supports(kind, "quad") Then AssertEqual xlAxisCrossesCustom, c.Axes(xlValue).Crosses, tag & ": quadrantes ligados"
 End Sub
 
 ' Todo tipo: insere pela API, exercita cada toggle/opcao conforme a matriz (suportado = funciona; nao suportado = aviso,
@@ -1216,8 +1228,8 @@ Public Sub Test_Core_AllKinds_InsertTogglesOptionsRebuild()
     Dim kinds As Variant, toggles As Variant, k As Long, t As Long, wb As Workbook, ws As Worksheet, rng As Range, c As Chart, kind As String, key As String
     Dim before As String, ch As Variant
     kinds = Array("stacked", "clustered", "stacked100", "line", "waterfall", "barstacked", "barclustered", "barstacked100", "barwaterfall", _
-                  "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut", "butterfly")
-    toggles = Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout")
+                  "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut", "butterfly", "scatter", "bubble")
+    toggles = Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad")
     For k = LBound(kinds) To UBound(kinds)
         kind = kinds(k)
         Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
@@ -1620,21 +1632,5 @@ Public Sub Test_Core_CopiedSheet_ChartSharingId_NotifiedOnce_AndRebuildSeparates
     Core_ClearLastNotice
     Watchers_Rehook
     AssertEqual 0, Core_NoticeCount(), "sem copia, sem aviso"
-    Teardown wb
-End Sub
-
-' Temporario: a Tarefa 2 o remove ao implementar dispersao/bolhas (os ultimos tipos novos). Tipo valido ainda sem
-' implementacao avisa e nao deixa bloco.
-Public Sub Test_Core_Insert_NewKindsNotReady_NotifiesWithoutChart()
-    Dim wb As Workbook, ws As Worksheet, k As Variant
-    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
-    For Each k In Array("scatter", "bubble")
-        ws.Range("A1:C5").Select
-        Core_ClearLastNotice
-        Core_Insert CStr(k)
-        AssertEqual 0, ws.ChartObjects.Count, CStr(k)
-        AssertEqual 0, TqqNameCount(wb), CStr(k)
-        AssertTrue InStr(Core_LastNotice(), "ainda não está disponível") > 0, CStr(k) & ": " & Core_LastNotice()
-    Next
     Teardown wb
 End Sub
