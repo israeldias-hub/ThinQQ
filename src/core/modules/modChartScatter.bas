@@ -548,6 +548,66 @@ Fail:
     End If
 End Sub
 
+' "Alterar dados": a escala e o formato que o usuario fixou a mao nos eixos do grafico ANTIGO (eixo fixo que nao e a escala gravada pelo
+' ThinQQ; formato que nao esta ligado a origem nem e o gravado) passam ao grafico NOVO, e as opcoes do ThinQQ daquele eixo no novo sao limpas:
+' o refresh trata o eixo como do usuario e nao o desfaz (como vmin/vmax nos outros tipos). Eixos do ThinQQ ficam com o que o novo calculou.
+' Por eixo; uma falha so e registrada. Nunca propaga erro.
+Public Sub Scatter_KeepUserAxes(oldC As Chart, nc As Chart)
+    KeepUserAxis oldC, nc, 1
+    KeepUserAxis oldC, nc, 2
+End Sub
+
+Private Sub KeepUserAxis(oldC As Chart, nc As Chart, k As Long)
+    Dim oa As Axis, na As Axis, stored As String, cur As String, started As Boolean
+    Dim pAutoMin As Boolean, pAutoMax As Boolean, pAutoUnit As Boolean, pMin As Double, pMax As Double, pUnit As Double, pLinked As Boolean, pFmt As String
+    On Error GoTo Fail
+    Set oa = oldC.Axes(IIf(k = 1, xlCategory, xlValue), xlPrimary)
+    Set na = nc.Axes(IIf(k = 1, xlCategory, xlValue), xlPrimary)
+    pAutoMin = na.MinimumScaleIsAuto: pAutoMax = na.MaximumScaleIsAuto: pAutoUnit = na.MajorUnitIsAuto
+    pMin = na.MinimumScale: pMax = na.MaximumScale: pUnit = na.MajorUnit
+    pLinked = na.TickLabels.NumberFormatLinked: pFmt = CStr(na.TickLabels.NumberFormatLocal)
+    stored = Registry_GetOption(oldC, IIf(k = 1, "xscale", "yscale"), "")
+    If Not (oa.MinimumScaleIsAuto And oa.MaximumScaleIsAuto) And Not AxisIsOurs(oa, stored) Then
+        started = True
+        If oa.MaximumScaleIsAuto Then na.MaximumScaleIsAuto = True
+        If oa.MinimumScaleIsAuto Then na.MinimumScaleIsAuto = True
+        If Not oa.MinimumScaleIsAuto And Not oa.MaximumScaleIsAuto Then
+            If oa.MinimumScale < na.MaximumScale Then
+                na.MinimumScale = oa.MinimumScale: na.MaximumScale = oa.MaximumScale
+            Else
+                na.MaximumScale = oa.MaximumScale: na.MinimumScale = oa.MinimumScale       ' subindo: o minimo novo passaria do maximo atual
+            End If
+        ElseIf Not oa.MinimumScaleIsAuto Then
+            na.MinimumScale = oa.MinimumScale
+        Else
+            na.MaximumScale = oa.MaximumScale
+        End If
+        If oa.MajorUnitIsAuto Then na.MajorUnitIsAuto = True Else na.MajorUnit = oa.MajorUnit
+        ScatterTestHook "keep", CStr(k)
+        Registry_SetOption nc, IIf(k = 1, "xscale", "yscale"), ""
+    End If
+    stored = OptDecode(Registry_GetOption(oldC, IIf(k = 1, "xfmt", "yfmt"), ""))
+    cur = CStr(oa.TickLabels.NumberFormatLocal)
+    If Not (oa.TickLabels.NumberFormatLinked Or (Len(stored) > 0 And cur = stored)) Then
+        started = True
+        na.TickLabels.NumberFormatLocal = cur
+        Registry_SetOption nc, IIf(k = 1, "xfmt", "yfmt"), ""
+        Registry_SetOption nc, IIf(k = 1, "xsrc", "ysrc"), ""
+    End If
+    Exit Sub
+Fail:
+    Errors_Log "Scatter_KeepUserAxes" & vbTab & k & vbTab & Err.Number & vbTab & Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If started Then                                         ' o eixo novo volta ao que o ThinQQ calculou (as opcoes dele nao foram limpas)
+        If pAutoMin Then na.MinimumScaleIsAuto = True Else na.MinimumScale = pMin
+        If pAutoMax Then na.MaximumScaleIsAuto = True Else na.MaximumScale = pMax
+        If pAutoMin Then na.MinimumScaleIsAuto = True Else na.MinimumScale = pMin
+        If pAutoUnit Then na.MajorUnitIsAuto = True Else na.MajorUnit = pUnit
+        If pLinked Then na.TickLabels.NumberFormatLinked = True Else na.TickLabels.NumberFormatLocal = pFmt
+    End If
+End Sub
+
 ' Escala dos dois eixos (SyncAxisScale). Na insercao e em todo refresh. Nunca propaga erro.
 Public Sub Scatter_SyncAxes(cht As Chart)
     On Error Resume Next

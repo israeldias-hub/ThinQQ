@@ -977,7 +977,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     Set nc = co.Chart
     On Error GoTo FailNew
     ' escala e formato dos eixos da dispersao/bolhas: os que o grafico NOVO calculou para os dados novos (os do antigo fariam o refresh nao
-    ' reconhecer a propria escala e congelar o eixo)
+    ' reconhecer a propria escala e congelar o eixo); o eixo que o usuario fixou a mao no antigo passa ao novo (Scatter_KeepUserAxes)
     keepKeys = Array("xscale", "yscale", "xfmt", "yfmt", "xsrc", "ysrc")
     For ki = 0 To 5
         keepVals(ki) = Registry_GetOption(nc, CStr(keepKeys(ki)), "")
@@ -986,6 +986,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     For ki = 0 To 5
         If Registry_GetOption(nc, CStr(keepKeys(ki)), "") <> keepVals(ki) Then Registry_SetOption nc, CStr(keepKeys(ki)), keepVals(ki)
     Next
+    If Kinds_Family(kind) = "scatter" Then Scatter_KeepUserAxes c, nc
     Registry_SetOption nc, "n", CStr(data.CategoryCount)     ' as opções antigas trazem o n da tabela anterior
     If Len(Registry_GetOption(nc, "thinlbl", "")) > 0 Then Registry_SetOption nc, "thinlbl", ""      ' rotulos finos escondidos: pontos do grafico antigo
     If Len(Registry_GetOption(nc, "outlbl", "")) > 0 Then Registry_SetOption nc, "outlbl", ""        ' rotulos postos fora da barra fina (borboleta): idem

@@ -785,3 +785,66 @@ Public Sub Test_Scatter_Rebuild_KeepsNewScaleAndReTightens()
     AssertEqual ws.Range("F2").NumberFormatLocal, axX.TickLabels.NumberFormatLocal, "o formato do eixo continua seguindo a coluna"
     Teardown wb
 End Sub
+
+' Revisao final (item 7): a escala e o formato que o usuario fixou a mao num eixo da dispersao continuam depois de "Alterar dados" (como
+' vmin/vmax nos outros tipos) e o refresh nao os desfaz.
+Public Sub Test_Scatter_Rebuild_KeepsUserFixedScaleAndFormat()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, nc As Chart, i As Long, userFmt As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Loja", "Ticket", "Margem")
+    ws.Range("E1:G1").Value = Array("Loja", "Ticket", "Margem")
+    For i = 0 To 4
+        ws.Cells(2 + i, 1).Value = "L" & (i + 1): ws.Cells(2 + i, 2).Value = 20 + 7.5 * i: ws.Cells(2 + i, 3).Value = 21 + 7 * i
+        ws.Cells(2 + i, 5).Value = "M" & (i + 1): ws.Cells(2 + i, 6).Value = 100 + 10 * i: ws.Cells(2 + i, 7).Value = 31 + 5 * i
+    Next
+    ws.Range("A1:C6").Select
+    Core_Insert "scatter"
+    Set cht = Core_ActiveChart()
+    cht.Axes(xlValue, xlPrimary).MinimumScale = 0               ' o usuario fixa o eixo Y
+    cht.Axes(xlValue, xlPrimary).MaximumScale = 100
+    userFmt = "0" & Application.International(xlDecimalSeparator) & "00"
+    cht.Axes(xlCategory, xlPrimary).TickLabels.NumberFormatLocal = userFmt      ' e o formato do eixo X
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("E1:G6")), "Alterar dados (" & Core_LastNotice() & ")"
+    Set nc = Core_ActiveChart()
+    AssertEqual 0, nc.Axes(xlValue, xlPrimary).MinimumScale, "minimo do usuario mantido"
+    AssertEqual 100, nc.Axes(xlValue, xlPrimary).MaximumScale, "maximo do usuario mantido"
+    AssertEqual "", Registry_GetOption(nc, "yscale", ""), "eixo Y do usuario: sem escala do ThinQQ gravada"
+    AssertEqual userFmt, nc.Axes(xlCategory, xlPrimary).TickLabels.NumberFormatLocal, "formato do usuario mantido"
+    AssertTrue ScaleMatchesAxis(nc, 1), "eixo X (escala do ThinQQ) apertado e gravado"
+    ws.Range("G6").Value = 60
+    Core_SafeRefresh nc
+    AssertEqual 0, nc.Axes(xlValue, xlPrimary).MinimumScale, "refresh nao desfaz o minimo do usuario"
+    AssertEqual 100, nc.Axes(xlValue, xlPrimary).MaximumScale, "nem o maximo"
+    AssertEqual userFmt, nc.Axes(xlCategory, xlPrimary).TickLabels.NumberFormatLocal, "nem o formato"
+    Teardown wb
+End Sub
+
+' Revisao final (item 7): uma falha ao passar o eixo do usuario para o grafico novo nao derruba "Alterar dados": o eixo novo volta a escala
+' que o ThinQQ calculou, com a opcao gravada coerente com ele (o refresh continua apertando).
+Public Sub Test_Scatter_Rebuild_KeepUserAxis_FailMidway_RollsBack()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, nc As Chart, i As Long, en As Long, es As String, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Loja", "Ticket", "Margem")
+    ws.Range("E1:G1").Value = Array("Loja", "Ticket", "Margem")
+    For i = 0 To 4
+        ws.Cells(2 + i, 1).Value = "L" & (i + 1): ws.Cells(2 + i, 2).Value = 20 + 7.5 * i: ws.Cells(2 + i, 3).Value = 21 + 7 * i
+        ws.Cells(2 + i, 5).Value = "M" & (i + 1): ws.Cells(2 + i, 6).Value = 100 + 10 * i: ws.Cells(2 + i, 7).Value = 31 + 5 * i
+    Next
+    ws.Range("A1:C6").Select
+    Core_Insert "scatter"
+    Set cht = Core_ActiveChart()
+    cht.Axes(xlValue, xlPrimary).MinimumScale = 0
+    cht.Axes(xlValue, xlPrimary).MaximumScale = 100
+    Util_FailThinSyncForTest = "scatter-keep:2"
+    AssertTrue Core_RebuildFromRange(cht, ws.Range("E1:G6")), "Alterar dados nao falha (" & Core_LastNotice() & ")"
+    Util_FailThinSyncForTest = ""
+    Set nc = Core_ActiveChart()
+    AssertTrue ScaleMatchesAxis(nc, 2), "eixo Y volta a escala do ThinQQ, gravada (" & Registry_GetOption(nc, "yscale", "") & ")"
+    AssertTrue nc.Axes(xlValue, xlPrimary).MinimumScale > 0, "sem o minimo do usuario pela metade"
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    Teardown wb
+    If en <> 0 Then Err.Raise en, es, ed
+End Sub
