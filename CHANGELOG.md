@@ -31,6 +31,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - `build/run-tests.ps1` passa a rodar também Test-Signing e Test-DemoWorkbook; `Test-Docs` confere as seções novas, a lista dos 26 exemplos da demonstração, as mensagens e os limites documentados.
 
 ### Corrigido
+- Dispersão e bolhas: o nome do ponto passa para a esquerda do ponto quando passaria da borda direita da área do gráfico (não invade mais a legenda) e volta para a direita quando cabe.
 - Corte de eixo: em colunas e barras empilhadas, ao definir o corte, o ThinQQ recusa um valor que esconderia por inteiro o segmento de cima de uma coluna cortada e diz o mínimo (se os dados subirem depois, um segmento pode ficar acima do corte, sem rótulo); posições de rótulo que você ajustou são mantidas; o aviso aparece quando a linha de valor (média) fica acima do corte, quando o gráfico sai de um grupo de Mesma escala e quando Alterar dados retira o corte ou o deixa escondendo um segmento; o rótulo de base que ficaria sob a marca é ocultado; um mínimo de eixo fixado à mão acima do corte volta ao automático.
 - Dispersão e bolhas: os números dos eixos seguem o formato da coluna de origem (um percentual aparecia como 0,3) e os eixos não começam mais em zero quando os dados estão longe dele; a escala ou o formato que você fixar são respeitados.
 - Pizza e rosca com mais de 6 fatias repetiam cores (a 7.ª repetia a 1.ª).
