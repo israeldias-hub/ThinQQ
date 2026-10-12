@@ -527,3 +527,32 @@ Public Sub Test_Round_WriteFormulas_PercentSource_KeepsPercent()
     AssertAlmost 0.334, ws.Range("E1").Value, 0.0000001, "volta"
     CloseTemp wb
 End Sub
+
+' "Alterar dados" com a soma consistente ligada: as colunas Rnd_j sao criadas antes da passada dos rotulos, que ja liga a elas; a passada
+' de roundsum nao refaz os rotulos (cada religacao custa Labels_LinkPoints ponto a ponto: ~17 s em 300 pontos de um 100%).
+Public Sub Test_Round_Rebuild_LinksLabelsOnce()
+    Dim wb As Workbook, ws As Worksheet, rng As Range, cht As Chart, k As Variant
+    For Each k In Array("stacked100", "area")
+        Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+        Set rng = Fixture(ws, Array(1, 1, 1, 2, 3, 5))
+        rng.Select
+        Core_Insert CStr(k)
+        Set cht = Core_ActiveChart()
+        Core_SetToggle "roundsum", True
+        Round_ResetRelinkCountForTest
+        AssertTrue Core_RebuildFromRange(cht, rng), k & ": rebuild"
+        Set cht = Core_ActiveChart()
+        AssertEqual 0, Round_RelinkCountForTest(), k & ": a passada de roundsum nao religa"
+        AssertTrue Core_GetToggle("roundsum"), CStr(k)
+        If k = "area" Then
+            AssertTrue InStr(Chart_FindSeries(cht, "tqq_lbl_1").Points(1).DataLabel.Formula, Block_Body(Registry_Block(cht)).Cells(2, Round_RCol(Registry_Block(cht), 1)).Address(True, True)) > 0, k & ": ligado a Rnd1"
+            AssertEqual "1", Chart_FindSeries(cht, "tqq_lbl_1").Points(1).DataLabel.Text, k & ": 1 + 1 + 1 inalterados"
+        Else
+            AssertTrue InStr(cht.SeriesCollection(1).Points(1).DataLabel.Formula, Block_Body(Registry_Block(cht)).Cells(2, Round_RCol(Registry_Block(cht), 1)).Address(True, True)) > 0, k & ": ligado a Rnd1"
+            AssertEqual Pct(34), cht.SeriesCollection(1).Points(1).DataLabel.Text, CStr(k)
+        End If
+        Core_SetToggle "roundsum", True
+        AssertEqual 0, Round_RelinkCountForTest(), k & ": ligar o que ja esta ligado nao religa"
+        Teardown wb
+    Next
+End Sub

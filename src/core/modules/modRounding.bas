@@ -16,6 +16,7 @@ Private Const RND_ERR_RANGE As String = "Selecione uma única coluna ou linha s�
 Private Const AGG_PREFIX As String = "=AGGREGATE(9,6,"
 Private Const RND_ERR_SERIES As String = "As séries do gráfico não correspondem mais às colunas da tabela de origem; use 'Alterar dados' para reconstruí-lo."
 Public Const ROUND_MAX_CELLS As Long = 2000            ' Arredondar intervalo: limite de celulas (custo O(n^2) por recalculo)
+Private mRelinkCount As Long                            ' gancho de teste: vezes que Round_SetLabels refez os rotulos de segmento
 
 Public Function Round_Decimals(numfmtKey As String) As Long
     Select Case numfmtKey
@@ -225,9 +226,58 @@ Public Sub Round_ApplyCellFormat(cht As Chart)
     Next
 End Sub
 
+' True quando o primeiro rotulo de cada segmento ja esta ligado a sua Rnd_j (a passada dos rotulos de "Alterar dados" ja ligou): ligar de
+' novo so refaria o mesmo trabalho (o custo e o de Labels_LinkPoints ponto a ponto). Qualquer leitura que falha = False.
+Private Function LabelsOnRnd(cht As Chart, fam As String) As Boolean
+    Dim blk As Range, body As Range, s As Series, j As Long, ns As Long
+    On Error GoTo Fail
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Function
+    Set body = Block_Body(blk)
+    ns = Round_ColumnCount(blk)
+    If ns < 1 Then Exit Function
+    If fam = "area" Then
+        For j = 1 To ns
+            Set s = Chart_FindSeries(cht, "tqq_lbl_" & j)
+            If s Is Nothing Then Exit Function
+            If Not LinkedTo(s, body.Cells(2, Round_RCol(blk, j))) Then Exit Function
+        Next
+    Else
+        If Round_SeriesCount(cht) <> ns Then Exit Function
+        For Each s In cht.SeriesCollection
+            If Not Style_IsHelperSeries(s) Then
+                j = j + 1
+                If Not LinkedTo(s, body.Cells(2, Round_RCol(blk, j))) Then Exit Function
+            End If
+        Next
+    End If
+    LabelsOnRnd = True
+    Exit Function
+Fail:
+    LabelsOnRnd = False
+End Function
+
+Private Function LinkedTo(s As Series, c As Range) As Boolean
+    Dim lf As String
+    If s.Points.Count < 1 Then Exit Function
+    If Not s.Points(1).HasDataLabel Then Exit Function
+    lf = CStr(s.Points(1).DataLabel.Formula)
+    LinkedTo = (InStr(lf, CALC_SHEET) > 0 And InStr(lf, c.Address(True, True)) > 0)
+End Function
+
+' Gancho de teste: quantas vezes os rotulos de segmento foram refeitos por Round_SetLabels desde o ultimo zerar.
+Public Function Round_RelinkCountForTest() As Long
+    Round_RelinkCountForTest = mRelinkCount
+End Function
+
+Public Sub Round_ResetRelinkCountForTest()
+    mRelinkCount = 0
+End Sub
+
 ' Rotulos de segmento refeitos pela familia (Stacked_SetLabels/Area_SetLabels leem a opcao roundsum).
 Private Sub RelinkSegments(cht As Chart, fam As String)
     Dim s As Series
+    mRelinkCount = mRelinkCount + 1
     If fam = "area" Then
         Area_SetLabels cht, True
     Else
@@ -258,6 +308,9 @@ Public Sub Round_SetLabels(cht As Chart, turnOn As Boolean)
     Registry_SetOption cht, "roundsum", IIf(turnOn, "1", "0")
     recorded = True
     If Registry_GetOption(cht, "labels", "1") <> "1" Then Exit Sub
+    If turnOn Then
+        If LabelsOnRnd(cht, fam) Then Exit Sub                  ' ja ligados as Rnd_j ("Alterar dados" ligou na passada dos rotulos)
+    End If
     RelinkSegments cht, fam
     Exit Sub
 Fail:

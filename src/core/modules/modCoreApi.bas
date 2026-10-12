@@ -864,6 +864,8 @@ Private Sub ReapplyOptions(nc As Chart)
     If Kinds_Supports(kind, "numfmt") Then ApplyOption nc, "numfmt", Registry_GetOption(nc, "numfmt", "int")
     ApplyOption nc, "palette", Registry_GetOption(nc, "palette", "padrao")
     If Kinds_Supports(kind, "gap") And Len(Registry_GetOption(nc, "gap", "")) > 0 Then ApplyOption nc, "gap", Registry_GetOption(nc, "gap", "")
+    ' soma consistente ligada: as colunas Rnd_j antes dos rotulos, para a passada dos rotulos ja ligar a elas (a de roundsum entao nao religa)
+    If Kinds_Supports(kind, "roundsum") And Registry_GetOption(nc, "roundsum", "0") = "1" Then Round_EnsureColumns nc
     For Each k In Array("totals", "labels", "connectors", "secondary", "ind100", "vline", "pieout", "trend", "quad", "roundsum")      ' roundsum depois de labels: com os rotulos desligados so grava a opcao
         If Kinds_Supports(kind, CStr(k)) Then
             dflt = IIf(k = "labels" Or k = "ind100", "1", "0")
