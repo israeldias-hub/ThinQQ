@@ -117,7 +117,8 @@ function Add-FormFromJson($vbproj, [string]$JsonPath, [string]$CodePath) {
 
 # Insere customUI/customUI14.xml no pacote (zip), a relacao em _rels/.rels e, no modo Png, os icones proprios: customUI/images/<nome>.png
 # para cada image= do XML, customUI/_rels/customUI14.xml.rels (Id = nome) e o content type png. Modo Mso: XML com imageMso de reserva, sem imagens.
-function Add-RibbonToPackage([string]$PackagePath, [string]$RibbonXmlPath, [ValidateSet('Png','Mso')][string]$Icons = 'Png') {
+# IconTempRoot: onde nasce (e e apagada) a pasta temporaria thinqq_icons_<guid> dos PNG; os testes passam uma pasta propria.
+function Add-RibbonToPackage([string]$PackagePath, [string]$RibbonXmlPath, [ValidateSet('Png','Mso')][string]$Icons = 'Png', [string]$IconTempRoot = ([IO.Path]::GetTempPath())) {
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $xmlText = [IO.File]::ReadAllText($RibbonXmlPath, (New-Object Text.UTF8Encoding($false)))
@@ -129,7 +130,7 @@ function Add-RibbonToPackage([string]$PackagePath, [string]$RibbonXmlPath, [Vali
         $images = @()
     }
     $iconDir = $null
-    if ($images.Count -gt 0) { $iconDir = Join-Path ([IO.Path]::GetTempPath()) ("thinqq_icons_" + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $iconDir | Out-Null; [void](Export-TqqIcons -OutDir $iconDir) }
+    if ($images.Count -gt 0) { $iconDir = Join-Path $IconTempRoot ("thinqq_icons_" + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $iconDir | Out-Null; [void](Export-TqqIcons -OutDir $iconDir) }
     $zip = [System.IO.Compression.ZipFile]::Open($PackagePath, [System.IO.Compression.ZipArchiveMode]::Update)
     try {
         function Set-ZipText($zip, [string]$name, [string]$text) {

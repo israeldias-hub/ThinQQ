@@ -86,6 +86,10 @@ try {
 . (Join-Path $RepoRoot 'build\lib\Build-Common.ps1')
 $tmpP = Join-Path ([IO.Path]::GetTempPath()) ("tqq_pkg_" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $tmpP | Out-Null
+# Onda B: as pastas temporarias de icones das chamadas deste teste nascem numa pasta propria (um build concorrente cria as suas em %TEMP%:
+# contar thinqq_icons_* la ficava instavel); o teste confere que nenhuma sobra nela.
+$iconRoot = Join-Path $tmpP 'icons'; New-Item -ItemType Directory -Force $iconRoot | Out-Null
+$PSDefaultParameterValues['Add-RibbonToPackage:IconTempRoot'] = $iconRoot
 try {
     $synXml = '<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui"><ribbon><tabs><tab id="t" label="T"><group id="g" label="G"><button id="b1" label="A" image="tqq_columns" size="large"/><button id="b2" label="B" image="tqq_columns16"/><button id="b3" label="C" image="tqq_ppt"/></group></tab></tabs></ribbon></customUI>'
     $synPath = Join-Path $tmpP 'syn.xml'; [IO.File]::WriteAllText($synPath, $synXml, (New-Object Text.UTF8Encoding($false)))
@@ -123,10 +127,10 @@ try {
     Check ([Text.Encoding]::UTF8.GetString($i.Xml) -eq (Convert-TqqRibbonToMso -Xml $synXml)) 'sintetico Mso: XML convertido'
     Check ([Text.Encoding]::UTF8.GetString($i.Xml) -notmatch 'image="' -and [Text.Encoding]::UTF8.GetString($i.Xml) -match 'imageMso="ChartTypeColumnInsertGallery"') 'sintetico Mso: image= virou imageMso'
     # nome fora da tabela: recusa clara e nenhuma pasta temporaria de icones sobra
-    $before = @(Get-ChildItem ([IO.Path]::GetTempPath()) -Directory -Filter 'thinqq_icons_*' -ErrorAction SilentlyContinue).Count
     $thrown = $false; try { Add-RibbonToPackage -PackagePath $pp -RibbonXmlPath $badPath -Icons Png } catch { $thrown = $_.Exception.Message -match 'tqq_inexistente' }
     Check $thrown 'sintetico: image= fora da tabela e recusado pelo nome'
-    Check (@(Get-ChildItem ([IO.Path]::GetTempPath()) -Directory -Filter 'thinqq_icons_*' -ErrorAction SilentlyContinue).Count -eq $before) 'sintetico: nenhuma pasta temporaria de icones sobra'
+    Check ((Get-Command Add-RibbonToPackage).Parameters.ContainsKey('IconTempRoot')) 'Add-RibbonToPackage aceita a pasta das pastas temporarias de icones (o padrao deste teste vale)'
+    Check (@(Get-ChildItem $iconRoot -Directory -Filter 'thinqq_icons_*' -ErrorAction SilentlyContinue).Count -eq 0) 'sintetico: nenhuma pasta temporaria de icones sobra'
     # Revalidacao (Tarefa 8): comentarios nao contam; image + imageMso e nome fora da tabela sao recusados nos dois modos; o XML convertido
     # para Mso e relido como XML (um controle com image e imageMso viraria um atributo imageMso repetido) e nao pode sobrar image=.
     function Write-Syn([string]$name, [string]$body) { $p = Join-Path $tmpP $name; [IO.File]::WriteAllText($p, '<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui"><ribbon><tabs><tab id="t" label="T"><group id="g" label="G">' + $body + '</group></tab></tabs></ribbon></customUI>', (New-Object Text.UTF8Encoding($false))); return $p }
@@ -153,6 +157,6 @@ try {
     Check (($okNames -join ',') -eq 'tqq_bars,tqq_ppt16') "Assert-TqqRibbonXml Png: nomes distintos, sem os de comentario ($($okNames -join ','))"
     $none = Assert-TqqRibbonXml -Xml ($ns + '<button id="a" imageMso="Help"/></customUI>') -Mode Mso
     Check ($null -ne $none -and $none.Count -eq 0) 'Assert-TqqRibbonXml Mso valido: lista vazia'
-    Check (@(Get-ChildItem ([IO.Path]::GetTempPath()) -Directory -Filter 'thinqq_icons_*' -ErrorAction SilentlyContinue).Count -eq $before) 'revalidacao: nenhuma pasta temporaria de icones sobra'
+    Check (@(Get-ChildItem $iconRoot -Directory -Filter 'thinqq_icons_*' -ErrorAction SilentlyContinue).Count -eq 0) 'revalidacao: nenhuma pasta temporaria de icones sobra'
 } finally { Remove-Item $tmpP -Recurse -Force -ErrorAction SilentlyContinue }
 if ($script:fail -gt 0) { Write-Host "FALHAS ribbon-pacote: $script:fail"; exit 1 }
