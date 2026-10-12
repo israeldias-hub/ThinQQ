@@ -26,6 +26,7 @@ Private Const SC_ERR_GROUPS As String = "No máximo 6 grupos (coluna de grupo)."
 Private Const SC_NO_GROUP As String = "(sem grupo)"
 Private Const SC_AXIS_COLOR As Long = 10921638   ' RGB(166, 166, 166)
 Private Const SC_TEXT_COLOR As Long = 5855577    ' RGB(89, 89, 89)
+Private Const SC_LABEL_COLOR As Long = 4210752   ' RGB(64, 64, 64): nomes ao lado do ponto
 
 Public Function Scatter_GroupCount(blk As Range) As Long
     Scatter_GroupCount = (blk.Columns.Count - SC_FIXED) \ 3
@@ -255,7 +256,8 @@ Public Function Scatter_DataSeries(cht As Chart, k As Long) As Series
 End Function
 
 ' Rotulos: o nome de cada ponto, ligado a coluna Nome do bloco (ponto a ponto; nunca Labels_LinkPoints, que gravaria formato numerico nas
-' celulas de texto). Dispersao: a direita do marcador, cinza; bolhas: no centro, fonte por contraste com a cor da serie.
+' celulas de texto). Dispersao: a direita do marcador, cinza; bolhas: no centro, fonte por contraste com a cor da serie, se o nome couber
+' na bolha (senao a direita, cinza: Scatter_SyncBubbleLabels).
 Public Sub Scatter_SetLabels(cht As Chart, turnOn As Boolean)
     Dim body As Range, n As Long, k As Long, i As Long, s As Series, isBubble As Boolean, c As Long
     Set body = Block_Body(Registry_Block(cht))
@@ -266,7 +268,7 @@ Public Sub Scatter_SetLabels(cht As Chart, turnOn As Boolean)
         If Not turnOn Then
             s.HasDataLabels = False
         Else
-            c = IIf(isBubble, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB)), RGB(64, 64, 64))
+            c = IIf(isBubble, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB)), SC_LABEL_COLOR)
             For i = 1 To n
                 If i <= s.Points.Count Then
                     ' isolado por ponto (como Labels_LinkPoints): so a dispersao foi medida com rotulo em ponto NA(); um ponto NA() de bolha
@@ -289,6 +291,7 @@ Public Sub Scatter_SetLabels(cht As Chart, turnOn As Boolean)
         End If
     Next
     Registry_SetOption cht, "labels", IIf(turnOn, "1", "0")
+    If turnOn And isBubble Then Scatter_SyncBubbleLabels cht       ' nome que nao cabe na bolha: a direita, cinza-escuro
 End Sub
 
 ' Cores por serie (grupo): marcadores XY so aceitam a cor por MarkerBackground/ForegroundColor (medido na Fase 2); as bolhas so pelo
@@ -296,7 +299,7 @@ End Sub
 ' tendencia (se existe) e os rotulos das bolhas acompanham. Rotulos das bolhas ponto a ponto: Series.HasDataLabels le False quando o
 ' usuario apagou um rotulo e escrever em Series.DataLabels recriaria os apagados.
 Public Sub Scatter_ApplyColors(cht As Chart, paletteName As String)
-    Dim pal As Variant, k As Long, s As Series, c As Long, isBubble As Boolean, i As Long, fc As Long
+    Dim pal As Variant, k As Long, s As Series, c As Long, isBubble As Boolean, i As Long
     pal = Style_Palette(paletteName)
     isBubble = (Registry_ChartType(cht) = "bubble")
     For k = 1 To Scatter_SeriesCount(cht)
@@ -308,13 +311,6 @@ Public Sub Scatter_ApplyColors(cht As Chart, paletteName As String)
             s.Format.Line.Visible = msoTrue
             s.Format.Line.ForeColor.RGB = RGB(255, 255, 255)
             s.Format.Line.Weight = 1
-            fc = Style_ContrastFont(c)
-            For i = 1 To s.Points.Count
-                On Error Resume Next                 ' ponto a ponto, isolado (ponto NA ou rotulo ilegivel nao interrompe os demais)
-                If s.Points(i).HasDataLabel Then s.Points(i).DataLabel.Font.Color = fc
-                If Err.Number <> 0 Then Errors_Log "Scatter_ApplyColors" & vbTab & s.Name & vbTab & i & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
-                On Error GoTo 0
-            Next
         Else
             s.MarkerBackgroundColor = c
             s.MarkerForegroundColor = c
@@ -325,6 +321,46 @@ Public Sub Scatter_ApplyColors(cht As Chart, paletteName As String)
         For i = 1 To s.Trendlines.Count
             s.Trendlines(i).Format.Line.ForeColor.RGB = c
         Next
+    Next
+    If isBubble Then Scatter_SyncBubbleLabels cht     ' a cor dos rotulos depende da cor nova (contraste) e de onde o rotulo esta
+End Sub
+
+' Bolhas: o nome fica DENTRO da bolha (centro, fonte por contraste com a cor do grupo) so quando cabe no diametro; senao vai para a direita,
+' em cinza-escuro, como na dispersao (branco por contraste sobre o fundo branco sumiria). Diametro = Point.Width (medido: devolve o tamanho
+' atual sem o grafico ser desenhado, inclusive logo depois de mudar os dados ou o tamanho do grafico); texto pela largura estimada
+' (Labels_EstimateWidth). Chamado ao ligar os rotulos, ao trocar a paleta e em todo refresh (Scatter_RefreshAfterDataChange). So mexe em
+' rotulos que existem (o apagado pelo usuario continua apagado) e so escreve o que mudou; cada ponto e isolado: uma leitura que falha deixa
+' o ponto como esta (nunca decide com o valor de outro ponto). Ponto nao plotado (diametro 0) fica como esta. Nunca propaga erro.
+Public Sub Scatter_SyncBubbleLabels(cht As Chart)
+    Dim k As Long, i As Long, s As Series, fc As Long, has As Boolean, d As Double, txt As String, wantPos As Long, wantColor As Long, ok As Boolean
+    On Error Resume Next
+    If Registry_ChartType(cht) <> "bubble" Then Exit Sub
+    For k = 1 To Scatter_SeriesCount(cht)
+        Set s = Nothing
+        Set s = Scatter_DataSeries(cht, k)
+        fc = Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
+        ok = (Err.Number = 0)
+        If Not ok Then Errors_Log "Scatter_SyncBubbleLabels" & vbTab & k & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+        If ok Then
+            For i = 1 To s.Points.Count
+                has = False: d = 0: txt = vbNullString
+                has = s.Points(i).HasDataLabel
+                If Err.Number = 0 And has Then d = s.Points(i).Width
+                If Err.Number = 0 And has And d > 0 Then txt = s.Points(i).DataLabel.Text
+                If Err.Number = 0 And has And d > 0 Then
+                    If Labels_EstimateWidth(txt) <= d Then
+                        wantPos = xlLabelPositionCenter: wantColor = fc
+                    Else
+                        wantPos = xlLabelPositionRight: wantColor = SC_LABEL_COLOR
+                    End If
+                    With s.Points(i).DataLabel
+                        If .Position <> wantPos Then .Position = wantPos
+                        If .Font.Color <> wantColor Then .Font.Color = wantColor
+                    End With
+                End If
+                If Err.Number <> 0 Then Errors_Log "Scatter_SyncBubbleLabels" & vbTab & s.Name & vbTab & i & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+            Next
+        End If
     Next
 End Sub
 
@@ -433,6 +469,7 @@ Public Sub Scatter_RefreshAfterDataChange(cht As Chart)
     If Registry_GetOption(cht, "quad", "0") = "1" Then Scatter_ApplyQuadrants cht
     If Err.Number <> 0 Then Errors_Log "Scatter_RefreshAfterDataChange/quad" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Scatter_HideTrendEntries cht
+    Scatter_SyncBubbleLabels cht                     ' bolhas: o tamanho mudou com os dados ou com o grafico; o nome entra ou sai da bolha
 End Sub
 
 ' Numero de linhas da tabela de origem entre o primeiro e o ultimo ponto, lido nas formulas da coluna X do bloco

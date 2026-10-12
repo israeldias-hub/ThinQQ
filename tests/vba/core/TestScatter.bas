@@ -366,3 +366,38 @@ Public Sub Test_Scatter_SourceMismatch_InsertDeleteMiddleRow()
     AssertTrue Core_ChartSourceMismatch(cht), "primeira linha apagada"
     Teardown wb
 End Sub
+
+' Bolhas: o nome fica no centro com a fonte de contraste so quando cabe no diametro da bolha (largura estimada do texto); senao vai para a
+' direita em cinza-escuro (como na dispersao). Reavaliado a cada refresh; o rotulo apagado pelo usuario continua apagado.
+Public Sub Test_Bubble_LabelFitsDiameter_CenterOrRightDarkGray()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ws As Worksheet, sa As Series, sb As Series, p As Point
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb, True, True): Set ws = d.Source.Worksheet
+    ws.Range("A3").Value = "Produto de nome bem comprido"                  ' P2: a maior bolha (120), grupo B (escuro: fonte branca se coubesse)
+    Set cht = Scatter_Insert(ws, d, "bubble").Chart
+    Set sa = cht.SeriesCollection(1): Set sb = cht.SeriesCollection(2)
+    Set p = sa.Points(1)                                                     ' P1 (50): "P1" cabe
+    AssertTrue Labels_EstimateWidth("P1") <= p.Width, "premissa: P1 cabe (" & p.Width & ")"
+    AssertEqual xlLabelPositionCenter, p.DataLabel.Position
+    AssertEqual Style_ContrastFont(CLng(sa.Format.Fill.ForeColor.RGB)), p.DataLabel.Font.Color, "contraste dentro da bolha"
+    Set p = sb.Points(2)                                                     ' nome longo na maior bolha: nao cabe
+    AssertTrue Labels_EstimateWidth(p.DataLabel.Text) > p.Width, "premissa: o nome longo nao cabe (" & p.Width & ")"
+    AssertEqual xlLabelPositionRight, p.DataLabel.Position, "nome que nao cabe vai para a direita"
+    AssertEqual RGB(64, 64, 64), p.DataLabel.Font.Color, "cinza-escuro fora da bolha (nunca branco sobre branco)"
+    Set p = sb.Points(4)                                                     ' P4 (20): bolha pequena, "P4" nao cabe
+    AssertTrue Labels_EstimateWidth("P4") > p.Width, "premissa: P4 nao cabe (" & p.Width & ")"
+    AssertEqual xlLabelPositionRight, p.DataLabel.Position
+    AssertEqual RGB(64, 64, 64), p.DataLabel.Font.Color
+    sa.Points(3).HasDataLabel = False                                        ' P3 apagado pelo usuario
+    ws.Range("D5").Value = 150                                               ' P4 cresce: passa a caber
+    cht.Refresh: Core_SafeRefresh cht
+    Set p = sb.Points(4)
+    AssertTrue Labels_EstimateWidth("P4") <= p.Width, "premissa: P4 agora cabe (" & p.Width & ")"
+    AssertEqual xlLabelPositionCenter, p.DataLabel.Position, "reavaliado no refresh"
+    AssertEqual Style_ContrastFont(CLng(sb.Format.Fill.ForeColor.RGB)), p.DataLabel.Font.Color
+    AssertFalse sa.Points(3).HasDataLabel, "o rotulo apagado continua apagado"
+    Scatter_ApplyColors cht, "cinza"                                         ' a paleta respeita a posicao: fora continua cinza-escuro
+    AssertEqual RGB(64, 64, 64), sb.Points(2).DataLabel.Font.Color
+    AssertEqual Style_ContrastFont(RGB(127, 127, 127)), sb.Points(4).DataLabel.Font.Color
+    AssertFalse sa.Points(3).HasDataLabel
+    Teardown wb
+End Sub
