@@ -119,9 +119,11 @@ tutorial existem na faixa, que a tabela "O que cada tipo aceita" bate com `Kinds
 existem no código.
 
 Formatos numéricos: rótulos e células de números do bloco usam `NumberFormatLocal` com `Style_LocalizeCode` (ou
-`Style_AssignNumberFormat`); `Range.NumberFormat =` direto só com código invariante ou copiado da origem. Exceções aceitas na
-auditoria da 1.1.0: `"@"` (texto) em `modCalcSheet` e `TestWaterfall`; `"0.0%"` em `TestArea` e `"#,##0.00000"` em `TestChartData`;
-o formato copiado da categoria de origem em `modChartMekko` e os de data da escala em `modChartGantt` (`dd/mm`, `mmm/yy`).
+`Style_AssignNumberFormat`). `Range.NumberFormat =` direto só com código invariante (lido em inglês pelo Excel) ou copiado da origem;
+casos aceitos na auditoria da 1.1.0, por categoria: texto `"@"` (`modCalcSheet`, `TestWaterfall`, `TestWaterfall2`); `"General"`
+(`TestArea`, `TestWaterfall2`); percentual `"0%"`/`"0.0%"` (`modSamples`, `TestArea`); datas `dd/mm`, `mmm/yy`, `dd/mm/yyyy`
+(`modChartGantt`, `modSamples`, `TestAnnotations`, `TestArea`, `TestChartData`, `TestGantt`, `TestMekko`); `"#,##0.00000"`
+(`TestChartData`); o formato copiado da categoria de origem (`modChartMekko`).
 
 Os testes usam um Excel invisível próprio e pastas temporárias. Feche instâncias do Excel que tenham
 `dist\ThinQQ.core.test.xlam` aberto (o arquivo fica travado). O build de teste (`*.test.xlam`) nunca é
