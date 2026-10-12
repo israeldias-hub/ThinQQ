@@ -61,10 +61,22 @@ try {
     Assert ((Get-DistHash $dist) -eq $distHash) 'dist\ThinQQ.xlam nao mudou (a assinatura real e feita numa copia)'
     # falha DEPOIS de criar o certificado (uma pasta ocupa o nome do .cer, o que faz o Export-Certificate falhar): o New-ThinQQCert deve
     # desfazer sozinho o que gravou nas lojas e nao deixar .pfx/.cer novos para tras
+    # .cer/.pfx ja existentes: falha ANTES de criar qualquer coisa (nada de certificados identicos acumulando nas lojas nem arquivos sobrescritos
+    # em silencio), com mensagem em portugues que cita -Force
+    $exDir = Join-Path $tmp 'existentes'
+    New-Item -ItemType Directory -Force $exDir | Out-Null
+    Set-Content -LiteralPath (Join-Path $exDir 'ThinQQ-publisher.cer') 'antigo'
+    $msg = ''
+    try { & (Join-Path $repo 'tools\New-ThinQQCert.ps1') -Subject $subjectFail -OutDir $exDir -Years 1 -PfxPassword 'teste' | Out-Null } catch { $msg = $_.Exception.Message }
+    Assert ($msg -match 'ja existe' -and $msg -match '-Force') "New-ThinQQCert recusa arquivos existentes sem -Force: [$msg]"
+    Assert (-not @(Get-ChildItem 'Cert:\CurrentUser\My' | Where-Object Subject -eq $subjectFail)) 'recusa antecipada nao criou certificado'
+    Assert ((Get-Content -LiteralPath (Join-Path $exDir 'ThinQQ-publisher.cer')) -eq 'antigo') 'recusa antecipada nao tocou no arquivo'
+    Assert (-not (Test-Path (Join-Path $exDir 'ThinQQ-signing.pfx'))) 'recusa antecipada nao criou o .pfx'
+    # falha DEPOIS de criar o certificado (com -Force, uma pasta ocupa o nome do .cer e o Export-Certificate falha)
     $failDir = Join-Path $tmp 'falha'
     New-Item -ItemType Directory -Force (Join-Path $failDir 'ThinQQ-publisher.cer') | Out-Null
     $threw = $false
-    try { & (Join-Path $repo 'tools\New-ThinQQCert.ps1') -Subject $subjectFail -OutDir $failDir -Years 1 -PfxPassword 'teste' | Out-Null } catch { $threw = $true }
+    try { & (Join-Path $repo 'tools\New-ThinQQCert.ps1') -Subject $subjectFail -OutDir $failDir -Years 1 -PfxPassword 'teste' -Force | Out-Null } catch { $threw = $true }
     Assert $threw 'New-ThinQQCert propaga a falha de exportacao'
     foreach ($store in 'My', 'CA', 'TrustedPublisher') {
         Assert (-not @(Get-ChildItem "Cert:\CurrentUser\$store" | Where-Object Subject -eq $subjectFail)) "New-ThinQQCert desfez o certificado da falha em $store"
