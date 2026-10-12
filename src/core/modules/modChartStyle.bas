@@ -1,22 +1,30 @@
 Attribute VB_Name = "modChartStyle"
 Option Explicit
 ' Aparência padrão "limpa": sem grade, eixo de valores invisível (mas presente, para a geometria),
-' sem bordas, fonte 9 pt. Paletas de 6 cores.
+' sem bordas, fonte 9 pt. Paletas de 10 cores: as series usam as 6 primeiras (pal(k Mod 6)); as fatias da pizza e da rosca usam as 10
+' (Style_ApplyPointColors), para 7 a 10 fatias nao repetirem cor (Onda A da Fase 3; as 6 primeiras sao as de antes).
+Private Const THEME_DARKER As Double = -0.5     ' brilho dos tons -7..-10 da paleta "tema" (destaque 1..4 escurecido 50%)
 
 Public Function Style_Palette(name As String) As Variant
     Select Case LCase$(name)
         Case "cinza"
-            Style_Palette = Array(RGB(64, 64, 64), RGB(127, 127, 127), RGB(166, 166, 166), RGB(191, 191, 191), RGB(217, 217, 217), RGB(89, 89, 89))
+            Style_Palette = Array(RGB(64, 64, 64), RGB(127, 127, 127), RGB(166, 166, 166), RGB(191, 191, 191), RGB(217, 217, 217), RGB(89, 89, 89), RGB(38, 38, 38), RGB(108, 108, 108), RGB(146, 146, 146), RGB(230, 230, 230))
         Case "tema"
-            Style_Palette = Array(-1, -2, -3, -4, -5, -6)    ' accent1..accent6 do tema
+            Style_Palette = Array(-1, -2, -3, -4, -5, -6, -7, -8, -9, -10)    ' accent1..accent6 do tema; -7..-10 = accent1..4 escurecidos (Style_SetColor)
         Case Else
-            Style_Palette = Array(RGB(31, 56, 100), RGB(68, 114, 196), RGB(157, 195, 230), RGB(165, 165, 165), RGB(0, 150, 136), RGB(237, 162, 36))
+            Style_Palette = Array(RGB(31, 56, 100), RGB(68, 114, 196), RGB(157, 195, 230), RGB(165, 165, 165), RGB(0, 150, 136), RGB(237, 162, 36), RGB(112, 48, 160), RGB(84, 130, 53), RGB(244, 177, 131), RGB(192, 80, 77))
     End Select
 End Function
 
+' Cor da paleta num ColorFormat: RGB, ou cor do tema (-1..-6 = destaque 1..6; -7..-10 = destaque 1..4 escurecido em THEME_DARKER, os tons das
+' fatias 7 a 10 da paleta "tema"). Um destaque base zera o brilho que a mesma fatia tinha recebido como tom escurecido.
 Public Sub Style_SetColor(cf As ColorFormat, colorValue As Variant)
-    If colorValue < 0 Then
+    If colorValue < -6 Then
+        cf.ObjectThemeColor = msoThemeColorAccent1 + ((-colorValue - 7) Mod 6)
+        cf.Brightness = THEME_DARKER
+    ElseIf colorValue < 0 Then
         cf.ObjectThemeColor = msoThemeColorAccent1 + (-colorValue - 1)
+        If cf.Brightness <> 0 Then cf.Brightness = 0
     Else
         cf.RGB = CLng(colorValue)
     End If
@@ -119,19 +127,21 @@ Public Sub Style_ApplySeriesColors(cht As Chart, paletteName As String, Optional
     Next
 End Sub
 
-' Cores por PONTO da pizza e da rosca (uma serie so): VaryByCategories e a fatia k recebe pal((k - 1) Mod 6) (a 7a volta ao inicio da
-' paleta), com borda branca de 1 pt que separa as fatias. Excecao: com n > 6 e (n - 1) Mod 6 = 0 (7, 13, 19 fatias) a ultima cairia na cor da
-' primeira, sua vizinha no circulo; ela recebe pal(3). Nao mexe nos rotulos: quem chama (Pie_ApplyColors) refaz a cor da fonte.
+' Cores por PONTO da pizza e da rosca (uma serie so): VaryByCategories e a fatia k recebe pal((k - 1) Mod np), np = as 10 cores da paleta
+' (ate 10 fatias sem repetir; a 11a volta ao inicio), com borda branca de 1 pt que separa as fatias. Excecao: com n > np e (n - 1) Mod np = 0
+' (11, 21 fatias) a ultima cairia na cor da primeira, sua vizinha no circulo; ela recebe pal(3). Nao mexe nos rotulos: quem chama
+' (Pie_ApplyColors) refaz a cor da fonte.
 Public Sub Style_ApplyPointColors(cht As Chart, paletteName As String)
-    Dim pal As Variant, s As Series, k As Long, n As Long, idx As Long
+    Dim pal As Variant, s As Series, k As Long, n As Long, idx As Long, np As Long
     If cht.SeriesCollection.Count = 0 Then Exit Sub
     pal = Style_Palette(paletteName)
+    np = UBound(pal) - LBound(pal) + 1
     Set s = cht.SeriesCollection(1)
     cht.ChartGroups(1).VaryByCategories = True
     n = s.Points.Count
     For k = 1 To n
-        idx = (k - 1) Mod 6
-        If k = n And n > 6 And idx = 0 Then idx = 3
+        idx = (k - 1) Mod np
+        If k = n And n > np And idx = 0 Then idx = 3
         Style_SetColor s.Points(k).Format.Fill.ForeColor, pal(idx)
     Next
     s.Format.Line.Visible = msoTrue
@@ -241,11 +251,17 @@ Public Sub Style_AssignNumberFormat(target As Object, fmt As String)
 End Sub
 
 ' RGB de uma cor da paleta (Style_Palette): o proprio valor ou, na paleta "tema" (-1..-6 = destaque 1..6), a cor do tema da pasta do
-' grafico. Para marcadores XY (dispersao, bolhas, marcos), cujo Format.Fill nao aceita a cor (medido na Fase 2).
+' grafico (-7..-10: destaque 1..4 com cada canal escurecido, aproximacao do brilho THEME_DARKER). Para marcadores XY (dispersao, bolhas,
+' marcos), cujo Format.Fill nao aceita a cor (medido na Fase 2).
 Public Function Style_PaletteRGB(cht As Chart, v As Variant) As Long
+    Dim c As Long, f As Double
     On Error GoTo Fail
     If v >= 0 Then
         Style_PaletteRGB = CLng(v)
+    ElseIf v < -6 Then
+        c = Registry_Workbook(cht).Theme.ThemeColorScheme.Colors(msoThemeAccent1 + ((-v - 7) Mod 6)).RGB
+        f = 1 + THEME_DARKER
+        Style_PaletteRGB = RGB(CLng((c And &HFF) * f), CLng(((c \ &H100) And &HFF) * f), CLng(((c \ &H10000) And &HFF) * f))
     Else
         Style_PaletteRGB = Registry_Workbook(cht).Theme.ThemeColorScheme.Colors(msoThemeAccent1 + (-v - 1)).RGB
     End If

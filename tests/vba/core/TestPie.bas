@@ -137,7 +137,7 @@ Public Sub Test_Doughnut_RejectsLabelPosition_Probe_And_NoPieOut()
     CloseTemp wb
 End Sub
 
-' Review Focus 5: negativos, zero e texto viram 0 (sem tocar na tabela), 7 fatias ciclam a paleta, rotulos externos cabem.
+' Review Focus 5: negativos, zero e texto viram 0 (sem tocar na tabela), 7 fatias com 7 cores, rotulos externos cabem.
 Public Sub Test_Pie_NegativeZeroText_AndSevenSlices()
     Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, s As Series, body As Range, i As Long, pal As Variant, dl As DataLabel
     Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
@@ -157,7 +157,7 @@ Public Sub Test_Pie_NegativeZeroText_AndSevenSlices()
     AssertAlmost 50 / 110, body.Cells(2, 3).Value
     AssertEqual 7, s.Points.Count
     pal = Style_Palette("padrao")
-    AssertEqual CLng(pal(3)), s.Points(7).Format.Fill.ForeColor.RGB, "setima fatia: pal(3), nao repete a da 1a (vizinha dela no circulo)"
+    AssertEqual CLng(pal(6)), s.Points(7).Format.Fill.ForeColor.RGB, "setima fatia: a 7a cor da paleta (10 cores; Onda A)"
     AssertTrue s.Points(7).Format.Fill.ForeColor.RGB <> s.Points(1).Format.Fill.ForeColor.RGB, "a ultima fatia difere da primeira"
     AssertEqual "", s.Points(2).DataLabel.Text, "fatia zero sem rotulo"
     Pie_SetOutside cht, True
@@ -647,24 +647,25 @@ Public Sub Test_Pie_OutsideWithLabelsOff_KeepsLegend()
     Teardown wb
 End Sub
 
-' Tarefa 11 (M2 da Tarefa 8): com n > 6 e (n - 1) Mod 6 = 0 a ultima fatia cairia na cor da primeira (e as duas sao vizinhas no circulo):
-' usa pal(3). Nos demais n o ciclo e o de sempre (a fatia k recebe pal((k - 1) Mod 6)). Expectativas escritas a mao, sem a formula de producao.
+' Tarefa 11 (M2 da Tarefa 8), com as 10 cores da Onda A: com n > 10 e (n - 1) Mod 10 = 0 a ultima fatia cairia na cor da primeira (e as
+' duas sao vizinhas no circulo): usa pal(3). Nos demais n o ciclo e o de sempre (a fatia k recebe pal((k - 1) Mod 10)). Expectativas escritas
+' a mao, sem a formula de producao.
 Public Sub Test_Pie_LastSlice_DiffersFromFirst_WhenCycleWraps()
     Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, s As Series, pal As Variant, n As Variant, i As Long, want As Variant
-    Dim idx13 As Variant, idx8 As Variant
-    idx13 = Array(0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 3)      ' 13 fatias: a 13a (que seria pal(0)) vira pal(3)
-    idx8 = Array(0, 1, 2, 3, 4, 5, 0, 1)                      ' 8 fatias: o ciclo normal (a 8a e pal(1), vizinha da 1a que e pal(0))
+    Dim idx11 As Variant, idx8 As Variant
+    idx11 = Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 3)            ' 11 fatias: a 11a (que seria pal(0)) vira pal(3)
+    idx8 = Array(0, 1, 2, 3, 4, 5, 6, 7)                      ' 8 fatias: 8 cores distintas (antes a 7a e a 8a repetiam a 1a e a 2a)
     pal = Style_Palette("padrao")
-    For Each n In Array(13, 8)
+    For Each n In Array(11, 8)
         Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
         ws.Range("A1:B1").Value = Array("Produto", "Vendas")
         For i = 1 To n
             ws.Cells(i + 1, 1).Value = "P" & i: ws.Cells(i + 1, 2).Value = 10 + i
         Next
         Set d = ChartData_FromRange(ws.Range("A1").Resize(n + 1, 2))
-        Set cht = Pie_Insert(ws, d, IIf(n = 13, "pie", "doughnut")).Chart
+        Set cht = Pie_Insert(ws, d, IIf(n = 11, "pie", "doughnut")).Chart
         Set s = cht.SeriesCollection(1)
-        If n = 13 Then want = idx13 Else want = idx8
+        If n = 11 Then want = idx11 Else want = idx8
         AssertEqual n, s.Points.Count
         For i = 1 To n
             AssertEqual CLng(pal(want(i - 1))), s.Points(i).Format.Fill.ForeColor.RGB, n & " fatias: fatia " & i
@@ -733,5 +734,48 @@ Public Sub Test_Pie_Palette_KeepsOutsideContent_DraggedAndDeletedLabels()
     AssertAlmost l1, s.Points(2).DataLabel.Left, 1, "rotulo arrastado (modo participacao) fica onde foi solto"
     AssertAlmost t1, s.Points(2).DataLabel.Top, 1
     AssertEqual RGB(64, 64, 64), s.Points(2).DataLabel.Font.Color
+    Teardown wb
+End Sub
+
+' Luminancia relativa (WCAG) de uma cor RGB do VBA; usada so para o contraste do teste (independe de Style_ContrastFont).
+Private Function RelLum(c As Long) As Double
+    Dim ch(1 To 3) As Double, i As Long, v As Double
+    ch(1) = (c And &HFF) / 255: ch(2) = ((c \ &H100) And &HFF) / 255: ch(3) = ((c \ &H10000) And &HFF) / 255
+    For i = 1 To 3
+        v = ch(i)
+        If v <= 0.03928 Then ch(i) = v / 12.92 Else ch(i) = ((v + 0.055) / 1.055) ^ 2.4
+    Next
+    RelLum = 0.2126 * ch(1) + 0.7152 * ch(2) + 0.0722 * ch(3)
+End Function
+
+' Onda A, item D: pizza e rosca com 8 fatias nao repetem cor (cada paleta tem 10 cores; as 6 primeiras sao as de antes) e o rotulo de cada
+' fatia fica legivel sobre ela (contraste WCAG >= 3:1 entre a fonte e o preenchimento).
+Public Sub Test_Pie_EightSlices_DistinctColors_ReadableLabels()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, s As Series, i As Long, j As Long, k As Variant, pn As Variant
+    Dim fill As Long, fnt As Long, l1 As Double, l2 As Double, ratio As Double
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:B1").Value = Array("Departamento", "Vendas")
+    For i = 1 To 8
+        ws.Cells(i + 1, 1).Value = "Depto " & i: ws.Cells(i + 1, 2).Value = 100 - i * 8
+    Next
+    Set d = ChartData_FromRange(ws.Range("A1:B9"))
+    For Each k In Array("pie", "doughnut")
+        Set cht = Pie_Insert(ws, d, CStr(k)).Chart
+        Set s = cht.SeriesCollection(1)
+        For Each pn In Array("padrao", "cinza", "tema")
+            Pie_ApplyColors cht, CStr(pn)
+            For i = 1 To 8
+                For j = i + 1 To 8
+                    AssertTrue s.Points(i).Format.Fill.ForeColor.RGB <> s.Points(j).Format.Fill.ForeColor.RGB, k & "/" & pn & ": fatias " & i & " e " & j & " com a mesma cor"
+                Next
+                fill = CLng(s.Points(i).Format.Fill.ForeColor.RGB): fnt = CLng(s.Points(i).DataLabel.Font.Color)
+                l1 = RelLum(fill): l2 = RelLum(fnt)
+                If l1 > l2 Then ratio = (l1 + 0.05) / (l2 + 0.05) Else ratio = (l2 + 0.05) / (l1 + 0.05)
+                AssertTrue ratio >= 3, k & "/" & pn & ": rotulo da fatia " & i & " legivel (contraste " & Format$(ratio, "0.0") & ")"
+            Next
+        Next
+        ws.ChartObjects(1).Delete
+        CalcSheet_Cleanup wb
+    Next
     Teardown wb
 End Sub
