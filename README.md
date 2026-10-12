@@ -49,9 +49,9 @@ do que cada tipo aceita, as mensagens do ThinQQ e os limites conhecidos.
 
 ## Antes de distribuir (checklist do responsável pela publicação)
 
-**Esta lista é de ações suas, fora do código** (o repositório ainda não foi publicado; o `push` falhou por falta de credenciais). A primeira versão a ser publicada é a **1.1.0**: a 1.0.0 (Fase 1) nunca saiu.
+**Esta lista é de ações suas, fora do código** (as branches já estão no GitHub, em `israeldias-hub/ThinQQ`). A primeira versão a ser publicada é a **1.1.0**: a 1.0.0 (Fase 1) nunca saiu.
 
-- [ ] Publicar o conteúdo do repositório no GitHub (`israeldias-hub/ThinQQ`).
+- [ ] Decidir a visibilidade do repositório. Enquanto ele for **privado**, ninguém sem acesso ao repositório consegue baixar a release (ZIP e arquivos) nem o `release/manifest.json`: o atualizador dos colegas falha em silêncio (sem aviso de versão nova) e o GitHub Pages do tutorial não fica público (no plano gratuito o Pages exige repositório público). Para distribuir, torne o repositório público (depois da limpeza de privacidade abaixo) ou use uma fonte de atualização interna (pasta de rede) e o tutorial que vai no ZIP.
 - [ ] Gerar os arquivos com `build/release.ps1` e publicar a release **v1.1.0** com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`).
 - [ ] Fazer commit de `release/manifest.json` (com URLs reais) e de `version.json` (já em `{ "loader": "1.1.0", "core": "1.1.0" }`) na `main`.
 - [ ] **Privacidade antes de publicar** (o repositório ou o Pages): os arquivos versionados já foram limpos (caminhos de perfil do Windows, ids de máquina, PIDs do Excel do autor e e-mail corporativo) e `tests/ps/Test-Privacy.ps1` (rodado por `build/run-tests.ps1`) falha se algum voltar. O que sobra é o **histórico do Git**: o autor e o e-mail dos commits e o texto antigo dos arquivos continuam nos commits antigos. Para publicar só o estado atual, crie um repositório novo a partir da árvore de trabalho (`git archive HEAD`); para manter o histórico, reescreva-o antes de publicar (`git filter-repo --mailmap <arquivo>` troca nome e e-mail dos autores; `git filter-repo --replace-text <arquivo>` troca o texto antigo; instale o `git-filter-repo`, rode numa cópia e confira com `git log --format='%an <%ae>'` e `git grep` no histórico).
