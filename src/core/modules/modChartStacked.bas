@@ -1,0 +1,313 @@
+Attribute VB_Name = "modChartStacked"
+Option Explicit
+Private Const TOTAL_LABEL_OFFSET As Double = 6      ' o rotulo "Right" de um ponto XY comeca ~5,5 pt depois do ponto (medido)
+Private Const TOTAL_LABEL_MARGIN As Double = 4      ' respiro entre o fim do rotulo do total e a borda livre
+' Colunas e barras empilhadas / agrupadas / 100% / linha (kinds stacked, clustered, stacked100, line, barstacked,
+' barclustered, barstacked100) e combinação (kind combo, montada por Combo_Insert: as séries 1..S-1 empilham em colunas e a
+' última é uma linha; Total, TotalPos e VLine só consideram as colunas).
+' Bloco (corpo): linha 1 = cabeçalhos; colunas: 1 Categoria | 2 Total | 3 TotalPos | (só 100%) 4..3+S Participação de cada série |
+' P = Pos | P+1 = VLine (as duas últimas ao inserir, em todos os tipos da família; a Fase 3 acrescenta colunas à direita sob demanda
+' (LblPos do corte de eixo, RndD/V_j/Rnd_j da soma consistente): Stacked_PosCol e Stacked_VLineCol acham as duas pelo cabeçalho).
+' TotalPos = posição plotada do rótulo do total: em empilhadas é a extensão positiva da pilha (soma dos valores > 0;
+' o RÓTULO continua mostrando o total líquido da coluna 2; sem valores positivos, a extensão negativa); em 100% é 1.
+' Participação = valor / total da linha (0 se o total é 0 ou a célula não é número).
+' Pos = posição da categoria no eixo Y secundário das auxiliares XY das barras (n - i + 0,5: a primeira categoria no topo).
+' VLine = linha de valor (a mesma fórmula em todas as linhas; #N/D em 100%, onde não há linha): empilhadas, combinação e área = média da
+' coluna Total (média dos totais das colunas); clustered, barclustered e line = média de TODOS os valores plotados da tabela (cada valor é
+' uma "coluna" e Total, a soma da linha, não é plotado: a média da soma ficaria acima de todas as barras); com uma série as duas coincidem.
+
+Public Function Stacked_BuildBlock(wb As Workbook, id As String, data As clsChartData, kind As String) As Range
+    Dim blk As Range, body As Range, i As Long, j As Long, rowCells As Range, srcAddr As String, totAddr As String
+    Dim is100 As Boolean, n As Long, cols As Long, posCol As Long, vCol As Long, totRange As String, nCol As Long, allRange As String, isFlat As Boolean
+    is100 = Kinds_Is100(kind)
+    isFlat = (kind = "clustered" Or kind = "barclustered" Or kind = "line")
+    n = data.CategoryCount
+    nCol = data.SeriesCount - IIf(kind = "combo", 1, 0)      ' combinação: a última coluna da tabela é a linha, fora dos totais
+    cols = 3 + IIf(is100, data.SeriesCount, 0) + 2
+    Set blk = CalcSheet_AllocateBlock(wb, id, kind, Mid$(ChartData_ExternalAddress(data.Source), 2), n + 1, cols)
+    Set body = Block_Body(blk)
+    posCol = Stacked_PosCol(blk): vCol = Stacked_VLineCol(blk)
+    body.Cells(1, 1).Value = "Categoria": body.Cells(1, 2).Value = "Total": body.Cells(1, 3).Value = "TotalPos"
+    If is100 Then
+        For j = 1 To data.SeriesCount: body.Cells(1, 3 + j).Value = "Part" & j: Next
+    End If
+    body.Cells(1, posCol).Value = "Pos": body.Cells(1, vCol).Value = "VLine"
+    totRange = body.Cells(2, 2).Resize(n, 1).Address(True, True)     ' mesma planilha: sem nome de planilha
+    If isFlat Then allRange = Mid$(ChartData_ExternalAddress(data.Source.Cells(2, 2).Resize(n, data.SeriesCount)), 2)     ' todos os valores da tabela
+    For i = 1 To n
+        body.Cells(i + 1, 1).Formula = ChartData_ExternalAddress(data.Source.Cells(i + 1, 1))
+        Set rowCells = data.Source.Cells(i + 1, 2).Resize(1, nCol)
+        body.Cells(i + 1, 2).Formula = "=AGGREGATE(9,6," & Mid$(ChartData_ExternalAddress(rowCells), 2) & ")"   ' ignora erros (#N/A) e texto
+        If is100 Then
+            body.Cells(i + 1, 3).Formula = "=1"
+            totAddr = body.Cells(i + 1, 2).Address(False, False)
+            For j = 1 To data.SeriesCount
+                srcAddr = Mid$(ChartData_ExternalAddress(data.Source.Cells(i + 1, 1 + j)), 2)
+                body.Cells(i + 1, 3 + j).Formula = "=IF(AND(ISNUMBER(" & srcAddr & ")," & totAddr & "<>0)," & srcAddr & "/" & totAddr & ",0)"
+            Next
+        ElseIf kind = "clustered" Or kind = "barclustered" Or kind = "line" Then
+            body.Cells(i + 1, 3).Formula = "=" & body.Cells(i + 1, 2).Address(False, False)
+        Else
+            ' empilhada: posição do total = extensão positiva da pilha (com sinais mistos o total líquido ficaria dentro da pilha)
+            srcAddr = Mid$(ChartData_ExternalAddress(rowCells), 2)
+            body.Cells(i + 1, 3).Formula = "=IF(SUMIF(" & srcAddr & ","">0"")>0,SUMIF(" & srcAddr & ","">0""),SUMIF(" & srcAddr & ",""<0""))"
+        End If
+        body.Cells(i + 1, posCol).Formula = "=" & (n - i) & ".5"           ' independe do separador decimal da localidade
+        If is100 Then
+            body.Cells(i + 1, vCol).Formula = "=NA()"
+        ElseIf isFlat Then
+            body.Cells(i + 1, vCol).Formula = "=IFERROR(AGGREGATE(1,6," & allRange & "),0)"      ' media dos valores plotados (erros e texto ignorados; tabela vazia = 0)
+        Else
+            body.Cells(i + 1, vCol).Formula = "=AVERAGE(" & totRange & ")"
+        End If
+    Next
+    Set Stacked_BuildBlock = blk
+End Function
+
+' Coluna Pos (posição da categoria) e coluna VLine (linha de valor): achadas pelo cabeçalho (a Fase 3 pode acrescentar colunas à direita);
+' sem cabeçalho (bloco ainda sendo montado ou de versão anterior), as duas últimas colunas, como antes.
+Public Function Stacked_PosCol(blk As Range) As Long
+    Stacked_PosCol = Block_FindCol(blk, "Pos")
+    If Stacked_PosCol = 0 Then Stacked_PosCol = blk.Columns.Count - 1
+End Function
+
+Public Function Stacked_VLineCol(blk As Range) As Long
+    Stacked_VLineCol = Block_FindCol(blk, "VLine")
+    If Stacked_VLineCol = 0 Then Stacked_VLineCol = blk.Columns.Count
+End Function
+
+Public Function Stacked_Insert(ws As Worksheet, data As clsChartData, kind As String) As ChartObject
+    Dim id As String, co As ChartObject, cht As Chart, s As Series, j As Long, anchor As Range
+    Dim en As Long, es As String, ed As String
+    On Error GoTo Fail
+    id = Registry_NewId()
+    Stacked_BuildBlock ws.Parent, id, data, kind
+    Util_TestHookAfterBlock
+    Set anchor = data.Source.Cells(1, data.Source.Columns.Count + 2)
+    Set co = ws.ChartObjects.Add(anchor.Left, Chart_FreeTop(ws, anchor.Left, anchor.Top, 460, 280), 460, 280)
+    co.Name = ID_PREFIX & id
+    Set cht = co.Chart
+    Do While cht.SeriesCollection.Count > 0
+        cht.SeriesCollection(1).Delete
+    Loop
+    For j = 1 To data.SeriesCount
+        Set s = cht.SeriesCollection.NewSeries
+        s.Name = ChartData_ExternalAddress(data.SeriesNameCell(j))
+        s.Values = ChartData_ExternalAddress(data.SeriesValueCells(j))
+        s.XValues = ChartData_ExternalAddress(data.CategoryCells())
+    Next
+    Select Case kind
+        Case "clustered": cht.ChartType = xlColumnClustered
+        Case "stacked100": cht.ChartType = xlColumnStacked100
+        Case "line": cht.ChartType = xlLineMarkers
+        Case "barstacked": cht.ChartType = xlBarStacked
+        Case "barclustered": cht.ChartType = xlBarClustered
+        Case "barstacked100": cht.ChartType = xlBarStacked100
+        Case Else: cht.ChartType = xlColumnStacked
+    End Select
+    If kind = "combo" Then cht.SeriesCollection(data.SeriesCount).ChartType = xlLineMarkers      ' a última coluna da tabela vira a linha
+    cht.PlotVisibleOnly = False
+    cht.DisplayBlanksAs = xlZero
+    Style_ApplyBase cht
+    If kind = "combo" Then cht.Axes(xlCategory).AxisBetweenCategories = True      ' colunas: sempre entre categorias (fixado: a geometria le o eixo)
+    cht.HasLegend = True
+    cht.Legend.Position = xlLegendPositionRight
+    cht.Legend.Font.Size = 9
+    Registry_SetOption cht, "numfmt", "int"
+    Registry_SetOption cht, "palette", "padrao"
+    Registry_SetOption cht, "n", CStr(data.CategoryCount)
+    Registry_SetOption cht, "legend", "right"
+    If kind <> "line" Then
+        cht.ChartGroups(1).GapWidth = IIf(kind = "clustered" Or kind = "barclustered", 80, 50)
+        Registry_SetOption cht, "gap", IIf(kind = "clustered" Or kind = "barclustered", "80", "50")
+    End If
+    Style_ApplySeriesColors cht, "padrao"
+    Stacked_SetLabels cht, True
+    Stacked_SetTotals cht, Kinds_Supports(kind, "totals")
+    Stacked_SetConnectors cht, False
+    If Kinds_Supports(kind, "ind100") Then Deco_SetInd100 cht, True        ' indicador 100%: ligado por padrao nos graficos 100%
+    Set Stacked_Insert = co
+    Exit Function
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error Resume Next
+    If Not co Is Nothing Then co.Delete
+    If Len(id) > 0 Then CalcSheet_DeleteBlock ws.Parent, id
+    On Error GoTo 0
+    Err.Raise en, es, ed
+End Function
+
+Public Sub Stacked_SetTotals(cht As Chart, turnOn As Boolean)
+    Dim s As Series, blk As Range, body As Range, n As Long, fmt As String, kind As String, pc As Long
+    kind = Registry_ChartType(cht)
+    Set s = Chart_FindSeries(cht, "tqq_total")
+    If turnOn Then
+        If Not Kinds_Supports(kind, "totals") Then Exit Sub
+    End If
+    If Not turnOn Then
+        If Not s Is Nothing Then s.Delete
+        Registry_SetOption cht, "totals", "0"
+        Exit Sub
+    End If
+    Set blk = Registry_Block(cht)
+    Set body = Block_Body(blk)
+    n = body.Rows.Count - 1
+    pc = Block_FindCol(blk, "LblPos"): If pc = 0 Then pc = 3       ' corte de eixo (modAxisBreak): a posicao plotada para no corte
+    If s Is Nothing Then
+        If Kinds_IsHorizontal(kind) Then
+            ' barras: auxiliar XY no grupo secundário, X = TotalPos (fim da pilha; LblPos com o corte) e Y = Pos (centro da faixa da categoria)
+            Set s = Chart_AddHelperSeries(cht, "tqq_total", body.Cells(2, pc).Resize(n, 1), body.Cells(2, Stacked_PosCol(blk)).Resize(n, 1))
+        Else
+            Set s = Chart_AddHelperSeries(cht, "tqq_total", body.Cells(2, pc).Resize(n, 1))
+        End If
+    End If
+    Chart_HideHelperLegendEntries cht
+    fmt = Labels_TotalFormat(cht)
+    Labels_LinkPoints s, body.Cells(2, 2).Resize(n, 1), fmt, , , Kinds_IsHorizontal(kind)
+    Labels_RefreshPositions cht                    ' acima/abaixo (barras: direita/esquerda) pela posição plotada (TotalPos)
+    s.DataLabels.Font.Bold = True
+    If Kinds_IsHorizontal(kind) Then Stacked_EnsureTotalsRoom cht, body.Cells(2, pc).Resize(n, 1)
+    Registry_SetOption cht, "totals", "1"
+End Sub
+
+' Barras: garante que o rótulo do total mais à direita caiba antes da borda livre (a do gráfico ou, com a legenda à
+' direita, a borda esquerda dela). O rótulo começa TOTAL_LABEL_OFFSET depois do fim da barra e ocupa a sua largura
+' (estimada pelo texto: Labels_MaxTotalWidth). Em 100% (a barra termina no fim do eixo) e com a maior barra perto do
+' máximo do eixo a folga automática não basta e o rótulo ficaria sobre a legenda. Só reduz a área de plotagem (nunca
+' a aumenta); 3 passadas porque a largura interna nem sempre acompanha 1:1 a externa. Nunca propaga erro. A folga vale
+' para a largura dos rótulos e a escala do momento (criação do gráfico e religar os totais).
+Private Sub Stacked_EnsureTotalsRoom(cht As Chart, totalPos As Range)
+    Dim k As Long, best As Double, mx As Double, need As Double, delta As Double
+    On Error Resume Next
+    best = Labels_MaxTotalWidth(cht)
+    mx = Application.WorksheetFunction.Max(totalPos)
+    If Err.Number <> 0 Or best <= 0 Or mx <= 0 Then Err.Clear: Exit Sub
+    need = TOTAL_LABEL_OFFSET + best + TOTAL_LABEL_MARGIN
+    For k = 1 To 3
+        delta = need - (Geom_ChartRightEdge(cht) - Geom_ChartValCoord(cht, mx))
+        If delta <= 0.01 Then Exit For
+        cht.PlotArea.Width = cht.PlotArea.Width - delta
+    Next
+    If Err.Number <> 0 Then Errors_Log "Stacked_EnsureTotalsRoom" & vbTab & Err.Number & vbTab & Err.Description
+End Sub
+
+' Reexecuta a folga dos totais em barras depois de uma mudança posterior à criação (formato numérico mais largo, legenda
+' ligada, gráfico redimensionado); ver Stacked_EnsureTotalsRoom. Sem totais ligados ou fora das barras não faz nada.
+Public Sub Stacked_EnsureRoomAfterChange(cht As Chart)
+    Dim blk As Range, body As Range, n As Long, pc As Long
+    If Registry_GetOption(cht, "totals", "0") <> "1" Then Exit Sub
+    If Not Kinds_IsHorizontal(Registry_ChartType(cht)) Then Exit Sub
+    If Chart_FindSeries(cht, "tqq_total") Is Nothing Then Exit Sub
+    Set blk = Registry_Block(cht)
+    Set body = Block_Body(blk)
+    n = body.Rows.Count - 1
+    pc = Block_FindCol(blk, "LblPos"): If pc = 0 Then pc = 3       ' corte de eixo: o total plotado para no corte
+    Stacked_EnsureTotalsRoom cht, body.Cells(2, pc).Resize(n, 1)
+End Sub
+
+Public Sub Stacked_SetLabels(cht As Chart, turnOn As Boolean)
+    Dim s As Series, fmt As String, j As Long, body As Range, n As Long, is100 As Boolean, blk As Range, rc As Long, rs As Boolean
+    Dim brk As Boolean, skip As String, en As Long, es As String, ed As String
+    ' corte de eixo (modAxisBreak): o rotulo LIGADO a uma celula num ponto inteiro acima do maximo fixo recusa a cor da fonte (1004, medido);
+    ' esses pontos nao sao ligados (Break_CutPointList) e Break_SyncLabels, no fim (tambem no erro), oculta-os e poe o atravessado na base
+    brk = turnOn And Break_Limit(cht) > 0
+    On Error GoTo Fail
+    fmt = Labels_SegmentFormat(cht)
+    is100 = Kinds_Is100(Registry_ChartType(cht))
+    rs = (Registry_GetOption(cht, "roundsum", "0") = "1")
+    If is100 Or rs Then
+        Set blk = Registry_Block(cht)
+        If Not blk Is Nothing Then Set body = Block_Body(blk): n = body.Rows.Count - 1
+    End If
+    ' rotulo j -> Rnd_j pela ordem das series: com uma serie apagada a mao depois de ligar, a ordem nao bate e os rotulos ficam como sem a opcao
+    If rs Then rs = (Round_ColumnCount(blk) = Round_SeriesCount(cht))
+    For Each s In cht.SeriesCollection
+        If Not Style_IsHelperSeries(s) Then
+            j = j + 1
+            s.HasDataLabels = turnOn
+            If turnOn Then
+                With s.DataLabels
+                    .ShowValue = True: .ShowSeriesName = False: .ShowCategoryName = False
+                    If Labels_IsSourceFormatSeries(cht, s) Then Labels_ApplyLineSourceFormat s.DataLabels, cht Else Style_AssignNumberFormat s.DataLabels, fmt
+                    .Font.Size = 9
+                    If s.ChartType = xlLine Or s.ChartType = xlLineMarkers Then
+                        .Position = xlLabelPositionAbove
+                        .Font.Color = RGB(64, 64, 64)
+                        If Labels_IsSourceFormatSeries(cht, s) Then      ' combinacao: a linha cruza as colunas; o fundo branco mantem o rotulo legivel
+                            .Format.Fill.Visible = msoTrue
+                            .Format.Fill.ForeColor.RGB = RGB(255, 255, 255)
+                        End If
+                    ElseIf s.ChartType = xlColumnClustered Or s.ChartType = xlBarClustered Then
+                        .Position = xlLabelPositionOutsideEnd
+                        .Font.Color = RGB(64, 64, 64)
+                    Else
+                        .Position = xlLabelPositionCenter
+                        .Font.Color = Style_ContrastFont(s.Format.Fill.ForeColor.RGB)
+                    End If
+                End With
+                ' soma consistente (roundsum): o rótulo liga a Rnd_j (valor ou participação arredondados por maior resto, modRounding);
+                ' 100%: a participação (coluna de participação do bloco), não o valor absoluto
+                rc = 0
+                If rs Then rc = Round_RCol(blk, j)
+                skip = ""
+                If brk Then skip = Break_CutPointList(cht, j)
+                If rc > 0 Then
+                    Labels_LinkPoints s, body.Cells(2, rc).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB)), , skip
+                ElseIf is100 Then
+                    Labels_LinkPoints s, body.Cells(2, 3 + j).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB)), , skip
+                End If
+            End If
+        End If
+    Next
+    Registry_SetOption cht, "labels", IIf(turnOn, "1", "0")
+    If Len(Registry_GetOption(cht, "brklbl", "")) > 0 Then Registry_SetOption cht, "brklbl", ""     ' corte de eixo: todos refeitos (a sincronizacao oculta de novo)
+    Deco_ApplyLineEnd cht              ' legenda "nome no fim da linha": o último ponto segue mostrando o nome (também sem os rótulos)
+    If brk Then Break_SyncLabels cht
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If brk Then Break_SyncLabels cht
+    On Error GoTo 0
+    Err.Raise en, es, ed
+End Sub
+
+' Linhas de série (conectores entre segmentos), em colunas e barras empilhadas e 100%. Grupos sem suporte
+' (linha, agrupadas, a auxiliar XY das barras) são ignorados.
+Public Sub Stacked_SetConnectors(cht As Chart, turnOn As Boolean)
+    Dim g As ChartGroup, accepted As Boolean
+    If Not Kinds_Supports(Registry_ChartType(cht), "connectors") Then
+        Registry_SetOption cht, "connectors", "0"          ' tipos sem conectores (linha, agrupadas, área): nada a ligar
+        Exit Sub
+    End If
+    On Error Resume Next
+    For Each g In cht.ChartGroups
+        Err.Clear
+        If IsStackedGroup(g) Then g.HasSeriesLines = turnOn Else Err.Raise 5
+        If Err.Number = 0 Then
+            If turnOn Then
+                If g.HasSeriesLines Then
+                    accepted = True
+                    g.SeriesLines.Format.Line.ForeColor.RGB = RGB(166, 166, 166)
+                    g.SeriesLines.Format.Line.Weight = 0.75
+                End If
+            End If
+        End If
+    Next
+    On Error GoTo 0
+    Registry_SetOption cht, "connectors", IIf(turnOn And accepted, "1", "0")
+End Sub
+
+' Esconde da legenda as entradas das séries auxiliares (tqq_total e as demais tqq_*); idempotente. A lógica mora em
+' Chart_HideHelperLegendEntries (modChartUtil), que também cobre várias auxiliares e grupos secundários.
+Public Sub Stacked_HideTotalLegendEntry(cht As Chart)
+    Chart_HideHelperLegendEntries cht
+End Sub
+
+Private Function IsStackedGroup(g As ChartGroup) As Boolean
+    Dim ct As Long
+    If g.SeriesCollection.Count = 0 Then Exit Function
+    ct = g.SeriesCollection(1).ChartType
+    IsStackedGroup = (ct = xlColumnStacked Or ct = xlColumnStacked100 Or ct = xlBarStacked Or ct = xlBarStacked100)
+End Function

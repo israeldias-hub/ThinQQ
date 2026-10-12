@@ -3,3 +3,4 @@ tests/results/
 tests/fixtures/release/
 *.tmp
 ~$*
+.superpowers/

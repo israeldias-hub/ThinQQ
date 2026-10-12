@@ -1,0 +1,7 @@
+• Borboleta, dispersão e bolhas: agora são 20 tipos de gráfico (menu Mais tipos).
+• Rótulos com soma consistente e Arredondar intervalo...: somas que fecham 100%, em fórmulas da planilha.
+• Corte de eixo para colunas e barras: uma coluna gigante deixa de achatar as outras.
+• Menu PowerPoint: copia o gráfico como imagem ou como gráfico vinculado ao Excel.
+• Excel de demonstração com 26 exemplos (pasta exemplos do ZIP) e ícones próprios na faixa.
+• Acertos: eixos da dispersão, cores da pizza até 10 fatias, combinação com totais, borboleta e área.
+• Instalação completa no README e roteiro de assinatura digital para a TI.

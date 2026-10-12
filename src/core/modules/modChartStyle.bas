@@ -1,0 +1,297 @@
+Attribute VB_Name = "modChartStyle"
+Option Explicit
+' Aparência padrão "limpa": sem grade, eixo de valores invisível (mas presente, para a geometria),
+' sem bordas, fonte 9 pt. Paletas de 10 cores: as series usam as 6 primeiras (pal(k Mod 6)); as fatias da pizza e da rosca usam as 10
+' (Style_ApplyPointColors), para 7 a 10 fatias nao repetirem cor (Onda A da Fase 3; as 6 primeiras sao as de antes).
+Private Const THEME_DARKER As Double = -0.5     ' brilho dos tons -7..-10 da paleta "tema" (destaque 1..4 escurecido 50%)
+
+Public Function Style_Palette(name As String) As Variant
+    Select Case LCase$(name)
+        Case "cinza"
+            Style_Palette = Array(RGB(64, 64, 64), RGB(127, 127, 127), RGB(166, 166, 166), RGB(191, 191, 191), RGB(217, 217, 217), RGB(89, 89, 89), RGB(38, 38, 38), RGB(108, 108, 108), RGB(146, 146, 146), RGB(230, 230, 230))
+        Case "tema"
+            Style_Palette = Array(-1, -2, -3, -4, -5, -6, -7, -8, -9, -10)    ' accent1..accent6 do tema; -7..-10 = accent1..4 escurecidos (Style_SetColor)
+        Case Else
+            Style_Palette = Array(RGB(31, 56, 100), RGB(68, 114, 196), RGB(157, 195, 230), RGB(165, 165, 165), RGB(0, 150, 136), RGB(237, 162, 36), RGB(112, 48, 160), RGB(84, 130, 53), RGB(244, 177, 131), RGB(192, 80, 77))
+    End Select
+End Function
+
+' Cor da paleta num ColorFormat: RGB, ou cor do tema (-1..-6 = destaque 1..6; -7..-10 = destaque 1..4 escurecido em THEME_DARKER, os tons das
+' fatias 7 a 10 da paleta "tema"). Um destaque base zera o brilho que a mesma fatia tinha recebido como tom escurecido.
+Public Sub Style_SetColor(cf As ColorFormat, colorValue As Variant)
+    If colorValue < -6 Then
+        cf.ObjectThemeColor = msoThemeColorAccent1 + ((-colorValue - 7) Mod 6)
+        cf.Brightness = THEME_DARKER
+    ElseIf colorValue < 0 Then
+        cf.ObjectThemeColor = msoThemeColorAccent1 + (-colorValue - 1)
+        If cf.Brightness <> 0 Then cf.Brightness = 0
+    Else
+        cf.RGB = CLng(colorValue)
+    End If
+End Sub
+
+Public Function Style_IsHelperSeries(s As Series) As Boolean
+    Style_IsHelperSeries = (Left$(s.Name, Len(HELPER_PREFIX)) = HELPER_PREFIX)
+End Function
+
+' Branco para fundos escuros, cinza-escuro para claros (luminância relativa simples).
+Public Function Style_ContrastFont(rgbValue As Long) As Long
+    Dim r As Long, g As Long, b As Long, lum As Double
+    r = rgbValue And &HFF: g = (rgbValue \ &H100) And &HFF: b = (rgbValue \ &H10000) And &HFF
+    lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    If lum < 0.55 Then Style_ContrastFont = RGB(255, 255, 255) Else Style_ContrastFont = RGB(64, 64, 64)
+End Function
+
+' Eixo de valores invisivel mas presente (a geometria das anotacoes le a escala dele): sem grade, marcas, rotulos e linha.
+' Usado pelo eixo primario (Style_ApplyBase) e pelo eixo secundario da combinacao (Combo_SetSecondary).
+Public Sub Style_HideValueAxis(ax As Axis)
+    With ax
+        .HasMajorGridlines = False
+        .HasMinorGridlines = False
+        .MajorTickMark = xlTickMarkNone
+        .MinorTickMark = xlTickMarkNone
+        .TickLabelPosition = xlTickLabelPositionNone
+        .Format.Line.Visible = msoFalse
+    End With
+End Sub
+
+' Gráficos de pizza/rosca não têm eixos: o bloco de eixos é pulado. Em barras (empilhadas, agrupadas, 100%) o eixo de categorias
+' fica invertido para a primeira categoria aparecer no topo (como no think-cell).
+Public Sub Style_ApplyBase(cht As Chart)
+    Dim ct As Long, isPie As Boolean, isBar As Boolean
+    On Error Resume Next
+    ct = cht.ChartType
+    If Err.Number <> 0 Then ct = 0: Err.Clear
+    On Error GoTo 0
+    isPie = (ct = xlPie Or ct = xlDoughnut Or ct = xlPieExploded Or ct = xlDoughnutExploded)
+    isBar = (ct = xlBarStacked Or ct = xlBarClustered Or ct = xlBarStacked100)
+    With cht
+        .HasTitle = True    ' liga e desliga: marca o título automático (gráfico de 1 série) como excluído
+        .HasTitle = False
+        .ChartArea.Format.Line.Visible = msoFalse
+        .ChartArea.Format.Fill.ForeColor.RGB = RGB(255, 255, 255)
+        .ChartArea.Font.Size = 9
+        .PlotArea.Format.Fill.Visible = msoFalse
+        .PlotArea.Format.Line.Visible = msoFalse
+        If isPie Then Exit Sub
+        .HasAxis(xlValue) = True
+        Style_HideValueAxis .Axes(xlValue)
+        ' Categorias de data: o Excel escolheria eixo de tempo (posições proporcionais às datas); a geometria das
+        ' anotações assume uma fatia por categoria, então força eixo de texto.
+        On Error Resume Next
+        .Axes(xlCategory).CategoryType = xlCategoryScale
+        On Error GoTo 0
+        With .Axes(xlCategory)
+            .MajorTickMark = xlTickMarkNone
+            .MinorTickMark = xlTickMarkNone
+            .TickLabelPosition = xlTickLabelPositionLow   ' rótulos de categoria abaixo do gráfico mesmo com valores negativos
+            If isBar Then .ReversePlotOrder = True
+            .Format.Line.ForeColor.RGB = RGB(166, 166, 166)
+            .TickLabels.Font.Size = 9
+            .TickLabels.Font.Color = RGB(64, 64, 64)
+        End With
+    End With
+End Sub
+
+' Cores das series de dados (as auxiliares tqq_* nao mudam). Series de area: preenchimento da paleta e borda branca que
+' separa as faixas; a espessura da borda (pt) vem de borderWeight (> 0) ou, sem ele, da opcao "border" do grafico (padrao
+' 1 pt). Ficar na OPCAO e nao so no parametro e o que faz uma troca de paleta (ApplyOption "palette") manter a borda de
+' um grafico que usa outra espessura (o Mekko, na Tarefa 9, grava border=1.5); o parametro, quando informado, nao persiste.
+Public Sub Style_ApplySeriesColors(cht As Chart, paletteName As String, Optional borderWeight As Double = 0)
+    Dim pal As Variant, s As Series, k As Long, c As Variant, bw As Double
+    pal = Style_Palette(paletteName)
+    bw = borderWeight
+    If bw <= 0 Then bw = Val(Replace(Registry_GetOption(cht, "border", "1"), ",", "."))      ' Val so entende o ponto decimal
+    If bw <= 0 Then bw = 1
+    For Each s In cht.SeriesCollection
+        If Not Style_IsHelperSeries(s) Then
+            c = pal(k Mod 6)
+            If s.ChartType = xlLine Or s.ChartType = xlLineMarkers Then
+                Style_SetColor s.Format.Line.ForeColor, c
+                s.Format.Line.Weight = 2
+                s.MarkerStyle = xlMarkerStyleCircle
+                s.MarkerSize = 5
+                Style_SetColor s.Format.Fill.ForeColor, c
+            ElseIf Style_IsAreaType(s.ChartType) Then
+                Style_SetColor s.Format.Fill.ForeColor, c
+                s.Format.Line.Visible = msoTrue
+                s.Format.Line.ForeColor.RGB = RGB(255, 255, 255)
+                s.Format.Line.Weight = bw
+            Else
+                Style_SetColor s.Format.Fill.ForeColor, c
+                s.Format.Line.Visible = msoFalse
+                If s.HasDataLabels Then If s.DataLabels.Position = xlLabelPositionCenter Then s.DataLabels.Font.Color = Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
+            End If
+            k = k + 1
+        End If
+    Next
+End Sub
+
+' Cores por PONTO da pizza e da rosca (uma serie so): VaryByCategories e a fatia k recebe pal((k - 1) Mod np), np = as 10 cores da paleta
+' (ate 10 fatias sem repetir; a 11a volta ao inicio), com borda branca de 1 pt que separa as fatias. Excecao: com n > np e (n - 1) Mod np = 0
+' (11, 21 fatias) a ultima cairia na cor da primeira, sua vizinha no circulo; ela recebe pal(3). Nao mexe nos rotulos: quem chama
+' (Pie_ApplyColors) refaz a cor da fonte.
+Public Sub Style_ApplyPointColors(cht As Chart, paletteName As String)
+    Dim pal As Variant, s As Series, k As Long, n As Long, idx As Long, np As Long
+    If cht.SeriesCollection.Count = 0 Then Exit Sub
+    pal = Style_Palette(paletteName)
+    np = UBound(pal) - LBound(pal) + 1
+    Set s = cht.SeriesCollection(1)
+    cht.ChartGroups(1).VaryByCategories = True
+    n = s.Points.Count
+    For k = 1 To n
+        idx = (k - 1) Mod np
+        If k = n And n > np And idx = 0 Then idx = 3
+        Style_SetColor s.Points(k).Format.Fill.ForeColor, pal(idx)
+    Next
+    s.Format.Line.Visible = msoTrue
+    s.Format.Line.ForeColor.RGB = RGB(255, 255, 255)
+    s.Format.Line.Weight = 1
+End Sub
+
+' Grava a espessura da borda das areas (pt) na opcao "border" e a aplica as areas existentes. O valor e GRAVADO com ponto
+' decimal em qualquer localidade (Str$ nunca usa a virgula), que e o que Style_ApplySeriesColors le. E o ponto de entrada para
+' quem quer outra espessura (o Mekko, 1,5 pt): a troca de paleta passa a preserva-la.
+Public Sub Style_SetAreaBorder(cht As Chart, weightPt As Double)
+    Dim s As Series, txt As String
+    If weightPt <= 0 Then Err.Raise 5, "Style_SetAreaBorder", "A espessura da borda deve ser maior que zero."
+    txt = Trim$(Str$(weightPt))
+    If Left$(txt, 1) = "." Then txt = "0" & txt                  ' Str$ omite o zero a esquerda (".75")
+    Registry_SetOption cht, "border", txt
+    For Each s In cht.SeriesCollection
+        If Not Style_IsHelperSeries(s) Then
+            If Style_IsAreaType(s.ChartType) Then s.Format.Line.Weight = weightPt
+        End If
+    Next
+End Sub
+
+Public Function Style_IsAreaType(chartType As Long) As Boolean
+    Style_IsAreaType = (chartType = xlArea Or chartType = xlAreaStacked Or chartType = xlAreaStacked100)
+End Function
+
+' Cor (RGB) de preenchimento atual da j-esima serie de dados (a j-esima nao auxiliar); 0 se nao existe.
+Public Function Style_DataSeriesColor(cht As Chart, j As Long) As Long
+    Dim s As Series, k As Long
+    For Each s In cht.SeriesCollection
+        If Not Style_IsHelperSeries(s) Then
+            k = k + 1
+            If k = j Then Style_DataSeriesColor = CLng(s.Format.Fill.ForeColor.RGB): Exit Function
+        End If
+    Next
+End Function
+
+Public Function Style_NumberFormat(key As String) As String
+    Select Case key
+        Case "dec1": Style_NumberFormat = "#,##0.0;-#,##0.0;"
+        Case "dec2": Style_NumberFormat = "#,##0.00;-#,##0.00;"
+        Case "pct0": Style_NumberFormat = "0%;-0%;"
+        Case "pct1": Style_NumberFormat = "0.0%;-0.0%;"
+        Case "mil":  Style_NumberFormat = "#,##0,;-#,##0,;"
+        Case "mi":   Style_NumberFormat = "#,##0.0,,;-#,##0.0,,;"
+        Case Else:   Style_NumberFormat = "#,##0;-#,##0;"
+    End Select
+End Function
+
+' fmt = CODIGO de formato (Style_NumberFormat). Pizza e rosca guardam a CHAVE (int, pct0, ...) e mostram participacao ou valor: sai por
+' Pie_ApplyNumberFormat com a chave do registro (ApplyOption grava numfmt antes de despachar, entao a chave lida ja e a nova). O Mekko
+' tambem le a chave do registro (Mekko_ApplyNumberFormat).
+Public Sub Style_ApplyNumberFormat(cht As Chart, fmt As String)
+    Dim s As Series, i As Long, segFmt As String, totFmt As String, useFmt As String
+    If Kinds_Family(Registry_ChartType(cht)) = "pie" Then
+        Pie_ApplyNumberFormat cht, Registry_GetOption(cht, "numfmt", "int")
+        Exit Sub
+    End If
+    If Kinds_Family(Registry_ChartType(cht)) = "gantt" Then Exit Sub     ' Gantt: sem formato numerico (datas e texto; numfmt nao se aplica)
+    If Kinds_Family(Registry_ChartType(cht)) = "scatter" Then Exit Sub   ' Dispersao/bolhas: sem formato numerico de serie (numfmt nao se aplica)
+    If Kinds_Family(Registry_ChartType(cht)) = "butterfly" Then Bfly_ApplyNumberFormat cht: Exit Sub   ' Borboleta: lado esquerdo absoluto, direito normal, totais (Bfly_ApplyNumberFormat)
+    If Kinds_Family(Registry_ChartType(cht)) = "mekko" Then
+        ' Mekko: segmentos com o formato dos segmentos (pct0/pct1 no percentual), totais pct0 no percentual (largura) e numfmt nas
+        ' unidades; por ponto (as auxiliares tem pontos sem rotulo que a escrita no nivel da serie recriaria)
+        Mekko_ApplyNumberFormat cht
+        Exit Sub
+    End If
+    segFmt = fmt: totFmt = fmt
+    If Kinds_Is100(Registry_ChartType(cht)) Then
+        ' 100%: segmentos mostram participação (pct0/pct1); numfmt vale para os totais absolutos
+        segFmt = Labels_SegmentFormat(cht): totFmt = Labels_TotalFormat(cht)
+    End If
+    Labels_ApplyCellFormat cht, totFmt
+    For Each s In cht.SeriesCollection
+        If s.Name = "tqq_vline" Then
+            ' linha de valor: o rotulo so existe no ultimo ponto e mostra o texto da celula VLine (formato proprio: Deco_ApplyVLineFormat)
+        ElseIf s.HasDataLabels And Not Labels_IsSourceFormatSeries(cht, s) Then      ' a linha da combinacao segue o formato da celula
+            If s.Name = "tqq_total" Then useFmt = totFmt Else useFmt = segFmt
+            Style_AssignNumberFormat s.DataLabels, useFmt
+            ' rótulos ligados a células (por ponto) guardam formato próprio
+            For i = 1 To s.Points.Count
+                If s.Points(i).HasDataLabel Then Style_AssignNumberFormat s.Points(i).DataLabel, useFmt
+            Next
+        End If
+    Next
+End Sub
+
+' Tabela de formatos: os códigos em inglês (Style_NumberFormat) são a fonte neutra. Formatos de rótulos
+' de gráfico são interpretados na notação do idioma do Excel neste ambiente, então os rótulos são sempre
+' gravados por NumberFormatLocal com o código derivado por Style_LocalizeCode (nunca por NumberFormat).
+' (A regra "códigos em inglês" do plano vale para formatos de célula/intervalo.)
+Public Function Style_LocalizeCode(fmt As String) As String
+    Dim d As String, t As String
+    d = Application.International(xlDecimalSeparator)
+    t = Application.International(xlThousandsSeparator)
+    If Len(d) <> 1 Then d = "."
+    If Len(t) <> 1 Then t = ","
+    If t = d Then t = IIf(d = ",", ".", ",")
+    ' NBSP (separador de milhar de alguns idiomas) é usado literalmente no código
+    Style_LocalizeCode = Replace(Replace(Replace(fmt, ",", ChrW(1)), ".", d), ChrW(1), t)
+End Function
+
+' Atribui o formato (código em inglês de Style_NumberFormat) a um DataLabels/DataLabel, de forma determinística.
+Public Sub Style_AssignNumberFormat(target As Object, fmt As String)
+    target.NumberFormatLocal = Style_LocalizeCode(fmt)
+End Sub
+
+' RGB de uma cor da paleta (Style_Palette): o proprio valor ou, na paleta "tema" (-1..-6 = destaque 1..6), a cor do tema da pasta do
+' grafico (-7..-10: destaque 1..4 com cada canal escurecido, aproximacao do brilho THEME_DARKER). Para marcadores XY (dispersao, bolhas,
+' marcos), cujo Format.Fill nao aceita a cor (medido na Fase 2).
+Public Function Style_PaletteRGB(cht As Chart, v As Variant) As Long
+    Dim c As Long, f As Double
+    On Error GoTo Fail
+    If v >= 0 Then
+        Style_PaletteRGB = CLng(v)
+    ElseIf v < -6 Then
+        c = Registry_Workbook(cht).Theme.ThemeColorScheme.Colors(msoThemeAccent1 + ((-v - 7) Mod 6)).RGB
+        f = 1 + THEME_DARKER
+        Style_PaletteRGB = RGB(CLng((c And &HFF) * f), CLng(((c \ &H100) And &HFF) * f), CLng(((c \ &H10000) And &HFF) * f))
+    Else
+        Style_PaletteRGB = Registry_Workbook(cht).Theme.ThemeColorScheme.Colors(msoThemeAccent1 + (-v - 1)).RGB
+    End If
+    Exit Function
+Fail:
+    Style_PaletteRGB = RGB(68, 114, 196)
+End Function
+' Primeira secao de um codigo de formato (ingles) so com o que define o numero: sem textos entre aspas, sem secoes entre colchetes ([Red],
+' [$R$-416], [>=1000]) e sem o caractere que segue "\", "_" ou "*" (literal, espaco e preenchimento). Usada para ler casas, percentual, escala
+' e datas do formato da celula de origem (numfmt inicial, passo da escala da dispersao). Pura.
+Public Function Style_CleanFormatSection(code As String) As String
+    Dim sec As String, i As Long, ch As String, inQ As Boolean, inB As Boolean, out As String, skipNext As Boolean
+    sec = Split(code & ";", ";")(0)
+    For i = 1 To Len(sec)
+        ch = Mid$(sec, i, 1)
+        If skipNext Then
+            skipNext = False
+        ElseIf inQ Then
+            If ch = """" Then inQ = False
+        ElseIf inB Then
+            If ch = "]" Then inB = False
+        ElseIf ch = """" Then
+            inQ = True
+        ElseIf ch = "[" Then
+            inB = True
+        ElseIf ch = "\" Or ch = "_" Or ch = "*" Then
+            skipNext = True
+        Else
+            out = out & ch
+        End If
+    Next
+    Style_CleanFormatSection = out
+End Function
