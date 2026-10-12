@@ -303,3 +303,29 @@ Public Sub Test_Bfly_GapGrowth_KeepsTotalsRoom()
     Next
     Teardown wb
 End Sub
+
+' Duas borboletas na mesma planilha: a da fixture (A1:C5) e outra em E1:G5 (lado direito maior).
+Private Function TwoButterflies(wb As Workbook, ByRef c1 As Chart, ByRef c2 As Chart) As Worksheet
+    Dim d As clsChartData, ws As Worksheet
+    Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set c1 = Bfly_Insert(ws, d).Chart
+    ws.Range("E1:G1").Value = Array("Faixa", "Antes", "Depois")
+    ws.Range("E2:G2").Value = Array("A", 50, 400): ws.Range("E3:G3").Value = Array("B", 80, 700)
+    ws.Range("E4:G4").Value = Array("C", 40, 300): ws.Range("E5:G5").Value = Array("D", 10, 100)
+    Set c2 = Bfly_Insert(ws, ChartData_FromRange(ws.Range("E1:G5"))).Chart
+    Set TwoButterflies = ws
+End Function
+
+' Revisao 1: com Mesma escala, o lado ESQUERDO acima do maximo fixo tambem corta as barras (o aviso le Gap + o maior dos dois lados).
+Public Sub Test_Bfly_SameScale_LeftSideAboveMax_IsClipped()
+    Dim wb As Workbook, ws As Worksheet, c1 As Chart, c2 As Chart, coll As New Collection, skipped As Long, vmax As Double
+    Set wb = NewTempWorkbook()
+    Set ws = TwoButterflies(wb, c1, c2)
+    coll.Add c1: coll.Add c2
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    vmax = Val(Registry_GetOption(c1, "vmax", ""))
+    AssertFalse Deco_ScaleClipped(c1), "sem corte logo depois de fixar"
+    ws.Range("B4").Value = vmax * 2                              ' Mulheres (lado esquerdo) passa do maximo fixo; o lado direito fica pequeno
+    AssertTrue Deco_ScaleClipped(c1), "lado esquerdo acima do maximo fixo (" & vmax & ") e corte"
+    Teardown wb
+End Sub

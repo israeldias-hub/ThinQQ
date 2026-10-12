@@ -80,12 +80,13 @@ Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef top
                 values(i) = v: tops(i) = v
             Next
         Case "butterfly"
-            ' total (A + B) e a posicao do rotulo do total (Gap + B), lidos do bloco: Deco_ScaleClipped compara o topo com o maximo fixo
+            ' total (A + B) e o topo: Gap + o MAIOR dos dois lados (o eixo e simetrico: o lado esquerdo tambem corta), lidos do bloco;
+            ' Deco_ScaleClipped compara o topo com o maximo fixo
             Set bb = Block_Body(Registry_Block(cht))
             For i = 1 To n
                 If i <= bb.Rows.Count - 1 Then
                     values(i) = Util_ToDouble(bb.Cells(i + 1, BF_COL_TOTAL).Value)
-                    tops(i) = Util_ToDouble(bb.Cells(i + 1, BF_COL_TOTALPOS).Value)
+                    tops(i) = Util_ToDouble(bb.Cells(i + 1, BF_COL_GAP).Value) + Application.WorksheetFunction.Max(Util_ToDouble(bb.Cells(i + 1, BF_COL_A).Value), Util_ToDouble(bb.Cells(i + 1, BF_COL_B).Value))
                 End If
             Next
         Case Else
