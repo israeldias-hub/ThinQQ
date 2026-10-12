@@ -82,8 +82,34 @@ function Export-TqqIcons([string]$OutDir) {
     }
     return $out.ToArray()
 }
-# Fallback: troca image="tqq_x" / image="tqq_x16" por imageMso="<reserva>" (so no texto que vai para o pacote; o fonte nao muda).
+# Fallback: troca image="tqq_x" / image="tqq_x16" por imageMso="<reserva>" (so no texto que vai para o pacote; o fonte nao muda). Comentarios
+# XML passam intactos (um image= citado num comentario nao e atributo de controle).
 function Convert-TqqRibbonToMso([string]$Xml) {
     $specs = Get-TqqIconSpecs
-    return [regex]::Replace($Xml, 'image="(tqq_[a-z0-9_]+?)(16)?"', { param($m) $k = $m.Groups[1].Value; if ($specs.Contains($k)) { 'imageMso="' + $specs[$k].Mso + '"' } else { throw "icone sem reserva: $k" } })
+    return [regex]::Replace($Xml, '(?s)(<!--.*?-->)|(?<=\s)image="(tqq_[a-z0-9_]+?)(16)?"', {
+        param($m)
+        if ($m.Groups[1].Success) { return $m.Value }
+        $k = $m.Groups[2].Value
+        if ($specs.Contains($k)) { return 'imageMso="' + $specs[$k].Mso + '"' } else { throw "icone sem reserva: $k" }
+    })
+}
+
+# Valida o customUI14 que vai para o pacote e devolve os nomes image= distintos (ordenados; [string[]] vazio se nao houver). Le pelo DOM, entao
+# comentarios nao contam. Recusa (throw, com o id do controle): XML malformado (inclusive atributo repetido, o que a conversao Mso produziria
+# num controle com image e imageMso), controle com image e imageMso, nome fora da tabela de icones (Png) e qualquer image= que sobrou (Mso).
+function Assert-TqqRibbonXml([string]$Xml, [ValidateSet('Png','Mso')][string]$Mode, [string]$What = 'customUI14.xml') {
+    $doc = New-Object Xml.XmlDocument
+    try { $doc.LoadXml($Xml) } catch { throw "$What`: XML invalido (modo $Mode): $($_.Exception.Message)" }
+    $specs = Get-TqqIconSpecs
+    $names = New-Object System.Collections.Generic.List[string]
+    foreach ($n in @($doc.SelectNodes('//*[@image]'))) {
+        $img = $n.GetAttribute('image'); $id = $n.GetAttribute('id')
+        if (-not $id) { $id = "<$($n.LocalName) sem id>" }
+        if ($n.HasAttribute('imageMso')) { throw "$What`: o controle '$id' tem image e imageMso (use so um dos dois)" }
+        if ($Mode -eq 'Mso') { throw "$What`: image=`"$img`" sobrou no controle '$id' (nome fora da tabela de icones?)" }
+        if (-not $specs.Contains(($img -replace '16$', ''))) { throw "$What usa image=`"$img`" sem icone na tabela (Ribbon-Icons.ps1)" }
+        if (-not $names.Contains($img)) { $names.Add($img) }
+    }
+    $out = [string[]]@($names | Sort-Object)
+    return , $out
 }

@@ -11,6 +11,8 @@ $pkg = Join-Path $RepoRoot 'dist\ThinQQ.test.xlam'
 $src = Join-Path $RepoRoot 'src\loader\ribbon\customUI14.xml'
 $script:fail = 0
 function Check([bool]$c, [string]$m) { if ($c) { Write-Host "ok - $m" } else { Write-Host "not ok - $m"; $script:fail++ } }
+# Nomes image= distintos dos ELEMENTOS do XML (DOM: um image= citado num comentario nao conta)
+function Get-DomImages([string]$x) { $d = New-Object Xml.XmlDocument; $d.LoadXml($x); return ,[string[]]@($d.SelectNodes('//*[@image]') | ForEach-Object { $_.GetAttribute('image') } | Sort-Object -Unique) }
 function Read-Entry($zip, [string]$name) { $e = $zip.GetEntry($name); if (-not $e) { return $null }; $ms = New-Object System.IO.MemoryStream; $s = $e.Open(); $s.CopyTo($ms); $s.Dispose(); return ,$ms.ToArray() }
 if (-not (Test-Path -LiteralPath $pkg)) { Write-Host "not ok - pacote ausente: $pkg"; exit 1 }
 $fs = New-Object System.IO.FileStream($pkg, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
@@ -19,11 +21,14 @@ try {
     $xmlBytes = Read-Entry $zip 'customUI/customUI14.xml'
     Check ($null -ne $xmlBytes) 'pacote contem customUI/customUI14.xml'
     $xml = [Text.Encoding]::UTF8.GetString($xmlBytes)
-    $images = @([regex]::Matches($xml, 'image="([^"]+)"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    $images = Get-DomImages $xml
     $srcXml = [IO.File]::ReadAllText($src)
-    if ($images.Count -gt 0 -or $srcXml -notmatch 'image="') {
+    $srcImages = Get-DomImages $srcXml
+    Check ($srcImages.Count -ge 13) "fonte: icones proprios em image= ($($srcImages.Count) nomes distintos)"
+    if ($images.Count -gt 0 -or $srcImages.Count -eq 0) {
         # modo Png (ou fonte ainda sem image=, Tarefas 6 e 7): o XML do pacote e o fonte, byte a byte
         Check (([Convert]::ToBase64String($xmlBytes)) -eq ([Convert]::ToBase64String([IO.File]::ReadAllBytes($src)))) 'customUI14.xml do pacote identico ao fonte'
+        Check (($images -join ',') -eq ($srcImages -join ',')) "modo Png: as imagens do pacote sao as do fonte ($($images.Count))"
     } else {
         # modo Mso: o XML do pacote e exatamente o fonte convertido (cada image= trocado pela reserva da tabela)
         Check ($xml -eq (Convert-TqqRibbonToMso -Xml $srcXml)) 'modo Mso: customUI14.xml do pacote = fonte convertido para imageMso'
@@ -60,6 +65,9 @@ try {
         }
         Check ($rels -match 'http://schemas\.openxmlformats\.org/officeDocument/2006/relationships/image') 'relacoes do tipo image'
     }
+    # vetor de teste padrao do CRC-32 (IEEE 802.3, o do PNG): "123456789" -> CBF43926
+    $crc = '{0:X8}' -f (Get-TqqCrc32 ([Text.Encoding]::ASCII.GetBytes('123456789')))
+    Check ($crc -eq 'CBF43926') "CRC-32('123456789') = CBF43926 ($crc)"
     # determinismo do gravador: duas gravacoes, mesmos bytes
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ("tqq_icons_" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force $tmp | Out-Null
@@ -70,7 +78,7 @@ try {
         $b = Export-TqqIcons -OutDir $tmp
         $h2 = ($b | ForEach-Object { (Get-FileHash $_).Hash }) -join ','
         Check ($h1 -eq $h2 -and $a.Count -eq 2 * $specs.Count) "gravador de PNG deterministico ($($a.Count) arquivos para $($specs.Count) icones)"
-        Check ((Convert-TqqRibbonToMso -Xml $srcXml) -notmatch 'image="') 'conversao para imageMso nao deixa image='
+        Check ((Get-DomImages (Convert-TqqRibbonToMso -Xml $srcXml)).Count -eq 0) 'conversao para imageMso nao deixa image= em nenhum controle'
     } finally { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 } finally { $zip.Dispose(); $fs.Dispose() }
 # Empacotamento com image= (o XML fonte so ganha image= na Tarefa 8): monta pacotes sinteticos numa pasta temporaria, nos dois modos,
@@ -119,5 +127,32 @@ try {
     $thrown = $false; try { Add-RibbonToPackage -PackagePath $pp -RibbonXmlPath $badPath -Icons Png } catch { $thrown = $_.Exception.Message -match 'tqq_inexistente' }
     Check $thrown 'sintetico: image= fora da tabela e recusado pelo nome'
     Check (@(Get-ChildItem ([IO.Path]::GetTempPath()) -Directory -Filter 'thinqq_icons_*' -ErrorAction SilentlyContinue).Count -eq $before) 'sintetico: nenhuma pasta temporaria de icones sobra'
+    # Revalidacao (Tarefa 8): comentarios nao contam; image + imageMso e nome fora da tabela sao recusados nos dois modos; o XML convertido
+    # para Mso e relido como XML (um controle com image e imageMso viraria um atributo imageMso repetido) e nao pode sobrar image=.
+    function Write-Syn([string]$name, [string]$body) { $p = Join-Path $tmpP $name; [IO.File]::WriteAllText($p, '<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui"><ribbon><tabs><tab id="t" label="T"><group id="g" label="G">' + $body + '</group></tab></tabs></ribbon></customUI>', (New-Object Text.UTF8Encoding($false))); return $p }
+    function Test-Throws([scriptblock]$sb, [string]$pattern) { try { & $sb; return $false } catch { return ($_.Exception.Message -match $pattern) } }
+    $cmt = Write-Syn 'cmt.xml' '<!-- exemplo: image="tqq_inexistente" --><button id="b1" label="A" image="tqq_columns"/>'
+    Add-RibbonToPackage -PackagePath $pp -RibbonXmlPath $cmt -Icons Png
+    $i = Get-PkgInfo $pp
+    Check ((@($i.Names | Where-Object { $_ -like 'customUI/images/*' }) -join ',') -eq 'customUI/images/tqq_columns.png') 'revalidacao Png: image= citado em comentario nao vira imagem nem recusa'
+    Add-RibbonToPackage -PackagePath $pp -RibbonXmlPath $cmt -Icons Mso
+    $i = Get-PkgInfo $pp; $mx = [Text.Encoding]::UTF8.GetString($i.Xml)
+    Check ($mx.Contains('<!-- exemplo: image="tqq_inexistente" -->') -and $mx.Contains('id="b1" label="A" imageMso="ChartTypeColumnInsertGallery"')) 'revalidacao Mso: comentario intacto, so o atributo do controle convertido'
+    $both = Write-Syn 'both.xml' '<button id="bAmbos" label="A" image="tqq_columns" imageMso="Help"/>'
+    Check (Test-Throws { Add-RibbonToPackage -PackagePath $pp -RibbonXmlPath $both -Icons Png } 'bAmbos.*image e imageMso') 'revalidacao Png: controle com image e imageMso recusado pelo id'
+    Check (Test-Throws { Add-RibbonToPackage -PackagePath $pp -RibbonXmlPath $both -Icons Mso } 'bAmbos.*image e imageMso') 'revalidacao Mso: controle com image e imageMso recusado pelo id'
+    $foo = Write-Syn 'foo.xml' '<button id="bFoo" label="A" image="foo"/>'
+    Check (Test-Throws { Add-RibbonToPackage -PackagePath $pp -RibbonXmlPath $foo -Icons Mso } '"foo"') 'revalidacao Mso: image fora da tabela (sem prefixo tqq_) recusado'
+    Check (Test-Throws { Add-RibbonToPackage -PackagePath $pp -RibbonXmlPath $foo -Icons Png } '"foo"') 'revalidacao Png: image fora da tabela recusado'
+    # a validacao do XML convertido, direto: image= que sobrou, atributo repetido (o que a conversao faria com image + imageMso) e controle sem id
+    $ns = '<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">'
+    Check (Test-Throws { Assert-TqqRibbonXml -Xml ($ns + '<button id="bX" image="tqq_columns"/></customUI>') -Mode Mso } 'sobrou.*bX') 'Assert-TqqRibbonXml Mso: image= que sobrou e recusado'
+    Check (Test-Throws { Assert-TqqRibbonXml -Xml ($ns + '<button id="bY" imageMso="Help" imageMso="ChartAxes"/></customUI>') -Mode Mso } 'XML invalido') 'Assert-TqqRibbonXml Mso: atributo imageMso repetido (XML invalido) e recusado'
+    Check (Test-Throws { Assert-TqqRibbonXml -Xml ($ns + '<item image="tqq_columns" imageMso="Help"/></customUI>') -Mode Png } 'sem id') 'Assert-TqqRibbonXml: controle sem id na mensagem (sem erro de nulo)'
+    $okNames = Assert-TqqRibbonXml -Xml ($ns + '<!-- image="tqq_nada" --><button id="a" image="tqq_ppt16"/><button id="b" image="tqq_ppt16"/><button id="c" image="tqq_bars"/></customUI>') -Mode Png
+    Check (($okNames -join ',') -eq 'tqq_bars,tqq_ppt16') "Assert-TqqRibbonXml Png: nomes distintos, sem os de comentario ($($okNames -join ','))"
+    $none = Assert-TqqRibbonXml -Xml ($ns + '<button id="a" imageMso="Help"/></customUI>') -Mode Mso
+    Check ($null -ne $none -and $none.Count -eq 0) 'Assert-TqqRibbonXml Mso valido: lista vazia'
+    Check (@(Get-ChildItem ([IO.Path]::GetTempPath()) -Directory -Filter 'thinqq_icons_*' -ErrorAction SilentlyContinue).Count -eq $before) 'revalidacao: nenhuma pasta temporaria de icones sobra'
 } finally { Remove-Item $tmpP -Recurse -Force -ErrorAction SilentlyContinue }
 if ($script:fail -gt 0) { Write-Host "FALHAS ribbon-pacote: $script:fail"; exit 1 }

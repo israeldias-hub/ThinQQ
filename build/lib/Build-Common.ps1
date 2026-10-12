@@ -118,14 +118,16 @@ function Add-FormFromJson($vbproj, [string]$JsonPath, [string]$CodePath) {
 # Insere customUI/customUI14.xml no pacote (zip), a relacao em _rels/.rels e, no modo Png, os icones proprios: customUI/images/<nome>.png
 # para cada image= do XML, customUI/_rels/customUI14.xml.rels (Id = nome) e o content type png. Modo Mso: XML com imageMso de reserva, sem imagens.
 function Add-RibbonToPackage([string]$PackagePath, [string]$RibbonXmlPath, [ValidateSet('Png','Mso')][string]$Icons = 'Png') {
-    [void]([xml](Get-Content $RibbonXmlPath -Raw))   # falha cedo se o XML estiver malformado
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $xmlText = [IO.File]::ReadAllText($RibbonXmlPath, (New-Object Text.UTF8Encoding($false)))
-    $images = @([regex]::Matches($xmlText, 'image="([^"]+)"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
-    if ($Icons -eq 'Mso') { $xmlText = Convert-TqqRibbonToMso -Xml $xmlText; $images = @() }
-    $specs = Get-TqqIconSpecs
-    foreach ($img in $images) { if (-not $specs.Contains(($img -replace '16$', ''))) { throw "customUI14.xml usa image=`"$img`" sem icone na tabela (Ribbon-Icons.ps1)" } }
+    # fonte: XML bem formado, nomes image= (so dos elementos; comentarios nao contam) na tabela e nenhum controle com image e imageMso
+    $images = Assert-TqqRibbonXml -Xml $xmlText -Mode Png -What 'customUI14.xml'
+    if ($Icons -eq 'Mso') {
+        $xmlText = Convert-TqqRibbonToMso -Xml $xmlText
+        [void](Assert-TqqRibbonXml -Xml $xmlText -Mode Mso -What 'customUI14.xml convertido para imageMso')   # relido como XML: nada de image= sobrando
+        $images = @()
+    }
     $iconDir = $null
     if ($images.Count -gt 0) { $iconDir = Join-Path ([IO.Path]::GetTempPath()) ("thinqq_icons_" + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $iconDir | Out-Null; [void](Export-TqqIcons -OutDir $iconDir) }
     $zip = [System.IO.Compression.ZipFile]::Open($PackagePath, [System.IO.Compression.ZipArchiveMode]::Update)
