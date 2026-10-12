@@ -179,7 +179,7 @@ End Function
 Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
     Dim kind As String, fam As String
     Select Case key
-        Case "totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad"
+        Case "totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum"
         Case Else: Exit Sub
     End Select
     kind = Registry_ChartType(c)
@@ -226,6 +226,11 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
             If fam = "scatter" Then Scatter_SetTrend c, value Else RefuseUndispatched key, c, fam     ' linha de tendencia linear por grupo
         Case "quad"
             If fam = "scatter" Then Scatter_SetQuad c, value Else RefuseUndispatched key, c, fam      ' quadrantes: eixos cruzando nas medias
+        Case "roundsum"
+            Select Case fam
+                Case "stacked", "area": Round_SetLabels c, value     ' rotulos com soma consistente (maior resto nas colunas Rnd_j do bloco)
+                Case Else: RefuseUndispatched key, c, fam
+            End Select
     End Select
 End Sub
 
@@ -547,6 +552,46 @@ Fail:
     Errors_Handle "Core_ResetScale"
 End Sub
 
+' Arredondar intervalo: grava, a partir da celula escolhida, formulas de maior resto que referenciam so a faixa selecionada (uma coluna ou
+' uma linha de numeros). Portatil: nada depende do ThinQQ. Em build Test sai antes dos InputBox (modais travariam o Excel invisivel).
+' O destino e validado (Round_ValidateDest: mesma pasta, cabe na planilha, sem sobrepor a origem) e celulas ja preenchidas pedem confirmacao.
+Public Sub Core_RoundRange()
+    On Error GoTo Fail
+    Dim rng As Range, dest As Range, dec As Variant, msg As String, n As Long, out As Range, addr As String
+    If TypeName(Selection) <> "Range" Then
+        Core_Notify "Selecione uma única coluna ou linha só com números (pelo menos 2).", vbExclamation
+        Exit Sub
+    End If
+    Set rng = Selection
+    msg = Round_ValidateRange(rng)
+    If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
+    If BUILD_CONFIG = "Test" Then Exit Sub
+    dec = Application.InputBox("Casas decimais do resultado (0 = inteiros; 1 ou 2 = decimais; -3 = milhares):", APP_NAME, 0, Type:=1)
+    If VarType(dec) = vbBoolean Then Exit Sub
+    If dec <> Int(dec) Or dec < -15 Or dec > 15 Then
+        Core_Notify "Informe um número inteiro de casas decimais (de -15 a 15).", vbExclamation
+        Exit Sub
+    End If
+    On Error Resume Next
+    Set dest = Application.InputBox("Célula onde o resultado começa (cada célula recebe uma fórmula que referencia só os valores de origem):", APP_NAME, Type:=8)
+    On Error GoTo Fail
+    If dest Is Nothing Then Exit Sub
+    msg = Round_ValidateDest(rng, dest.Cells(1, 1))
+    If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
+    n = rng.Cells.Count
+    If rng.Columns.Count = 1 Then Set out = dest.Cells(1, 1).Resize(n, 1) Else Set out = dest.Cells(1, 1).Resize(1, n)
+    addr = out.Address(False, False)
+    If Not out.Worksheet Is rng.Worksheet Then addr = "'" & Replace(out.Worksheet.Name, "'", "''") & "'!" & addr
+    If Application.WorksheetFunction.CountA(out) > 0 Then
+        If MsgBox("As células " & addr & " já têm conteúdo. Substituir?", vbQuestion + vbYesNo, APP_NAME) <> vbYes Then Exit Sub
+    End If
+    Round_WriteFormulas rng, dest.Cells(1, 1), CLng(dec)
+    Core_Notify "Fórmulas de arredondamento com soma consistente gravadas em " & addr & ".", vbInformation
+    Exit Sub
+Fail:
+    Errors_Handle "Core_RoundRange"
+End Sub
+
 ' True quando o bloco do gráfico (uma linha de fórmula por categoria) não tem o mesmo número de categorias
 ' que o gráfico mostra agora: linhas inseridas/removidas na tabela de origem ajustam as referências diretas
 ' das séries (e as categorias), mas não o bloco. Nunca propaga erro (False em dúvida).
@@ -798,7 +843,7 @@ Private Sub ReapplyOptions(nc As Chart)
     If Kinds_Supports(kind, "numfmt") Then ApplyOption nc, "numfmt", Registry_GetOption(nc, "numfmt", "int")
     ApplyOption nc, "palette", Registry_GetOption(nc, "palette", "padrao")
     If Kinds_Supports(kind, "gap") And Len(Registry_GetOption(nc, "gap", "")) > 0 Then ApplyOption nc, "gap", Registry_GetOption(nc, "gap", "")
-    For Each k In Array("totals", "labels", "connectors", "secondary", "ind100", "vline", "pieout", "trend", "quad")
+    For Each k In Array("totals", "labels", "connectors", "secondary", "ind100", "vline", "pieout", "trend", "quad", "roundsum")      ' roundsum depois de labels: com os rotulos desligados so grava a opcao
         If Kinds_Supports(kind, CStr(k)) Then
             dflt = IIf(k = "labels" Or k = "ind100", "1", "0")
             ApplyToggle nc, CStr(k), (Registry_GetOption(nc, CStr(k), dflt) = "1")      ' pizza: rotulos fora (pieout) tambem aplicados aqui

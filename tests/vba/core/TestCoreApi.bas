@@ -1158,7 +1158,7 @@ End Function
 ' mostra se alguma escolha foi sobrescrita pelo estado real do grafico novo (ex.: indicador 100% desligado voltando ligado).
 Private Function ChoicesSnapshot() As String
     Dim k As Variant
-    For Each k In Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "numfmt", "palette", "gap", "legend", "n")
+    For Each k In Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum", "numfmt", "palette", "gap", "legend", "n")
         ChoicesSnapshot = ChoicesSnapshot & k & "=" & Core_GetOption(CStr(k)) & ";"
     Next
 End Function
@@ -1229,7 +1229,7 @@ Public Sub Test_Core_AllKinds_InsertTogglesOptionsRebuild()
     Dim before As String, ch As Variant
     kinds = Array("stacked", "clustered", "stacked100", "line", "waterfall", "barstacked", "barclustered", "barstacked100", "barwaterfall", _
                   "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut", "butterfly", "scatter", "bubble")
-    toggles = Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad")
+    toggles = Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum")
     For k = LBound(kinds) To UBound(kinds)
         kind = kinds(k)
         Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"

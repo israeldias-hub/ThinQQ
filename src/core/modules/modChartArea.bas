@@ -164,7 +164,7 @@ End Sub
 ' fonte por contraste com a faixa.
 ' O formato e o dos segmentos (Labels_SegmentFormat: numfmt; em area100, pct0/pct1). Desligar apaga as auxiliares.
 Public Sub Area_SetLabels(cht As Chart, turnOn As Boolean)
-    Dim s As Series, blk As Range, body As Range, n As Long, ns As Long, j As Long, i As Long, fmt As String
+    Dim s As Series, blk As Range, body As Range, n As Long, ns As Long, j As Long, i As Long, fmt As String, rc As Long
     If Not turnOn Then
         For i = cht.SeriesCollection.Count To 1 Step -1
             Set s = cht.SeriesCollection(i)
@@ -181,7 +181,8 @@ Public Sub Area_SetLabels(cht As Chart, turnOn As Boolean)
     For j = 1 To ns
         Set s = Chart_FindSeries(cht, "tqq_lbl_" & j)
         If s Is Nothing Then Set s = Chart_AddHelperSeries(cht, "tqq_lbl_" & j, body.Cells(2, Area_MidCol(blk, j)).Resize(n, 1))
-        Labels_LinkPoints s, body.Cells(2, Area_ValCol(blk, j)).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(Style_DataSeriesColor(cht, j))
+        rc = 0: If Registry_GetOption(cht, "roundsum", "0") = "1" Then rc = Round_RCol(blk, j)        ' soma consistente: Rnd_j (maior resto, modRounding)
+        Labels_LinkPoints s, body.Cells(2, IIf(rc > 0, rc, Area_ValCol(blk, j))).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(Style_DataSeriesColor(cht, j))
         ' A faixa começa no PONTO da primeira categoria e termina no da última: um rótulo centrado ali ficaria meio fora da
         ' faixa (texto claro sobre o fundo branco some). Nas pontas o rótulo fica para dentro: à direita do primeiro ponto e
         ' à esquerda do último.

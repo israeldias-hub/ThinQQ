@@ -479,6 +479,7 @@ Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
             body.Cells(2, Area_ValCol(blk, j)).Resize(n, 1).NumberFormatLocal = segFmt
         Next
     End If
+    If Round_DCol(blk) > 0 Then Round_ApplyCellFormat cht         ' soma consistente: casas (RndD) e formato das celulas Rnd_j ligadas aos rotulos
     If Registry_GetOption(cht, "vline", "0") = "1" Then Deco_ApplyVLineFormat cht     ' a media da linha de valor ("Média N") segue o formato dos numeros (ligar a linha ja grava o formato)
     Exit Sub
 Fail:

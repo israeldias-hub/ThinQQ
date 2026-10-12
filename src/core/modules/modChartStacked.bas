@@ -203,10 +203,14 @@ Public Sub Stacked_EnsureRoomAfterChange(cht As Chart)
 End Sub
 
 Public Sub Stacked_SetLabels(cht As Chart, turnOn As Boolean)
-    Dim s As Series, fmt As String, j As Long, body As Range, n As Long, is100 As Boolean
+    Dim s As Series, fmt As String, j As Long, body As Range, n As Long, is100 As Boolean, blk As Range, rc As Long, rs As Boolean
     fmt = Labels_SegmentFormat(cht)
     is100 = Kinds_Is100(Registry_ChartType(cht))
-    If is100 Then Set body = Block_Body(Registry_Block(cht)): n = body.Rows.Count - 1
+    rs = (Registry_GetOption(cht, "roundsum", "0") = "1")
+    If is100 Or rs Then
+        Set blk = Registry_Block(cht)
+        If Not blk Is Nothing Then Set body = Block_Body(blk): n = body.Rows.Count - 1
+    End If
     For Each s In cht.SeriesCollection
         If Not Style_IsHelperSeries(s) Then
             j = j + 1
@@ -231,8 +235,15 @@ Public Sub Stacked_SetLabels(cht As Chart, turnOn As Boolean)
                         .Font.Color = Style_ContrastFont(s.Format.Fill.ForeColor.RGB)
                     End If
                 End With
-                ' 100%: o rótulo do segmento é a participação (coluna de participação do bloco), não o valor absoluto
-                If is100 Then Labels_LinkPoints s, body.Cells(2, 3 + j).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
+                ' soma consistente (roundsum): o rótulo liga a Rnd_j (valor ou participação arredondados por maior resto, modRounding);
+                ' 100%: a participação (coluna de participação do bloco), não o valor absoluto
+                rc = 0
+                If rs Then rc = Round_RCol(blk, j)
+                If rc > 0 Then
+                    Labels_LinkPoints s, body.Cells(2, rc).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
+                ElseIf is100 Then
+                    Labels_LinkPoints s, body.Cells(2, 3 + j).Resize(n, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(CLng(s.Format.Fill.ForeColor.RGB))
+                End If
             End If
         End If
     Next
