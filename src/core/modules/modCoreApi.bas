@@ -659,7 +659,9 @@ End Sub
 ' O destino e validado (Round_ValidateDest: mesma pasta, cabe na planilha, sem sobrepor a origem) e celulas ja preenchidas pedem confirmacao.
 Public Sub Core_RoundRange()
     On Error GoTo Fail
-    Dim rng As Range, dest As Range, dec As Variant, msg As String, n As Long, out As Range, addr As String
+    Dim rng As Range, dest As Range, dec As Variant, msg As String, n As Long, out As Range, addr As String, tDec As Variant, tDest As Range
+    tDec = mTestRoundDec: Set tDest = mTestRoundDest             ' gancho de teste de uso unico: consumido na entrada (nao vaza de uma saida antecipada)
+    Set mTestRoundDest = Nothing: mTestRoundDec = Empty
     If TypeName(Selection) <> "Range" Then
         Core_Notify "Selecione uma única coluna ou linha só com números (pelo menos 2).", vbExclamation
         Exit Sub
@@ -669,9 +671,8 @@ Public Sub Core_RoundRange()
     If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
     If BUILD_CONFIG = "Test" Then
         ' build Test: sem InputBox (modais travariam o Excel invisivel); as respostas vem do gancho Core_TestSetRoundRangeAnswers (uso unico)
-        If mTestRoundDest Is Nothing Then Exit Sub
-        dec = mTestRoundDec: Set dest = mTestRoundDest
-        Set mTestRoundDest = Nothing: mTestRoundDec = Empty
+        If tDest Is Nothing Then Exit Sub
+        dec = tDec: Set dest = tDest
     Else
         dec = Application.InputBox("Casas decimais do resultado (0 = inteiros; 1 ou 2 = decimais; -3 = milhares):", APP_NAME, 0, Type:=1)
     End If

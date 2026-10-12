@@ -368,24 +368,26 @@ Public Sub Test_Round_ValidateDest()
     CloseTemp wb
 End Sub
 
-' Arredondar intervalo acima do limite (2.000 celulas): recusa com aviso, nada gravado (pelo comando e chamando a gravacao direto).
+' Arredondar intervalo acima do limite (ROUND_MAX_CELLS, 1.000 desde a Onda B): recusa com aviso, nada gravado (pelo comando e chamando a
+' gravacao direto).
 Public Sub Test_Round_RangeAboveCap_RefusesWithoutWriting()
     Dim wb As Workbook, ws As Worksheet, en As Long, ed As String
     Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
-    ws.Range("A1:A2001").Value = 1
-    AssertEqual Round_TooBigText(2001), Round_ValidateRange(ws.Range("A1:A2001"))
-    AssertTrue InStr(Round_TooBigText(2001), "no máximo") > 0
-    AssertEqual "", Round_ValidateRange(ws.Range("A1:A2000")), "2.000 celulas ainda aceitas"
-    ws.Range("A1:A2001").Select
+    AssertEqual 1000, ROUND_MAX_CELLS
+    ws.Range("A1:A1001").Value = 1
+    AssertEqual Round_TooBigText(1001), Round_ValidateRange(ws.Range("A1:A1001"))
+    AssertTrue InStr(Round_TooBigText(1001), "no máximo 1.000") > 0 Or InStr(Round_TooBigText(1001), "no máximo 1,000") > 0, Round_TooBigText(1001)
+    AssertEqual "", Round_ValidateRange(ws.Range("A1:A1000")), "1.000 celulas ainda aceitas"
+    ws.Range("A1:A1001").Select
     Core_ClearLastNotice
     Core_RoundRange
-    AssertEqual Round_TooBigText(2001), Core_LastNotice()
+    AssertEqual Round_TooBigText(1001), Core_LastNotice()
     On Error Resume Next
-    Round_WriteFormulas ws.Range("A1:A2001"), ws.Range("C1"), 0
+    Round_WriteFormulas ws.Range("A1:A1001"), ws.Range("C1"), 0
     en = Err.Number: ed = Err.Description
     On Error GoTo 0
     AssertEqual vbObjectError + 7002, en
-    AssertEqual Round_TooBigText(2001), ed
+    AssertEqual Round_TooBigText(1001), ed
     AssertEqual 0, Application.WorksheetFunction.CountA(ws.Range("C:C")), "nada gravado"
     CloseTemp wb
 End Sub
@@ -462,7 +464,7 @@ Public Sub Test_Round_WriteFormulas_MergedOrProtectedDest_Refuses()
     AssertEqual "O destino tem células mescladas; escolha uma área sem mesclagem.", ed
     AssertEqual 0, Application.WorksheetFunction.CountA(ws.Range("C1:C3")), "nada gravado"
     ws.Range("F1:F3").Locked = False
-    ws.Protect
+    ws.Protect AllowFormattingCells:=True
     AssertEqual "", Round_ValidateDest(ws.Range("A1:A3"), ws.Range("F1")), "celulas desbloqueadas servem"
     AssertEqual "As células de destino estão protegidas.", Round_ValidateDest(ws.Range("A1:A3"), ws.Range("G1"))
     AssertEqual "As células de destino estão protegidas.", Round_ValidateDest(ws.Range("A1:A3"), ws.Range("F2")), "F4 bloqueada"
@@ -558,10 +560,11 @@ Public Sub Test_Round_WriteFormulas_PercentSource_KeepsPercent()
 End Sub
 
 ' "Alterar dados" com a soma consistente ligada: as colunas Rnd_j sao criadas antes da passada dos rotulos, que ja liga a elas; a passada
-' de roundsum nao refaz os rotulos (cada religacao custa Labels_LinkPoints ponto a ponto: ~17 s em 300 pontos de um 100%).
+' de roundsum nao refaz os rotulos (cada religacao custa Labels_LinkPoints ponto a ponto: ~17 s em 300 pontos de um 100%). Onda B (B2.7f):
+' tambem nas empilhadas simples (colunas e barras).
 Public Sub Test_Round_Rebuild_LinksLabelsOnce()
     Dim wb As Workbook, ws As Worksheet, rng As Range, cht As Chart, k As Variant
-    For Each k In Array("stacked100", "area")
+    For Each k In Array("stacked100", "area", "stacked", "barstacked")
         Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
         Set rng = Fixture(ws, Array(1, 1, 1, 2, 3, 5))
         rng.Select
@@ -578,7 +581,11 @@ Public Sub Test_Round_Rebuild_LinksLabelsOnce()
             AssertEqual "1", Chart_FindSeries(cht, "tqq_lbl_1").Points(1).DataLabel.Text, k & ": 1 + 1 + 1 inalterados"
         Else
             AssertTrue InStr(cht.SeriesCollection(1).Points(1).DataLabel.Formula, Block_Body(Registry_Block(cht)).Cells(2, Round_RCol(Registry_Block(cht), 1)).Address(True, True)) > 0, k & ": ligado a Rnd1"
-            AssertEqual Pct(34), cht.SeriesCollection(1).Points(1).DataLabel.Text, CStr(k)
+            If k = "stacked100" Then
+                AssertEqual Pct(34), cht.SeriesCollection(1).Points(1).DataLabel.Text, CStr(k)
+            Else
+                AssertEqual "1", cht.SeriesCollection(1).Points(1).DataLabel.Text, k & ": 1 + 1 + 1 inalterados"
+            End If
         End If
         Core_SetToggle "roundsum", True
         AssertEqual 0, Round_RelinkCountForTest(), k & ": ligar o que ja esta ligado nao religa"
@@ -628,4 +635,138 @@ Public Sub Test_Round_NumfmtChange_ChangesRounding()
     AssertEqual "1" & dec & "5", cht.SeriesCollection(3).Points(1).DataLabel.Text
     AssertEqual "4" & dec & "0", Chart_FindSeries(cht, "tqq_total").Points(1).DataLabel.Text
     Teardown wb
+End Sub
+
+' Onda B (B2.7a): "%" literal (entre aspas ou depois de barra invertida) nao e percentual: com 0,0"%" ou 0,0\% a origem tem numeros como
+' 33,5 mostrados com o sinal, e a saida continua numero (seria 3400%). Um "%" de verdade fora das aspas continua percentual.
+Public Sub Test_Round_WriteFormulas_LiteralPercent_IsNotPercent()
+    Dim wb As Workbook, ws As Worksheet, fm As Variant
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:A3").Value = Application.Transpose(Array(33.5, 33.5, 33))
+    For Each fm In Array("0.0""%""", "0.0\%")
+        ws.Range("A1:A3").NumberFormat = CStr(fm)
+        ws.Range("C1:C3").Clear
+        Round_WriteFormulas ws.Range("A1:A3"), ws.Range("C1"), 0
+        AssertEqual "34", ws.Range("C2").Text, "formato " & fm & ": numero, sem %"
+        AssertEqual "33", ws.Range("C1").Text, "formato " & fm
+    Next
+    ws.Range("A1:A3").Value = Application.Transpose(Array(0.335, 0.335, 0.33))
+    ws.Range("A1:A3").NumberFormat = "0.0%"" a.a."""
+    ws.Range("C1:C3").Clear
+    Round_WriteFormulas ws.Range("A1:A3"), ws.Range("C1"), 2
+    AssertEqual "34%", ws.Range("C2").Text, "% de verdade com texto entre aspas: percentual"
+    CloseTemp wb
+End Sub
+
+' Onda B (B2.7b): planilha protegida sem a permissao "Formatar celulas": recusa ANTES de gravar (o formato da saida falharia depois das
+' formulas). Com a permissao, celulas desbloqueadas servem.
+Public Sub Test_Round_ProtectedWithoutFormatting_RefusesBeforeWriting()
+    Dim wb As Workbook, ws As Worksheet, en As Long, ed As String
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:A3").Value = Application.Transpose(Array(1, 2, 3))
+    ws.Range("F1:F3").Locked = False
+    ws.Protect
+    AssertEqual RND_ERR_NOFORMAT, Round_ValidateDest(ws.Range("A1:A3"), ws.Range("F1"))
+    On Error Resume Next
+    Round_WriteFormulas ws.Range("A1:A3"), ws.Range("F1"), 0
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    AssertEqual vbObjectError + 7002, en, "recusa limpa (" & en & " " & ed & ")"
+    AssertEqual RND_ERR_NOFORMAT, ed
+    AssertEqual 0, Application.WorksheetFunction.CountA(ws.Range("F1:F3")), "nada gravado"
+    ws.Unprotect
+    ws.Protect AllowFormattingCells:=True
+    AssertEqual "", Round_ValidateDest(ws.Range("A1:A3"), ws.Range("F1")), "com a permissao de formatar"
+    Round_WriteFormulas ws.Range("A1:A3"), ws.Range("F1"), 0
+    AssertEqual 2, ws.Range("F2").Value
+    ws.Unprotect
+    CloseTemp wb
+End Sub
+
+' Onda B (B2.7c): as respostas do gancho sao consumidas na ENTRADA de Core_RoundRange: uma saida antecipada (selecao invalida) nao as deixa
+' para a chamada seguinte.
+Public Sub Test_Core_RoundRange_AnswersConsumedOnEarlyExit()
+    Dim wb As Workbook, ws As Worksheet
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:A3").Value = Application.Transpose(Array(1, 2, 3))
+    ws.Range("D1").Select                                       ' vazia: recusa antes de ler as respostas
+    Core_TestSetRoundRangeAnswers 0, ws.Range("C1")
+    Core_ClearLastNotice
+    Core_RoundRange
+    AssertTrue Len(Core_LastNotice()) > 0, "selecao invalida: aviso"
+    ws.Range("A1:A3").Select
+    Core_ClearLastNotice
+    Core_RoundRange
+    AssertEqual "", Core_LastNotice(), "sem respostas novas: sai"
+    AssertEqual 0, Application.WorksheetFunction.CountA(ws.Range("C1:C3")), "as respostas da chamada anterior nao vazaram"
+    CloseTemp wb
+End Sub
+
+' Onda B (B2.7d): o desfazer devolve constantes pelo valor (Value2), nao pelo texto de .Formula: numero como texto ("00123"), data e
+' constante longa voltam exatas; formulas voltam como formulas.
+Public Sub Test_Round_WriteFormulas_FailMidway_RestoresTypedConstants()
+    Dim wb As Workbook, ws As Worksheet, en As Long, big As Double, d As Double
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:A4").Value = Application.Transpose(Array(1, 2, 3, 4))
+    ws.Range("C1").Value = "'00123"
+    d = CDbl(DateSerial(2024, 1, 15))
+    ws.Range("C2").Value2 = d: ws.Range("C2").NumberFormat = "dd/mm/yyyy"
+    big = 1234567890123456#: big = big * 1000 + 789
+    ws.Range("C3").Value2 = big
+    ws.Range("C4").Formula = "=1+1"
+    Util_FailThinSyncForTest = "round-write:formulas"
+    On Error Resume Next
+    Round_WriteFormulas ws.Range("A1:A4"), ws.Range("C1"), 0
+    en = Err.Number
+    On Error GoTo 0
+    Util_FailThinSyncForTest = ""
+    AssertEqual vbObjectError + 9995, en, "o erro chega ao chamador"
+    AssertEqual vbString, VarType(ws.Range("C1").Value), "numero como texto continua texto"
+    AssertEqual "00123", ws.Range("C1").Value
+    AssertEqual d, ws.Range("C2").Value2, "data exata"
+    AssertEqual "dd/mm/yyyy", ws.Range("C2").NumberFormat
+    AssertTrue ws.Range("C3").Value2 = big, "constante longa exata (" & ws.Range("C3").Value2 & ")"
+    AssertEqual "=1+1", ws.Range("C4").Formula
+    CloseTemp wb
+End Sub
+
+' Onda B (B2.7e): custo medido no teto (ROUND_MAX_CELLS): gravar e uma edicao da origem com calculo automatico. Os tempos vao para o log
+' de teste (%TEMP%\ThinQQ-test-logs); a afirmacao so pega um custo absurdo. Com 2.000 (o teto anterior) gravar levava ~5 s e cada edicao da
+' origem 1 a 2 s: o teto baixou para 1.000.
+Public Sub Test_Round_Timing_AtCap()
+    Dim wb As Workbook, ws As Worksheet, t As Double, tw As Double, te As Double, tp As Double, prevCalc As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    prevCalc = Application.Calculation
+    Application.Calculation = xlCalculationAutomatic
+    ws.Range("A1").Resize(ROUND_MAX_CELLS, 1).Formula = "=ROW()/7"
+    ws.Range("A1").Resize(ROUND_MAX_CELLS, 1).Value = ws.Range("A1").Resize(ROUND_MAX_CELLS, 1).Value
+    t = Timer
+    Round_WriteFormulas ws.Range("A1").Resize(ROUND_MAX_CELLS, 1), ws.Range("C1"), 1
+    tw = Timer - t
+    t = Timer
+    ws.Range("A" & (ROUND_MAX_CELLS \ 2)).Value = 12.34
+    te = Timer - t
+    t = Timer
+    ws.Range("E1").Resize(ROUND_MAX_CELLS, 1).Formula = ws.Range("C1").Resize(ROUND_MAX_CELLS, 1).Formula     ' so o Excel: interpretar e calcular
+    tp = Timer - t
+    Errors_Log "TestRounding/tempo " & ROUND_MAX_CELLS & " celulas" & vbTab & "gravar " & Format$(tw, "0.00") & " s" & vbTab & "editar a origem " & Format$(te, "0.00") & " s" & vbTab & "regravar as formulas " & Format$(tp, "0.00") & " s"
+    Application.Calculation = prevCalc
+    AssertTrue tw < 15 And te < 10, "gravar " & tw & " s, editar " & te & " s"
+    CloseTemp wb
+End Sub
+
+' Onda B (B2.7e): os enderecos montados em texto (sem chamar o Excel por celula) acertam colunas de duas letras e a faixa parcial.
+Public Sub Test_Round_WriteFormulas_TextAddresses_TwoLetterColumns()
+    Dim wb As Workbook, ws As Worksheet
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("Y5:AB5").Value = Array(1.5, 1.5, 1.5, 1.5)
+    Round_WriteFormulas ws.Range("Y5:AB5"), ws.Range("Y7"), 0
+    AssertTrue InStr(ws.Range("AA7").Formula, "$AA$5") > 0 And InStr(ws.Range("AA7").Formula, "$Y$5:$AA$5") > 0, ws.Range("AA7").Formula
+    AssertTrue InStr(ws.Range("Y7").Formula, "$Y$5:$AB$5") > 0, "faixa da linha inteira"
+    AssertEqual 6, Application.WorksheetFunction.Sum(ws.Range("Y7:AB7")), "1,5 x 4 = 6"
+    ws.Range("A1:A3").Value = Application.Transpose(Array(0.5, 0.5, 1))
+    Round_WriteFormulas ws.Range("A1:A3"), ws.Range("C1"), 0
+    AssertEqual 2, Application.WorksheetFunction.Sum(ws.Range("C1:C3")), "vertical"
+    AssertTrue InStr(ws.Range("C3").Formula, "$A$1:$A$3") > 0 And InStr(ws.Range("C3").Formula, "$A$3") > 0, ws.Range("C3").Formula
+    CloseTemp wb
 End Sub

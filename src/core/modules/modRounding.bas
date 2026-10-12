@@ -15,7 +15,9 @@ Private Const RND_HDR_D As String = "RndD"
 Private Const RND_ERR_RANGE As String = "Selecione uma única coluna ou linha só com números (pelo menos 2)."
 Private Const AGG_PREFIX As String = "=AGGREGATE(9,6,"
 Private Const RND_ERR_SERIES As String = "As séries do gráfico não correspondem mais às colunas da tabela de origem; use 'Alterar dados' para reconstruí-lo."
-Public Const ROUND_MAX_CELLS As Long = 2000            ' Arredondar intervalo: limite de celulas (custo O(n^2) por recalculo)
+Public Const ROUND_MAX_CELLS As Long = 1000            ' Arredondar intervalo: limite de celulas (custo O(n^2) por recalculo; medido na Onda B:
+                                                        ' com 2.000, gravar levava ~5 s e cada edicao da origem 1 a 2 s)
+Public Const RND_ERR_NOFORMAT As String = "A planilha de destino está protegida sem a permissão de formatar células: desproteja-a ou escolha um destino em outra planilha."
 Private mRelinkCount As Long                            ' gancho de teste: vezes que Round_SetLabels refez os rotulos de segmento
 
 Public Function Round_Decimals(numfmtKey As String) As Long
@@ -326,6 +328,32 @@ Fail:
     Err.Raise en, es, ed
 End Sub
 
+' Endereco absoluto ($A$1) da linha r e coluna c, sem chamar o Excel.
+Private Function AbsAddress(r As Long, c As Long) As String
+    Dim nm As String, k As Long
+    k = c
+    Do While k > 0
+        nm = Chr$(65 + (k - 1) Mod 26) & nm
+        k = (k - 1) \ 26
+    Loop
+    AbsAddress = "$" & nm & "$" & r
+End Function
+
+' Devolve uma celula de saida ao que era (formato antes do conteudo: numa celula de texto "@" o valor fica texto). Texto volta com o
+' apostrofo (o Excel converteria "00123" em numero). Erros por celula ficam para o chamador (Resume Next).
+Private Sub RestoreCell(c As Range, isFormula As Boolean, v As Variant, fmt As String)
+    c.NumberFormat = fmt
+    If isFormula Then
+        c.Formula = v
+    ElseIf IsEmpty(v) Then
+        c.ClearContents
+    ElseIf VarType(v) = vbString Then
+        c.Value2 = "'" & v
+    Else
+        c.Value2 = v
+    End If
+End Sub
+
 ' "" se a faixa serve ao Arredondar intervalo (uma area, uma coluna OU uma linha, de 2 a ROUND_MAX_CELLS celulas, todas numericas); senao a
 ' mensagem. O limite vem do custo: cada formula percorre a faixa inteira varias vezes (O(n) por celula, O(n^2) por recalculo).
 Public Function Round_ValidateRange(rng As Range) As String
@@ -361,7 +389,8 @@ Private Function OutputRange(src As Range, dest As Range) As Range
 End Function
 
 ' "" se a celula de destino serve para as formulas da faixa src (mesma pasta, a saida inteira cabe na planilha, nao sobrepoe a origem, sem
-' celula mesclada, que esconderia parte do resultado, e sem celula bloqueada numa planilha protegida); senao a mensagem.
+' celula mesclada, que esconderia parte do resultado, e, numa planilha protegida, sem celula bloqueada e com a permissao de formatar
+' celulas: a saida recebe o formato numerico depois das formulas); senao a mensagem.
 Public Function Round_ValidateDest(src As Range, dest As Range) As String
     Dim out As Range, flag As Variant
     If dest Is Nothing Then Exit Function
@@ -378,6 +407,7 @@ Public Function Round_ValidateDest(src As Range, dest As Range) As String
         flag = out.Locked                                       ' Null = algumas bloqueadas
         If IsNull(flag) Then flag = True
         If flag Then Round_ValidateDest = "As células de destino estão protegidas.": Exit Function
+        If Not out.Worksheet.Protection.AllowFormattingCells Then Round_ValidateDest = RND_ERR_NOFORMAT: Exit Function
     End If
 End Function
 
@@ -389,8 +419,9 @@ End Function
 ' SUMPRODUCT sem Ctrl+Shift+Enter no Excel 2019 e IF(ISNUMBER()) da #VALOR! na formula completa (medido); o bloco dos graficos saneia antes (V_j).
 Public Sub Round_WriteFormulas(src As Range, dest As Range, decimals As Long)
     Dim n As Long, i As Long, vertical As Boolean, rowRng As String, partRng As String, out As Range, fmt As String, msg As String
-    Dim f() As Variant, prevF As Variant, prevFmt() As String, prevCalc As Long, prevSU As Boolean, started As Boolean
-    Dim en As Long, es As String, ed As String
+    Dim f() As Variant, prevF() As Variant, prevIsF() As Boolean, prevFmt() As String, prevCalc As Long, prevSU As Boolean, started As Boolean
+    Dim en As Long, es As String, ed As String, pre As String, r0 As Long, c0 As Long, first As String, cur As String
+    Dim allF As Variant, allV As Variant, fi As Variant, vi As Variant
     If src.Cells.CountLarge > ROUND_MAX_CELLS Then Err.Raise vbObjectError + 7002, "Round_WriteFormulas", Round_TooBigText(src.Cells.CountLarge)
     msg = Round_ValidateDest(src, dest)
     If Len(msg) > 0 Then Err.Raise vbObjectError + 7002, "Round_WriteFormulas", msg
@@ -398,17 +429,20 @@ Public Sub Round_WriteFormulas(src As Range, dest As Range, decimals As Long)
     vertical = (src.Columns.Count = 1)
     Set out = OutputRange(src, dest)
     rowRng = Mid$(ChartData_ExternalAddress(src), 2)
+    pre = Left$(rowRng, InStrRev(rowRng, "!"))                  ' 'Planilha'!: os enderecos das celulas sao montados em texto, sem
+    r0 = src.Row: c0 = src.Column                               ' tres chamadas ao Excel por celula
+    first = AbsAddress(r0, c0)
     If vertical Then ReDim f(1 To n, 1 To 1) Else ReDim f(1 To 1, 1 To n)
     For i = 1 To n
+        If vertical Then cur = AbsAddress(r0 + i - 1, c0) Else cur = AbsAddress(r0, c0 + i - 1)
+        If i = 1 Then partRng = pre & first Else partRng = pre & first & ":" & cur
         If vertical Then
-            partRng = Mid$(ChartData_ExternalAddress(src.Cells(1, 1).Resize(i, 1)), 2)
-            f(i, 1) = Round_Formula(Mid$(ChartData_ExternalAddress(src.Cells(i)), 2), rowRng, partRng, "SUM(" & rowRng & ")", "(" & decimals & ")")
+            f(i, 1) = Round_Formula(pre & cur, rowRng, partRng, "SUM(" & rowRng & ")", "(" & decimals & ")")
         Else
-            partRng = Mid$(ChartData_ExternalAddress(src.Cells(1, 1).Resize(1, i)), 2)
-            f(1, i) = Round_Formula(Mid$(ChartData_ExternalAddress(src.Cells(i)), 2), rowRng, partRng, "SUM(" & rowRng & ")", "(" & decimals & ")")
+            f(1, i) = Round_Formula(pre & cur, rowRng, partRng, "SUM(" & rowRng & ")", "(" & decimals & ")")
         End If
     Next
-    If InStr(CStr(src.Cells(1, 1).NumberFormat), "%") > 0 Then
+    If InStr(Style_CleanFormatSection(CStr(src.Cells(1, 1).NumberFormat)), "%") > 0 Then      ' "%" de verdade: 0,0"%" e 0,0\% so mostram o sinal
         ' origem em percentual (participacoes): a saida continua em percentual, com as casas do arredondamento (2 casas da fracao = 0%)
         If decimals > 2 Then fmt = "0." & String$(decimals - 2, "0") & "%" Else fmt = "0%"
     ElseIf decimals > 0 Then
@@ -416,15 +450,24 @@ Public Sub Round_WriteFormulas(src As Range, dest As Range, decimals As Long)
     Else
         fmt = "#,##0"
     End If
-    prevF = out.Formula
-    ReDim prevFmt(1 To n)
-    For i = 1 To n: prevFmt(i) = out.Cells(i).NumberFormat: Next
+    ' o desfazer guarda formulas como formulas e constantes pelo valor (Value2): o texto de .Formula perderia numero como texto ("00123"),
+    ' digitos de constantes longas e o tipo das datas
+    ' (lidos em bloco; formula = texto com "=" que nao e o proprio valor: um texto "=x" digitado com apostrofo devolve "=x" nos dois)
+    allF = out.Formula: allV = out.Value2
+    ReDim prevF(1 To n): ReDim prevIsF(1 To n): ReDim prevFmt(1 To n)
+    For i = 1 To n
+        If vertical Then fi = allF(i, 1): vi = allV(i, 1) Else fi = allF(1, i): vi = allV(1, i)
+        prevIsF(i) = (Left$(CStr(fi), 1) = "=")
+        If prevIsF(i) And VarType(vi) = vbString Then prevIsF(i) = (CStr(vi) <> CStr(fi))
+        If prevIsF(i) Then prevF(i) = fi Else prevF(i) = vi
+        prevFmt(i) = out.Cells(i).NumberFormat
+    Next
     prevSU = Application.ScreenUpdating
     prevCalc = Application.Calculation
     On Error GoTo Fail
-    started = True
     Application.ScreenUpdating = False
     If prevCalc <> xlCalculationManual Then Application.Calculation = xlCalculationManual
+    started = True                                              ' so agora as celulas comecam a mudar
     out.Formula = f
     RoundTestHook "write", "formulas"
     out.NumberFormatLocal = Style_LocalizeCode(fmt)
@@ -437,8 +480,7 @@ Fail:
     On Error GoTo -1                                 ' encerra o tratamento do erro: sem isso o Resume Next abaixo nao protegeria a limpeza
     On Error Resume Next
     If started Then
-        out.Formula = prevF
-        For i = 1 To n: out.Cells(i).NumberFormat = prevFmt(i): Next
+        For i = 1 To n: RestoreCell out.Cells(i), prevIsF(i), prevF(i), prevFmt(i): Next
     End If
     If Application.Calculation <> prevCalc Then Application.Calculation = prevCalc
     If Application.ScreenUpdating <> prevSU Then Application.ScreenUpdating = prevSU
