@@ -362,44 +362,78 @@ Restore:
     Teardown wb
 End Sub
 
-' Revisao 1: barra mais fina que o texto do rotulo (InsideEnd com fonte branca): o Excel poe o rotulo fora da barra, branco sobre branco, ou no
-' vao central ao lado do nome. O rotulo fica oculto enquanto nao cabe e volta quando cabe; o que o USUARIO apagou continua apagado; religar
-' Rotulos refaz todos; trocar o formato nao recria os ocultos.
-Public Sub Test_Bfly_TinyBars_LabelsHiddenAndRestored()
-    Dim wb As Workbook, ws As Worksheet, cht As Chart, dec As String
-    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
-    ws.Range("A1:C1").Value = Array("Faixa", "A", "B")
-    ws.Range("A2:C2").Value = Array("x1", 1500, 1300)
-    ws.Range("A3:C3").Value = Array("x2", 10, 20)
-    ws.Range("A4:C4").Value = Array("x3", 600, 700)
+' Revisao 1 + Onda A (item H): barra mais fina que o texto do rotulo. Antes ficava oculto; agora vai para FORA da barra, em cinza-escuro: no lado
+' esquerdo alem da ponta (posicao do proprio Excel), no direito logo depois da ponta e, com totais, o total da linha depois dele. Conferido pela
+' geometria MEDIDA (ForceLayout) contra a ponta da barra pela regra de tres no eixo real. Volta ao normal quando cabe; o que o USUARIO apagou
+' continua apagado; formato, paleta e religar Rotulos mantem a regra.
+Public Sub Test_Bfly_TinyBars_LabelsOutsideAndRestored()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, dec As String, sA As Series, sB As Series, tot As Series, blk As Range, g As Double
+    Set wb = NewTempWorkbook(): Set ws = TinyFixture(wb)
     ws.Range("A1:C4").Select
     Core_Insert "butterfly"
     Set cht = Core_ActiveChart()
-    AssertFalse Bfly_SideSeries(cht, 1).Points(2).HasDataLabel, "10: barra fina, rotulo oculto"
-    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "20: barra fina, rotulo oculto"
-    AssertEqual Format$(1500, "#,##0"), Bfly_SideSeries(cht, 1).Points(1).DataLabel.Text
-    AssertEqual "600", Bfly_SideSeries(cht, 1).Points(3).DataLabel.Text
-    Bfly_SideSeries(cht, 2).Points(1).HasDataLabel = False             ' o usuario apaga um rotulo
+    Set sA = Bfly_SideSeries(cht, 1): Set sB = Bfly_SideSeries(cht, 2): Set tot = Chart_FindSeries(cht, "tqq_total")
+    AssertTrue sA.Points(2).HasDataLabel, "10: barra fina, rotulo continua"
+    AssertTrue sB.Points(2).HasDataLabel, "20: barra fina, rotulo continua"
+    AssertEqual "", Registry_GetOption(cht, "thinlbl", ""), "nada oculto"
+    AssertEqual "1.2,2.2", Registry_GetOption(cht, "outlbl", ""), "os dois postos fora"
+    AssertEqual RGB(64, 64, 64), sA.Points(2).DataLabel.Font.Color, "fora: cinza-escuro"
+    AssertEqual RGB(64, 64, 64), sB.Points(2).DataLabel.Font.Color
+    AssertTiny cht, "insercao"
+    AssertEqual Format$(1500, "#,##0"), sA.Points(1).DataLabel.Text
+    AssertEqual "600", sA.Points(3).DataLabel.Text
+    sB.Points(1).HasDataLabel = False                           ' o usuario apaga um rotulo
     ws.Range("B3").Value = 900
     Core_SafeRefresh cht
-    AssertTrue Bfly_SideSeries(cht, 1).Points(2).HasDataLabel, "900 cabe: o rotulo volta"
-    AssertEqual "900", Bfly_SideSeries(cht, 1).Points(2).DataLabel.Text, "volta sem sinal"
-    AssertEqual xlLabelPositionInsideEnd, Bfly_SideSeries(cht, 1).Points(2).DataLabel.Position
-    AssertEqual Style_ContrastFont(CLng(Bfly_SideSeries(cht, 1).Format.Fill.ForeColor.RGB)), Bfly_SideSeries(cht, 1).Points(2).DataLabel.Font.Color, "fonte por contraste"
-    AssertFalse Bfly_SideSeries(cht, 2).Points(1).HasDataLabel, "o rotulo apagado pelo usuario continua apagado"
-    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "20 continua oculto"
+    AssertTrue sA.Points(2).HasDataLabel, "900 cabe"
+    AssertEqual "900", sA.Points(2).DataLabel.Text, "sem sinal"
+    AssertEqual xlLabelPositionInsideEnd, sA.Points(2).DataLabel.Position, "de volta dentro da barra"
+    AssertEqual Style_ContrastFont(CLng(sA.Format.Fill.ForeColor.RGB)), sA.Points(2).DataLabel.Font.Color, "fonte por contraste"
+    AssertEqual "2.2", Registry_GetOption(cht, "outlbl", ""), "so o 20 continua fora"
+    AssertFalse sB.Points(1).HasDataLabel, "o rotulo apagado pelo usuario continua apagado"
+    AssertTiny cht, "900"
     Core_SetOption "numfmt", "dec1"
     dec = Application.International(xlDecimalSeparator)
-    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "trocar o formato nao recria o oculto"
-    AssertEqual "900" & dec & "0", Bfly_SideSeries(cht, 1).Points(2).DataLabel.Text, "formato novo no rotulo que voltou"
-    AssertEqual "700" & dec & "0", Bfly_SideSeries(cht, 2).Points(3).DataLabel.Text, "formato novo no lado direito"
+    AssertEqual "20" & dec & "0", sB.Points(2).DataLabel.Text, "formato novo no rotulo de fora"
+    AssertEqual "900" & dec & "0", sA.Points(2).DataLabel.Text, "formato novo no rotulo que voltou"
+    AssertTiny cht, "formato"
     Core_SetOption "palette", "cinza"
-    AssertEqual RGB(255, 255, 255), Bfly_SideSeries(cht, 1).Points(1).DataLabel.Font.Color, "paleta: fonte por contraste ponto a ponto"
-    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "trocar a paleta nao recria o oculto"
+    AssertEqual RGB(64, 64, 64), sB.Points(2).DataLabel.Font.Color, "paleta: o de fora continua cinza-escuro"
+    AssertEqual RGB(255, 255, 255), sA.Points(1).DataLabel.Font.Color, "paleta: fonte por contraste ponto a ponto"
     Core_SetToggle "labels", True
-    AssertTrue Bfly_SideSeries(cht, 2).Points(1).HasDataLabel, "religar Rotulos refaz todos"
-    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "e a barra fina volta a ficar sem rotulo"
+    AssertTrue sB.Points(1).HasDataLabel, "religar Rotulos refaz todos"
+    AssertEqual "2.2", Registry_GetOption(cht, "outlbl", ""), "e a barra fina volta para fora"
+    AssertTiny cht, "religar"
     Teardown wb
+End Sub
+
+' Rotulo de barra fina fora da barra (lado esquerdo: a direita dele ate a ponta externa; lado direito: a esquerda dele depois da ponta e o
+' total, se houver, depois dele), dentro da area interna, sem encostar no nome do centro. Pontas pela regra de tres no eixo real.
+Private Sub AssertTiny(cht As Chart, tag As String)
+    Dim blk As Range, body As Range, i As Long, k As Long, s As Series, v As Double, g As Double, xe As Double, dl As DataLabel, tot As Series, ok As Boolean
+    ForceLayout cht
+    Set body = Block_Body(Registry_Block(cht)): Set tot = Chart_FindSeries(cht, "tqq_total")
+    For k = 1 To 2
+        Set s = Bfly_SideSeries(cht, k)
+        For i = 1 To body.Rows.Count - 1
+            ok = InStr("," & Registry_GetOption(cht, "outlbl", "") & ",", "," & k & "." & i & ",") > 0
+            If ok And s.Points(i).HasDataLabel Then
+                v = Util_ToDouble(body.Cells(i + 1, IIf(k = 1, BF_COL_A, BF_COL_B)).Value): g = Util_ToDouble(body.Cells(i + 1, BF_COL_GAP).Value)
+                Set dl = s.Points(i).DataLabel
+                If k = 1 Then
+                    xe = XOf(cht, -(g + v))
+                    AssertTrue dl.Left + dl.Width <= xe + 1, tag & ": esquerdo " & i & " fora da barra (" & (dl.Left + dl.Width) & " / ponta " & xe & ")"
+                    AssertTrue dl.Left >= cht.PlotArea.InsideLeft - 1, tag & ": esquerdo " & i & " dentro da area"
+                Else
+                    xe = XOf(cht, g + v)
+                    AssertTrue dl.Left >= xe - 1, tag & ": direito " & i & " fora da barra (" & dl.Left & " / ponta " & xe & ")"
+                    If Not tot Is Nothing Then
+                        AssertTrue tot.Points(i).DataLabel.Left >= dl.Left + dl.Width - 0.5, tag & ": total " & i & " depois do rotulo de fora (" & tot.Points(i).DataLabel.Left & " / " & (dl.Left + dl.Width) & ")"
+                    End If
+                End If
+            End If
+        Next
+    Next
 End Sub
 
 ' Revisao 1: Mesma escala entre duas borboletas: a uniao continua simetrica e igual nas duas; depois, com o eixo FIXO, o vao central ainda
@@ -518,8 +552,8 @@ Private Function TinyFixture(wb As Workbook) As Worksheet
     Set TinyFixture = ws
 End Function
 
-' Revisao 2: falha ao estimar a largura do texto de um ponto (gancho de teste): o ponto fica como esta (sem decidir com a largura do ponto
-' anterior) e nao vira "apagado pelo usuario"; sem a falha, a sincronizacao seguinte o oculta normalmente.
+' Revisao 2 (com a Onda A): falha ao estimar a largura do texto de um ponto (gancho de teste): o ponto fica como esta (sem decidir com a largura
+' do ponto anterior) e nao entra em lista nenhuma; sem a falha, a sincronizacao seguinte o poe fora normalmente.
 Public Sub Test_Bfly_ThinSync_EstimateError_PointSkipped()
     Dim wb As Workbook, ws As Worksheet, cht As Chart
     Set wb = NewTempWorkbook(): Set ws = TinyFixture(wb)
@@ -529,24 +563,28 @@ Public Sub Test_Bfly_ThinSync_EstimateError_PointSkipped()
     Util_FailThinSyncForTest = ""
     Set cht = Core_ActiveChart()
     AssertTrue Bfly_SideSeries(cht, 1).Points(2).HasDataLabel, "falha na estimativa: o ponto fica como estava"
-    AssertFalse Bfly_SideSeries(cht, 2).Points(2).HasDataLabel, "o outro lado segue a regra"
-    AssertEqual "2.2", Registry_GetOption(cht, "thinlbl", "")
+    AssertEqual xlLabelPositionInsideEnd, Bfly_SideSeries(cht, 1).Points(2).DataLabel.Position
+    AssertEqual "2.2", Registry_GetOption(cht, "outlbl", ""), "o outro lado segue a regra"
+    AssertEqual "", Registry_GetOption(cht, "thinlbl", "")
     Core_SafeRefresh cht
-    AssertFalse Bfly_SideSeries(cht, 1).Points(2).HasDataLabel, "sem a falha, oculto"
-    AssertEqual "2.2,1.2", Registry_GetOption(cht, "thinlbl", ""), "e registrado como oculto pelo ThinQQ"
+    AssertEqual RGB(64, 64, 64), Bfly_SideSeries(cht, 1).Points(2).DataLabel.Font.Color, "sem a falha, fora"
+    AssertEqual "2.2,1.2", Registry_GetOption(cht, "outlbl", ""), "e registrado como posto fora pelo ThinQQ"
     Teardown wb
 End Sub
 
-' Revisao 2: falha no meio da formatacao do rotulo que volta (gancho de teste): o rotulo meio formatado e ocultado de novo e a chave fica na
-' lista; sem a falha, volta completo.
+' Revisao 2 (com a Onda A): um rotulo que o ThinQQ tinha ocultado (versao anterior, ou sem espaco nem fora) e religado e posto fora; uma falha no
+' meio da formatacao (gancho de teste) oculta de novo e a chave fica em thinlbl; sem a falha, volta completo e fora. Uma falha no meio de por
+' fora um rotulo existente (antes de mover o total) nao o registra; a passada seguinte completa.
 Public Sub Test_Bfly_ThinSync_FormatError_LabelHiddenAgain()
-    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, en As Long, es As String, ed As String
+    On Error GoTo Cleanup
     Set wb = NewTempWorkbook(): Set ws = TinyFixture(wb)
     ws.Range("A1:C4").Select
     Core_Insert "butterfly"
     Set cht = Core_ActiveChart()
-    AssertFalse Bfly_SideSeries(cht, 1).Points(2).HasDataLabel
-    ws.Range("B3").Value = 900
+    Application.EnableEvents = False                            ' o refresh so quando o teste chama
+    Bfly_SideSeries(cht, 1).Points(2).HasDataLabel = False      ' estado de uma versao anterior: oculto pelo ThinQQ
+    Registry_SetOption cht, "thinlbl", "1.2": Registry_SetOption cht, "outlbl", "2.2"
     Util_FailThinSyncForTest = "bfly-fmt:1.2"
     Core_SafeRefresh cht
     Util_FailThinSyncForTest = ""
@@ -554,6 +592,21 @@ Public Sub Test_Bfly_ThinSync_FormatError_LabelHiddenAgain()
     AssertTrue InStr("," & Registry_GetOption(cht, "thinlbl", "") & ",", ",1.2,") > 0, "a chave continua na lista"
     Core_SafeRefresh cht
     AssertTrue Bfly_SideSeries(cht, 1).Points(2).HasDataLabel, "sem a falha, volta"
-    AssertEqual "900", Bfly_SideSeries(cht, 1).Points(2).DataLabel.Text
+    AssertEqual "10", Bfly_SideSeries(cht, 1).Points(2).DataLabel.Text
+    AssertEqual RGB(64, 64, 64), Bfly_SideSeries(cht, 1).Points(2).DataLabel.Font.Color, "e fora"
+    AssertEqual "", Registry_GetOption(cht, "thinlbl", "")
+    AssertEqual "2.2,1.2", Registry_GetOption(cht, "outlbl", "")
+    Registry_SetOption cht, "outlbl", "1.2"
+    Util_FailThinSyncForTest = "bfly-out:2.2"
+    Core_SafeRefresh cht
+    Util_FailThinSyncForTest = ""
+    AssertEqual "1.2", Registry_GetOption(cht, "outlbl", ""), "falha no meio: nao registrado"
+    Core_SafeRefresh cht
+    AssertEqual "1.2,2.2", Registry_GetOption(cht, "outlbl", ""), "a passada seguinte completa"
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    Application.EnableEvents = True
     Teardown wb
+    If en <> 0 Then Err.Raise en, es, ed
 End Sub
