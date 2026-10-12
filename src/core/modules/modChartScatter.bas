@@ -559,7 +559,7 @@ Public Sub Scatter_KeepUserAxes(oldC As Chart, nc As Chart)
 End Sub
 
 Private Sub KeepUserAxis(oldC As Chart, nc As Chart, k As Long)
-    Dim oa As Axis, na As Axis, stored As String, cur As String, started As Boolean
+    Dim oa As Axis, na As Axis, stored As String, cur As String, started As Boolean, pScale As String, pFmtKey As String, pSrcKey As String
     Dim pAutoMin As Boolean, pAutoMax As Boolean, pAutoUnit As Boolean, pMin As Double, pMax As Double, pUnit As Double, pLinked As Boolean, pFmt As String
     On Error GoTo Fail
     Set oa = oldC.Axes(IIf(k = 1, xlCategory, xlValue), xlPrimary)
@@ -567,6 +567,8 @@ Private Sub KeepUserAxis(oldC As Chart, nc As Chart, k As Long)
     pAutoMin = na.MinimumScaleIsAuto: pAutoMax = na.MaximumScaleIsAuto: pAutoUnit = na.MajorUnitIsAuto
     pMin = na.MinimumScale: pMax = na.MaximumScale: pUnit = na.MajorUnit
     pLinked = na.TickLabels.NumberFormatLinked: pFmt = CStr(na.TickLabels.NumberFormatLocal)
+    pScale = Registry_GetOption(nc, IIf(k = 1, "xscale", "yscale"), "")
+    pFmtKey = Registry_GetOption(nc, IIf(k = 1, "xfmt", "yfmt"), ""): pSrcKey = Registry_GetOption(nc, IIf(k = 1, "xsrc", "ysrc"), "")
     stored = Registry_GetOption(oldC, IIf(k = 1, "xscale", "yscale"), "")
     If Not (oa.MinimumScaleIsAuto And oa.MaximumScaleIsAuto) And Not AxisIsOurs(oa, stored) Then
         started = True
@@ -592,6 +594,7 @@ Private Sub KeepUserAxis(oldC As Chart, nc As Chart, k As Long)
     If Not (oa.TickLabels.NumberFormatLinked Or (Len(stored) > 0 And cur = stored)) Then
         started = True
         na.TickLabels.NumberFormatLocal = cur
+        ScatterTestHook "keepfmt", CStr(k)
         Registry_SetOption nc, IIf(k = 1, "xfmt", "yfmt"), ""
         Registry_SetOption nc, IIf(k = 1, "xsrc", "ysrc"), ""
     End If
@@ -600,12 +603,15 @@ Fail:
     Errors_Log "Scatter_KeepUserAxes" & vbTab & k & vbTab & Err.Number & vbTab & Err.Description
     On Error GoTo -1
     On Error Resume Next
-    If started Then                                         ' o eixo novo volta ao que o ThinQQ calculou (as opcoes dele nao foram limpas)
+    If started Then                                         ' o eixo novo e as opcoes dele voltam ao que o ThinQQ calculou
         If pAutoMin Then na.MinimumScaleIsAuto = True Else na.MinimumScale = pMin
         If pAutoMax Then na.MaximumScaleIsAuto = True Else na.MaximumScale = pMax
         If pAutoMin Then na.MinimumScaleIsAuto = True Else na.MinimumScale = pMin
         If pAutoUnit Then na.MajorUnitIsAuto = True Else na.MajorUnit = pUnit
         If pLinked Then na.TickLabels.NumberFormatLinked = True Else na.TickLabels.NumberFormatLocal = pFmt
+        Registry_SetOption nc, IIf(k = 1, "xscale", "yscale"), pScale
+        Registry_SetOption nc, IIf(k = 1, "xfmt", "yfmt"), pFmtKey
+        Registry_SetOption nc, IIf(k = 1, "xsrc", "ysrc"), pSrcKey
     End If
 End Sub
 

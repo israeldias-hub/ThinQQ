@@ -843,6 +843,15 @@ Public Sub Test_Scatter_Rebuild_KeepUserAxis_FailMidway_RollsBack()
     Set nc = Core_ActiveChart()
     AssertTrue ScaleMatchesAxis(nc, 2), "eixo Y volta a escala do ThinQQ, gravada (" & Registry_GetOption(nc, "yscale", "") & ")"
     AssertTrue nc.Axes(xlValue, xlPrimary).MinimumScale > 0, "sem o minimo do usuario pela metade"
+    ' falha no formato DEPOIS de a escala do usuario ter passado (eixo X com escala e formato do usuario): tudo volta, inclusive a opcao xscale
+    nc.Axes(xlCategory, xlPrimary).MinimumScale = 0: nc.Axes(xlCategory, xlPrimary).MaximumScale = 300
+    nc.Axes(xlCategory, xlPrimary).TickLabels.NumberFormatLocal = "0" & Application.International(xlDecimalSeparator) & "00"
+    Util_FailThinSyncForTest = "scatter-keepfmt:1"
+    AssertTrue Core_RebuildFromRange(nc, ws.Range("A1:C6")), "Alterar dados de volta (" & Core_LastNotice() & ")"
+    Util_FailThinSyncForTest = ""
+    Set cht = Core_ActiveChart()
+    AssertTrue ScaleMatchesAxis(cht, 1), "eixo X volta a escala do ThinQQ com a opcao xscale coerente (" & Registry_GetOption(cht, "xscale", "") & ")"
+    AssertTrue cht.Axes(xlCategory, xlPrimary).TickLabels.NumberFormatLinked, "formato volta ligado a origem"
 Cleanup:
     en = Err.Number: es = Err.Source: ed = Err.Description
     Util_FailThinSyncForTest = ""
