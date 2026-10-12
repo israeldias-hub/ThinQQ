@@ -46,7 +46,7 @@ $regions = @('Sudeste', 'Sul', 'Nordeste', 'Centro-Oeste', 'Norte')
 # Growth = crescimento anual próprio, somado ao da loja (o mix muda ao longo dos 24 meses).
 $depts = @(
     @{ Name = 'Cimento e argamassa';   Group = 'Construção';  Weight = 4.0; Price = 34;  Ticket = 420; Margin = 0.22; Growth =  0.01 }
-    @{ Name = 'Pisos e revestimentos'; Group = 'Acabamento';  Weight = 1.8; Price = 58;  Ticket = 690; Margin = 0.34; Growth =  0.12 }
+    @{ Name = 'Pisos';                 Group = 'Acabamento';  Weight = 1.8; Price = 58;  Ticket = 690; Margin = 0.34; Growth =  0.12 }
     @{ Name = 'Tintas';                Group = 'Acabamento';  Weight = 1.3; Price = 165; Ticket = 360; Margin = 0.38; Growth =  0.05 }
     @{ Name = 'Hidráulica';            Group = 'Instalações'; Weight = 1.1; Price = 28;  Ticket = 210; Margin = 0.36; Growth =  0.03 }
     @{ Name = 'Elétrica';              Group = 'Instalações'; Weight = 1.0; Price = 24;  Ticket = 120; Margin = 0.40; Growth =  0.06 }
@@ -281,12 +281,12 @@ try {
     $mekkoUnitsBody = @($regions | ForEach-Object { $ss = @(Get-StoresOf $_); $n = $ss.Count
                                                     ,@(@($_, $n) + @($groups | ForEach-Object { [Math]::Round((Get-DemoSum 'sales' $ss (Get-DeptsOf $_) $y25) / 1000 / $n, 0) })) })
     $deptSalesBody = @($deptOrder | ForEach-Object { ,@($depts[$_].Name, (Get-DemoK (Get-DemoSum 'sales' $allS @($_) $y25))) })
-    # pizza e rosca: vendas por região (5 fatias; a paleta tem 6 cores distintas e, com 8 departamentos, as cores se repetiriam)
+    # pizza e rosca: vendas por região (5 fatias de cores distintas; com os 8 departamentos as fatias pequenas apertariam os rótulos de fora)
     $pieBody = @($regions | ForEach-Object { ,@($_, (Get-DemoK (Get-DemoSum 'sales' @(Get-StoresOf $_) $allD $y25))) })
     $scatterBody = @($storeOrder | ForEach-Object { $v = Get-DemoSum 'sales' @($_) $allD $y25; $c = Get-DemoSum 'cost' @($_) $allD $y25; $rc = Get-DemoSum 'receipts' @($_) $allD $y25
-                                                    ,@($stores[$_].Name, [Math]::Round($v / $rc, 0), [Math]::Round(100 * ($v - $c) / $v, 1)) })
+                                                    ,@($stores[$_].Name, [Math]::Round($v / $rc, 0), [Math]::Round(($v - $c) / $v, 3)) })
     $bubbleBody = @($deptOrder | ForEach-Object { $v = Get-DemoSum 'sales' $allS @($_) $y25; $c = Get-DemoSum 'cost' $allS @($_) $y25; $rc = Get-DemoSum 'receipts' $allS @($_) $y25
-                                                  ,@($depts[$_].Name, [Math]::Round($v / $rc, 0), [Math]::Round(100 * ($v - $c) / $v, 1), (Get-DemoK $v), $depts[$_].Group) })
+                                                  ,@($depts[$_].Name, [Math]::Round($v / $rc, 0), [Math]::Round(($v - $c) / $v, 3), (Get-DemoK $v), $depts[$_].Group) })
     # Arredondar intervalo (E23): participação dos departamentos nas vendas de 2025 de uma loja; a primeira loja (pela ordem de vendas) cujo
     # arredondamento simples a 0% NÃO soma 100% mostra a diferença (determinístico; sem nenhuma, a maior loja)
     $roundStore = $s1
@@ -329,14 +329,13 @@ try {
             8  { $rng = Write-Table $ws 'A6' @('Loja', 'B2C', 'B2B') $storeChannelBody; $co = Add-Chart $ws $rng 'barstacked100'; Set-ChartBox $ws $co 520 320 }
             9  { $rng = Write-Table $ws 'A6' @('Etapa', 'R$ mil') $wfBody; $co = Add-Chart $ws $rng 'barwaterfall'; Set-ChartBox $ws $co 520 300 }
             10 { $rng = Write-Table $ws 'A6' (@('Trimestre') + @($areaDepts | ForEach-Object { $depts[$_].Name })) $quarterDeptBody
-                 $co = Add-Chart $ws $rng 'area'; Invoke-CoreQuiet 'E10' 'Core_SetToggle' 'vline' $true | Out-Null; Set-ChartBox $ws $co 560 300 }
+                 $co = Add-Chart $ws $rng 'area'; Invoke-CoreQuiet 'E10' 'Core_SetToggle' 'vline' $true | Out-Null
+                 Set-ChartBox $ws $co 700 300 }                                     # largo: os rótulos das pontas (1º e último trimestre) cabem e aparecem
             11 { $rng = Write-Table $ws 'A6' (@('Trimestre') + @($areaDepts | ForEach-Object { $depts[$_].Name })) $quarterDeptBody
                  $co = Add-Chart $ws $rng 'area100'; Set-ChartBox $ws $co 560 300 }
             12 { $rng = Write-Table $ws 'A6' @('Mês', 'B2C', 'B2B', 'Margem %') $comboBody; Set-MonthFormat $ws.Range('A7:A18'); Set-NumFmt ($ws.Range('D7:D18')) '0.0%'
                  $co = Add-Chart $ws $rng 'combo'
                  if (-not (Invoke-Core 'Core_GetToggle' 'secondary')) { throw 'E12: o eixo secundário não ligou sozinho' }
-                 # sem os totais das colunas: a linha da margem (eixo secundário, perto do topo) cairia sobre eles
-                 Invoke-CoreQuiet 'E12' 'Core_SetToggle' 'totals' $false | Out-Null
                  Set-ChartBox $ws $co 600 320 }
             13 { $rng = Write-Table $ws 'A6' (@('Região') + $groups) $regionGroupBody; $co = Add-Chart $ws $rng 'mekko'; Set-ChartBox $ws $co 560 320 }
             14 { $rng = Write-Table $ws 'A6' (@('Região', 'Lojas') + $groups) $mekkoUnitsBody; Set-NumFmt ($ws.Range('B7:B11')) '0'; $co = Add-Chart $ws $rng 'mekkounits'; Set-ChartBox $ws $co 560 320 }
@@ -350,13 +349,13 @@ try {
             18 { $rng = Write-Table $ws 'A6' @('Região', 'Vendas 2025') $pieBody; $co = Add-Chart $ws $rng 'doughnut'
                  Invoke-CoreQuiet 'E18' 'Core_SetOption' 'palette' 'cinza' | Out-Null; Set-ChartBox $ws $co 520 320 }
             19 { $rng = Write-Table $ws 'A6' @('Loja', 'B2C', 'B2B') $storeChannelBody; $co = Add-Chart $ws $rng 'butterfly'; Set-ChartBox $ws $co 640 320 }
-            20 { $rng = Write-Table $ws 'A6' @('Loja', 'Ticket médio (R$)', 'Margem bruta (%)') $scatterBody '#,##0'; Set-NumFmt ($ws.Range('C7:C14')) '0.0'
+            20 { $rng = Write-Table $ws 'A6' @('Loja', 'Ticket médio (R$)', 'Margem bruta') $scatterBody '#,##0'; Set-NumFmt ($ws.Range('C7:C14')) '0.0%'   # o eixo segue o formato da coluna
                  $co = Add-Chart $ws $rng 'scatter'
                  Invoke-CoreQuiet 'E20' 'Core_SetToggle' 'trend' $true | Out-Null
                  Invoke-CoreQuiet 'E20' 'Core_SetToggle' 'quad' $true | Out-Null
                  Invoke-CoreQuiet 'E20' 'Core_SetOption' 'legend' 'none' | Out-Null
                  Set-ChartBox $ws $co 560 340 }
-            21 { $rng = Write-Table $ws 'A6' @('Departamento', 'Ticket médio (R$)', 'Margem bruta (%)', 'Vendas 2025', 'Grupo') $bubbleBody '#,##0'; Set-NumFmt ($ws.Range('C7:C14')) '0.0'
+            21 { $rng = Write-Table $ws 'A6' @('Departamento', 'Ticket médio (R$)', 'Margem bruta', 'Vendas 2025', 'Grupo') $bubbleBody '#,##0'; Set-NumFmt ($ws.Range('C7:C14')) '0.0%'
                  $ws.Columns('E').ColumnWidth = 13
                  $co = Add-Chart $ws $rng 'bubble'; Set-ChartBox $ws $co 600 360 }
             22 { # valores (não SOMASES): a seta CAGR é uma forma posicionada pelo ThinQQ e não acompanharia uma mudança em Dados sem ele

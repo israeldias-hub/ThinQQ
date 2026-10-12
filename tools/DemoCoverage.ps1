@@ -66,11 +66,11 @@ function Get-TqqDemoCoverage {
         @{ Num = 11; Kind = 'area100';       Features = @()
            Menu = 'Inserir gráfico > Linha e área > Área 100%'
            Title = 'Participação trimestral dos três maiores departamentos (área 100%)'
-           Desc = 'A mesma tabela do exemplo 10, em participação de cada departamento no total do trimestre: pisos e revestimentos ganham espaço.' }
+           Desc = 'A mesma tabela do exemplo 10, em participação de cada departamento no total do trimestre: pisos ganham espaço.' }
         @{ Num = 12; Kind = 'combo';         Features = @('secondary')
            Menu = 'Inserir gráfico > Linha e área > Combinação (colunas + linha); Mais opções > Eixo secundário (linha)'
            Title = 'Vendas por canal e margem % da loja Aurora Centro (combinação com eixo secundário)'
-           Desc = 'A linha da margem % (última coluna da tabela) tem a sua própria escala, à direita, num eixo secundário que liga sozinho quando as grandezas diferem muito; o estilo ThinQQ esconde os eixos de valores, o secundário também. Os totais das colunas foram desligados para não cruzar com a linha.' }
+           Desc = 'A linha da margem % (última coluna da tabela) tem a sua própria escala, à direita, num eixo secundário que liga sozinho quando as grandezas diferem muito; o estilo ThinQQ esconde os eixos de valores, o secundário também. Com os totais das colunas ligados, a linha fica numa faixa acima deles.' }
         @{ Num = 13; Kind = 'mekko';         Features = @()
            Menu = 'Inserir gráfico > Mais tipos > Mekko (%)'
            Title = 'Regiões x grupos de produto em 2025 (Mekko %)'

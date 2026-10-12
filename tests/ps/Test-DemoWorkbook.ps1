@@ -187,6 +187,19 @@ try {
         # E02: a tabela tem 1 casa decimal; com o formato padrao (inteiro) dois valores diferentes viram o mesmo rotulo
         $e02 = Get-ChartBlockInfo ($wb.Worksheets.Item('E02').ChartObjects(1))
         Check ($e02.Opt['numfmt'] -eq 'dec1') "E02: rotulos com 1 casa como a tabela (numfmt=$($e02.Opt['numfmt']))"
+        # E12: com o eixo secundario a linha da margem fica acima dos totais (core 1.2.0): os totais das colunas ficam ligados
+        $e12 = Get-ChartBlockInfo ($wb.Worksheets.Item('E12').ChartObjects(1))
+        Check ($e12.Opt['totals'] -eq '1' -and $e12.Opt['secondary'] -eq '1') "E12: totais e eixo secundario ligados (totals=$($e12.Opt['totals']), secondary=$($e12.Opt['secondary']))"
+        # E20/E21: a margem e uma fracao com formato % na tabela e os eixos de valores mostram % (o eixo segue o formato da origem); o texto do
+        # 1o rotulo do eixo vertical e conferido pelo codigo do eixo, com o separador decimal do Excel
+        foreach ($sh in 'E20', 'E21') {
+            $wsS = $wb.Worksheets.Item($sh)
+            $m = $wsS.Range('C7')
+            Check ([double]$m.Value2 -gt 0 -and [double]$m.Value2 -lt 1 -and [string]$m.Text -match '%$') "${sh}: margem como fracao com % na tabela ($($m.Value2) -> [$($m.Text)])"
+            $ay = $wsS.ChartObjects(1).Chart.Axes(2)
+            Check ([string]$ay.TickLabels.NumberFormat -match '%') "${sh}: eixo da margem em % ($($ay.TickLabels.NumberFormat))"
+            Check ([double]$ay.MinimumScale -gt 0) "${sh}: eixo da margem nao comeca em zero (minimo $($ay.MinimumScale))"
+        }
         # E24 (corte de eixo): na coluna cortada (total acima do maximo do eixo) nenhum segmento fica inteiro escondido: a base de cada serie de
         # dados fica abaixo do corte, o ponto tem altura desenhada e o rotulo continua ligado
         $cb = $wb.Worksheets.Item('E24').ChartObjects(1).Chart
