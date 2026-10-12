@@ -683,3 +683,27 @@ Public Sub Test_Scatter_TightAxes_BracketFormatUnit()
     AssertAlmost 0.01, cht.Axes(xlCategory, xlPrimary).MajorUnit, 0.0000001, "passo de 1 ponto percentual"
     Teardown wb
 End Sub
+
+' Onda A, rodada 2 (menor 1): o eixo nem sempre devolve o formato como foi gravado (medido: #.##0,00 "R$" volta como #.##0,00 R$; [$R$-416]
+' volta como [$R$-pt-BR]). O ThinQQ grava o que o EIXO devolve e continua seguindo a coluna de origem quando ela muda.
+Public Sub Test_Scatter_AxisNumberFormat_ReadBackNormalized_KeepsFollowing()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, d As clsChartData, axX As Axis
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Loja", "Ticket", "Margem")
+    ws.Range("A2:C2").Value = Array("L1", 300, 0.3): ws.Range("A3:C3").Value = Array("L2", 330, 0.33)
+    ws.Range("B2:B3").NumberFormat = "#,##0.00 ""R$"""
+    Set d = ChartData_FromRange(ws.Range("A1:C3"))
+    Set cht = Scatter_Insert(ws, d, "scatter").Chart
+    Set axX = cht.Axes(xlCategory, xlPrimary)
+    AssertFalse axX.TickLabels.NumberFormatLinked, "formato da origem aplicado"
+    Core_SafeRefresh cht
+    ws.Range("B2:B3").NumberFormat = "0.0"
+    Core_SafeRefresh cht
+    AssertEqual ws.Range("B2").NumberFormatLocal, axX.TickLabels.NumberFormatLocal, "continua seguindo a coluna"
+    ws.Range("B2:B3").NumberFormat = "[$R$-416] #,##0.00"
+    Core_SafeRefresh cht
+    ws.Range("B2:B3").NumberFormat = "0.00"
+    Core_SafeRefresh cht
+    AssertEqual ws.Range("B2").NumberFormatLocal, axX.TickLabels.NumberFormatLocal, "continua seguindo (moeda com codigo de localidade)"
+    Teardown wb
+End Sub
