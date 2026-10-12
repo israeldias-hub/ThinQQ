@@ -174,7 +174,7 @@ Public Function Round_EnsureColumns(cht As Chart) As Range
             If fam = "area" Then
                 f(r, 1 + j) = "=" & body.Cells(r, Area_ValCol(blk, j)).Address(False, False)
             ElseIf is100 Then
-                f(r, 1 + j) = "=" & body.Cells(r, 3 + j).Address(False, False)
+                f(r, 1 + j) = "=" & body.Cells(r, Block_FindCol(blk, "Part" & j)).Address(False, False)      ' pelo cabecalho, como a contagem
             Else
                 f(r, 1 + j) = "=IF(ISNUMBER(INDEX(" & refs(i) & ",1," & j & ")),INDEX(" & refs(i) & ",1," & j & "),0)"
             End If

@@ -782,3 +782,22 @@ Public Sub Test_Round_WriteFormulas_TextAddresses_TwoLetterColumns()
     AssertTrue InStr(ws.Range("C3").Formula, "$A$1:$A$3") > 0 And InStr(ws.Range("C3").Formula, "$A$3") > 0, ws.Range("C3").Formula
     CloseTemp wb
 End Sub
+
+' Revisao final (menor 5): nos 100% a coluna V_j le a coluna de cabecalho "Part<j>" do bloco (Block_FindCol, como a contagem de series), nao a
+' posicao 3 + j: com os cabecalhos Part1/Part2 trocados de lugar, V1 aponta para a coluna "Part1".
+Public Sub Test_Round_EnsureColumns_100_PartColumnsByHeader()
+    Dim wb As Workbook, ws As Worksheet, rng As Range, cht As Chart, blk As Range, body As Range, c1 As Long, c2 As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    Set rng = Fixture(ws, Array(34, 33, 33, 10, 20, 30))
+    rng.Select
+    Core_Insert "stacked100"
+    Set cht = Core_ActiveChart()
+    Set blk = Registry_Block(cht): Set body = Block_Body(blk)
+    c1 = Block_FindCol(blk, "Part1"): c2 = Block_FindCol(blk, "Part2")
+    AssertTrue c1 > 0 And c2 > 0, "colunas Part1 e Part2 no bloco"
+    body.Cells(1, c1).Value = "Part2": body.Cells(1, c2).Value = "Part1"          ' cabecalhos trocados de lugar
+    Set blk = Round_EnsureColumns(cht): Set body = Block_Body(blk)
+    AssertEqual "=" & body.Cells(2, c2).Address(False, False), CStr(body.Cells(2, Round_VCol(blk, 1)).Formula), "V1 le a coluna de cabecalho Part1"
+    AssertEqual "=" & body.Cells(2, c1).Address(False, False), CStr(body.Cells(2, Round_VCol(blk, 2)).Formula), "V2 le a coluna de cabecalho Part2"
+    Teardown wb
+End Sub
