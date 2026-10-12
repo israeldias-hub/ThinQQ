@@ -131,6 +131,13 @@ if (-not $timedOut) {
     if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
 }
 if (-not $timedOut) {
+    Write-Host '=== assinatura (certificado por usuario: cria, confia, diagnostica e remove) ==='
+    # processo proprio (como os testes do instalador): o exit 2 do Sign-ThinQQ e uma excecao do teste nao vazam para o run-tests
+    $global:LASTEXITCODE = 0
+    & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'tests\ps\Test-Signing.ps1')
+    if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
+}
+if (-not $timedOut) {
     Write-Host '=== instalador (pwsh e Windows PowerShell 5.1) + guarda de release ==='
     $psExes = @((Get-Process -Id $PID).Path, (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'))
     foreach ($exe in $psExes) {

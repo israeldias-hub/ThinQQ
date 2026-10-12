@@ -14,7 +14,10 @@ param(
     [Parameter(Mandatory)][string]$BaseUrl,
     [string]$NotesFile = (Join-Path $PSScriptRoot '..\release\notes.txt'),
     [string]$PublishTo,
-    [string]$ManifestUrl
+    [string]$ManifestUrl,
+    [string]$SignPfx = '',
+    [string]$SignPassword = '',
+    [string]$SignTimestampUrl = ''
 )
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\lib\Build-Common.ps1"
@@ -50,6 +53,13 @@ try {
         if (-not (Test-Path $p)) { throw "Build não gerou dist\$f" }
         $bad = @(Get-TestMarkersInXlam $p)
         if ($bad.Count -gt 0) { throw "O artefato Release dist\$f contém módulos de teste ($($bad -join ', ')). Release cancelado." }
+    }
+
+    # assinatura opcional dos projetos VBA (signtool + Office SIPs); ANTES dos SHA-256 do manifesto, que cobrem os arquivos ja assinados
+    if ($SignPfx) {
+        $global:LASTEXITCODE = 0
+        & "$PSScriptRoot\..\tools\Sign-ThinQQ.ps1" -Files @((Join-Path $DistDir 'ThinQQ.xlam'), (Join-Path $DistDir 'ThinQQ.core.xlam')) -PfxPath $SignPfx -PfxPassword $SignPassword -TimestampUrl $SignTimestampUrl
+        if ($global:LASTEXITCODE -ne 0) { throw "Assinatura dos .xlam falhou (código $global:LASTEXITCODE): o release não foi gerado. Veja tools/Sign-ThinQQ.ps1." }
     }
 
     $notes = ''
