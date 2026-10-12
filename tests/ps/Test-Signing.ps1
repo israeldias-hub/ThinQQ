@@ -44,6 +44,17 @@ try {
     $t2 = & (Join-Path $repo 'tools\Trust-ThinQQPublisher.ps1') -CerPath $r.Cer
     Assert ($t2 -eq $thumb) 'Trust-ThinQQPublisher idempotente'
     Assert (-not (Test-Path "Cert:\CurrentUser\Root\$thumb")) 'Root nao foi tocada'
+    # -Scope LocalMachine sem administrador: recusa clara (exit 2) em vez do acesso negado cru. So roda sem elevacao (elevado, o script gravaria em
+    # HKLM, e o teste nunca grava la): neste caso a verificacao e pulada e dito.
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if ($isAdmin) { Write-Host 'Test-Signing: sessao elevada: recusa de -Scope LocalMachine nao verificada (o teste nunca grava em LocalMachine)' }
+    else {
+        $global:LASTEXITCODE = 0
+        $lm = & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'tools\Trust-ThinQQPublisher.ps1') -CerPath $r.Cer -Scope LocalMachine *>&1 | Out-String
+        Assert ($global:LASTEXITCODE -eq 2) "Trust -Scope LocalMachine sem administrador: codigo $($global:LASTEXITCODE)"
+        Assert ($lm -match 'administrador') "mensagem em portugues cita administrador: $lm"
+        Assert (-not (Test-Path "Cert:\LocalMachine\TrustedPublisher\$thumb")) 'nada foi gravado em LocalMachine'
+    }
     # diagnostico / assinatura: Sign-ThinQQ so escreve com Write-Host (fluxo de informacao): *>&1 o captura; 2>&1 nao captura nada
     $copy = Join-Path $tmp 'ThinQQ.xlam'
     if (Test-Path $dist) { Copy-Item $dist $copy } else { Set-Content $copy 'x' }
