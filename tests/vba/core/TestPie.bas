@@ -719,5 +719,19 @@ Public Sub Test_Pie_Palette_KeepsOutsideContent_DraggedAndDeletedLabels()
     For k = 1 To 3
         If s.Points(k).HasDataLabel Then AssertEqual Style_ContrastFont(CLng(pal(k - 1))), s.Points(k).DataLabel.Font.Color, "dentro: contraste da fatia " & k
     Next
+    ' modo participacao (pct0) com rotulos fora: a troca de paleta mantem nome + percentual e o rotulo arrastado
+    Core_SetToggle "pieout", True
+    Core_SetOption "numfmt", "pct0"
+    ForceLayout cht
+    s.Points(2).DataLabel.Left = s.Points(2).DataLabel.Left - 20
+    ForceLayout cht
+    l1 = s.Points(2).DataLabel.Left: t1 = s.Points(2).DataLabel.Top
+    Core_SetOption "palette", "tema"
+    ForceLayout cht
+    AssertTrue s.DataLabels.ShowPercentage, "pct0: participacao"
+    AssertTrue InStr(s.Points(2).DataLabel.Text, "Móveis") > 0 And InStr(s.Points(2).DataLabel.Text, Format$(0.3, "0%")) > 0, "nome + percentual depois da paleta: " & s.Points(2).DataLabel.Text
+    AssertAlmost l1, s.Points(2).DataLabel.Left, 1, "rotulo arrastado (modo participacao) fica onde foi solto"
+    AssertAlmost t1, s.Points(2).DataLabel.Top, 1
+    AssertEqual RGB(64, 64, 64), s.Points(2).DataLabel.Font.Color
     Teardown wb
 End Sub

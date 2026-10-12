@@ -534,26 +534,28 @@ Public Sub Test_Gantt_MilestonesInRows1And2_BlockAndGeometry()
     CloseTemp wb
 End Sub
 
-' Atualizar duas vezes seguidas um Gantt com colchetes e marcos nao cria nem apaga formas e nao move nada (idempotente).
+' Atualizar duas vezes seguidas um Gantt com colchetes (muitos: no teto de 40% da folga) e marcos nao cria nem apaga formas e nao move nada
+' (idempotente).
 Public Sub Test_Gantt_RefreshTwice_IsIdempotent_WithBracketsAndMilestones()
-    Dim wb As Workbook, ws As Worksheet, cht As Chart, snap1 As String, snap2 As String, n1 As Long
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, snap1 As String, snap2 As String, n1 As Long, k As Long
     Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
     MsFixture wb
     ws.Range("A1:C5").Select
     Core_Insert "gantt"
     Set cht = Core_ActiveChart()
-    Core_AddAnnotation "bracket", 1, 2
-    Core_AddAnnotation "bracket", 3, 4
-    Core_AddAnnotation "bracket", 1, 4
+    For k = 1 To 7                                                 ' 7 colchetes: a folga de cima chega ao teto de 40% (passo encolhido)
+        Core_AddAnnotation "bracket", 1 + (k Mod 4), 4
+    Next
     Core_Refresh
     ForceLayout cht
+    AssertAlmost 0.4 * cht.ChartArea.Height, cht.PlotArea.InsideTop, 1, "pre-condicao: no teto da folga"
     n1 = cht.Shapes.Count
     snap1 = GanttSnapshot(cht)
     Core_Refresh
     Core_Refresh
     ForceLayout cht
     AssertEqual n1, cht.Shapes.Count, "mesmo numero de formas"
-    AssertEqual 12, n1, "3 colchetes x (linha, 2 tiques, rotulo)"
+    AssertEqual 28, n1, "7 colchetes x (linha, 2 tiques, rotulo)"
     snap2 = GanttSnapshot(cht)
     AssertEqual snap1, snap2, "mesma geometria depois de atualizar de novo"
     Watchers_Stop
