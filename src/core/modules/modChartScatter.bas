@@ -310,27 +310,63 @@ End Function
 ' Usa o NumberFormatLocal da CELULA: ja na notacao do Excel desta maquina, inclusive datas e textos entre aspas, que Style_LocalizeCode nao
 ' traduz. Geral (ou nenhuma celula numerica) = o padrao do eixo novo: ligado a origem (o bloco, em Geral). Nao grava o codigo "General" por
 ' NumberFormat: medido, isso (com um grafico movido para folha de grafico na mesma sessao) fazia o DataLabels.NumberFormat de OUTROS graficos
-' devolver o codigo local. Na insercao e em todo refresh; so escreve o que mudou. Nunca propaga erro.
+' devolver o codigo local. O formato aplicado fica gravado (opcao xfmt/yfmt, codificada: o registro nao aceita ";" nem "=") e o eixo so e
+' reescrito enquanto e do ThinQQ: ligado a origem ou mostrando o formato gravado. Um formato diferente posto pelo usuario fica (como a escala:
+' xscale/yscale); devolvido a "ligado a origem", o ThinQQ volta a seguir a coluna. Na insercao e em todo refresh; so escreve o que mudou.
+' Nunca propaga erro.
 Public Sub Scatter_SyncAxisFormats(cht As Chart)
-    Dim k As Long, c As Range, ax As Axis, want As String
-    On Error Resume Next
-    For k = 1 To 2
-        Set c = Nothing: Set ax = Nothing: want = ""
-        Set c = SourceNumberCell(cht, IIf(k = 1, SC_COL_X, SC_COL_Y))
-        Set ax = cht.Axes(IIf(k = 1, xlCategory, xlValue), xlPrimary)
-        If Err.Number = 0 Then
-            If Not c Is Nothing Then
-                If CStr(c.NumberFormat) <> "General" Then want = CStr(c.NumberFormatLocal)
-            End If
-            If Len(want) = 0 Then
-                If Not ax.TickLabels.NumberFormatLinked Then ax.TickLabels.NumberFormatLinked = True       ' padrao do eixo novo (Geral, ligado ao bloco)
-            ElseIf ax.TickLabels.NumberFormatLocal <> want Then
-                ax.TickLabels.NumberFormatLocal = want
-            End If
-        End If
-        If Err.Number <> 0 Then Errors_Log "Scatter_SyncAxisFormats" & vbTab & k & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
-    Next
+    SyncAxisFormat cht, 1
+    SyncAxisFormat cht, 2
 End Sub
+
+' Um eixo (1 = X, 2 = Y) de Scatter_SyncAxisFormats. Transacional: a opcao so e gravada depois de o eixo aceitar o formato; uma falha devolve o
+' eixo ao que era (ligado ou o formato anterior) e a opcao fica. Nunca propaga erro.
+Private Sub SyncAxisFormat(cht As Chart, k As Long)
+    Dim c As Range, ax As Axis, want As String, key As String, stored As String, linked As Boolean, cur As String, started As Boolean
+    On Error GoTo Fail
+    key = IIf(k = 1, "xfmt", "yfmt")
+    Set c = SourceNumberCell(cht, IIf(k = 1, SC_COL_X, SC_COL_Y))
+    Set ax = cht.Axes(IIf(k = 1, xlCategory, xlValue), xlPrimary)
+    stored = OptDecode(Registry_GetOption(cht, key, ""))
+    linked = ax.TickLabels.NumberFormatLinked
+    cur = CStr(ax.TickLabels.NumberFormatLocal)
+    If Not (linked Or (Len(stored) > 0 And cur = stored)) Then Exit Sub         ' formato do usuario: fica
+    If Not c Is Nothing Then
+        If CStr(c.NumberFormat) <> "General" Then want = CStr(c.NumberFormatLocal)
+    End If
+    If Len(want) = 0 Then
+        If Not linked Then
+            started = True
+            ax.TickLabels.NumberFormatLinked = True                             ' padrao do eixo novo (Geral, ligado ao bloco)
+            ScatterTestHook "fmt", CStr(k)
+        End If
+        If Len(stored) > 0 Then Registry_SetOption cht, key, ""
+    Else
+        If linked Or cur <> want Then
+            started = True
+            ax.TickLabels.NumberFormatLocal = want
+            ScatterTestHook "fmt", CStr(k)
+        End If
+        If stored <> want Then Registry_SetOption cht, key, OptEncode(want)
+    End If
+    Exit Sub
+Fail:
+    Errors_Log "Scatter_SyncAxisFormats" & vbTab & k & vbTab & Err.Number & vbTab & Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If started Then                                                             ' o eixo volta ao que era; a opcao nao foi gravada
+        If linked Then ax.TickLabels.NumberFormatLinked = True Else ax.TickLabels.NumberFormatLocal = cur
+    End If
+End Sub
+
+' Texto livre numa opcao do registro (que nao aceita ";" nem "="): %, ; e = viram %25, %3B e %3D.
+Private Function OptEncode(s As String) As String
+    OptEncode = Replace(Replace(Replace(s, "%", "%25"), ";", "%3B"), "=", "%3D")
+End Function
+
+Private Function OptDecode(s As String) As String
+    OptDecode = Replace(Replace(Replace(s, "%3D", "="), "%3B", ";"), "%25", "%")
+End Function
 
 ' ---------- escala dos eixos ----------
 

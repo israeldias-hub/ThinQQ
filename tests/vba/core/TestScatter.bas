@@ -625,3 +625,47 @@ Cleanup:
     Teardown wb
     If en <> 0 Then Err.Raise en, es, ed
 End Sub
+
+' Onda A, rodada 1 (Importante 2): o formato que o USUARIO poe no eixo nao e revertido pelo refresh. O ThinQQ grava o formato que aplicou
+' (xfmt/yfmt) e so reescreve enquanto o eixo esta ligado a origem ou ainda mostra o formato gravado; devolvido a "ligado a origem", o ThinQQ
+' volta a seguir a coluna. Uma falha no meio (gancho) devolve o eixo e a opcao.
+Public Sub Test_Scatter_AxisNumberFormat_UserFormatKept()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, d As clsChartData, axX As Axis, userFmt As String, en As Long, es As String, ed As String, keep As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Loja", "Margem", "Ticket")
+    ws.Range("A2:C2").Value = Array("L1", 0.3, 10): ws.Range("A3:C3").Value = Array("L2", 0.33, 30)
+    ws.Range("B2:B3").NumberFormat = "0%"
+    Set d = ChartData_FromRange(ws.Range("A1:C3"))
+    Set cht = Scatter_Insert(ws, d, "scatter").Chart
+    Set axX = cht.Axes(xlCategory, xlPrimary)
+    AssertEqual ws.Range("B2").NumberFormatLocal, axX.TickLabels.NumberFormatLocal, "formato da origem"
+    userFmt = "0" & Application.International(xlDecimalSeparator) & "0%"
+    axX.TickLabels.NumberFormatLocal = userFmt                  ' o usuario muda o formato do eixo
+    Core_SafeRefresh cht
+    Core_SafeRefresh cht
+    AssertEqual userFmt, axX.TickLabels.NumberFormatLocal, "o formato do usuario fica"
+    ws.Range("B2:B3").NumberFormat = "0.00%"
+    Core_SafeRefresh cht
+    AssertEqual userFmt, axX.TickLabels.NumberFormatLocal, "mesmo com a origem mudando"
+    axX.TickLabels.NumberFormatLinked = True                    ' o usuario devolve a "ligado a origem"
+    Core_SafeRefresh cht
+    AssertEqual ws.Range("B2").NumberFormatLocal, axX.TickLabels.NumberFormatLocal, "o ThinQQ volta a seguir a coluna"
+    keep = Registry_GetOption(cht, "xfmt", "")
+    Core_SafeRefresh cht
+    AssertEqual keep, Registry_GetOption(cht, "xfmt", ""), "dois refresh: nada muda"
+    AssertEqual ws.Range("B2").NumberFormatLocal, axX.TickLabels.NumberFormatLocal
+    ws.Range("B2:B3").NumberFormat = "0%"
+    Util_FailThinSyncForTest = "scatter-fmt:1"
+    Core_SafeRefresh cht
+    Util_FailThinSyncForTest = ""
+    AssertEqual Replace(ws.Range("B2").NumberFormatLocal, "0%", "0" & Application.International(xlDecimalSeparator) & "00%"), axX.TickLabels.NumberFormatLocal, "falha: o eixo volta ao formato anterior"
+    AssertEqual keep, Registry_GetOption(cht, "xfmt", ""), "falha: a opcao fica"
+    Core_SafeRefresh cht
+    AssertEqual ws.Range("B2").NumberFormatLocal, axX.TickLabels.NumberFormatLocal, "sem a falha, segue a coluna"
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    Teardown wb
+    If en <> 0 Then Err.Raise en, es, ed
+End Sub
