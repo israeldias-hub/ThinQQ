@@ -240,14 +240,15 @@ Public Function Labels_TotalFormat(cht As Chart) As String
 End Function
 
 ' Reaplica a posição conforme o sinal atual das séries auxiliares de rótulo: acima/abaixo (verticais) ou
-' direita/esquerda (horizontais). Cada ponto é isolado: um ponto não plotado (NA()) não interrompe os demais.
+' direita/esquerda (horizontais). Cada ponto é isolado: um ponto sem rótulo (apagado pelo usuário) é pulado e um ponto não plotado (NA())
+' ou ilegível não interrompe os demais; não há saída pela série (Series.HasDataLabels lê False quando só alguns pontos têm rótulo).
 ' Cascata horizontal: um rótulo "à esquerda" (barra que desce, total negativo) cujo ponto fica perto do mínimo do eixo e que não cabe
 ' até a borda esquerda da área interna (onde começam os nomes das categorias; largura pelo texto, Labels_EstimateWidth) passa para o
 ' outro lado do ponto, sobre a própria barra, com fundo branco para ficar legível; com espaço volta à esquerda, sem o fundo.
 ' Cascata com várias séries: rótulos de segmento mais finos que o texto ficam ocultos (SyncThinSegmentLabels).
 Public Sub Labels_RefreshPositions(cht As Chart)
     Dim blk As Range, body As Range, s As Series, col As Long, i As Long, n As Long, en As Long, ed As String, want As Long
-    Dim kind As String, horiz As Boolean, sideCheck As Boolean, inside As Boolean
+    Dim kind As String, horiz As Boolean, sideCheck As Boolean, inside As Boolean, has As Boolean
     If mRefreshing Then Exit Sub
     mRefreshing = True
     On Error GoTo Done
@@ -268,9 +269,13 @@ Public Sub Labels_RefreshPositions(cht As Chart)
         Set s = Chart_FindSeries(cht, "tqq_total"): col = 3     ' acima/abaixo segue a posição plotada (TotalPos), não o líquido
     End If
     If s Is Nothing Then GoTo Done
-    If Not s.HasDataLabels Then GoTo Done
     For i = 1 To n
-        If i <= s.Points.Count Then
+        has = False
+        On Error Resume Next
+        If i <= s.Points.Count Then has = s.Points(i).HasDataLabel
+        Err.Clear
+        On Error GoTo Done
+        If has Then
             inside = False
             If horiz Then
                 want = IIf(Util_ToDouble(body.Cells(i + 1, col).Value) < 0, xlLabelPositionLeft, xlLabelPositionRight)

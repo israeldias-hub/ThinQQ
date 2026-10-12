@@ -399,3 +399,33 @@ Public Sub Test_Bars_Cleanup_KeepsBlockReferencedByXYHelperAndLabels()
         CloseTemp wb
     Next
 End Sub
+
+' Onda final (I-2): com o rotulo de total de UMA categoria apagado pelo usuario, Series.HasDataLabels da auxiliar le False; mesmo assim o lado dos
+' demais rotulos continua acompanhando o sinal (antes a saida antecipada pela serie parava a sincronizacao de toda a serie).
+Public Sub Test_Bars_TotalLabels_SideFollowsSign_AfterUserDeletesOneLabel()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, tot As Series
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("A1:C4").Select
+    Core_Insert "barstacked"
+    Set cht = Core_ActiveChart()
+    Set tot = Chart_FindSeries(cht, "tqq_total")
+    AssertEqual xlLabelPositionRight, tot.Points(2).DataLabel.Position, "pre-condicao: total positivo a direita"
+    tot.Points(1).DataLabel.Delete                                 ' o usuario apaga o total de Sul
+    ws.Range("B3:C3").Value = Array(-25, -10)                      ' Sudeste fica negativo
+    Core_SafeRefresh cht
+    AssertEqual xlLabelPositionLeft, tot.Points(2).DataLabel.Position, "total negativo vai para a esquerda mesmo com outro rotulo apagado"
+    AssertFalse tot.Points(1).HasDataLabel, "o rotulo apagado continua apagado"
+    ' estado em que Series.HasDataLabels le False (medido: so quando os rotulos existem ponto a ponto, sem o rotulo no nivel da serie; apagar
+    ' rotulos de uma serie ligada no nivel da serie mantem True): o usuario apaga todos e devolve os rotulos de Sudeste e Norte um a um
+    ws.Range("B3:C3").Value = Array(25, 10)
+    Core_SafeRefresh cht
+    tot.HasDataLabels = False
+    tot.Points(2).HasDataLabel = True: tot.Points(3).HasDataLabel = True
+    tot.Points(2).DataLabel.Position = xlLabelPositionRight
+    AssertFalse tot.HasDataLabels, "pre-condicao: a serie le False com rotulos so em alguns pontos"
+    ws.Range("B3:C3").Value = Array(-25, -10)
+    Core_SafeRefresh cht
+    AssertEqual xlLabelPositionLeft, tot.Points(2).DataLabel.Position, "negativo: a esquerda mesmo com a serie lendo False"
+    Watchers_Stop
+    CloseTemp wb
+End Sub
