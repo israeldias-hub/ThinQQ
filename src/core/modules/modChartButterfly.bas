@@ -302,7 +302,7 @@ End Sub
 ' Sem o ThinQQ, GapK fica fixo e o vao continua proporcional ao maximo. Nunca propaga erro.
 Public Sub Bfly_RefreshGap(cht As Chart)
     Dim blk As Range, body As Range, n As Long, i As Long, w As Double, lw As Double, need As Double, k As Double, g As Double, gapPt As Double, pass As Long
-    Dim cap As Double, tgt As Double, capped As Boolean, wrote As Boolean
+    Dim cap As Double, tgt As Double, capped As Boolean, wrote As Boolean, autoAx As Boolean, kMax As Double, mx As Double, halfExt As Double
     If mGapBusy Then Exit Sub
     mGapBusy = True
     On Error GoTo Done
@@ -318,6 +318,19 @@ Public Sub Bfly_RefreshGap(cht As Chart)
     If need > cap Then need = cap: capped = True
     k = Util_ToDouble(blk.Cells(1, BF_META_GAPK).Value)
     If k < BF_GAPK_MIN Then k = BF_GAPK_MIN
+    ' Teto de GapK conforme o eixo. Automatico: BF_GAPK_MAX (o vao em pontos fica <= metade, ver acima). Fixo (Mesma escala ou maximo manual):
+    ' o vao em pontos e proporcional a k (largura x k x maior valor / meia extensao), entao o teto em pontos (cap) ja basta e converge numa
+    ' passada; BF_GAPK_MAX ali deixaria a borboleta pequena (eixo de uma maior) sem vao. O limite no eixo fixo e Gap + maior valor <= meia
+    ' extensao: alem disso as barras passariam do eixo (cortadas, e o aviso de dados acima da escala sem o usuario mudar dado nenhum).
+    autoAx = cht.Axes(xlValue, xlPrimary).MaximumScaleIsAuto
+    kMax = BF_GAPK_MAX
+    If Not autoAx Then
+        mx = Application.WorksheetFunction.Max(body.Cells(2, BF_COL_A).Resize(n, 2))
+        halfExt = cht.Axes(xlValue, xlPrimary).MaximumScale
+        If -cht.Axes(xlValue, xlPrimary).MinimumScale < halfExt Then halfExt = -cht.Axes(xlValue, xlPrimary).MinimumScale
+        If mx > 0 Then kMax = halfExt / mx - 1 Else kMax = BF_GAPK_MIN
+        If kMax < BF_GAPK_MIN Then kMax = BF_GAPK_MIN
+    End If
     For pass = 1 To 3
         g = Util_ToDouble(body.Cells(2, BF_COL_GAP).Value)
         If g <= 0 Then Exit For
@@ -333,8 +346,8 @@ Public Sub Bfly_RefreshGap(cht As Chart)
             Exit For
         End If
         k = k * tgt / gapPt
-        If capped And tgt = cap And cht.Axes(xlValue, xlPrimary).MaximumScaleIsAuto Then k = BF_GAPK_MAX
-        If k > BF_GAPK_MAX Then k = BF_GAPK_MAX
+        If capped And tgt = cap And autoAx Then k = BF_GAPK_MAX
+        If k > kMax Then k = kMax
         If k < BF_GAPK_MIN Then k = BF_GAPK_MIN
         If Abs(k - Util_ToDouble(blk.Cells(1, BF_META_GAPK).Value)) <= 0.02 * k Then Exit For
         blk.Cells(1, BF_META_GAPK).Value = k

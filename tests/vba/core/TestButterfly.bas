@@ -451,3 +451,38 @@ Public Sub Test_Bfly_Rebuild_ThreeValueColumns_Refuses6011_KeepsChart()
     AssertEqual "Mulheres", Bfly_SideSeries(ws.ChartObjects(1).Chart, 1).Name, "series intactas"
     Teardown wb
 End Sub
+
+' Revisao 2 (importante): Mesma escala entre borboletas de tamanhos muito diferentes (10x): no eixo FIXO o vao em pontos e proporcional a GapK
+' e o teto k <= 1 (so valido no eixo automatico) deixaria o vao da pequena com ~8% da largura, com o nome sobre as barras. O vao cresce ate
+' caber o nome, respeita o teto em pontos e fica estavel no refresh seguinte; as barras nao passam do eixo fixo (sem aviso de corte).
+Public Sub Test_Bfly_SameScale_TenfoldDisparity_SmallChartGapFits()
+    Dim wb As Workbook, ws As Worksheet, c1 As Chart, c2 As Chart, coll As New Collection, skipped As Long, blk As Range, g As Double, gapPt As Double, k1 As Double
+    Set wb = NewTempWorkbook()
+    Set ws = TwoButterflies(wb, c1, c2)
+    ws.Range("F2:G2").Value = Array(250, 2000): ws.Range("F3:G3").Value = Array(400, 3500)
+    ws.Range("F4:G4").Value = Array(200, 1500): ws.Range("F5:G5").Value = Array(50, 500)      ' a segunda e ~11x a primeira (maximo 3.500 x 310)
+    Core_SafeRefresh c2
+    coll.Add c1: coll.Add c2
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    ws.Range("A4").Value = "Trinta a cinquenta e nove"
+    Core_SafeRefresh c1
+    ForceLayout c1
+    Set blk = Registry_Block(c1)
+    k1 = Util_ToDouble(blk.Cells(1, 5).Value)
+    g = CDbl(Block_Body(blk).Cells(2, BF_COL_GAP).Value)
+    gapPt = XOf(c1, g) - XOf(c1, -g)
+    AssertFalse c1.Axes(xlValue, xlPrimary).MaximumScaleIsAuto, "eixo fixo"
+    AssertTrue gapPt <= 0.5 * c1.PlotArea.InsideWidth + 1, "vao (" & gapPt & " pt) <= metade da area interna (" & c1.PlotArea.InsideWidth & ")"
+    AssertTrue gapPt > 0.2 * c1.PlotArea.InsideWidth, "vao (" & gapPt & " pt) > 20% da area interna: o nome nao fica sobre as barras"
+    AssertTrue gapPt >= Chart_FindSeries(c1, "tqq_cat").Points(3).DataLabel.Width, "o nome cabe no vao"
+    Core_SafeRefresh c1
+    AssertAlmost k1, Util_ToDouble(blk.Cells(1, 5).Value), 0.000001, "GapK estavel no segundo refresh"
+    AssertFalse Deco_ScaleClipped(c1), "o vao nao empurra as barras para fora do eixo fixo"
+    ws.Range("E3").Value = "Trinta a cinquenta e nove"                  ' nome longo na GRANDE: o vao para no limite do eixo fixo (Gap + maximo <= vmax)
+    Core_SafeRefresh c2
+    Set blk = Registry_Block(c2)
+    AssertTrue CDbl(Block_Body(blk).Cells(2, BF_COL_GAP).Value) + 3500 <= c2.Axes(xlValue, xlPrimary).MaximumScale + 0.000001, "Gap + maximo da grande dentro do eixo fixo"
+    AssertTrue Util_ToDouble(blk.Cells(1, 5).Value) > 0.15, "a grande tambem abriu o vao (ate o limite)"
+    AssertFalse Deco_ScaleClipped(c2), "sem corte na grande"
+    Teardown wb
+End Sub
