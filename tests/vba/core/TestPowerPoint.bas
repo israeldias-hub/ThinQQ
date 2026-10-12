@@ -63,6 +63,7 @@ End Function
 Public Sub Test_Ppt_TargetSlide_UsesActiveWindowPresentation()
     Dim app As TestPptFake, win As TestPptFake, presA As TestPptFake, presB As TestPptFake, sel As TestPptFake, vw As TestPptFake, master As TestPptFake
     Dim created As Object, added As Object, presE As TestPptFake, got As Object
+    Ppt_ResetTestHooks                                            ' sem destino fixo nem instancia injetada de um teste anterior
     Set presA = FakePres(2): Set presB = FakePres(3)
     Set win = New TestPptFake: Set win.Presentation = presB      ' View = Nothing: View.Slide falha (Classificador de slides)
     Set app = New TestPptFake
@@ -93,6 +94,33 @@ Public Sub Test_Ppt_TargetSlide_UsesActiveWindowPresentation()
     AssertEqual 1, presE.Slides.AddedCount, "um slide acrescentado"
     AssertTrue added Is got, "o slide acrescentado volta para quem chama (apagado se falhar depois)"
     AssertTrue created Is Nothing, "a apresentacao nao foi criada pela chamada"
+End Sub
+
+' Janela do Modo de Exibicao Protegido (um .pptx baixado ou anexo que o usuario abre no PowerPoint do teste) nao entra em Windows nem em
+' Presentations: o teste a conta como janela do usuario (para antes de chamar o core) e nao encerra a instancia (Quit fecharia a janela
+' dele). Contagem ilegivel: na duvida, e do usuario.
+Public Sub Test_Ppt_ScratchHelpers_RespectProtectedView()
+    Dim app As Object, keep As TestPptFake, own As Collection
+    Set keep = New TestPptFake
+    Set keep.Windows = New Collection: Set keep.Presentations = New Collection
+    Set keep.ProtectedViewWindows = New Collection: keep.ProtectedViewWindows.Add New TestPptFake
+    Set app = keep
+    AssertTrue UserWindowAppeared(app), "janela protegida conta como janela do usuario"
+    Set own = New Collection
+    StopScratchPowerPoint app, own
+    AssertFalse keep.QuitCalled, "com janela protegida aberta a instancia nao e encerrada"
+    Set keep.ProtectedViewWindows = Nothing                       ' leitura falha (erro 91)
+    Set app = keep
+    AssertTrue UserWindowAppeared(app), "contagem ilegivel: na duvida, do usuario"
+    Set own = New Collection
+    StopScratchPowerPoint app, own
+    AssertFalse keep.QuitCalled, "contagem ilegivel: nao encerra"
+    Set keep.ProtectedViewWindows = New Collection
+    Set app = keep
+    AssertFalse UserWindowAppeared(app), "sem janelas: segue o teste"
+    Set own = New Collection
+    StopScratchPowerPoint app, own
+    AssertTrue keep.QuitCalled, "sem janelas nem apresentacoes: encerra"
 End Sub
 
 ' Onda B (B1.3): CreateObject anexa a um PowerPoint ja aberto que a ROT nao ve (aberto so para incorporacao, sem apresentacoes): so e "nosso"
@@ -236,14 +264,16 @@ Private Function StartScratchPowerPoint() As Object
 End Function
 
 ' True (e registra) se apareceu uma janela na instancia do teste: o teste so cria apresentacoes SEM janela, entao a janela e do usuario (que
-' abriu o PowerPoint ou um .pptx durante o teste). Quem chama encerra o teste sem chamar o core de novo.
+' abriu o PowerPoint ou um .pptx durante o teste). Conta tambem as janelas do Modo de Exibicao Protegido (fora de Windows); contagem
+' ilegivel conta como janela. Quem chama encerra o teste sem chamar o core de novo.
 Private Function UserWindowAppeared(app As Object) As Boolean
-    Dim n As Long
-    n = -1
+    Dim n As Long, npv As Long
+    n = -1: npv = -1
     On Error Resume Next
     n = app.Windows.Count
+    npv = app.ProtectedViewWindows.Count
     On Error GoTo 0
-    UserWindowAppeared = (n <> 0)
+    UserWindowAppeared = (n <> 0 Or npv <> 0)
     If UserWindowAppeared Then Errors_Log "TestPowerPoint: resto do teste pulado (uma janela apareceu na instancia do teste: PowerPoint do usuario)"
 End Function
 
@@ -258,10 +288,10 @@ End Function
 
 ' Encerra o PowerPoint criado pelo teste: desarma os ganchos (inclusive o destino fixo), fecha SO as apresentacoes de own (as que o teste ou
 ' a chamada testada criaram, registradas pelo objeto) que continuam sem janela (com janela nao e do teste), solta as referencias e so da
-' Quit se nao sobrou nenhuma apresentacao; espera (ate 10 s) o processo terminar, para o teste seguinte nao pular por um POWERPNT que ainda
-' esta saindo.
+' Quit se nao sobrou nenhuma apresentacao nem janela do Modo de Exibicao Protegido (contagem ilegivel: nao encerra); espera (ate 10 s) o
+' processo terminar, para o teste seguinte nao pular por um POWERPNT que ainda esta saindo.
 Private Sub StopScratchPowerPoint(app As Object, own As Collection)
-    Dim p As Variant, nw As Long, left_ As Long, t As Single
+    Dim p As Variant, nw As Long, left_ As Long, t As Single, npv As Long
     On Error Resume Next
     Ppt_ResetTestHooks
     If app Is Nothing Then Exit Sub
@@ -275,9 +305,10 @@ Private Sub StopScratchPowerPoint(app As Object, own As Collection)
     Next
     Set p = Nothing
     Set own = New Collection
-    left_ = -1
+    left_ = -1: npv = -1
     left_ = app.Presentations.Count
-    If left_ = 0 Then
+    npv = app.ProtectedViewWindows.Count
+    If left_ = 0 And npv = 0 Then
         app.Quit
         Set app = Nothing
         t = Timer
@@ -286,7 +317,7 @@ Private Sub StopScratchPowerPoint(app As Object, own As Collection)
             WaitSeconds 0.25
         Loop
     Else
-        Errors_Log "TestPowerPoint: o PowerPoint do teste ficou aberto (" & left_ & " apresentacao(oes) que nao sao do teste)"
+        Errors_Log "TestPowerPoint: o PowerPoint do teste ficou aberto (" & left_ & " apresentacao(oes) e " & npv & " janela(s) protegida(s) que nao sao do teste)"
         Set app = Nothing
     End If
 End Sub

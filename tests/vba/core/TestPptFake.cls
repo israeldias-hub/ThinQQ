@@ -25,6 +25,8 @@ Public ChartData As Object
 Public IsLinked As Variant
 Public SlideIndexValue As Long
 Public Deleted As Boolean                       ' Delete foi chamado (slide ou forma apagados pelo desfazer)
+Public ProtectedViewWindows As Collection       ' janelas do Modo de Exibicao Protegido (fora de Windows e de Presentations)
+Public QuitCalled As Boolean                    ' Quit foi chamado (aplicativo encerrado pelo teste)
 
 Public Property Get SlideIndex() As Long
     If SlideIndexValue <= 0 Then Err.Raise 438, "TestPptFake", "nao e um slide"
@@ -38,4 +40,8 @@ End Function
 
 Public Sub Delete()
     Deleted = True
+End Sub
+
+Public Sub Quit()
+    QuitCalled = True
 End Sub
