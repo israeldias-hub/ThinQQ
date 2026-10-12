@@ -172,7 +172,7 @@
             <button id="btnPptImage" label="Copiar como imagem" onAction="Rx_OnPptImage" getEnabled="Rx_GetEnabled"
                     screentip="Copiar como imagem" supertip="Cola uma imagem do gráfico no slide ativo (abre o PowerPoint se preciso)."/>
             <button id="btnPptChart" label="Copiar como gráfico vinculado" onAction="Rx_OnPptChart" getEnabled="Rx_GetEnabled"
-                    screentip="Copiar como gráfico vinculado" supertip="Cola um gráfico do PowerPoint vinculado a esta pasta de trabalho salva (Dados &gt; Editar Vínculos no PowerPoint)."/>
+                    screentip="Copiar como gráfico vinculado" supertip="Cola um gráfico do PowerPoint vinculado a esta pasta de trabalho salva. No PowerPoint: Arquivo &gt; Informações &gt; Editar Links para Arquivos (Quebrar Vínculo incorpora os dados) e, com o gráfico selecionado, Design do Gráfico &gt; Atualizar Dados."/>
           </menu>
           <separator id="sep3"/>
           <button id="btnRefresh" label="Atualizar" imageMso="Refresh" onAction="Rx_OnRefresh"
