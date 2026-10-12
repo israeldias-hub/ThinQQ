@@ -27,7 +27,7 @@ Para quem vai **usar** o ThinQQ: não precisa saber programar nem ser administra
 1. **Baixe o ZIP.** Na página de [Releases](https://github.com/israeldias-hub/ThinQQ/releases), abra a versão mais nova e, em "Assets", baixe `ThinQQ-x.y.z.zip` (por exemplo `ThinQQ-1.2.0.zip`).
 2. **Descompacte a pasta inteira:** botão direito no ZIP > **Extrair tudo...**. Não execute o instalador de dentro do ZIP e não separe os arquivos: o instalador precisa de todos eles na mesma pasta. Se o ZIP veio da internet, antes de extrair clique nele com o botão direito > Propriedades e marque **Desbloquear** (se a opção aparecer) > OK: isso evita avisos de segurança.
 3. **Feche o Excel** (todas as janelas).
-4. **Dê dois cliques em `Instalar-ThinQQ.cmd`.** Se o Windows perguntar se quer executar, clique em **Executar**. Uma janela mostra o andamento e termina com "INSTALACAO CONCLUIDA".
+4. **Dê dois cliques em `Instalar-ThinQQ.cmd`.** Se o Windows perguntar se quer executar, clique em **Executar**; se aparecer "O Windows protegeu o computador", clique em **Mais informações** > **Executar assim mesmo**. Uma janela mostra o andamento e termina com "INSTALACAO CONCLUIDA".
 5. **Abra o Excel e procure a aba ThinQQ**, ao lado de Inserir. Para ver o ThinQQ funcionando, abra `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` (vem no ZIP, na pasta `exemplos`; no GitHub: [exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx](exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx)): a primeira aba é um índice; clique no nome do exemplo para ir ao gráfico. Os gráficos também funcionam sem o ThinQQ instalado, mas setas, colchetes e marcas de corte só se recalculam com ele. ThinQQ > Exemplos e ThinQQ > Tutorial também estão na aba.
 
 ### O repositório é privado: quem consegue baixar
@@ -51,13 +51,13 @@ Quem recebeu o ZIP por outro caminho (e-mail, Teams, pasta de rede) instala norm
 
 ### Desinstalar
 
-Feche o Excel e, na pasta onde você descompactou o ZIP, execute:
+Feche o Excel e abra o PowerShell na pasta onde você descompactou o ZIP (**guarde essa pasta**: o desinstalador só existe no ZIP): no Explorador de Arquivos, clique na barra de endereços, digite `powershell` e tecle Enter. Na janela que abrir, execute:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File uninstall.ps1
 ```
 
-Isso remove o registro do suplemento, o Local Confiável, as configurações do atualizador e a pasta `%LOCALAPPDATA%\ThinQQ` (o parâmetro `-KeepFiles` mantém os arquivos). Os gráficos que você já criou continuam nas suas pastas de trabalho, como gráficos comuns do Excel.
+Isso remove o registro do suplemento, o Local Confiável, **toda** a chave `HKCU\Software\VB and VBA Program Settings\ThinQQ` (as configurações do atualizador, inclusive a fonte de atualização e a versão pulada) e a pasta `%LOCALAPPDATA%\ThinQQ` (o parâmetro `-KeepFiles` mantém os arquivos). Os gráficos que você já criou continuam nas suas pastas de trabalho, como gráficos comuns do Excel.
 
 ### Instalação manual
 
@@ -76,7 +76,7 @@ A mesma instalação manual, com a recuperação de uma atualização do loader 
 1. **Macros bloqueadas, ou arquivo bloqueado pelo Windows.** *O que você vê:* uma faixa de aviso de segurança sobre macros, ou a aba ThinQQ não aparece depois de instalar. *O que fazer:* feche o Excel e rode `Instalar-ThinQQ.cmd` de novo (ele desbloqueia os arquivos e cria o local confiável). Se instalou à mão: botão direito em `ThinQQ.xlam` e em `ThinQQ.core.xlam` > Propriedades > marque **Desbloquear** > OK. Um arquivo baixado da internet fica "bloqueado" até isso.
 2. **Central de Confiabilidade.** *O que você vê:* "As macros foram desabilitadas", ou o ThinQQ não carrega. *O que fazer:* Arquivo > Opções > Central de Confiabilidade > Configurações da Central de Confiabilidade > Configurações de Macro. Com "Desabilitar todas as macros, exceto as assinadas digitalmente", o ThinQQ só funciona a partir de um Local Confiável (item seguinte) ou com os `.xlam` assinados pela TI (veja "Ambientes corporativos (TI)"). Só mude essa configuração se a política da empresa permitir.
 3. **Local Confiável.** *O que você vê:* aviso de macros a cada abertura, ou o instalador não conseguiu criar o local. *O que fazer:* Arquivo > Opções > Central de Confiabilidade > Configurações da Central de Confiabilidade > Locais Confiáveis > Adicionar novo local: `%LOCALAPPDATA%\ThinQQ`, marcando "Subpastas também são confiáveis" (o core fica em `versions\<versão>`). O instalador já cria esse local; refaça-o se uma política da empresa o removeu.
-4. **Antivírus ou proxy.** *O que você vê:* o download do ZIP bloqueado ou incompleto, a mensagem "Pacote corrompido ou adulterado" (o SHA-256 não confere), o `ThinQQ.xlam` que sumiu da pasta (quarentena do antivírus) ou "Erro ao atualizar" atrás de um proxy. *O que fazer:* baixe o ZIP de novo pelo navegador, restaure o arquivo da quarentena do antivírus e peça à TI para liberar `%LOCALAPPDATA%\ThinQQ`; atrás de um proxy, reinstale pelo ZIP em vez de usar o atualizador.
+4. **Antivírus ou proxy.** *O que você vê:* o download do ZIP bloqueado ou incompleto, a mensagem "Pacote corrompido ou adulterado" (o SHA-256 não confere), o `ThinQQ.xlam` que sumiu da pasta (quarentena do antivírus) ou "Não foi possível verificar atualizações." / "Falha ao atualizar: ..." atrás de um proxy. *O que fazer:* baixe o ZIP de novo pelo navegador, restaure o arquivo da quarentena do antivírus e peça à TI para liberar `%LOCALAPPDATA%\ThinQQ`; atrás de um proxy, reinstale pelo ZIP em vez de usar o atualizador.
 5. **A aba ThinQQ não aparece.** *O que você vê:* o Excel abre sem a aba depois de instalar. *O que fazer:* feche **todas** as janelas do Excel (confira o Gerenciador de Tarefas), rode `Instalar-ThinQQ.cmd` de novo e abra o Excel. Em Arquivo > Opções > Suplementos > Gerenciar: Suplementos do Excel > Ir..., o ThinQQ precisa estar marcado (se estiver em "Itens Desabilitados", reabilite). Com a aba visível, ThinQQ > Sobre mostra as versões do carregador e do núcleo instalados. Se o instalador disser "Feche o Excel antes de instalar", encerre todas as janelas e tente de novo.
 
 ### Ambientes corporativos (TI)
@@ -90,14 +90,14 @@ Para quem administra os computadores. O ThinQQ chega **sem assinatura digital**,
 3. **Distribuir o certificado em Editores Confiáveis** (Trusted Publishers) por GPO: Configuração do Computador > Políticas > Configurações do Windows > Configurações de Segurança > Políticas de Chave Pública > Editores Confiáveis. Para um único usuário, `tools/Trust-ThinQQPublisher.ps1 -CerPath arquivo.cer` (`-Scope LocalMachine` exige administrador).
 4. **Ou um local confiável corporativo:** o instalador já registra `%LOCALAPPDATA%\ThinQQ` (com subpastas) por usuário; uma GPO pode distribuir um local confiável.
 5. **Política do Office:** com "Only trust VBA macros that use V3 signatures" os projetos precisam ter a assinatura V3 que o Editor do VBA grava.
-6. **Reassine a cada release** (os arquivos do build são novos a cada versão) e publique os SHA-256 dos arquivos assinados.
+6. **Reassine a cada release** (os arquivos do build são novos a cada versão) e publique os SHA-256 dos arquivos assinados. **Atenção às atualizações:** depois que a TI assina os dois arquivos, a atualização automática pela fonte padrão instalaria o próximo `.xlam` sem assinatura e, com uma política de só macros assinadas, o ThinQQ deixaria de carregar. Aponte a fonte de atualização (ThinQQ > Configurações, ou `install.ps1 -UpdateSource`) para um `manifest.json` interno com os arquivos assinados (gerado por `release.ps1 -SignPfx` ou com os SHA-256 recalculados depois de assinar pelo Editor do VBA).
 
 O que o repositório entrega:
 
 - `tools/New-ThinQQCert.ps1`: cria um certificado autoassinado de **teste** (por usuário, sem administrador), exporta o `.cer` e o `.pfx` e instala o `.cer` em Editores Confiáveis; com `-TrustRoot` também o instala nas autoridades raiz do usuário (o Windows pede confirmação), sem o que o Office mostra o editor como "não verificado". Em produção use o certificado da empresa.
 - `tools/Trust-ThinQQPublisher.ps1` e `tools/Sign-ThinQQ.ps1` (acima) e o parâmetro `-SignPfx` do `build/release.ps1`.
 
-Limites: sem o Windows SDK e as SIPs a assinatura automática não roda (o script sai com código 2 e instruções, e o `release.ps1 -SignPfx` não gera o release). O ramo `signtool` mais SIPs **não foi executado ponta a ponta** na máquina de desenvolvimento (sem SDK nem SIPs): abra o `.xlam` assinado no Excel e confira antes de distribuir. A verificação do `signtool` com raiz não confiável (certificado autoassinado) vira aviso, e `-SkipVerify` a pula. O caminho manual pelo Editor do VBA é o garantido.
+Limites: sem o Windows SDK e as SIPs a assinatura automática não roda (o script sai com código 2 e instruções, e o `release.ps1 -SignPfx` não gera o release). O ramo `signtool` mais SIPs **não foi executado ponta a ponta** na máquina de desenvolvimento (sem SDK nem SIPs): abra o `.xlam` assinado no Excel e confira antes de distribuir. A verificação do `signtool` com raiz não confiável (certificado autoassinado) vira aviso, e `-SkipVerify` a pula. O caminho manual pelo Editor do VBA é o padrão do Office e não depende do SDK.
 
 ## Primeiros passos
 
@@ -258,7 +258,7 @@ publicado: o `release.ps1` recusa artefatos com módulos de teste.
 **O que uma instalação pelo ZIP consulta.** O instalador grava como fonte de atualização (`UpdateSource`) o campo `manifestUrl` do
 `manifest.json` do ZIP (só se o usuário ainda não tiver uma fonte própria). Com `-BaseUrl` http(s), como a release do GitHub, esse campo
 é o endereço estável `https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json` (o mesmo padrão do
-carregador), nunca o `manifest.json` anexado à release: quem instalou a 1.1.0 pelo ZIP passa a ver a 1.2.0 assim que o passo 4 atualizar o
+carregador), nunca o `manifest.json` anexado à release: quem instalou uma versão pelo ZIP (por exemplo a 1.2.0) passa a ver a seguinte (1.2.1) assim que o passo 4 atualizar o
 `release/manifest.json` da `main`. Com `-BaseUrl` numa pasta de rede ou local, o campo é `<pasta>\manifest.json`, e cada versão nova deve
 ser publicada na mesma pasta (o manifesto é substituído no lugar). `-ManifestUrl` grava outro endereço.
 
@@ -357,15 +357,15 @@ Os testes automáticos usam um Excel invisível; estas verificações precisam d
 29. Rótulos com soma consistente numa coluna 100% (34, 33, 33): os rótulos somam 100%; trocar o Formato muda as casas; desligar volta aos rótulos simples; o mesmo numa área empilhada; num tipo sem o recurso o aviso diz que não se aplica.
 30. Arredondar intervalo...: com uma coluna de 5 números selecionada, as duas perguntas aparecem, o destino já preenchido pede "Substituir?", e o aviso final traz o endereço; uma faixa com texto, uma faixa de mais de 1.000 células e uma planilha protegida sem Formatar células são recusadas sem gravar nada; numa origem em percentual, 2 casas dão percentuais inteiros.
 31. Corte de eixo... numa coluna empilhada com uma coluna muito maior (exemplo 23): a sugestão aparece; um valor abaixo do mínimo é recusado com a mensagem do quarto do segmento; com o corte aceito há a marca de corte, o total real no rótulo e o rótulo do segmento atravessado na base; ligar a Linha de valor (média) acima do corte avisa; Remover corte de eixo devolve o eixo; Mesma escala não inclui o gráfico com corte; Alterar dados com valores menores retira o corte e avisa.
-32. PowerPoint, imagem, com o PowerPoint fechado: Copiar como imagem abre o PowerPoint, cria uma apresentação com um slide em branco e cola a imagem (80% da largura, centralizada); o aviso diz o slide.
+32. PowerPoint, imagem, com o PowerPoint fechado: Copiar como imagem abre o PowerPoint, cria uma apresentação com um slide em branco e cola a imagem (até 80% da largura, limitado pela altura do slide, centralizada); o aviso diz o slide.
 33. PowerPoint, com uma apresentação aberta: a imagem entra no slide em exibição; no Classificador de Slides, no slide selecionado; nada fecha nem troca a apresentação que já estava aberta (inclusive com duas apresentações abertas, a da janela ativa recebe o gráfico).
-34. PowerPoint, gráfico vinculado (pasta salva): o gráfico colado é do PowerPoint, Dados > Editar Vínculos mostra a pasta, as setas de CAGR vêm junto; mudar um valor no Excel, salvar e atualizar o vínculo atualiza o gráfico; Quebrar vínculo incorpora os dados; renomear o arquivo do Excel quebra o vínculo.
+34. PowerPoint, gráfico vinculado (pasta salva): o gráfico colado é do PowerPoint, Arquivo > Informações > Editar Links para Arquivos (em versões mais antigas, Editar Vínculos com Arquivos) mostra a pasta, as setas de CAGR vêm junto; mudar um valor no Excel, salvar e, com o gráfico selecionado, Design do Gráfico > Atualizar Dados atualiza o gráfico; Quebrar Vínculo incorpora os dados; renomear o arquivo do Excel quebra o vínculo.
 35. PowerPoint, avisos: com alterações não salvas o aviso acrescenta a nota da pasta; numa pasta nova o aviso pede para salvar e nada é colado; com a área de transferência ocupada por outro programa o aviso pede para tentar de novo; com o PowerPoint em edição de texto o aviso diz que ele está ocupado; sem o PowerPoint instalado o aviso diz que ele não está instalado; com uma célula selecionada o menu PowerPoint fica cinza.
 36. PowerPoint, segurança: depois de qualquer cópia, o PowerPoint e as apresentações que já estavam abertas continuam abertas e intactas; o que o ThinQQ criou (a apresentação nova) fica aberto para você; rodar `pwsh build/run-tests.ps1 -Target core -Filter PowerPoint` com nenhum PowerPoint aberto (os testes reais criam o deles e o fecham; a colagem substitui a área de transferência).
 37. Ícones próprios: os controles com ícone do ThinQQ (Colunas, Barras, Cascata, Linha e área, Mais tipos, Borboleta, Dispersão, Bolhas, Mais opções, Rótulos com soma consistente, Linha de tendência, Quadrantes (médias), Corte de eixo..., Arredondar intervalo..., Setas e PowerPoint) desenham o próprio ícone, nenhum em branco (confira também com os itens cinza).
 38. Pasta de demonstração: abrir `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` do ZIP, com e sem o ThinQQ instalado: a primeira aba é o índice, cada nome leva ao exemplo e "Voltar ao índice" (A1) volta; os 26 exemplos mostram o que a legenda diz; sem macros e sem aviso de vínculo externo.
 39. Instalação pelo ZIP num perfil limpo: o ZIP traz a pasta `exemplos`, `Instalar-ThinQQ.cmd` conclui e o Excel abre com a aba ThinQQ; ThinQQ > Verificar atualizações informa a versão; `uninstall.ps1` deixa o perfil como estava.
-40. Com um core 1.1.0 e o loader 1.2.0 (ou um core de teste antigo), Arredondar intervalo... e o menu PowerPoint respondem "Atualize o ThinQQ para usar este recurso." em vez de não fazer nada.
+40. Com um core 1.1.0 e o loader 1.2.0 (ou um core de teste antigo), Arredondar intervalo... e o menu PowerPoint (com um gráfico selecionado) respondem "Atualize o ThinQQ para usar este recurso." em vez de não fazer nada.
 41. Assinatura (TI): com um certificado de teste de `tools/New-ThinQQCert.ps1` (e depois remover o certificado pelo `certmgr.msc`), assinar um `.xlam` pelo Editor do VBA (Ferramentas > Assinatura Digital) e abri-lo; em uma máquina com Windows SDK e Office SIPs, rodar `tools/Sign-ThinQQ.ps1` (ainda não foi executado ponta a ponta) e conferir o resultado no Excel.
 
 ## Limitações conhecidas
@@ -393,7 +393,7 @@ Os detalhes de cada tipo estão na seção "Limitações" do tutorial.
 - **Área:** o rótulo da primeira ou da última categoria que encosta no do vizinho fica oculto e volta quando cabe.
 - **Copiar para o PowerPoint:** a colagem usa a área de transferência do Windows e substitui o que estava nela; o destino é o slide da janela ativa do PowerPoint; uma pasta de trabalho aberta de um endereço da web (SharePoint ou OneDrive) pode não manter o vínculo do gráfico vinculado; renomear ou mover o arquivo do Excel quebra o vínculo.
 - O texto das setas de CAGR e de diferença e dos colchetes é calculado pelo ThinQQ: sem ele, o texto não se recalcula quando os números mudam.
-- **Assinatura:** os arquivos não vêm assinados; o ramo `signtool` mais Office SIPs de `tools/Sign-ThinQQ.ps1` nunca foi executado ponta a ponta na máquina de desenvolvimento (sem SDK nem SIPs); o caminho garantido é Ferramentas > Assinatura Digital no Editor do VBA.
+- **Assinatura:** os arquivos não vêm assinados; o ramo `signtool` mais Office SIPs de `tools/Sign-ThinQQ.ps1` nunca foi executado ponta a ponta na máquina de desenvolvimento (sem SDK nem SIPs); o caminho padrão do Office, que não depende do SDK, é Ferramentas > Assinatura Digital no Editor do VBA.
 - Macros precisam estar habilitadas; políticas corporativas podem exigir local confiável ou assinatura digital (veja "Ambientes corporativos (TI)").
 
 ## Licença

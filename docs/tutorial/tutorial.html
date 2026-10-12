@@ -807,7 +807,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li><strong>Rótulos de barras muito finas</strong> (que não cabem dentro da barra) passam para fora dela, em cinza-escuro, e o total da linha se desloca para depois do rótulo; só ficam ocultos se nem fora cabem, e voltam quando o gráfico ou o valor cresce. Um rótulo que você apagar continua apagado.</li>
   </ul>
   <h3>Controles</h3>
-  <p>Valem <span class="ui">Totais</span>, <span class="ui">Rótulos</span>, <span class="ui">Formato</span>, <span class="ui">Paleta</span>, <span class="ui">Espaço</span>, <span class="ui">Legenda</span> (<span class="ui">Direita</span> ou <span class="ui">Nenhuma</span>) e <span class="ui">Mesma escala</span>. <span class="ui">Conectores</span>, <span class="ui">Linha de valor (média)</span>, <span class="ui">Indicador 100%</span>, as setas e os demais itens de <span class="ui">Mais opções</span> ficam cinza.</p>
+  <p>Valem <span class="ui">Totais</span>, <span class="ui">Rótulos</span>, <span class="ui">Formato</span>, <span class="ui">Paleta</span>, <span class="ui">Espaço</span>, <span class="ui">Legenda</span> (<span class="ui">Direita</span> ou <span class="ui">Nenhuma</span>) e <span class="ui">Mesma escala</span>. <span class="ui">Conectores</span>, <span class="ui">Linha de valor (média)</span>, <span class="ui">Indicador 100%</span>, as setas e os demais alternadores de <span class="ui">Mais opções</span> ficam cinza.</p>
   <div class="warn">
     <p><strong>Mesma escala só entre borboletas.</strong> Aplicada a uma borboleta e a gráficos de outro tipo, a união das escalas tira a borboleta do centro (e os outros ganham um mínimo negativo). Use <span class="ui">Mesma escala</span> só entre borboletas.</p>
   </div>
@@ -850,7 +850,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li><strong>Eixos:</strong> os números seguem o formato da coluna de origem (percentual, casas decimais, moeda) e, quando os dados ficam longe do zero (e ocupam menos de dois terços do maior valor), os eixos se apertam em volta dos dados em vez de começar em zero. Se você fixar a escala ou o formato de um eixo à mão, o ThinQQ respeita e não o sobrescreve.</li>
     <li><span class="ui">Linha de tendência</span> (em <span class="ui">Mais opções</span>): regressão linear de cada série, tracejada na cor da série, sem entrada na legenda.</li>
     <li><span class="ui">Quadrantes (médias)</span> (em <span class="ui">Mais opções</span>): as linhas dos eixos passam a cruzar nas médias de X e de Y e dividem o gráfico em quatro quadrantes. Sem o ThinQQ, elas ficam na última posição aplicada.</li>
-    <li><span class="ui">Rótulos</span>, <span class="ui">Paleta</span> e <span class="ui">Legenda</span> valem; <span class="ui">Totais</span>, <span class="ui">Formato</span>, <span class="ui">Espaço</span>, <span class="ui">Mesma escala</span> e as setas ficam cinza.</li>
+    <li><span class="ui">Rótulos</span>, <span class="ui">Paleta</span> e <span class="ui">Legenda</span> valem; <span class="ui">Totais</span>, <span class="ui">Formato</span>, <span class="ui">Espaço</span> e as setas ficam cinza; <span class="ui">Mesma escala</span> fica ativa, mas ignora dispersão e bolhas.</li>
   </ul>
   <h3>Mensagens e limites</h3>
   <ul>
@@ -1068,7 +1068,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <table>
     <thead><tr><th scope="col">Item</th><th scope="col">O que cola</th></tr></thead>
     <tbody>
-      <tr><td><span class="ui">Copiar como imagem</span></td><td>Uma imagem do gráfico, com as setas e os colchetes, em 80% da largura do slide e centralizada. Não depende do arquivo do Excel.</td></tr>
+      <tr><td><span class="ui">Copiar como imagem</span></td><td>Uma imagem do gráfico, com as setas e os colchetes, centralizada, com até 80% da largura (limitado pela altura do slide). Não depende do arquivo do Excel.</td></tr>
       <tr><td><span class="ui">Copiar como gráfico vinculado</span></td><td>Um gráfico do próprio PowerPoint (editável e formatável lá) <strong>vinculado a esta pasta de trabalho</strong>: os dados vêm do arquivo do Excel. As setas e os colchetes do ThinQQ, que são formas dentro do gráfico, vêm junto.</td></tr>
     </tbody>
   </table>
@@ -1083,7 +1083,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   <ul>
     <li><strong>A pasta de trabalho precisa estar salva</strong>: o vínculo aponta para o arquivo salvo. Pasta nova: "Salve a pasta de trabalho antes de copiar o gráfico vinculado: o vínculo aponta para o arquivo salvo."</li>
     <li>Com alterações não salvas, o gráfico é colado mas o aviso acrescenta "A pasta tem alterações não salvas: o PowerPoint lê o arquivo salvo nas atualizações do vínculo."</li>
-    <li>No PowerPoint, use <strong>Dados &gt; Editar Vínculos</strong> para atualizar os dados ou trocar o arquivo de origem e <strong>Quebrar vínculo</strong> para incorporar os dados ao slide (o gráfico deixa de acompanhar o Excel). <strong>Renomear ou mover o arquivo do Excel quebra o vínculo.</strong></li>
+    <li>No PowerPoint, use <strong>Arquivo &gt; Informações &gt; Editar Links para Arquivos</strong> (em versões mais antigas, Editar Vínculos com Arquivos) para atualizar ou trocar a origem e <strong>Quebrar Vínculo</strong> para incorporar os dados (o gráfico deixa de acompanhar o Excel); com o gráfico selecionado, <strong>Design do Gráfico &gt; Atualizar Dados</strong> relê o arquivo salvo. <strong>Renomear ou mover o arquivo do Excel quebra o vínculo.</strong></li>
     <li>Se o PowerPoint colar o gráfico mas não manter o vínculo, o aviso diz: "Gráfico copiado para o slide N de 'apresentação' como gráfico do PowerPoint, mas sem vínculo com a pasta (o PowerPoint não manteve o vínculo): ele não acompanha as alterações dos dados." Uma pasta de trabalho aberta de um endereço da web (SharePoint ou OneDrive) pode não manter o vínculo: salve uma cópia no disco local.</li>
   </ul>
   <h3>Mensagens e limites</h3>
@@ -1221,14 +1221,14 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li><strong>Distribuir o certificado em Editores Confiáveis</strong> (Trusted Publishers) por política de grupo (GPO): Configuração do Computador &gt; Políticas &gt; Configurações do Windows &gt; Configurações de Segurança &gt; Políticas de Chave Pública &gt; Editores Confiáveis. Para um único usuário, <code>tools/Trust-ThinQQPublisher.ps1 -CerPath arquivo.cer</code> (com <code>-Scope LocalMachine</code>, exige administrador).</li>
     <li><strong>Ou um local confiável corporativo.</strong> O instalador já registra <code>%LOCALAPPDATA%\ThinQQ</code> (com subpastas) como Local Confiável do usuário; a empresa também pode distribuir um local confiável por GPO.</li>
     <li><strong>Política do Office:</strong> com "Only trust VBA macros that use V3 signatures" os projetos precisam ter a assinatura V3 que o Editor do VBA grava.</li>
-    <li><strong>Reassine a cada release</strong> (os arquivos do build são novos a cada versão) e publique os SHA-256 dos arquivos assinados.</li>
+    <li><strong>Reassine a cada release</strong> (os arquivos do build são novos a cada versão) e publique os SHA-256 dos arquivos assinados. <strong>Atualizações:</strong> pela fonte padrão, a atualização automática instalaria o próximo <code>.xlam</code> sem assinatura e, com política de só macros assinadas, o ThinQQ deixaria de carregar; aponte a fonte (<span class="ui">Configurações</span> ou <code>install.ps1 -UpdateSource</code>) para um <code>manifest.json</code> interno com os arquivos assinados (<code>release.ps1 -SignPfx</code> ou SHA-256 recalculado depois de assinar).</li>
   </ol>
   <h3>O que o repositório entrega</h3>
   <ul>
     <li><code>tools/New-ThinQQCert.ps1</code>: cria um certificado autoassinado de teste (por usuário, sem administrador), exporta o <code>.cer</code> e o <code>.pfx</code> e instala o <code>.cer</code> em Editores Confiáveis. Com <code>-TrustRoot</code> também o instala nas autoridades raiz do usuário (o Windows pede confirmação); sem a raiz o Office mostra o editor como "não verificado". Serve para testar; em produção use o certificado da empresa.</li>
   </ul>
   <div class="warn">
-    <p><strong>Limites.</strong> Sem o Windows SDK e as SIPs a assinatura automática não roda: o script sai com código 2 e instruções, e o <code>release.ps1 -SignPfx</code> não gera o release. O ramo <code>signtool</code> mais SIPs <strong>não foi executado ponta a ponta</strong> na máquina de desenvolvimento (sem SDK nem SIPs): abra o <code>.xlam</code> assinado no Excel e confira antes de distribuir. A verificação do <code>signtool</code> com raiz não confiável (autoassinado) vira aviso; <code>-SkipVerify</code> a pula. O caminho manual pelo Editor do VBA é o garantido.</p>
+    <p><strong>Limites.</strong> Sem o Windows SDK e as SIPs a assinatura automática não roda: o script sai com código 2 e instruções, e o <code>release.ps1 -SignPfx</code> não gera o release. O ramo <code>signtool</code> mais SIPs <strong>não foi executado ponta a ponta</strong> na máquina de desenvolvimento (sem SDK nem SIPs): abra o <code>.xlam</code> assinado no Excel e confira antes de distribuir. A verificação do <code>signtool</code> com raiz não confiável (autoassinado) vira aviso; <code>-SkipVerify</code> a pula. O caminho manual pelo Editor do VBA é o padrão do Office e não depende do SDK.</p>
   </div>
 </section>
 
@@ -1248,7 +1248,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr><td>Falta uma fatia na pizza, ou a coluna de um Mekko (unidades) sumiu</td><td>Valor negativo, zero, texto ou célula vazia (na largura, no caso do Mekko) conta como 0 e a fatia ou a coluna não aparece. Confira os números da tabela.</td></tr>
       <tr><td>Um rótulo, uma seta ou a linha de valor cobre outro rótulo</td><td>Aumente o gráfico, arraste o rótulo ou ajuste a <span class="ui">Paleta</span> e o <span class="ui">Formato</span> para números mais curtos. Alguns casos são limites conhecidos: veja <a href="#limites">Limitações</a>.</td></tr>
       <tr><td>Um aviso diz que não é possível inserir</td><td>Veja a mensagem: planilha protegida, nenhuma tabela selecionada ou uma seleção com menos de 2 linhas ou 2 colunas (cabeçalho mais ao menos uma categoria) são os casos mais comuns. As mensagens específicas de cada tipo estão na tabela abaixo.</td></tr>
-      <tr><td>Erro ao atualizar</td><td>Confira a fonte em <span class="ui">Configurações</span> e o acesso à rede ou à pasta. Os detalhes ficam em <code>%LOCALAPPDATA%\ThinQQ\logs\thinqq.log</code>.</td></tr>
+      <tr><td>"Não foi possível verificar atualizações." ou "Falha ao atualizar: ..."</td><td>Confira a fonte em <span class="ui">Configurações</span> e o acesso à rede ou à pasta. Os detalhes ficam em <code>%LOCALAPPDATA%\ThinQQ\logs\thinqq.log</code>.</td></tr>
       <tr><td>O Excel abriu sem a aba logo após uma atualização do carregador</td><td>Feche o Excel, vá a <code>%LOCALAPPDATA%\ThinQQ</code>, apague (ou renomeie) <code>ThinQQ.xlam</code> e renomeie <code>ThinQQ.xlam.bak</code> para <code>ThinQQ.xlam</code>. Sem o <code>.bak</code>, reinstale.</td></tr>
     </tbody>
   </table>
@@ -1261,7 +1261,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <thead><tr><th scope="col">Mensagem</th><th scope="col">Quando aparece e o que fazer</th></tr></thead>
     <tbody>
       <tr><td>Mensagens da borboleta, da dispersão e das bolhas, do corte de eixo, do <span class="ui">Arredondar intervalo...</span> e do menu <span class="ui">PowerPoint</span></td><td>O texto de cada uma e o que fazer estão na seção do recurso: <a href="#borboleta">Borboleta</a>, <a href="#dispersao">Dispersão e bolhas</a>, <a href="#corte">Corte de eixo</a>, <a href="#arredondamento">Arredondamento consistente</a> e <a href="#powerpoint">Copiar para o PowerPoint</a>.</td></tr>
-      <tr><td>Atualize o ThinQQ para usar este recurso.</td><td>O carregador é novo, mas o núcleo instalado é antigo e não tem o recurso (<span class="ui">Arredondar intervalo...</span> ou o menu <span class="ui">PowerPoint</span>). Use <span class="ui">Verificar atualizações</span> ou reinstale pelo ZIP.</td></tr>
+      <tr><td>Atualize o ThinQQ para usar este recurso.</td><td>O carregador é novo, mas o núcleo instalado é antigo e não tem o recurso (<span class="ui">Arredondar intervalo...</span> ou o menu <span class="ui">PowerPoint</span>, com um gráfico selecionado). Use <span class="ui">Verificar atualizações</span> ou reinstale pelo ZIP.</td></tr>
       <tr><td>A cascata aceita no máximo 6 séries.</td><td>A tabela da cascata tem 7 ou mais colunas de valores. Use até 6.</td></tr>
       <tr><td>A combinação precisa de pelo menos 2 colunas de valores: as primeiras viram colunas empilhadas e a última vira linha.</td><td>Falta uma coluna na tabela da combinação.</td></tr>
       <tr><td>Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas.</td><td>Inclua a coluna de largura logo depois das categorias e ao menos uma série.</td></tr>

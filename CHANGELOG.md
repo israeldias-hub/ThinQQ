@@ -18,7 +18,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - Pasta de trabalho de demonstração `exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx` (rede fictícia de materiais de construção, 26 exemplos E01 a E26 com índice de links, sem macros), distribuída dentro do ZIP da release, na pasta `exemplos`, com um LEIA-ME curto.
 - Exemplos 3: terceira planilha de ThinQQ > Exemplos, com os 8 exemplos novos (26 exemplos no total).
 - Documentação: seção "Instalação" completa no README (requisitos, passo a passo, atualizações, desinstalação, instalação manual, problemas comuns e o que fazer com o repositório privado) e subseção "Ambientes corporativos (TI)"; no tutorial, seções Borboleta, Dispersão e bolhas, Arredondamento consistente, Corte de eixo, Copiar para o PowerPoint, Pasta de demonstração e Instalação em empresas (TI).
-- Com o loader 1.2.0 e um core anterior, os botões sempre ativos (Arredondar intervalo e PowerPoint) avisam "Atualize o ThinQQ para usar este recurso." em vez de não fazer nada.
+- Com o loader 1.2.0 e um core anterior, os botões Arredondar intervalo... e os do menu PowerPoint (com um gráfico selecionado) avisam "Atualize o ThinQQ para usar este recurso." em vez de não fazer nada.
 
 ### Alterado
 - Faixa de opções: passa a oferecer 20 tipos (Mais tipos ganha Borboleta, Dispersão e Bolhas); Mais opções ganha Rótulos com soma consistente, Linha de tendência, Quadrantes (médias), Corte de eixo..., Remover corte de eixo e Arredondar intervalo...; novo menu PowerPoint no grupo Gráfico selecionado. A matriz de capacidades (20 tipos x 20 recursos) é conferida por teste contra a especificação.
