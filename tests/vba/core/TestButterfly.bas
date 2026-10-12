@@ -521,9 +521,11 @@ Public Sub Test_Bfly_SameScale_TenfoldDisparity_SmallChartGapFits()
     Teardown wb
 End Sub
 
-' Revisao 2: um erro DEPOIS de gravar o vao (gancho de teste) sai do laco pelo caminho de erro; a folga dos totais ainda e refeita la.
+' Revisao 2: um erro DEPOIS de gravar o vao (gancho de teste) sai do laco pelo caminho de erro; a folga dos totais ainda e refeita la. O gancho
+' e zerado em toda saida (Cleanup), tambem quando um Assert falha.
 Public Sub Test_Bfly_GapWriteError_StillKeepsTotalsRoom()
-    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, s As Series, i As Long, lbl As DataLabel
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart, s As Series, i As Long, lbl As DataLabel, en As Long, es As String, ed As String
+    On Error GoTo Cleanup
     Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
     ws.Range("C4").Value = 895
     Set cht = Bfly_Insert(ws, d).Chart
@@ -538,7 +540,11 @@ Public Sub Test_Bfly_GapWriteError_StillKeepsTotalsRoom()
         Set lbl = s.Points(i).DataLabel
         AssertTrue lbl.Left + lbl.Width <= cht.Legend.Left + 0.5, "total " & i & " (" & lbl.Text & ") termina em " & (lbl.Left + lbl.Width) & " pt, antes da legenda (" & cht.Legend.Left & " pt)"
     Next
-    Teardown wb
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    If Not wb Is Nothing Then Teardown wb
+    If en <> 0 Then Err.Raise en, es, ed
 End Sub
 
 ' Tabela com uma barra fina em cada lado (linha x2) para os testes de rotulos finos.
@@ -553,9 +559,11 @@ Private Function TinyFixture(wb As Workbook) As Worksheet
 End Function
 
 ' Revisao 2 (com a Onda A): falha ao estimar a largura do texto de um ponto (gancho de teste): o ponto fica como esta (sem decidir com a largura
-' do ponto anterior) e nao entra em lista nenhuma; sem a falha, a sincronizacao seguinte o poe fora normalmente.
+' do ponto anterior) e nao entra em lista nenhuma; sem a falha, a sincronizacao seguinte o poe fora normalmente. O gancho e zerado em toda
+' saida (Cleanup).
 Public Sub Test_Bfly_ThinSync_EstimateError_PointSkipped()
-    Dim wb As Workbook, ws As Worksheet, cht As Chart
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, en As Long, es As String, ed As String
+    On Error GoTo Cleanup
     Set wb = NewTempWorkbook(): Set ws = TinyFixture(wb)
     ws.Range("A1:C4").Select
     Util_FailThinSyncForTest = "bfly-est:1.2"
@@ -569,7 +577,11 @@ Public Sub Test_Bfly_ThinSync_EstimateError_PointSkipped()
     Core_SafeRefresh cht
     AssertEqual RGB(64, 64, 64), Bfly_SideSeries(cht, 1).Points(2).DataLabel.Font.Color, "sem a falha, fora"
     AssertEqual "2.2,1.2", Registry_GetOption(cht, "outlbl", ""), "e registrado como posto fora pelo ThinQQ"
-    Teardown wb
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    If Not wb Is Nothing Then Teardown wb
+    If en <> 0 Then Err.Raise en, es, ed
 End Sub
 
 ' Revisao 2 (com a Onda A): um rotulo que o ThinQQ tinha ocultado (versao anterior, ou sem espaco nem fora) e religado e posto fora; uma falha no

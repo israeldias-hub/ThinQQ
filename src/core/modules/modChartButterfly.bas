@@ -318,7 +318,10 @@ End Sub
 ' sumirem). Com o eixo automatico o maximo do eixo e >= Gap + maior valor (a auxiliar tqq_sym), entao o vao em pontos e <= largura x k / (k + 1):
 ' com k = BF_GAPK_MAX = 1 ele ja e no maximo a metade. Sem o teto o ramo "cresce" dispararia em TODO refresh (o vao nunca alcanca a largura
 ' interna) e GapK se multiplicaria a cada calculo. Nome que pede o teto com eixo automatico: k vai direto a BF_GAPK_MAX (estavel).
-' Sem o ThinQQ, GapK fica fixo e o vao continua proporcional ao maximo. Nunca propaga erro.
+' Com o eixo FIXO (Mesma escala ou maximo manual) o vao em pontos e proporcional a k e o teto em pontos (cap) ja converge numa passada; o teto
+' de k vem da meia extensao do eixo (Gap + maior valor <= meia extensao: alem disso as barras passariam do eixo), nunca BF_GAPK_MAX (deixaria
+' sem vao a borboleta pequena que recebeu o eixo de uma maior). Sem o ThinQQ, GapK fica fixo e o vao continua proporcional ao maximo. Nunca
+' propaga erro.
 Public Sub Bfly_RefreshGap(cht As Chart)
     Dim blk As Range, body As Range, n As Long, i As Long, w As Double, lw As Double, need As Double, k As Double, g As Double, gapPt As Double, pass As Long
     Dim cap As Double, tgt As Double, capped As Boolean, wrote As Boolean, autoAx As Boolean, kMax As Double, mx As Double, halfExt As Double, grow As Boolean
