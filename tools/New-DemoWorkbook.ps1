@@ -359,8 +359,9 @@ try {
             21 { $rng = Write-Table $ws 'A6' @('Departamento', 'Ticket médio (R$)', 'Margem bruta (%)', 'Vendas 2025', 'Grupo') $bubbleBody '#,##0'; Set-NumFmt ($ws.Range('C7:C14')) '0.0'
                  $ws.Columns('E').ColumnWidth = 13
                  $co = Add-Chart $ws $rng 'bubble'; Set-ChartBox $ws $co 600 360 }
-            22 { $rng = Write-Table $ws 'A6' (@('Ano') + @($top3 | ForEach-Object { $depts[$_].Name })) @(@(2024, 0, 0, 0), @(2025, 0, 0, 0))
-                 for ($y = 0; $y -lt 2; $y++) { for ($c = 0; $c -lt 3; $c++) { $ws.Cells.Item(7 + $y, 2 + $c).Formula = Get-SumIfsFormula 'F' 'D' ('"' + $depts[$top3[$c]].Name + '"') (2024 + $y) } }
+            22 { # valores (não SOMASES): a seta CAGR é uma forma posicionada pelo ThinQQ e não acompanharia uma mudança em Dados sem ele
+                 $cagrBody = @((@(2024) + @($top3 | ForEach-Object { Get-DemoK (Get-DemoSum 'sales' $allS @($_) $y24) })), (@(2025) + @($top3 | ForEach-Object { Get-DemoK (Get-DemoSum 'sales' $allS @($_) $y25) })))
+                 $rng = Write-Table $ws 'A6' (@('Ano') + @($top3 | ForEach-Object { $depts[$_].Name })) $cagrBody
                  Set-NumFmt ($ws.Range('A7:A8')) '0'
                  $co = Add-Chart $ws $rng 'stacked'; Invoke-CoreQuiet 'E22' 'Core_AddAnnotation' 'cagr' 1 2 | Out-Null }
             23 { $rng = Write-Table $ws 'A6' (@('Região') + $groups) $regionGroupBody; $co = Add-Chart $ws $rng 'stacked100'
@@ -417,7 +418,7 @@ try {
     $idx.Range('A1').Font.Bold = $true; $idx.Range('A1').Font.Size = 16
     $idx.Range('A2').Value2 = "$company: $nS lojas em $($regions.Count) regiões. Nenhuma empresa ou pessoa real; lojas, cidades e números são inventados (gerados por script)."
     $idx.Range('A3').Value2 = 'Clique no nome de um exemplo para ir ao gráfico; em cada exemplo, a célula A1 ("Voltar ao índice") traz você de volta. Os dados estão nas planilhas Dados, Lojas e Obras.'
-    $idx.Range('A4').Value2 = 'Os gráficos são gráficos nativos do Excel e continuam ligados às tabelas: funcionam com ou sem o ThinQQ instalado (o ThinQQ só é preciso para criar ou ajustar).'
+    $idx.Range('A4').Value2 = 'Os gráficos são gráficos nativos do Excel e continuam ligados às tabelas: funcionam com ou sem o ThinQQ instalado. Setas, colchetes, marcas de corte e a escala do Gantt são recalculados só com o ThinQQ instalado; sem ele ficam como estão se os números mudarem.'
     $idx.Range('A2:A4').Font.Color = 0x404040
     $hdrRow = 6
     $idx.Range("A${hdrRow}:E${hdrRow}").Value2 = [object[]]('Nº', 'Exemplo (clique para abrir)', 'Tipo de gráfico', 'Recursos em destaque', 'Como criar no ThinQQ')

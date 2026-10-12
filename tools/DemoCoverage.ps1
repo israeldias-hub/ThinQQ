@@ -54,7 +54,7 @@ function Get-TqqDemoCoverage {
         @{ Num = 8;  Kind = 'barstacked100'; Features = @()
            Menu = 'Inserir gráfico > Barras > Barras 100%'
            Title = 'Mix de canais B2C/B2B por loja (barras 100%)'
-           Desc = 'Participação de cada canal nas vendas de cada loja (24 meses).' }
+           Desc = 'Participação de cada canal nas vendas de 2025 de cada loja.' }
         @{ Num = 9;  Kind = 'barwaterfall';  Features = @()
            Menu = 'Inserir gráfico > Cascata > Cascata (barras)'
            Title = 'Da receita ao lucro em 2025 (cascata horizontal)'
@@ -70,7 +70,7 @@ function Get-TqqDemoCoverage {
         @{ Num = 12; Kind = 'combo';         Features = @('secondary')
            Menu = 'Inserir gráfico > Linha e área > Combinação (colunas + linha); Mais opções > Eixo secundário (linha)'
            Title = 'Vendas por canal e margem % da loja Aurora Centro (combinação com eixo secundário)'
-           Desc = 'Colunas B2C + B2B e a linha da margem % (última coluna da tabela) em escalas próprias: o eixo secundário liga sozinho quando as grandezas diferem muito. Os totais foram desligados para não cruzar com a linha.' }
+           Desc = 'A linha da margem % (última coluna da tabela) tem a sua própria escala, à direita, num eixo secundário que liga sozinho quando as grandezas diferem muito; o estilo ThinQQ esconde os eixos de valores, o secundário também. Os totais das colunas foram desligados para não cruzar com a linha.' }
         @{ Num = 13; Kind = 'mekko';         Features = @()
            Menu = 'Inserir gráfico > Mais tipos > Mekko (%)'
            Title = 'Regiões x grupos de produto em 2025 (Mekko %)'
@@ -81,7 +81,7 @@ function Get-TqqDemoCoverage {
            Desc = 'A largura é o número de lojas da região (coluna Lojas) e a altura são as vendas médias por loja em 2025: a área de cada bloco é a venda total do grupo na região.' }
         @{ Num = 15; Kind = 'gantt';         Features = @('bracket', 'gantt-weeks')
            Menu = 'Inserir gráfico > Mais tipos > Gantt; Setas > Colchete (Gantt)'
-           Title = 'Reformas do trimestre (Gantt em semanas, com colchete)'
+           Title = 'Reformas de março a maio (Gantt em semanas, com colchete)'
            Desc = 'Cronograma curto: a escala do tempo fica em semanas. O colchete agrupa as duas primeiras obras; a linha sem data de fim vira um marco.' }
         @{ Num = 16; Kind = 'gantt';         Features = @('gantt-months')
            Menu = 'Inserir gráfico > Mais tipos > Gantt'
@@ -110,11 +110,11 @@ function Get-TqqDemoCoverage {
         @{ Num = 22; Kind = 'stacked';       Features = @('cagr')
            Menu = 'Inserir gráfico > Colunas > Colunas empilhadas; Setas > Seta CAGR'
            Title = 'Crescimento 2024-2025 de três departamentos (seta CAGR)'
-           Desc = 'A seta mostra a taxa de crescimento anual composta entre os totais das duas colunas. A tabela soma a planilha Dados (SOMASES).' }
+           Desc = 'A seta mostra a taxa de crescimento anual composta entre os totais das duas colunas. A seta é desenhada pelo ThinQQ: sem ele, continua onde está se os números mudarem.' }
         @{ Num = 23; Kind = 'stacked100';    Features = @('roundsum', 'roundrange')
            Menu = 'Inserir gráfico > Colunas > Colunas 100%; Mais opções > Rótulos com soma consistente; Mais opções > Arredondar intervalo...'
            Title = 'Participações que somam 100% (soma consistente no gráfico e na tabela)'
-           Desc = 'Os rótulos de cada coluna somam exatamente 100%. Abaixo, "Arredondar intervalo" grava fórmulas que fazem o mesmo numa tabela comum: compare com o arredondamento simples.' }
+           Desc = 'Os rótulos de cada coluna somam exatamente 100%; compare com o exemplo 13, a mesma tabela sem a soma consistente, onde Nordeste e Centro-Oeste somam 101% e Norte 99%. Abaixo, "Arredondar intervalo" grava fórmulas que fazem o mesmo numa tabela comum (compare com o arredondamento simples).' }
         @{ Num = 24; Kind = 'stacked';       Features = @('break')
            Menu = 'Inserir gráfico > Colunas > Colunas empilhadas; Mais opções > Corte de eixo...'
            Title = 'Cimento e argamassa dominam as vendas: corte de eixo'
