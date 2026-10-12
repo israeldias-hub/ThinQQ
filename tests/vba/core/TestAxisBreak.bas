@@ -974,3 +974,28 @@ Public Sub Test_Break_VLineAboveLimit_Notice()
     AssertEqual "", Core_LastNotice(), "media abaixo do corte: sem aviso"
     Teardown wb
 End Sub
+
+' Revisao final: "Remover corte de eixo" consulta a tag propria "breakoff": ativo so num grafico que tem corte (opcao vbreak), cinza sem corte,
+' num tipo sem corte e sem grafico.
+Public Sub Test_Core_Supports_BreakOff_OnlyWithCut()
+    Dim wb As Workbook, rng As Range, cht As Chart
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "clustered"
+    Set cht = Core_ActiveChart()
+    AssertTrue Core_Supports("break"), "corte de eixo ativo"
+    AssertFalse Core_Supports("breakoff"), "sem corte: Remover corte de eixo cinza"
+    Core_SetAxisBreakAt 50
+    AssertEqual "50", Registry_GetOption(cht, "vbreak", ""), "corte aplicado"
+    AssertTrue Core_Supports("breakoff"), "com corte: Remover corte de eixo ativo"
+    Core_RemoveAxisBreak
+    AssertFalse Core_Supports("breakoff"), "corte removido: cinza de novo"
+    rng.Worksheet.Range("A1").Select
+    AssertFalse Core_Supports("breakoff"), "sem grafico"
+    rng.Worksheet.ChartObjects(1).Delete
+    CalcSheet_Cleanup wb
+    rng.Select
+    Core_Insert "pie"
+    AssertFalse Core_Supports("breakoff"), "pizza"
+    Teardown wb
+End Sub

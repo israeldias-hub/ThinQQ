@@ -141,7 +141,7 @@
             <menuSeparator id="msepBreak"/>
             <button id="btnBreak" label="Corte de eixo..." image="tqq_break16" tag="break" onAction="Rx_OnAxisBreak" getEnabled="Rx_GetEnabled"
                     screentip="Corte de eixo" supertip="Corta o eixo de valores num valor que você informa: as colunas maiores ficam cortadas, com uma marca, e o total continua no rótulo."/>
-            <button id="btnBreakOff" label="Remover corte de eixo" tag="break" onAction="Rx_OnAxisBreakOff" getEnabled="Rx_GetEnabled"
+            <button id="btnBreakOff" label="Remover corte de eixo" tag="breakoff" onAction="Rx_OnAxisBreakOff" getEnabled="Rx_GetEnabled"
                     screentip="Remover corte de eixo"/>
             <menuSeparator id="msepRound"/>
             <!-- Arredondar intervalo age sobre as celulas selecionadas (nao sobre o grafico): sem getEnabled, sempre ativo. -->

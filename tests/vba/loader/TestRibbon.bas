@@ -212,10 +212,15 @@ Public Sub Test_Ribbon_Tags_MatchCoreKeys()
         Next
         AssertTrue found, "nenhum tipo suporta a anotacao " & t
     Next
-    ' Botoes com tag de recurso (Corte de eixo, Remover corte de eixo): a tag e um recurso da matriz (Core_Supports decide o cinza)
+    ' Botoes com tag de recurso (Corte de eixo): a tag e um recurso da matriz (Core_Supports decide o cinza); "breakoff" (Remover corte de
+    ' eixo) e uma tag de ESTADO que o core conhece (ativo so com corte; aqui, sem grafico, cinza)
     For Each n In d.SelectNodes("//u:button[@tag][not(@onAction='Rx_OnInsert')][not(@onAction='Rx_OnAnnotation')]")
         t = n.Attributes.getNamedItem("tag").Text
-        AssertTrue Len(CStr(Loader_RunCore("Kinds_FeatureLabel", t))) > 0, "recurso desconhecido do core: " & t
+        If t = "breakoff" Then
+            AssertFalse CBool(Loader_RunCore("Core_Supports", t)), "Remover corte de eixo sem grafico"
+        Else
+            AssertTrue Len(CStr(Loader_RunCore("Kinds_FeatureLabel", t))) > 0, "recurso desconhecido do core: " & t
+        End If
         AssertEqual "Rx_GetEnabled", AttrText(n, "getEnabled"), "botao com tag de recurso sem getEnabled: " & NodeId(n)
     Next
 End Sub
@@ -245,7 +250,7 @@ Public Sub Test_Ribbon_Menus_Structure()
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuArrows']/u:button[@tag='bracket']") Is Nothing
     AssertEqual "Rx_GetEnabled", d.SelectSingleNode("//u:menu[@id='mnuArrows']").Attributes.getNamedItem("getEnabled").Text
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnBreak'][@tag='break'][@onAction='Rx_OnAxisBreak'][@getEnabled='Rx_GetEnabled']") Is Nothing
-    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnBreakOff'][@tag='break'][@onAction='Rx_OnAxisBreakOff']") Is Nothing
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnBreakOff'][@tag='breakoff'][@onAction='Rx_OnAxisBreakOff']") Is Nothing
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnRoundRange'][@onAction='Rx_OnRoundRange']") Is Nothing
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnRoundRange']/@getEnabled") Is Nothing, "Arredondar intervalo age sobre celulas: sempre ativo"
     AssertEqual "Rx_GetEnabled", d.SelectSingleNode("//u:menu[@id='mnuPpt']").Attributes.getNamedItem("getEnabled").Text
@@ -268,7 +273,7 @@ Public Sub Test_Ribbon_Phase3_LabelsAndTips()
     Set d = LoadRibbon()
     spec = Array("btnButterfly|Borboleta|butterfly", "btnScatter|Dispersão|scatter", "btnBubble|Bolhas|bubble", _
                  "tglRoundSum|Rótulos com soma consistente|roundsum", "tglTrend|Linha de tendência|trend", "tglQuad|Quadrantes (médias)|quad", _
-                 "btnBreak|Corte de eixo...|break", "btnBreakOff|Remover corte de eixo|break", "btnRoundRange|Arredondar intervalo...|", _
+                 "btnBreak|Corte de eixo...|break", "btnBreakOff|Remover corte de eixo|breakoff", "btnRoundRange|Arredondar intervalo...|", _
                  "mnuPpt|PowerPoint|", "btnPptImage|Copiar como imagem|", "btnPptChart|Copiar como gráfico vinculado|")
     For i = LBound(spec) To UBound(spec)
         p = Split(spec(i), "|")
@@ -532,6 +537,7 @@ Public Sub Test_Ribbon_Enabled_FollowsCapabilityOfSelectedChart()
     InsertAndSelect ws, "A1:B5", "stacked"
     AssertTrue Rx_IsEnabledFor("roundsum"), "colunas empilhadas: soma consistente"
     AssertTrue Rx_IsEnabledFor("break"), "colunas empilhadas: corte de eixo"
+    AssertFalse Rx_IsEnabledFor("breakoff"), "sem corte: Remover corte de eixo cinza"
     AssertFalse Rx_IsEnabledFor("quad")
     ws.Range("A1").Select
     Loader_RunCore "Watchers_NotifySelection"

@@ -111,6 +111,8 @@ Public Function Core_Supports(feature As String) As Boolean
     If c Is Nothing Then Exit Function
     If feature = "changesource" Then
         Core_Supports = True                                  ' reservado: nenhum controle da faixa consulta "changesource" hoje (Alterar dados vale para todo grafico ThinQQ)
+    ElseIf feature = "breakoff" Then
+        Core_Supports = Kinds_SupportsChart(c, "break") And Len(Registry_GetOption(c, "vbreak", "")) > 0      ' Remover corte de eixo: so com corte
     Else
         Core_Supports = Kinds_SupportsChart(c, feature)       ' inclui a regra da legenda da cascata (so com varias series)
     End If
