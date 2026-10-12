@@ -644,3 +644,29 @@ Public Sub Test_Bfly_OutsideLabel_UserDragKept_TotalReset()
     AssertEqual xlLabelPositionRight, tot.Points(2).DataLabel.Position, "rotulos desligados: total na posicao automatica"
     Teardown wb
 End Sub
+
+' Onda A, rodada 2 (menor 2): a devolucao do total a posicao automatica e feita pela PROPRIA borboleta (sem o refresh, que tambem a faria por
+' Labels_RefreshPositions): Bfly_SyncThinLabels quando o rotulo de fora some e Bfly_SetLabels ao desligar os rotulos, chamados direto.
+Public Sub Test_Bfly_OutsideLabel_TotalReset_WithoutRefresh()
+    Dim wb As Workbook, ws As Worksheet, cht As Chart, sB As Series, tot As Series, en As Long, es As String, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set ws = TinyFixture(wb)
+    ws.Range("A1:C4").Select
+    Core_Insert "butterfly"
+    Set cht = Core_ActiveChart()
+    Set sB = Bfly_SideSeries(cht, 2): Set tot = Chart_FindSeries(cht, "tqq_total")
+    Application.EnableEvents = False                            ' nenhum refresh por evento
+    AssertEqual xlLabelPositionCustom, tot.Points(2).DataLabel.Position, "pre-condicao: total depois do rotulo de fora (manual)"
+    sB.Points(2).HasDataLabel = False                           ' o usuario apaga o rotulo de fora
+    Bfly_SyncThinLabels cht
+    AssertEqual xlLabelPositionRight, tot.Points(2).DataLabel.Position, "Bfly_SyncThinLabels devolve o total"
+    Bfly_SetLabels cht, True                                    ' religa: o 20 volta fora e o total sai de novo
+    AssertEqual xlLabelPositionCustom, tot.Points(2).DataLabel.Position, "religado: total depois do rotulo de fora"
+    Bfly_SetLabels cht, False
+    AssertEqual xlLabelPositionRight, tot.Points(2).DataLabel.Position, "Bfly_SetLabels (desligar) devolve o total"
+Cleanup:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Application.EnableEvents = True
+    Teardown wb
+    If en <> 0 Then Err.Raise en, es, ed
+End Sub
