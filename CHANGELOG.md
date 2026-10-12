@@ -4,6 +4,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+### Adicionado
+- Exemplo de cascata com seta de diferença nos Exemplos (exemplo 2) e na pasta de demonstração (E05), com o passo a passo no tutorial.
+
 ## [1.2.0] - 2026-10-12
 
 ### Adicionado

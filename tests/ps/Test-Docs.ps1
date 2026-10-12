@@ -256,7 +256,7 @@ Check ($cl -match "(?m)^## \[$([regex]::Escape($ver))\] - \d{4}-\d{2}-\d{2}") "C
 Check ($cl -match '(?m)^## \[1\.2\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG tem a seção 1.2.0'
 Check ($cl -match '(?m)^## \[1\.1\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG tem a seção 1.1.0'
 Check ($cl -match '(?m)^## \[1\.0\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG mantém a seção 1.0.0'
-Check ($cl -match '(?m)^## \[Não lançado\]\s+## \[') 'CHANGELOG mantém a seção [Não lançado] vazia no topo'
+Check ($cl.IndexOf('## [Não lançado]') -ge 0 -and $cl.IndexOf('## [Não lançado]') -lt $cl.IndexOf('## [1.2.0]')) 'CHANGELOG tem a seção [Não lançado] no topo, antes das versões (pode ter entradas)'
 
 # ---- versões: a Fase 3 é a 1.2.0 (loader e core); o tutorial, o README, o LEIA-ME e as notas seguem o version.json
 $vj = (Read-Utf8 (Join-Path $RepoRoot 'version.json')) | ConvertFrom-Json
