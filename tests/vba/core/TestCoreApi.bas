@@ -1634,3 +1634,47 @@ Public Sub Test_Core_CopiedSheet_ChartSharingId_NotifiedOnce_AndRebuildSeparates
     AssertEqual 0, Core_NoticeCount(), "sem copia, sem aviso"
     Teardown wb
 End Sub
+
+' Onda A, item I: o formato inicial (numfmt) vem da primeira celula de valor da tabela: 1 casa -> dec1, 2 casas -> dec2, percentual -> pct0
+' ou pct1 pelas casas, senao int. Os rotulos mostram o numero como a tabela (texto derivado de Format$, na localidade da maquina). Um tipo que
+' escolhe o proprio formato (Mekko %: participacoes em pct0) nao muda; o usuario continua podendo trocar.
+Public Sub Test_Core_Insert_InitialNumFmt_FromFirstValueCell()
+    Dim wb As Workbook, ws As Worksheet, k As Variant, f As Variant, want As Variant, i As Long, cht As Chart, txt As String, pt As String
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("B2").Value = 100.27
+    f = Array("0.0", "#,##0.00", "0%", "0.0%", "General", "#,##0")
+    want = Array("dec1", "dec2", "pct0", "pct1", "int", "int")
+    For Each k In Array("stacked", "clustered", "line", "barstacked", "waterfall", "pie")
+        For i = 0 To UBound(f)
+            ws.Range("B2:C5").NumberFormat = f(i)
+            ws.Range("A1:C5").Select
+            Core_Insert CStr(k)
+            Set cht = Core_ActiveChart()
+            AssertEqual want(i), Registry_GetOption(cht, "numfmt"), k & ": formato '" & f(i) & "'"
+            If k = "stacked" Or k = "clustered" Or k = "line" Then
+                txt = cht.SeriesCollection(1).Points(1).DataLabel.Text
+                Select Case want(i)
+                    Case "dec1": pt = Format$(100.27, "#,##0.0")
+                    Case "dec2": pt = Format$(100.27, "#,##0.00")
+                    Case "pct0": pt = Format$(100.27, "0%")
+                    Case "pct1": pt = Format$(100.27, "0.0%")
+                    Case Else: pt = Format$(100.27, "#,##0")
+                End Select
+                AssertEqual pt, txt, k & ": rotulo no formato da tabela ('" & f(i) & "')"
+            End If
+            ws.ChartObjects(1).Delete
+            CalcSheet_Cleanup wb
+        Next
+    Next
+    ws.Range("B2:C5").NumberFormat = "0.0"
+    ws.Range("A1:C5").Select
+    Core_Insert "mekko"
+    AssertEqual "pct0", Registry_GetOption(Core_ActiveChart(), "numfmt"), "Mekko (%): participacoes em pct0"
+    ws.ChartObjects(1).Delete
+    CalcSheet_Cleanup wb
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    Core_SetOption "numfmt", "int"
+    AssertEqual "int", Registry_GetOption(Core_ActiveChart(), "numfmt"), "o usuario troca depois"
+    Teardown wb
+End Sub

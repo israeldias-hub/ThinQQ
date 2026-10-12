@@ -143,6 +143,7 @@ Public Sub Core_Insert(kind As String)
     Application.ScreenUpdating = False
     CalcSheet_Cleanup ws.Parent
     Set co = Kinds_Insert(ws, data, kind)
+    ApplySourceNumFmt co.Chart, kind, data           ' formato inicial dos rotulos pelo formato da tabela (1a celula de valor)
     Application.ScreenUpdating = prevSU
     Watchers_Rehook
     co.Select
@@ -163,6 +164,69 @@ Fail:
     Else
         Errors_HandleErr "Core_Insert(" & kind & ")", en, ed
     End If
+End Sub
+
+' Chave de numfmt que corresponde a um codigo de formato de celula (ingles): percentual -> pct0 (sem casas) ou pct1; 1 casa -> dec1; 2 ou
+' mais -> dec2; senao (Geral, inteiro, data, texto) int. So a primeira secao conta; textos entre aspas e colchetes ([Red], [$R$-416]) sao
+' ignorados.
+Private Function NumFmtKeyFromCode(code As String) As String
+    Dim sec As String, i As Long, ch As String, inQ As Boolean, inB As Boolean, clean As String, p As Long, d As Long
+    On Error GoTo Fail
+    NumFmtKeyFromCode = "int"
+    If Len(code) = 0 Or code = "General" Or code = "@" Then Exit Function
+    sec = Split(code & ";", ";")(0)
+    For i = 1 To Len(sec)
+        ch = Mid$(sec, i, 1)
+        If ch = """" And Not inB Then
+            inQ = Not inQ
+        ElseIf ch = "[" And Not inQ Then
+            inB = True
+        ElseIf ch = "]" And inB Then
+            inB = False
+        ElseIf Not inQ And Not inB Then
+            clean = clean & ch
+        End If
+    Next
+    If clean Like "*[dDmMyYhHsS]*" Then Exit Function              ' data ou hora
+    p = InStr(clean, ".")
+    If p > 0 Then
+        For i = p + 1 To Len(clean)
+            ch = Mid$(clean, i, 1)
+            If ch = "0" Or ch = "#" Or ch = "?" Then d = d + 1 Else Exit For
+        Next
+    End If
+    If InStr(clean, "%") > 0 Then
+        NumFmtKeyFromCode = IIf(d = 0, "pct0", "pct1")
+    ElseIf d = 1 Then
+        NumFmtKeyFromCode = "dec1"
+    ElseIf d >= 2 Then
+        NumFmtKeyFromCode = "dec2"
+    End If
+    Exit Function
+Fail:
+    NumFmtKeyFromCode = "int"
+End Function
+
+' Formato inicial (numfmt) do grafico recem-inserido pelo formato da primeira celula NUMERICA da primeira coluna de valores (a primeira celula
+' se nenhuma for numerica): uma tabela com 1 casa decimal ou em % nao vira rotulos inteiros. So nos tipos com numfmt na matriz e so quando o
+' tipo nasceu com "int" (o Mekko (%) escolhe pct0 para as participacoes). O usuario continua trocando o formato depois. Uma falha aqui nao
+' desfaz a insercao: fica registrada e o grafico mantem "int". Nunca propaga erro.
+Private Sub ApplySourceNumFmt(cht As Chart, kind As String, data As clsChartData)
+    Dim i As Long, c As Range, v As Variant, key As String
+    On Error GoTo Fail
+    If Not Kinds_Supports(kind, "numfmt") Then Exit Sub
+    If Registry_GetOption(cht, "numfmt", "int") <> "int" Then Exit Sub
+    For i = 1 To data.CategoryCount
+        v = data.ValueCell(i, 1).Value2
+        If Not IsError(v) And Not IsEmpty(v) And VarType(v) <> vbString And VarType(v) <> vbBoolean Then Set c = data.ValueCell(i, 1): Exit For
+    Next
+    If c Is Nothing Then Set c = data.ValueCell(1, 1)
+    If IsNull(c.NumberFormat) Then Exit Sub
+    key = NumFmtKeyFromCode(CStr(c.NumberFormat))
+    If key <> "int" Then ApplyOption cht, "numfmt", key
+    Exit Sub
+Fail:
+    Errors_Log "Core_Insert/numfmt inicial" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
 
 ' Pizza e rosca mostram uma serie so: a primeira coluna de valores. Com mais colunas na tabela as demais sao ignoradas e o usuario e avisado
