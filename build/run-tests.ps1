@@ -145,10 +145,10 @@ if (-not $timedOut) {
     if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
 }
 if (-not $timedOut) {
-    Write-Host '=== instalador (pwsh e Windows PowerShell 5.1) + guarda de release ==='
+    Write-Host '=== instalador (pwsh e Windows PowerShell 5.1) + guarda de release + publicar-release (sem rede e sem Excel) ==='
     $psExes = @((Get-Process -Id $PID).Path, (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'))
     foreach ($exe in $psExes) {
-        foreach ($tst in @('Test-Installer.ps1', 'Test-ReleaseGuard.ps1')) {
+        foreach ($tst in @('Test-Installer.ps1', 'Test-ReleaseGuard.ps1', 'Test-PublishRelease.ps1')) {
             $global:LASTEXITCODE = 0
             & $exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "tests\ps\$tst")
             if ($LASTEXITCODE -ne 0) { Write-Host "FALHOU: $tst em $exe" -ForegroundColor Red; $totalFailed += 1 }

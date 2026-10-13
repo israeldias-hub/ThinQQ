@@ -302,6 +302,18 @@ Check ($readme -match [regex]::Escape($demoRange) -and $html -match [regex]::Esc
 # Parâmetros do release citados existem no script
 $rel = Read-Utf8 (Join-Path $RepoRoot 'build\release.ps1')
 foreach ($p in 'Version', 'BaseUrl', 'PublishTo') { Check ($rel -match "\`$$p" -and $readme -match "-$p") "README e release.ps1 concordam no parâmetro -$p" }
+# Publicação automatizada (publicar-release.bat + tools/Publish-Release.ps1): README e release/README.md descrevem o fluxo em duas etapas,
+# os parâmetros citados existem no script, e o procedimento manual antigo fica como alternativa
+$relReadme = Read-Utf8 (Join-Path $RepoRoot 'release\README.md')
+$pubScriptPath = Join-Path $RepoRoot 'tools\Publish-Release.ps1'
+Check ((Test-Path -LiteralPath $pubScriptPath) -and (Test-Path -LiteralPath (Join-Path $RepoRoot 'publicar-release.bat'))) 'publicar-release.bat e tools/Publish-Release.ps1 existem'
+$pubScript = if (Test-Path -LiteralPath $pubScriptPath) { Read-Utf8 $pubScriptPath } else { '' }
+foreach ($doc in @(@{ n = 'README.md'; t = $readme }, @{ n = 'release/README.md'; t = $relReadme })) {
+    foreach ($t in 'publicar-release.bat', 'tools/Publish-Release.ps1', 'publicar-release.bat x.y.z publicar', '-DryRun', '-Draft', 'alternativa manual', 'git credential fill') {
+        Check ($doc.t -match [regex]::Escape($t)) "$($doc.n) cita '$t' (publicação automatizada)"
+    }
+}
+foreach ($p in 'Draft', 'DryRun', 'NoBrowser', 'RunTests') { Check ($pubScript -match "\[switch\]\`$$p" -and $readme -match "-$p") "README e Publish-Release.ps1 concordam no parâmetro -$p" }
 
 # ---- CHANGELOG
 $cl = Read-Utf8 $changelogPath
@@ -312,12 +324,13 @@ Check ($cl -match '(?m)^## \[1\.1\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG tem a se
 Check ($cl -match '(?m)^## \[1\.0\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG mantém a seção 1.0.0'
 Check ($cl.IndexOf('## [Não lançado]') -ge 0 -and $cl.IndexOf('## [Não lançado]') -lt $cl.IndexOf('## [1.2.0]')) 'CHANGELOG tem a seção [Não lançado] no topo, antes das versões (pode ter entradas)'
 
-# ---- versões: a Fase 3 é a 1.2.0 (loader e core); o tutorial, o README, o LEIA-ME e as notas seguem o version.json
+# ---- versões: loader e core em x.y.z, a partir da 1.2.0 (a primeira publicada); o rodapé do tutorial e o exemplo do LEIA-ME seguem o
+# version.json (o publicar-release.bat os atualiza junto com o version.json e o CHANGELOG)
 $vj = (Read-Utf8 (Join-Path $RepoRoot 'version.json')) | ConvertFrom-Json
-Check ($vj.loader -eq '1.2.0') 'loader 1.2.0'
-Check ($ver -eq '1.2.0') 'core 1.2.0'
+Check ([string]$vj.loader -match '^\d+\.\d+\.\d+$' -and [string]$vj.core -match '^\d+\.\d+\.\d+$') "version.json: loader e core em x.y.z ($($vj.loader), $($vj.core))"
+Check (([version]$vj.core) -ge [version]'1.2.0' -and ([version]$vj.loader) -ge [version]'1.2.0') 'version.json: loader e core a partir da 1.2.0'
 Check ($html -match "ThinQQ $([regex]::Escape($ver))\.") "rodapé do tutorial mostra a versão $ver"
-Check ($readme -match "v$([regex]::Escape($ver))") "README cita a release v$ver"
+Check ($readme -match 'v1\.2\.0') 'README cita a release v1.2.0 (a primeira publicada)'
 Check ($readme -notmatch 'v1\.0\.0') 'README não cita mais a release v1.0.0'
 Check ((Read-Utf8 $leiamePath) -match [regex]::Escape("versions\$ver\")) "LEIA-ME cita a pasta versions\$ver\ no exemplo"
 $notesLines = @((Read-Utf8 (Join-Path $RepoRoot 'release\notes.txt')) -split "\r?\n" | Where-Object { $_.Trim().Length -gt 0 })
