@@ -9,7 +9,9 @@ rem        publicar-release.bat 1.2.1 publicar  (etapa 2: depois de mesclar o pu
 rem                                              request, cria a release e publica)
 rem
 rem  - Opcoes extras sao repassadas ao PowerShell: -Draft (a etapa 2 termina em
-rem    rascunho), -NoBrowser, -RunTests (suite completa antes do build), -DryRun.
+rem    rascunho), -NoBrowser, -RunTests (suite completa antes do build), -DryRun,
+rem    -AllowMainChanges (a etapa 2 publica mesmo com a main alterada depois da
+rem    preparacao; a tag fica na main atual).
 rem  - Para ensaiar sem gravar nem enviar nada:  set DRYRUN=1  e rode o script.
 rem  - Para nao pausar no fim (automacao):       set NOPAUSE=1
 rem  - O login e o do Git desta maquina (Git Credential Manager); o token nunca

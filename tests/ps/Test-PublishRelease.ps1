@@ -679,7 +679,7 @@ Write-Output 'FIM-DO-INVOCADOR'
     [void](Invoke-WorkGit @('commit', '-q', '-am', 'release squash editado')); [void](Invoke-WorkGit @('push', '-q', 'origin', 'main'))
     Reset-FakeGitHub
     $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft }
-    Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'squash' -and $s.Message -match 'Alternativa manual' -and $s.Message -match 'release-1\.2\.1' -and $script:gh.Requests.Count -eq 0) "squash com conteudo diferente: recusa especifica ($($s.Message))"
+    Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'squash' -and $s.Message -match 'ja anuncia' -and $s.Message -match 'janela' -and $s.Message -notmatch 'AllowMainChanges' -and $s.Message -match 'Alternativa manual' -and $s.Message -match 'release-1\.2\.1' -and $script:gh.Requests.Count -eq 0) "squash com conteudo diferente: recusa especifica ($($s.Message))"
     [void](Invoke-WorkGit @('reset', '-q', '--hard', $mainPre)); [void](Invoke-WorkGit @('push', '-q', '-f', 'origin', 'main'))
     [void](Invoke-WorkGit @('merge', '-q', '--no-ff', '-m', 'Merge pull request #9 from israeldias-hub/release/v1.2.1', 'release/v1.2.1'))
     [void](Invoke-WorkGit @('push', '-q', 'origin', 'main'))
@@ -703,7 +703,7 @@ Write-Output 'FIM-DO-INVOCADOR'
     [void](Invoke-WorkGit @('add', 'depois.txt')); [void](Invoke-WorkGit @('commit', '-q', '-m', 'outro PR')); [void](Invoke-WorkGit @('push', '-q', 'origin', 'main'))
     Reset-FakeGitHub
     $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft }
-    Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'depois\.txt' -and $s.Message -match 'AllowMainChanges' -and $script:gh.Requests.Count -eq 0) "origin/main mudou depois da preparacao: recusa ($($s.Message))"
+    Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'depois\.txt' -and $s.Message -match 'AllowMainChanges' -and $s.Message -match 'ja anuncia' -and $s.Message -match 'janela' -and $script:gh.Requests.Count -eq 0) "origin/main mudou depois da preparacao: recusa ($($s.Message))"
     $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft -AllowMainChanges }
     Check (-not $s.Failed -and $s.Output -match 'AVISO' -and $s.Output -match 'depois\.txt') "com -AllowMainChanges: segue com aviso ($($s.Message))"
     [void](Invoke-WorkGit @('revert', '--no-edit', 'HEAD')); [void](Invoke-WorkGit @('push', '-q', 'origin', 'main'))
@@ -744,7 +744,7 @@ Write-Output 'FIM-DO-INVOCADOR'
     $batText = [Text.Encoding]::ASCII.GetString($batBytes)
     Check (@($batBytes | Where-Object { $_ -gt 127 }).Count -eq 0) 'publicar-release.bat: so ASCII'
     Check ($batText.Contains("`r`n") -and -not ($batText -match "[^\r]`n")) 'publicar-release.bat: CRLF'
-    foreach ($t in 'cd /d "%~dp0"', 'powershell -NoProfile -ExecutionPolicy Bypass -File tools\Publish-Release.ps1 %*', 'if not defined NOPAUSE pause', 'if defined DRYRUN', 'exit /b %RC%') {
+    foreach ($t in 'cd /d "%~dp0"', '-AllowMainChanges', 'powershell -NoProfile -ExecutionPolicy Bypass -File tools\Publish-Release.ps1 %*', 'if not defined NOPAUSE pause', 'if defined DRYRUN', 'exit /b %RC%') {
         Check ($batText.Contains($t)) "publicar-release.bat contem: $t"
     }
     $r4 = Invoke-RpProcess $env:ComSpec @('/c', $bat) -Environment @{ NOPAUSE = '1' }

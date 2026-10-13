@@ -1047,8 +1047,9 @@ function Invoke-ReleasePublish {
         if (-not $same) {
             throw (New-RpError ("O pull request da branch release/$tag parece ter sido mesclado por 'Squash and merge' ou 'Rebase and merge' (o commit de preparacao $short nao esta na origin/main), " +
                 "e os arquivos da versao na origin/main (" + ($script:RpVersionFiles -join ', ') + ") nao sao os do commit de preparacao. Nada foi publicado. " +
-                "Publique pela 'Alternativa manual' do README (secao Publicar uma versao) usando os arquivos de $StateDir, ou prepare uma versao nova; " +
-                "use sempre 'Create a merge commit' no pull request da versao.") $pre)
+                "Atencao: a main ja anuncia a versao nova (o release/manifest.json dela e o desta preparacao), entao ate a versao ser publicada quem tentar " +
+                "atualizar recebe erro de download; publicar e o que fecha essa janela. Publique pela 'Alternativa manual' do README (secao Publicar uma versao) " +
+                "usando os arquivos de $StateDir (ou prepare uma versao nova e publique-a logo); use sempre 'Create a merge commit' no pull request da versao.") $pre)
         }
         Write-Host "O pull request foi mesclado por squash/rebase: o commit de preparacao ($short) nao esta na origin/main, mas os arquivos da versao sao identicos; seguindo." -ForegroundColor Yellow
     } elseif ($anc.Code -ne 0) {
@@ -1066,7 +1067,9 @@ function Invoke-ReleasePublish {
         $list = (@($changedSince | Select-Object -First 10) -join ', ') + $(if ($changedSince.Count -gt 10) { ', ...' } else { '' })
         if (-not $AllowMainChanges) {
             throw (New-RpError ("A origin/main mudou depois da preparacao ($($changedSince.Count) arquivo(s): $list): a tag $tag apontaria para um codigo diferente do que gerou os arquivos. " +
-                "Prepare uma versao nova, ou rode com -AllowMainChanges para publicar assim mesmo (a tag fica na origin/main atual).") $pre)
+                "Atencao: a main ja anuncia a versao nova (o release/manifest.json dela e o desta preparacao), entao ate a versao ser publicada quem tentar " +
+                "atualizar recebe erro de download; publicar e o que fecha essa janela. Rode com -AllowMainChanges para publicar assim mesmo (a tag fica na " +
+                "origin/main atual; os arquivos sao os da preparacao), ou publique pela 'Alternativa manual' do README.") $pre)
         }
         Write-Host "AVISO (-AllowMainChanges): a origin/main mudou depois da preparacao ($list); a tag $tag vai para a origin/main atual, os arquivos sao os da preparacao." -ForegroundColor Yellow
     }
