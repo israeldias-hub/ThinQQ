@@ -13,6 +13,7 @@ $script:RpUnreleased = '## [N' + [char]0xE3 + 'o lan' + [char]0xE7 + 'ado]'
 $script:RpAllowedHosts = @('api.github.com', 'uploads.github.com')
 $script:RpApiVersion = '2022-11-28'
 $script:RpUserAgent = 'ThinQQ-Publish-Release'
+$script:RpTestAllowLoopback = $false
 
 # ---------------------------------------------------------------------------------------------------------------------------------------
 # Erros: Kind 'precondicao' (o script sai com 2: nada foi alterado) ou 'falha' (sai com 1). HttpStatus quando veio da API.
@@ -413,33 +414,60 @@ function Get-GitHubCredential([string]$RepoRoot, [string]$Repo, [scriptblock]$Ru
     } finally { $res = $null }
 }
 
+# Registros de erro: o Invoke-WebRequest do pwsh 7 poe a requisicao (com o cabecalho Authorization) dentro da excecao e do TargetObject do
+# ErrorRecord, e o PowerShell guarda em $Error ate os erros tratados num catch. Get-RpErrorMark tira uma foto de $Error e
+# Remove-RpNewErrors apaga tudo o que entrou depois dela (comparacao por referencia).
+function Get-RpErrorMark {
+    $set = New-Object 'System.Collections.Generic.HashSet[object]'
+    foreach ($e in @($global:Error)) { [void]$set.Add($e) }
+    return ,$set
+}
+
+function Remove-RpNewErrors($Mark) {
+    foreach ($e in @($global:Error)) { if (-not $Mark.Contains($e)) { $global:Error.Remove($e) } }
+}
+
 # ---------------------------------------------------------------------------------------------------------------------------------------
 # API do GitHub. O transporte e um scriptblock param($Request) -> @{ Status = int; Content = byte[] ou string }, onde $Request e
 # @{ Method; Uri; Headers; Body (byte[] ou $null); ContentType; UserAgent }. O padrao usa Invoke-WebRequest sem seguir redirecionamentos.
+# Status HTTP de erro NUNCA viram excecao: pwsh 7 usa -SkipHttpErrorCheck; no 5.1 a WebException e lida e descartada. Uma falha de rede vira
+# uma Exception NOVA so com a mensagem (sem o objeto da requisicao), e os registros que o Invoke-WebRequest deixou em $Error sao apagados.
 $script:RpDefaultTransport = {
     param($Request)
-    if ($PSVersionTable.PSVersion.Major -lt 6) {
+    $isCore = $PSVersionTable.PSVersion.Major -ge 6
+    if (-not $isCore) {
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     }
     $p = @{ Method = $Request.Method; Uri = $Request.Uri; Headers = $Request.Headers; UseBasicParsing = $true; MaximumRedirection = 0
         TimeoutSec = 600; UserAgent = $Request.UserAgent; ErrorAction = 'Stop' }
+    if ($isCore) { $p.SkipHttpErrorCheck = $true }
     if ($null -ne $Request.Body) { $p.Body = [byte[]]$Request.Body }
     if ($Request.ContentType) { $p.ContentType = $Request.ContentType }
+    $secret = ''
+    if ($Request.Headers -and $Request.Headers.ContainsKey('Authorization') -and ([string]$Request.Headers['Authorization']) -match '^\S+\s+(.+)$') { $secret = $Matches[1] }
+    $mark = Get-RpErrorMark
+    $failure = $null
     try {
-        $r = Invoke-WebRequest @p
-        return @{ Status = [int]$r.StatusCode; Content = $r.RawContentStream.ToArray() }
-    } catch {
-        $resp = $null
-        if ($_.Exception.PSObject.Properties.Name -contains 'Response') { $resp = $_.Exception.Response }
-        if ($null -eq $resp) { throw }
-        $status = [int]$resp.StatusCode
-        $text = ''
-        if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $text = $_.ErrorDetails.Message }
-        elseif ($resp -is [Net.HttpWebResponse]) {
-            try { $sr = New-Object IO.StreamReader($resp.GetResponseStream()); $text = $sr.ReadToEnd(); $sr.Dispose() } catch { $text = '' }
+        try {
+            $r = Invoke-WebRequest @p
+            return @{ Status = [int]$r.StatusCode; Content = $r.RawContentStream.ToArray() }
+        } catch {
+            $resp = $null
+            if (-not $isCore -and $_.Exception -is [Net.WebException]) { $resp = $_.Exception.Response }
+            if ($resp -is [Net.HttpWebResponse]) {
+                $text = ''
+                try { $sr = New-Object IO.StreamReader($resp.GetResponseStream()); $text = $sr.ReadToEnd(); $sr.Dispose() } catch { $text = '' }
+                $status = [int]$resp.StatusCode
+                try { $resp.Close() } catch { }
+                return @{ Status = $status; Content = $text }
+            }
+            $failure = Protect-RpSecret ([string]$_.Exception.Message) $secret
         }
-        return @{ Status = $status; Content = $text }
+    } finally {
+        Remove-RpNewErrors $mark
+        $secret = $null
     }
+    throw (New-Object System.Exception($failure))
 }
 
 function Get-RpContentBytes($Content) {
@@ -473,7 +501,10 @@ function Invoke-GitHubApi {
     )
     if (-not $Transport) { $Transport = $script:RpDefaultTransport }
     $u = $null
-    if (-not [uri]::TryCreate($Uri, [UriKind]::Absolute, [ref]$u) -or $u.Scheme -ne 'https' -or $script:RpAllowedHosts -notcontains $u.Host.ToLowerInvariant()) {
+    $okHost = [uri]::TryCreate($Uri, [UriKind]::Absolute, [ref]$u) -and $u.Scheme -eq 'https' -and $script:RpAllowedHosts -contains $u.Host.ToLowerInvariant()
+    # chave SO de teste (Test-PublishRelease, servidor HttpListener local): nunca vem de parametro, ambiente ou linha de comando
+    if (-not $okHost -and $script:RpTestAllowLoopback -eq $true -and $u -and $u.Scheme -eq 'http' -and $u.Host -eq '127.0.0.1') { $okHost = $true }
+    if (-not $okHost) {
         throw (New-RpError "Chamada recusada: so https://api.github.com e https://uploads.github.com sao permitidos ($Method $Uri)." 'falha')
     }
     $where = "$Method $($u.AbsolutePath)"
@@ -488,9 +519,12 @@ function Invoke-GitHubApi {
     try {
         if ($Credential) { $secret = $Credential.GetNetworkCredential().Password; $headers['Authorization'] = 'Bearer ' + $secret }
         $req = @{ Method = $Method; Uri = $u.AbsoluteUri; Headers = $headers; Body = $bytes; ContentType = $ContentType; UserAgent = $script:RpUserAgent }
+        $mark = Get-RpErrorMark
+        $netFail = $null
         try { $resp = & $Transport $req }
-        catch { throw (New-RpError ("Falha de rede ao chamar o GitHub ($where): " + (Protect-RpSecret $_.Exception.Message $secret)) 'falha') }
-        finally { $headers.Remove('Authorization'); $req = $null }
+        catch { $netFail = Protect-RpSecret ([string]$_.Exception.Message) $secret }
+        finally { $headers.Remove('Authorization'); $req = $null; Remove-RpNewErrors $mark }
+        if ($null -ne $netFail) { throw (New-RpError ("Falha de rede ao chamar o GitHub ($where): " + $netFail) 'falha') }
         if ($null -eq $resp) { throw (New-RpError "Sem resposta do GitHub ($where)." 'falha') }
         $status = [int]$resp.Status
         $content = Get-RpContentBytes $resp.Content

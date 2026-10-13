@@ -279,6 +279,80 @@ try {
     $s = Invoke-Scenario { Invoke-GitHubApi -Method GET -Uri "https://api.github.com/repos/$R/releases/assets/1" -Accept 'application/octet-stream' -Raw -Credential $cred -Transport $redir }
     Check ($s.Failed -and $s.Message -match 'redirecionamento') 'redirecionamento para outro host: recusado, nao seguido'
 
+    # ================================================================ transporte PADRAO (Invoke-WebRequest) contra um HttpListener local
+    # No pwsh 7 uma resposta HTTP de erro virava HttpResponseException, cuja RequestMessage guarda "Authorization: Bearer <token>", e o
+    # registro ficava em $Error (Get-Error e Format-List * -Force o mostravam). O token (sentinela) nao pode aparecer em $Error, Get-Error,
+    # transcricao nem nas mensagens. O host http://127.0.0.1 so e aceito com a chave de teste $script:RpTestAllowLoopback.
+    $tlp = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 0); $tlp.Start(); $lport = ([Net.IPEndPoint]$tlp.LocalEndpoint).Port; $tlp.Stop()
+    $tlp = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 0); $tlp.Start(); $closedPort = ([Net.IPEndPoint]$tlp.LocalEndpoint).Port; $tlp.Stop()
+    $listener = New-Object Net.HttpListener
+    $listener.Prefixes.Add("http://127.0.0.1:$lport/")
+    $listener.Start()
+    $seen = [hashtable]::Synchronized(@{ Auth = (New-Object Collections.ArrayList) })
+    $srv = [powershell]::Create()
+    [void]$srv.AddScript({
+            param($l, $seen)
+            while ($l.IsListening) {
+                try { $ctx = $l.GetContext() } catch { break }
+                [void]$seen.Auth.Add([string]$ctx.Request.Headers['Authorization'])
+                $code = 200
+                $path = $ctx.Request.Url.AbsolutePath.Trim('/')
+                if ($path -match '^\d{3}$') { $code = [int]$path }
+                $b = [Text.Encoding]::UTF8.GetBytes('{"message":"resposta ' + $code + '"}')
+                $ctx.Response.StatusCode = $code
+                $ctx.Response.ContentType = 'application/json'
+                $ctx.Response.ContentLength64 = $b.Length
+                $ctx.Response.OutputStream.Write($b, 0, $b.Length)
+                $ctx.Response.Close()
+            }
+        }).AddArgument($listener).AddArgument($seen)
+    $srvHandle = $srv.BeginInvoke()
+    $transcript = Join-Path $tmp 'transcricao.txt'
+    $transcribing = $false
+    try {
+        try { Start-Transcript -LiteralPath $transcript -Force | Out-Null; $transcribing = $true } catch { Write-Host "(transcricao indisponivel neste host: $($_.Exception.Message))" }
+        $global:Error.Clear()
+        $s = Invoke-Scenario { Invoke-GitHubApi -Method GET -Uri "http://127.0.0.1:$lport/200" -Credential $cred }
+        Check ($s.Failed -and $s.Message -match 'recusada') 'sem a chave de teste, http://127.0.0.1 e recusado'
+        foreach ($code in 404, 401, 403, 200) {
+            $req = @{ Method = 'GET'; Uri = "http://127.0.0.1:$lport/$code"; Headers = @{ Accept = 'application/json'; Authorization = "Bearer $sentinel" }; Body = $null; ContentType = ''; UserAgent = 'teste' }
+            $s = Invoke-Scenario { & $script:RpDefaultTransport $req }
+            Check (-not $s.Failed -and [int]$s.Result.Status -eq $code) "transporte padrao: HTTP $code volta como status, sem excecao ($($s.Message))"
+        }
+        $script:RpTestAllowLoopback = $true
+        try {
+            foreach ($code in 404, 401) {
+                $s = Invoke-Scenario { Invoke-GitHubApi -Method GET -Uri "http://127.0.0.1:$lport/$code" -Credential $cred }
+                Check ($s.Failed -and $s.Status -eq $code -and -not $s.Output.Contains($sentinel)) "Invoke-GitHubApi + transporte padrao: $code vira erro com status, sem o token"
+            }
+            $s = Invoke-Scenario { Invoke-GitHubApi -Method GET -Uri "http://127.0.0.1:$lport/200" -Credential $cred }
+            Check (-not $s.Failed -and $s.Result.message -eq 'resposta 200') 'Invoke-GitHubApi + transporte padrao: 200 devolve o JSON'
+            $s = Invoke-Scenario { Invoke-GitHubApi -Method GET -Uri "http://127.0.0.1:$closedPort/x" -Credential $cred }
+            Check ($s.Failed -and $s.Message -match 'rede' -and -not $s.Output.Contains($sentinel)) "porta fechada: erro de rede sem o token ($($s.Message))"
+            $req = @{ Method = 'GET'; Uri = "http://127.0.0.1:$closedPort/x"; Headers = @{ Authorization = "Bearer $sentinel" }; Body = $null; ContentType = ''; UserAgent = 'teste' }
+            $s = Invoke-Scenario { & $script:RpDefaultTransport $req }
+            Check ($s.Failed -and -not $s.Output.Contains($sentinel)) 'transporte padrao, porta fechada: a excecao nao carrega o token'
+        } finally { $script:RpTestAllowLoopback = $false }
+        Check (@($seen.Auth | Where-Object { $_ -ceq "Bearer $sentinel" }).Count -ge 6) 'o servidor local recebeu o token no cabecalho (ele estava la)'
+        Check ($global:Error.Count -gt 0) "`$Error tem registros para conferir ($($global:Error.Count))"
+        $errText = ($global:Error | Format-List * -Force | Out-String) +
+            (@($global:Error | ForEach-Object { if ($_.Exception) { $_.Exception | Format-List * -Force | Out-String }; if ($_.TargetObject) { [string]$_.TargetObject } }) -join "`n")
+        Check (-not $errText.Contains($sentinel)) 'o token nao aparece em $Error | Format-List * -Force (nem na excecao nem no TargetObject)'
+        if (Get-Command Get-Error -ErrorAction SilentlyContinue) {
+            $ge = (Get-Error -Newest ([Math]::Max(1, $global:Error.Count)) | Out-String -Width 400)
+            Check (-not $ge.Contains($sentinel)) 'o token nao aparece em Get-Error (pwsh 7)'
+        }
+    } finally {
+        if ($transcribing) { try { Stop-Transcript | Out-Null } catch { } }
+        $listener.Stop(); $listener.Close()
+        [void]$srvHandle.AsyncWaitHandle.WaitOne(5000)
+        $srv.Dispose()
+    }
+    if ($transcribing) { Check (-not ([IO.File]::ReadAllText($transcript)).Contains($sentinel)) 'o token nao aparece na transcricao' }
+    $entryText = [IO.File]::ReadAllText((Join-Path $repo 'tools\Publish-Release.ps1')) + [IO.File]::ReadAllText((Join-Path $repo 'publicar-release.bat'))
+    $libAssign = @([regex]::Matches([IO.File]::ReadAllText((Join-Path $repo 'tools\lib\Release-Publish.ps1')), 'RpTestAllowLoopback\s*=\s*(\S+)') | ForEach-Object { $_.Groups[1].Value })
+    Check ($entryText -notmatch 'RpTestAllowLoopback|127\.0\.0\.1' -and ($libAssign -join ',') -ceq '$false') 'a chave de teste do loopback nao e alcancavel pelo .bat nem pelo script (a lib so a zera)'
+
     # ================================================================ repositorio git descartavel (remoto bare local)
     $remote = Join-Path $tmp 'origem.git'
     $work = Join-Path $tmp 'trabalho'
