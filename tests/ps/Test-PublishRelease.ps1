@@ -62,7 +62,14 @@ $fakeTransport = {
         if ($script:gh.Tags -contains $Matches[1]) { return (New-FakeResponse 200 @{ ref = "refs/tags/$($Matches[1])" }) }
         return (New-FakeResponse 404 @{ message = 'Not Found' })
     }
-    if ($key -eq "GET $p/releases") { return (New-FakeResponse 200 @($script:gh.Releases)) }
+    if ($key -eq "GET $p/releases") {
+        $pp = 30; $pg = 1
+        if ($u.Query -match 'per_page=(\d+)') { $pp = [int]$Matches[1] }
+        if ($u.Query -match '[?&]page=(\d+)') { $pg = [int]$Matches[1] }
+        $all = @($script:gh.Releases)
+        $slice = @($all | Select-Object -Skip (($pg - 1) * $pp) -First $pp)
+        return (New-FakeResponse 200 $slice)
+    }
     if ($key -eq "POST $p/releases") {
         $b = $bodyText | ConvertFrom-Json
         $id = $script:gh.NextId; $script:gh.NextId++
@@ -239,10 +246,22 @@ try {
     $s = Invoke-Scenario { Publish-GitHubRelease @pubArgs }
     Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'tag v1\.2\.1' -and (Get-FakeRequests 'POST' '.').Count -eq 0) 'tag ja existente: recusa'
     Reset-FakeGitHub
-    [void]$script:gh.Releases.Add([ordered]@{ id = 8; tag_name = 'v1.2.1'; name = 'ThinQQ 1.2.1'; draft = $true; html_url = "https://github.com/$R/releases/tag/untagged-8"; assets = @() })
+    [void]$script:gh.Releases.Add([ordered]@{ id = 8; tag_name = 'v1.2.1'; name = 'ThinQQ 1.2.1'; body = "notas da versao`r`n"; draft = $true; html_url = "https://github.com/$R/releases/tag/untagged-8"; assets = @() })
     $s = Invoke-Scenario { Publish-GitHubRelease @pubArgs -Draft }
     Check (-not $s.Failed -and (Get-FakeRequests 'DELETE' '/releases/8$').Count -eq 1 -and (Get-FakeRequests 'POST' '/releases$').Count -eq 1) "retomada: rascunho anterior 'ThinQQ 1.2.1' apagado e recriado ($($s.Message))"
     Check ($script:gh.Releases.Count -eq 1 -and $script:gh.Releases[0].id -ne 8) 'retomada: sobra so o rascunho novo'
+    # rascunho com o nosso nome, mas texto editado na pagina do GitHub: nao apaga (o trabalho de quem editou se perderia)
+    Reset-FakeGitHub
+    [void]$script:gh.Releases.Add([ordered]@{ id = 8; tag_name = 'v1.2.1'; name = 'ThinQQ 1.2.1'; body = 'texto editado no GitHub'; draft = $true; html_url = "https://github.com/$R/releases/tag/untagged-8"; assets = @() })
+    $s = Invoke-Scenario { Publish-GitHubRelease @pubArgs }
+    Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'editado' -and (Get-FakeRequests 'DELETE' '.').Count -eq 0 -and (Get-FakeRequests 'POST' '.').Count -eq 0) "rascunho com texto editado: recusa e nao apaga ($($s.Message))"
+    # paginacao: o rascunho anterior esta na 2.a pagina de releases
+    Reset-FakeGitHub
+    for ($i = 1; $i -le 150; $i++) { [void]$script:gh.Releases.Add([ordered]@{ id = 1000 + $i; tag_name = "v0.0.$i"; name = "ThinQQ 0.0.$i"; body = 'x'; draft = $false; html_url = 'https://github.com/x'; assets = @() }) }
+    [void]$script:gh.Releases.Insert(120, [ordered]@{ id = 8; tag_name = 'v1.2.1'; name = 'ThinQQ 1.2.1'; body = 'notas da versao'; draft = $true; html_url = 'https://github.com/x'; assets = @() })
+    $s = Invoke-Scenario { Publish-GitHubRelease @pubArgs -Draft }
+    Check (-not $s.Failed -and (Get-FakeRequests 'DELETE' '/releases/8$').Count -eq 1 -and @(Get-FakeRequests 'GET' '/releases$' | Where-Object { $_.Query -match 'page=2' }).Count -ge 1) "paginacao: acha o rascunho anterior na 2.a pagina ($($s.Message))"
+    Check (@(Get-FakeRequests 'GET' '/releases$' | Where-Object { $_.Query -notmatch 'per_page=100' }).Count -eq 0) 'paginacao: sempre per_page=100'
     Reset-FakeGitHub
     [void]$script:gh.Releases.Add([ordered]@{ id = 9; tag_name = 'v1.2.1'; name = 'Rascunho manual'; draft = $true; html_url = 'https://github.com/x'; assets = @() })
     $s = Invoke-Scenario { Publish-GitHubRelease @pubArgs }
@@ -574,6 +593,7 @@ try {
     Check ($pb.target_commitish -ceq $origin) 'Publish: target_commitish = SHA da origin/main'
     Check ($pb.body -ceq ([char]0x2022 + " nota nova da 1.2.1`n" + [char]0x2022 + ' outra linha')) 'Publish: corpo = release/notes.txt da origin/main (nao o da arvore de trabalho)'
     Check ((Get-FakeRequests 'PATCH' '.').Count -eq 0) 'Publish -Draft: sem PATCH'
+    Check ($s.Output -match 'editar o texto do rascunho') 'Publish -Draft: avisa para publicar pela pagina se editar o texto (e nao rodar de novo)'
     Check ($s.Output -match 'Instalar-ThinQQ\.cmd') 'Publish: lembrete da verificacao manual'
 
     # ================================================================ script e .bat (processos proprios)

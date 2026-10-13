@@ -559,6 +559,17 @@ function Invoke-GitHubApi {
 # Release no GitHub: rascunho -> 5 assets -> conferencia (tamanho e SHA-256) -> publica (sem -Draft).
 # Retomada: um RASCUNHO anterior da mesma tag com o nome "ThinQQ <versao>" (deixado por uma execucao que falhou) e APAGADO e recriado do zero
 # (assets enviados de novo); rascunho com outro nome, release publicada ou tag existente => recusa.
+# Todas as releases (rascunhos inclusive), pagina a pagina (100 por pagina, ate 50 paginas)
+function Get-RpAllReleases([string]$Api, [hashtable]$Call) {
+    $all = New-Object System.Collections.Generic.List[object]
+    for ($page = 1; $page -le 50; $page++) {
+        $chunk = @(Invoke-GitHubApi -Method GET -Uri "$Api/releases?per_page=100&page=$page" @Call | Where-Object { $_ })
+        foreach ($r in $chunk) { $all.Add($r) }
+        if ($chunk.Count -lt 100) { break }
+    }
+    return $all.ToArray()   # enumerado de proposito: quem chama filtra no pipeline
+}
+
 function Publish-GitHubRelease {
     param(
         [Parameter(Mandatory)][string]$Repo,
@@ -583,10 +594,14 @@ function Publish-GitHubRelease {
     try { [void](Invoke-GitHubApi -Method GET -Uri "$api/git/ref/tags/$tag" @call) }
     catch { if ((Get-RpErrorStatus $_) -eq 404) { $tagExists = $false } else { throw } }
     if ($tagExists) { throw (New-RpError "A tag $tag ja existe no GitHub: escolha outra versao (nada foi alterado)." 'precondicao') }
-    $existing = @(Invoke-GitHubApi -Method GET -Uri "$api/releases?per_page=100" @call | Where-Object { $_ -and $_.tag_name -ceq $tag })
+    $existing = @(Get-RpAllReleases $api $call | Where-Object { $_ -and $_.tag_name -ceq $tag })
     foreach ($e in $existing) {
         if (-not $e.draft) { throw (New-RpError "A release $tag ja existe (publicada): $($e.html_url). Nada foi alterado." 'precondicao') }
         if ($e.name -cne $name) { throw (New-RpError "Ja existe um rascunho de release com a tag $tag e outro nome ('$($e.name)'): apague-o ou renomeie-o no GitHub antes ($($e.html_url))." 'precondicao') }
+        if ((Get-NormalizedText ([string]$e.body)) -cne (Get-NormalizedText $Body)) {
+            throw (New-RpError ("O rascunho '$name' ($($e.html_url)) foi editado no GitHub (o texto nao e o de release/notes.txt): ele NAO foi apagado. " +
+                "Publique-o pela pagina dele, ou apague-o la e rode de novo.") 'precondicao')
+        }
     }
     foreach ($e in $existing) {
         & $Log "Rascunho anterior de $tag encontrado (id $($e.id), de uma execucao interrompida): apagando para recriar."
@@ -998,7 +1013,10 @@ function Invoke-ReleasePublish {
     }
     Write-Host ''
     if ($res.Published) { Write-Host "Release publicada: $($res.HtmlUrl)" -ForegroundColor Green }
-    else { Write-Host "Release em RASCUNHO (-Draft; nada foi publicado): $($res.HtmlUrl)" -ForegroundColor Green }
+    else {
+        Write-Host "Release em RASCUNHO (-Draft; nada foi publicado): $($res.HtmlUrl)" -ForegroundColor Green
+        Write-Host 'Para publicar, use o botao da pagina do rascunho. Se for editar o texto do rascunho no GitHub, publique-o por la: rodar esta etapa de novo recusaria (o texto deixa de ser o de release/notes.txt).'
+    }
     if (-not $NoBrowser) { & $BrowserStep $res.HtmlUrl }
     Write-Host 'Falta a verificacao manual: baixe o ZIP pela pagina da release, extraia a pasta INTEIRA, rode Instalar-ThinQQ.cmd e confira a aba ThinQQ no Excel.'
     return [pscustomobject]@{ Version = $Version; DryRun = $false; Published = $res.Published; HtmlUrl = $res.HtmlUrl; Id = $res.Id; Assets = $res.Assets }
