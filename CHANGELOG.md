@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.2.2] - 2026-10-13
+
 ### Adicionado
 - Exemplo de cascata com seta de diferença nos Exemplos (exemplo 2) e na pasta de demonstração (E05), com o passo a passo no tutorial.
 - Galeria com a imagem dos 26 exemplos da demonstração no tutorial (imagens embutidas no próprio `tutorial.html`, que continua sendo um arquivo único), com legenda, caminho de menu e links cruzados das seções; `tools/Export-DemoChartImages.ps1` e `tools/Build-TutorialGallery.ps1` refazem a galeria. O limite de tamanho do tutorial no teste subiu de 192 KB para 640 KB.
