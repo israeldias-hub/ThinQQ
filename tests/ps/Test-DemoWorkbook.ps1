@@ -184,6 +184,31 @@ try {
                 }
             }
         }
+        # E05: a seta de diferenca vai da primeira barra (Receita) a ultima (Lucro) e o rotulo mostra a diferenca entre os valores finais das duas
+        # barras, em valor e em %. Esperado calculado das celulas da tabela (A6:B13; as linhas 'e' nao somam): Lucro = receita + as 5 etapas de valor
+        $e05 = $wb.Worksheets.Item('E05'); $c05 = $e05.ChartObjects(1).Chart
+        $nBars = 7
+        $arrow = $null; $albl = $null
+        foreach ($sh in $c05.Shapes) { if ([string]$sh.Name -eq 'tqq_ann_diff_1') { $arrow = $sh }; if ([string]$sh.Name -eq 'tqq_ann_diff_1_lbl') { $albl = $sh } }
+        Check ($null -ne $arrow -and [string]$arrow.AlternativeText -eq "kind=diff;from=1;to=$nBars") "E05: seta de diferenca da 1a a ultima barra ($(if ($arrow) { $arrow.AlternativeText }))"
+        Check ([string]$e05.Cells.Item(6 + $nBars, 2).Value2 -eq 'e' -and [string]$e05.Cells.Item(6 + $nBars, 1).Value2 -match 'Lucro') 'E05: a ultima barra e o Lucro (total calculado)'
+        if ($null -ne $albl) {
+            $startV = [double]$e05.Range('B7').Value2; $endV = $startV
+            foreach ($rr in 8, 9, 11, 12) { $endV += [double]$e05.Cells.Item($rr, 2).Value2 }
+            $d05 = $endV - $startV
+            $txt = [string]$albl.TextFrame2.TextRange.Text
+            $mt = [regex]::Match($txt, '^(?<s>[+-])(?<n>[\d.,\u00A0 ]+) \((?<ps>[+-])(?<p>\d+)%\)$')
+            Check ($mt.Success) "E05: rotulo da seta no formato 'valor (percentual)' ([$txt])"
+            if ($mt.Success) {
+                $wantSign = $(if ($d05 -lt 0) { '-' } else { '+' })
+                Check ($mt.Groups['s'].Value -eq $wantSign -and $mt.Groups['ps'].Value -eq $wantSign) "E05: sinal da diferenca ($wantSign) no rotulo [$txt]"
+                Check (($mt.Groups['n'].Value -replace '\D', '') -eq ([string][Math]::Abs([Math]::Round($d05)))) "E05: valor da diferenca no rotulo ([$txt], esperado $([Math]::Abs([Math]::Round($d05))))"
+                Check ([int]$mt.Groups['p'].Value -eq [int][Math]::Round([Math]::Abs($d05 / $startV) * 100, [MidpointRounding]::AwayFromZero)) "E05: percentual da diferenca no rotulo ([$txt])"
+            }
+            # o rotulo fica dentro do grafico e a direita da area de plotagem (nao cobre barras nem a seta)
+            $plotRight = [double]$c05.PlotArea.InsideLeft + [double]$c05.PlotArea.InsideWidth
+            Check ([double]$albl.Left -ge $plotRight - 0.5 -and [double]$albl.Left + [double]$albl.Width -le [double]$c05.ChartArea.Width + 0.5) "E05: rotulo da seta fora da area de plotagem e dentro do grafico (L=$($albl.Left), plot ate $plotRight, grafico $($c05.ChartArea.Width))"
+        } else { Check $false 'E05: rotulo da seta de diferenca (tqq_ann_diff_1_lbl) presente' }
         # E02: a tabela tem 1 casa decimal; com o formato padrao (inteiro) dois valores diferentes viram o mesmo rotulo
         $e02 = Get-ChartBlockInfo ($wb.Worksheets.Item('E02').ChartObjects(1))
         Check ($e02.Opt['numfmt'] -eq 'dec1') "E02: rotulos com 1 casa como a tabela (numfmt=$($e02.Opt['numfmt']))"

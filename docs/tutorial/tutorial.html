@@ -383,7 +383,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
       <tr data-ex="E02"><th scope="row">E02</th><td>Vendas por loja, 2024 x 2025 (colunas agrupadas, espaço muito largo)</td><td>Colunas agrupadas</td></tr>
       <tr data-ex="E03"><th scope="row">E03</th><td>Mix de canais B2C/B2B por região (colunas 100% e indicador 100%)</td><td>Colunas 100%</td></tr>
       <tr data-ex="E04"><th scope="row">E04</th><td>Vendas e custo mensais da loja Aurora Centro (nome no fim da linha)</td><td>Linha</td></tr>
-      <tr data-ex="E05"><th scope="row">E05</th><td>Da receita ao lucro em 2025 (cascata com conectores)</td><td>Cascata (colunas)</td></tr>
+      <tr data-ex="E05"><th scope="row">E05</th><td>Da receita ao lucro em 2025 (cascata com conectores e seta de diferença)</td><td>Cascata (colunas)</td></tr>
       <tr data-ex="E06"><th scope="row">E06</th><td>Vendas 2025 por região e canal (barras empilhadas e seta de diferença)</td><td>Barras empilhadas</td></tr>
       <tr data-ex="E07"><th scope="row">E07</th><td>Vendas por loja em R$ (barras agrupadas, rótulos em milhares)</td><td>Barras agrupadas</td></tr>
       <tr data-ex="E08"><th scope="row">E08</th><td>Mix de canais B2C/B2B por loja (barras 100%)</td><td>Barras 100%</td></tr>
@@ -572,6 +572,9 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
     <li>Em <span class="ui">Cascata (barras)</span> os rótulos ficam à direita das barras de valor positivo e à esquerda das de valor negativo, e os conectores são verticais. Um rótulo à esquerda que não caberia antes dos nomes das categorias (barra que começa perto do mínimo do eixo) passa para dentro da própria barra, com fundo branco. A seta CAGR corre à direita dos rótulos das pontas.</li>
     <li><span class="ui">Seta CAGR</span> e <span class="ui">Seta diferença</span> usam o valor final de cada barra e ligam as pontas das barras, podendo passar sobre rótulos e barras do meio. <span class="ui">Espaço</span> e <span class="ui">Paleta</span> valem; <span class="ui">Totais</span> não.</li>
   </ul>
+
+  <h3 id="cascata-diferenca">Cascata com seta de diferença</h3>
+  <p>Para mostrar de uma vez quanto a ponte tirou (ou somou) entre a primeira e a última barra: selecione a tabela (<em>Etapa</em>/<em>Valor</em>, com <code>e</code> nas barras de total calculadas), clique em <span class="ui">Inserir gráfico</span> &gt; <span class="ui">Cascata</span> &gt; <span class="ui">Cascata (colunas)</span>, clique no gráfico e abra <span class="ui">Setas</span> &gt; <span class="ui">Seta diferença</span>. Escolha <em>Da categoria</em> e <em>Até a categoria</em> (por padrão, a primeira e a última) e clique em <span class="ui">OK</span>: a seta liga as duas barras e o rótulo mostra a diferença entre o valor final de cada uma, em valor e em %, por exemplo <code>-1.030 (-86%)</code> de Receita até Lucro. Sem legenda, a área de plotagem chega à borda do gráfico e o rótulo da seta pode ficar sobre ela: reduza a largura da área de plotagem para dar folga à direita. Veja o exemplo 2 de <span class="ui">Exemplos</span> e a planilha <strong>E05</strong> da <a href="#demonstracao">pasta de demonstração</a>.</p>
 </section>
 
 <section id="linha-area" aria-labelledby="h-linha-area">
@@ -1156,7 +1159,7 @@ footer { border-top: 1px solid var(--line); padding: 22px 20px 40px; text-align:
   </ul>
 
   <h3>Seta de diferença</h3>
-  <p>Uma seta vertical ao lado da coluna final (nas barras, horizontal, abaixo da última barra), com uma linha tracejada no nível da inicial e o rótulo da diferença absoluta e relativa, por exemplo <code>+130 (+33%)</code>.</p>
+  <p>Uma seta vertical ao lado da coluna final (nas barras, horizontal, abaixo da última barra), com uma linha tracejada no nível da inicial e o rótulo da diferença absoluta e relativa, por exemplo <code>+130 (+33%)</code>. Na cascata, veja o passo a passo em <a href="#cascata-diferenca">Cascata com seta de diferença</a>.</p>
   <div class="warn">
     <p><strong>Gráficos 100% não aceitam a seta de diferença.</strong> Todas as colunas somam 100%, então não há diferença a mostrar; o ThinQQ avisa com a mensagem &quot;A seta de diferença não está disponível para gráficos 100%&quot;. A <span class="ui">Seta CAGR</span> funciona, calculada sobre os valores informados na tabela.</p>
   </div>

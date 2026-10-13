@@ -39,10 +39,10 @@ function Get-TqqDemoCoverage {
            Menu = 'Inserir gráfico > Linha e área > Linha; Legenda > Nome no fim da linha'
            Title = 'Vendas e custo mensais da loja Aurora Centro (nome no fim da linha)'
            Desc = 'Em vez da legenda, o nome de cada série aparece ao lado do último ponto da linha.' }
-        @{ Num = 5;  Kind = 'waterfall';     Features = @('connectors')
-           Menu = 'Inserir gráfico > Cascata > Cascata (colunas) (Conectores já vêm ligados)'
-           Title = 'Da receita ao lucro em 2025 (cascata com conectores)'
-           Desc = 'As linhas finas ligam o topo de cada degrau ao próximo. Na tabela, a letra "e" pede uma coluna de total calculada (EBITDA e Lucro).' }
+        @{ Num = 5;  Kind = 'waterfall';     Features = @('connectors', 'diff')
+           Menu = 'Inserir gráfico > Cascata > Cascata (colunas) (Conectores já vêm ligados); Setas > Seta diferença'
+           Title = 'Da receita ao lucro em 2025 (cascata com conectores e seta de diferença)'
+           Desc = 'As linhas finas ligam o topo de cada degrau ao próximo. Na tabela, a letra "e" pede uma coluna de total calculada (EBITDA e Lucro). A seta à direita mostra a diferença entre o total da primeira barra (Receita) e o da última (Lucro), em valor e em %. A seta é desenhada pelo ThinQQ: sem ele instalado, fica como está se os números mudarem.' }
         @{ Num = 6;  Kind = 'barstacked';    Features = @('diff')
            Menu = 'Inserir gráfico > Barras > Barras empilhadas; Setas > Seta diferença'
            Title = 'Vendas 2025 por região e canal (barras empilhadas e seta de diferença)'

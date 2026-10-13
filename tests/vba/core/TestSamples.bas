@@ -36,6 +36,7 @@ Public Sub Test_Samples_AllSheets()
     CheckSheet1Create wb
     CheckSheet1Layout wb
     CheckSheet1Content wb
+    CheckSheet1WaterfallDiffLabel wb
     CheckSheet2KindsAndFeatures wb
     CheckSheet2Layout wb
     CheckSheet2Labels wb
@@ -65,6 +66,8 @@ Private Sub CheckSheet1Create(wb As Workbook)
     AssertTrue InStr(kinds, "stacked100;") > 0, kinds
     AssertTrue Not ws.ChartObjects(1).Chart.Shapes("tqq_ann_cagr_1") Is Nothing
     AssertTrue Not ws.ChartObjects(1).Chart.Shapes("tqq_ann_diff_1") Is Nothing
+    AssertTrue HasDiffArrow(ws.ChartObjects(2).Chart, 1, 6), "2: a cascata tem a seta de diferenca da primeira a ultima barra"
+    AssertFalse HasDiffArrow(ws.ChartObjects(6).Chart, 1, 6), "6: a outra cascata nao tem seta"
     AssertEqual "e", LCase$(ws.Range("B27").Value)
 End Sub
 
@@ -140,6 +143,33 @@ Private Function HasShape(cht As Chart, shapeName As String) As Boolean
         If shp.Name = shapeName Then HasShape = True: Exit Function
     Next
 End Function
+
+' Existe no grafico a seta de diferenca (AlternativeText kind=diff) da barra fromIdx ate toIdx?
+Private Function HasDiffArrow(cht As Chart, fromIdx As Long, toIdx As Long) As Boolean
+    Dim shp As Shape
+    For Each shp In cht.Shapes
+        If shp.AlternativeText = "kind=diff;from=" & fromIdx & ";to=" & toIdx Then HasDiffArrow = True: Exit Function
+    Next
+End Function
+
+' Exemplo 2 (cascata A23:B29 com seta de diferenca da primeira a ultima barra): o rotulo da seta mostra a diferenca entre o valor final
+' de cada barra, em valor e em %. As expectativas vem das CELULAS (Receita; Lucro = Receita + Custos + Despesas + Impostos, as barras 'e' nao
+' somam) e do formato do Windows (Format$), nunca de literais.
+Private Sub CheckSheet1WaterfallDiffLabel(wb As Workbook)
+    Dim ws As Worksheet, cht As Chart, startV As Double, endV As Double, expected As String, lbl As Shape, plotRight As Double
+    Set ws = wb.Worksheets("Exemplos")
+    Set cht = ws.ChartObjects(2).Chart
+    startV = ws.Range("B24").Value
+    endV = ws.Range("B24").Value + ws.Range("B25").Value + ws.Range("B26").Value + ws.Range("B28").Value
+    expected = Format$(endV - startV, "+#,##0;-#,##0;0") & " (" & Format$((endV - startV) / Abs(startV), "+0%;-0%;0%") & ")"
+    Set lbl = cht.Shapes("tqq_ann_diff_1_lbl")
+    AssertEqual expected, lbl.TextFrame2.TextRange.Text, "2: texto da seta de diferenca"
+    AssertTrue lbl.Visible = msoTrue, "2: rotulo da seta visivel"
+    AssertTrue lbl.Left >= 0 And lbl.Left + lbl.Width <= cht.ChartArea.Width + 0.5, "2: rotulo da seta dentro do grafico"
+    ' o rotulo fica a direita da area de plotagem (nao cobre as barras)
+    plotRight = cht.PlotArea.InsideLeft + cht.PlotArea.InsideWidth
+    AssertTrue lbl.Left >= plotRight - 0.5, "2: rotulo da seta fora da area de plotagem"
+End Sub
 
 ' Tipo de cada grafico de "Exemplos 2", na ordem de criacao (a secao 18 tem dois).
 Private Function ExpectedKinds2() As Variant

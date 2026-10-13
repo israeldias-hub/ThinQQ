@@ -321,7 +321,9 @@ try {
             3  { $rng = Write-Table $ws 'A6' @('Região', 'B2C', 'B2B') $regionChannelBody; $co = Add-Chart $ws $rng 'stacked100' }   # o indicador 100% nasce ligado nos 100%
             4  { $rng = Write-Table $ws 'A6' @('Mês', 'Vendas', 'Custo') $store1MonthBody; Set-MonthFormat $ws.Range('A7:A18')
                  $co = Add-Chart $ws $rng 'line'; Invoke-CoreQuiet 'E04' 'Core_SetOption' 'legend' 'lineend' | Out-Null }
-            5  { $rng = Write-Table $ws 'A6' @('Etapa', 'R$ mil') $wfBody; $co = Add-Chart $ws $rng 'waterfall'; Set-ChartBox $ws $co 560 300 }
+            5  { $rng = Write-Table $ws 'A6' @('Etapa', 'R$ mil') $wfBody; $co = Add-Chart $ws $rng 'waterfall'; Set-ChartBox $ws $co 560 300
+                 $co.Chart.PlotArea.Width = $co.Chart.PlotArea.Width - 80          # sem legenda a área de plotagem vai até a borda: folga à direita para o rótulo da seta
+                 Invoke-CoreQuiet 'E05' 'Core_AddAnnotation' 'diff' 1 $wfBody.Count | Out-Null }       # da primeira barra (Receita) à última (Lucro)
             6  { $rng = Write-Table $ws 'A6' @('Região', 'B2C', 'B2B') $regionChannelBody; $co = Add-Chart $ws $rng 'barstacked'
                  Invoke-CoreQuiet 'E06' 'Core_AddAnnotation' 'diff' 1 $regions.Count | Out-Null }
             7  { $rng = Write-Table $ws 'A6' @('Loja', '2024', '2025') $storeYearRsBody; $co = Add-Chart $ws $rng 'barclustered'
