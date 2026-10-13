@@ -6,7 +6,9 @@
 # SEGURANCA DO TOKEN: o token do GitHub vem de `git credential fill` (stdin, nunca linha de comando) e fica so na memoria do processo, dentro
 # de um PSCredential (SecureString). Ele so vira texto dentro de Invoke-GitHubApi, no cabecalho Authorization de uma chamada, e e removido
 # ao fim dela. Nunca e gravado (state.json, log, arquivo temporario), nunca e impresso e toda mensagem de erro passa por Protect-RpSecret.
-# Chamadas so para https://api.github.com e https://uploads.github.com (redirecionamentos sao recusados, nao seguidos).
+# Chamadas so para https://api.github.com e https://uploads.github.com (redirecionamentos sao recusados, nao seguidos). Os escopos que lidam
+# com o token zeram localmente $DebugPreference e $PSDefaultParameterValues, e a lib DESLIGA o rastreamento do Set-PSDebug na sessao que a
+# carrega (o rastreamento mostraria o token).
 
 $script:RpUtf8 = New-Object Text.UTF8Encoding($false)
 $script:RpUnreleased = '## [N' + [char]0xE3 + 'o lan' + [char]0xE7 + 'ado]'
@@ -442,7 +444,8 @@ function ConvertFrom-GitCredentialOutput([string]$Output) {
 # Runner (substituivel pelo teste): recebe o texto do stdin e devolve @{ Code; Output; Error }
 function Get-GitHubCredential([string]$RepoRoot, [string]$Repo, [scriptblock]$Runner = $null) {
     $DebugPreference = 'SilentlyContinue'
-    Set-PSDebug -Off   # a saida do git credential fill tem o token: nada de rastreamento com valores
+    Set-PSDebug -Off   # a saida do git credential fill tem o token: nada de rastreamento com valores (vale para a sessao)
+    $PSDefaultParameterValues = @{}
     $remote = ''
     $r = Invoke-RpGit $RepoRoot @('remote', 'get-url', 'origin')
     if ($r.Code -eq 0) { $remote = $r.Output.Trim() }
@@ -479,15 +482,18 @@ function Remove-RpNewErrors($Mark) {
 $script:RpDefaultTransport = {
     param($Request)
     # PRIMEIRA coisa: o Invoke-WebRequest do pwsh 7.4+ escreve os cabecalhos da requisicao (com o Authorization) no fluxo de depuracao, e
-    # um script avancado aceita -Debug; Set-PSDebug -Trace 2 mostraria valores atribuidos. Ambos desligados neste escopo antes de tudo.
+    # um script avancado aceita -Debug. $DebugPreference e $PSDefaultParameterValues (que pode ligar -Debug/-Verbose direto no cmdlet, por cima
+    # do $DebugPreference) sao trocados SO neste escopo: os de quem chamou ficam intactos. O Set-PSDebug, ao contrario, vale para a SESSAO
+    # inteira: o rastreamento (-Trace 2 mostra valores atribuidos) e desligado na sessao que carregou a lib, de proposito.
     $DebugPreference = 'SilentlyContinue'
+    $PSDefaultParameterValues = @{}
     Set-PSDebug -Off
     $isCore = $PSVersionTable.PSVersion.Major -ge 6
     if (-not $isCore) {
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     }
     $p = @{ Method = $Request.Method; Uri = $Request.Uri; Headers = $Request.Headers; UseBasicParsing = $true; MaximumRedirection = 0
-        TimeoutSec = 600; UserAgent = $Request.UserAgent; ErrorAction = 'Stop' }
+        TimeoutSec = 600; UserAgent = $Request.UserAgent; ErrorAction = 'Stop'; Debug = $false; Verbose = $false }   # explicitos vencem os padroes
     if ($isCore) { $p.SkipHttpErrorCheck = $true }
     if ($null -ne $Request.Body) { $p.Body = [byte[]]$Request.Body }
     if ($Request.ContentType) { $p.ContentType = $Request.ContentType }
@@ -553,6 +559,7 @@ function Invoke-GitHubApi {
         [scriptblock]$Transport = $null
     )
     $DebugPreference = 'SilentlyContinue'   # escopo que monta o cabecalho Authorization: nada de depuracao nem rastreamento aqui
+    $PSDefaultParameterValues = @{}         # copia local vazia: nenhum -Debug/-Verbose padrao de quem chamou chega aos cmdlets daqui
     Set-PSDebug -Off
     if (-not $Transport) { $Transport = $script:RpDefaultTransport }
     $u = $null
@@ -637,6 +644,7 @@ function Publish-GitHubRelease {
         [scriptblock]$Log = $null
     )
     $DebugPreference = 'SilentlyContinue'   # envios e downloads de assets levam o Authorization (via Invoke-GitHubApi)
+    $PSDefaultParameterValues = @{}
     Set-PSDebug -Off
     if (-not $Log) { $Log = { param($m) Write-Host $m } }
     $api = "https://api.github.com/repos/$Repo"

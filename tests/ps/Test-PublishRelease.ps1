@@ -449,6 +449,33 @@ Write-Output 'FIM-DO-INVOCADOR'
             Check (-not $all.Contains($sentinel)) "script avancado com ${label}: o token nao aparece na saida (stdout e stderr)"
             Check ($all -match 'api 422 erro: .*already_exists' -and $all -match 'api 302 erro: .*redirecionamento') "script avancado com ${label}: 422 com o texto do GitHub e 302 como redirecionamento"
         }
+
+        # ---- $PSDefaultParameterValues de quem chama ('*:Debug', '*:Verbose', 'Invoke-WebRequest:Debug') ligava -Debug direto no
+        # Invoke-WebRequest, passando por cima do $DebugPreference local; no pwsh 7.4+ os cabecalhos (com o token) iam para o fluxo de
+        # depuracao e para a transcricao. As chamadas tem de funcionar (sem pedir confirmacao) e o token nao pode aparecer.
+        $global:Error.Clear()
+        $pdpv = @{ '*:Debug' = $true; '*:Verbose' = $true; 'Invoke-WebRequest:Debug' = $true; 'Invoke-WebRequest:Verbose' = $true }
+        $script:RpTestAllowLoopback = $true
+        try {
+            foreach ($code in 404, 200, 302, 422) {
+                $s = Invoke-Scenario { $PSDefaultParameterValues = $pdpv.Clone(); Invoke-GitHubApi -Method GET -Uri "http://127.0.0.1:$lport/$code" -Credential $cred }
+                $okCall = $(if ($code -eq 200) { -not $s.Failed } else { $s.Failed -and $s.Message -notmatch 'rede ao chamar' })
+                Check ($okCall -and -not $s.Output.Contains($sentinel)) "PSDefaultParameterValues com Debug/Verbose, HTTP ${code}: a chamada funciona e o token nao aparece ($($s.Message))"
+                $req = @{ Method = 'GET'; Uri = "http://127.0.0.1:$lport/$code"; Headers = @{ Authorization = "Bearer $sentinel" }; Body = $null; ContentType = ''; UserAgent = 'teste' }
+                $s = Invoke-Scenario { $PSDefaultParameterValues = $pdpv.Clone(); & $script:RpDefaultTransport $req }
+                Check (-not $s.Failed -and -not $s.Output.Contains($sentinel)) "PSDefaultParameterValues com Debug/Verbose, transporte direto, HTTP ${code}: sem o token ($($s.Message))"
+            }
+            $s = Invoke-Scenario { $PSDefaultParameterValues = $pdpv.Clone(); Invoke-GitHubApi -Method GET -Uri "http://127.0.0.1:$closedPort/x" -Credential $cred }
+            Check ($s.Failed -and -not $s.Output.Contains($sentinel)) 'PSDefaultParameterValues com Debug/Verbose, porta fechada: sem o token'
+            # o upload e o download de assets passam pelo mesmo caminho: rascunho falso + download de conferencia pelo transporte padrao
+            Reset-FakeGitHub; $script:gh.DigestMode = 'none'
+            $mixed2 = { param($Request) if ($Request.Uri -match '/releases/assets/\d+$') { $r2 = $Request.Clone(); $r2.Uri = "http://127.0.0.1:$lport/200"; return (& $script:RpDefaultTransport $r2) } else { return (& $fakeTransport $Request) } }
+            $s = Invoke-Scenario { $PSDefaultParameterValues = $pdpv.Clone(); Publish-GitHubRelease -Repo $R -Version '1.2.1' -StateDir $sd -State $stRead -Body 'notas da versao' -TargetSha $tgt -Credential $cred -Transport $mixed2 -Draft }
+            Check (-not $s.Output.Contains($sentinel)) 'PSDefaultParameterValues com Debug/Verbose, envio e download de assets: sem o token'
+        } finally { $script:RpTestAllowLoopback = $false }
+        Check ($PSDefaultParameterValues.Count -eq 0 -or -not $PSDefaultParameterValues.Contains('*:Debug')) 'os padroes de teste ficaram so no escopo do cenario'
+        $errText2 = ($global:Error | Format-List * -Force | Out-String -Width 4096) + (@($global:Error | ForEach-Object { if ($_.Exception) { $_.Exception | Format-List * -Force | Out-String -Width 4096 } }) -join "`n")
+        Check (-not $errText2.Contains($sentinel)) 'PSDefaultParameterValues com Debug/Verbose: o token nao aparece em $Error | Format-List * -Force'
     } finally {
         if ($transcribing) { try { Stop-Transcript | Out-Null } catch { } }
         $listener.Stop(); $listener.Close()
