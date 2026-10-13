@@ -1466,6 +1466,12 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
     </div>
   </details>
   <details>
+    <summary>Para administradores: proxy</summary>
+    <div>
+      <p>O download tenta primeiro o caminho do Windows (o mesmo do navegador: proxy fixo ou script de configuração automática). Se essa tentativa falhar na conexão, como no redirecionamento do GitHub de <code>github.com</code> para <code>release-assets.githubusercontent.com</code>, o ThinQQ repete o download por um segundo caminho, que segue o redirecionamento e usa só o proxy fixo do usuário (<code>ProxyServer</code> e <code>ProxyOverride</code> de Internet Settings). O script de configuração automática (PAC) não é usado nessa segunda tentativa: numa rede que só tem PAC, libere esses dois endereços ou instale pelo ZIP. O log registra qual caminho baixou e, se os dois falharem, a mensagem traz as duas causas.</p>
+    </div>
+  </details>
+  <details>
     <summary>Para administradores: manifesto sem hashes</summary>
     <div>
       <p>Para fontes internas que não geram SHA-256, é possível aceitar manifestos sem hash gravando o valor <code>AllowUnverified</code> igual a <code>1</code> em <code>HKCU\Software\VB and VBA Program Settings\ThinQQ\Updater</code>. Isso desliga a verificação de integridade e não é recomendado; prefira gerar o manifesto com <code>build/release.ps1</code>, que já inclui os hashes.</p>
@@ -1531,6 +1537,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
       <tr><td>Um rótulo, uma seta ou a linha de valor cobre outro rótulo</td><td>Aumente o gráfico, arraste o rótulo ou ajuste a <span class="ui">Paleta</span> e o <span class="ui">Formato</span> para números mais curtos. Alguns casos são limites conhecidos: veja <a href="#limites">Limitações</a>.</td></tr>
       <tr><td>Um aviso diz que não é possível inserir</td><td>Veja a mensagem: planilha protegida, nenhuma tabela selecionada ou uma seleção com menos de 2 linhas ou 2 colunas (cabeçalho mais ao menos uma categoria) são os casos mais comuns. As mensagens específicas de cada tipo estão na tabela abaixo.</td></tr>
       <tr><td>"Não foi possível verificar atualizações." ou "Falha ao atualizar: ..."</td><td>Confira a fonte em <span class="ui">Configurações</span> e o acesso à rede ou à pasta. Os detalhes ficam em <code>%LOCALAPPDATA%\ThinQQ\logs\thinqq.log</code>.</td></tr>
+      <tr><td>&quot;Falha ao atualizar: O servidor de atualização respondeu com erro. HTTP 0 ao acessar https://github.com/...&quot; (ThinQQ 1.2.0 a 1.2.2)</td><td>O GitHub entrega os arquivos da release por um redirecionamento para outro domínio, que o carregador dessas versões não consegue seguir. Reinstale uma vez pelo ZIP da release mais nova (veja <a href="#instalar">Instalar e desinstalar</a>); da 1.2.3 em diante, <span class="ui">Atualizar agora</span> funciona. Atrás de um proxy por script de configuração automática (PAC), veja o quadro &quot;Para administradores: proxy&quot; em <a href="#atualizar">Atualizações</a>.</td></tr>
       <tr><td>O Excel abriu sem a aba logo após uma atualização do carregador</td><td>Feche o Excel, vá a <code>%LOCALAPPDATA%\ThinQQ</code>, apague (ou renomeie) <code>ThinQQ.xlam</code> e renomeie <code>ThinQQ.xlam.bak</code> para <code>ThinQQ.xlam</code>. Sem o <code>.bak</code>, reinstale.</td></tr>
     </tbody>
   </table>

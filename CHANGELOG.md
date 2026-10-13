@@ -4,6 +4,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+### Corrigido
+- Atualização pelo Excel: o download dos arquivos da release do GitHub parava com "Falha ao atualizar: O servidor de atualização respondeu com erro. HTTP 0 ao acessar https://github.com/.../ThinQQ.core.xlam". O GitHub redireciona (302) o download para outro domínio (`release-assets.githubusercontent.com`) e o `MSXML2.XMLHTTP` do carregador bloqueia esse redirecionamento. O carregador continua tentando primeiro o `MSXML2.XMLHTTP` (respeita o proxy e o script de configuração automática do Windows) e, numa falha de transporte (exceção, HTTP 0 ou erro de rede 12xxx), repete a mesma requisição com `MSXML2.ServerXMLHTTP`, que segue o redirecionamento, usando o proxy fixo do usuário (`ProxyServer`/`ProxyOverride` de Internet Settings); script de configuração automática (PAC) não é usado nessa segunda tentativa. Respostas HTTP de erro (404, 500...) não disparam a segunda tentativa; se as duas falharem, a mensagem traz as duas causas. O log do carregador registra qual caminho baixou. Quem tem a 1.2.0, 1.2.1 ou 1.2.2 precisa reinstalar uma vez pelo ZIP da 1.2.3 (o carregador antigo não consegue baixar a atualização).
+- Testes: o servidor HTTP de teste (`tests/http/server.js`) ganhou as rotas `/redir-host/` (302 entre `127.0.0.1` e `localhost`, como o GitHub) e `/redir-same/`; testes novos do transporte com a reserva, o 404 sem reserva, as duas falhas e a escolha do proxy a partir de valores.
+
 ## [1.2.2] - 2026-10-13
 
 ### Adicionado
