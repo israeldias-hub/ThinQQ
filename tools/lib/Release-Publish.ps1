@@ -106,6 +106,29 @@ function Compare-SemVer([string]$A, [string]$B) {
 # Texto: le/grava UTF-8 sem BOM e preserva o fim de linha que o arquivo ja usa
 function Read-RpText([string]$Path) { return [IO.File]::ReadAllText($Path, $script:RpUtf8) }
 function Write-RpText([string]$Path, [string]$Text) { [IO.File]::WriteAllText($Path, $Text, $script:RpUtf8) }
+
+# O arquivo comeca com o BOM UTF-8 (EF BB BF)? (o installer/LEIA-ME.txt tem e vai no ZIP: quem edita mantem)
+function Test-RpFileBom([string]$Path) {
+    $fs = [IO.File]::OpenRead($Path)
+    try {
+        $b = New-Object byte[] 3
+        $n = $fs.Read($b, 0, 3)
+        return ($n -eq 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF)
+    } finally { $fs.Dispose() }
+}
+
+# Grava em UTF-8 com ou sem BOM, como o arquivo original
+function Write-RpTextLike([string]$Path, [string]$Text, [bool]$Bom) { [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding($Bom))) }
+
+# Arquivos (relativos) cujo conteudo nao e mais o que a etapa gravou ($Written: relativo -> SHA-256)
+function Get-RpEditedFiles([string]$RepoRoot, [hashtable]$Written) {
+    $out = @()
+    foreach ($rel in @($Written.Keys | Sort-Object)) {
+        $p = Join-Path $RepoRoot $rel
+        if (-not (Test-Path -LiteralPath $p) -or (Get-FileSha256 $p) -cne $Written[$rel]) { $out += $rel }
+    }
+    return $out
+}
 function Get-TextNewline([string]$Text) { if ($Text -and $Text.Contains("`r`n")) { return "`r`n" } return "`n" }
 
 # CRLF -> LF e sem espacos nas pontas (compara notas e manifestos sem depender do core.autocrlf)
@@ -206,7 +229,14 @@ function Get-AssetContentType([string]$Name) {
     }
 }
 
-function Get-CompareUrl([string]$Repo, [string]$Version) { return "https://github.com/$Repo/compare/main...release/v$Version" + '?expand=1' }
+# Pagina do pull request com titulo e descricao preenchidos (texto fixo, codificado; nada de segredo)
+function Get-CompareUrl([string]$Repo, [string]$Version) {
+    $title = "release: ThinQQ $Version"
+    $body = "Preparacao da versao $Version pelo publicar-release.bat (version.json, CHANGELOG.md, tutorial, LEIA-ME e release/manifest.json).`n`n" +
+        "Mescle com **Create a merge commit** e rode IMEDIATAMENTE: publicar-release.bat $Version publicar`n" +
+        "(a partir do merge a main ja anuncia a versao nova; ate a etapa publicar terminar, quem tentar atualizar recebe erro de download)."
+    return "https://github.com/$Repo/compare/main...release/v$Version" + '?expand=1&title=' + [uri]::EscapeDataString($title) + '&body=' + [uri]::EscapeDataString($body)
+}
 
 function Get-ReleaseBaseUrl([string]$Repo, [string]$Version) { return "https://github.com/$Repo/releases/download/v$Version" }
 
@@ -705,7 +735,7 @@ $script:RpDefaultBuild = {
     try {
         New-Item -ItemType Directory -Force $copy | Out-Null
         $created = $true
-        & robocopy $Ctx.RepoRoot $copy /MIR /XD .git .superpowers dist /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
+        & robocopy $Ctx.RepoRoot $copy /MIR /XJ /XD .git .superpowers dist /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
         if ($LASTEXITCODE -ge 8) { throw (New-RpError "A copia para $copy falhou (robocopy codigo $LASTEXITCODE)." 'falha') }
         if ($Ctx.RunTests) {
             Write-Host "Rodando a suite completa na copia (pode levar alguns minutos)..."
@@ -841,23 +871,30 @@ function Invoke-ReleasePrepare {
     }
 
     # ---- execucao
+    # $written: arquivo (relativo) -> SHA-256 do que ESTA etapa gravou. Antes do commit e antes de desfazer, um arquivo cujo conteudo nao e mais
+    # o gravado (alguem o editou enquanto o build rodava) nao e commitado nem descartado.
     $committed = $false
     $branchCreated = $false
     $outCreated = $false
     $distCreated = $false
     $distDir = ''
+    $written = @{}
+    $prepSha = ''
     try {
         [void](Invoke-RpGitChecked $RepoRoot @('checkout', '-b', $branch) "Criar a branch $branch")
         $branchCreated = $true
-        Write-RpText $vjPath (Update-VersionJsonText $vjText $Version)
-        Write-RpText $clPath (Update-ChangelogText $clText $Version $Today)
-        foreach ($pair in @(@('docs\tutorial\tutorial.html', 'Update-TutorialVersionText'), @('installer\LEIA-ME.txt', 'Update-LeiaMeVersionText'))) {
+        Write-RpTextLike $vjPath (Update-VersionJsonText $vjText $Version) (Test-RpFileBom $vjPath)
+        $written['version.json'] = Get-FileSha256 $vjPath
+        Write-RpTextLike $clPath (Update-ChangelogText $clText $Version $Today) (Test-RpFileBom $clPath)
+        $written['CHANGELOG.md'] = Get-FileSha256 $clPath
+        foreach ($pair in @(@('docs/tutorial/tutorial.html', 'Update-TutorialVersionText'), @('installer/LEIA-ME.txt', 'Update-LeiaMeVersionText'))) {
             $p = Join-Path $RepoRoot $pair[0]
             if (-not (Test-Path -LiteralPath $p)) { Write-Host "AVISO: $($pair[0]) nao existe (versao nao atualizada nele)." -ForegroundColor Yellow; continue }
             $t = Read-RpText $p
             $fn = $pair[1]
             $n = & $fn $t $Version
-            if ($n -ceq $t) { Write-Host "AVISO: nao achei a versao para trocar em $($pair[0])." -ForegroundColor Yellow } else { Write-RpText $p $n }
+            if ($n -ceq $t) { Write-Host "AVISO: nao achei a versao para trocar em $($pair[0])." -ForegroundColor Yellow }
+            else { Write-RpTextLike $p $n (Test-RpFileBom $p); $written[$pair[0]] = Get-FileSha256 $p }
         }
         Write-Host "version.json, CHANGELOG.md, tutorial e LEIA-ME atualizados para $Version."
         $distDir = Split-Path $outDir
@@ -868,7 +905,14 @@ function Invoke-ReleasePrepare {
         foreach ($n in (Get-ReleaseAssetNames $Version)) {
             if (-not (Test-Path -LiteralPath (Join-Path $outDir $n))) { throw (New-RpError "O build nao entregou $n em $outDir." 'falha') }
         }
-        Copy-Item -LiteralPath (Join-Path $outDir 'manifest.json') -Destination (Join-Path $RepoRoot 'release\manifest.json') -Force
+        $manPath = Join-Path $RepoRoot 'release\manifest.json'
+        Copy-Item -LiteralPath (Join-Path $outDir 'manifest.json') -Destination $manPath -Force
+        $written['release/manifest.json'] = Get-FileSha256 $manPath
+        $edited = @(Get-RpEditedFiles $RepoRoot $written)
+        if ($edited.Count -gt 0) {
+            throw (New-RpError ("$($edited -join ', ') foi alterado durante a preparacao (fora deste script): nada foi commitado. " +
+                "Confira a alteracao, faca o commit dela na main pela via normal e rode de novo.") 'falha')
+        }
         $toAdd = @(@($changedFiles + @($notesRel)) | Where-Object { Test-Path -LiteralPath (Join-Path $RepoRoot $_) } | Select-Object -Unique)
         [void](Invoke-RpGitChecked $RepoRoot (@('add', '--') + $toAdd) 'git add')
         [void](Invoke-RpGitChecked $RepoRoot @('commit', '-q', '-m', "release: ThinQQ $Version") 'git commit')
@@ -881,8 +925,10 @@ function Invoke-ReleasePrepare {
         if (-not $committed) {
             Write-Host 'Falhou antes do commit: desfazendo (arquivos, branch e pasta da preparacao)...' -ForegroundColor Yellow
             if ($branchCreated) {
-                $tracked = @($changedFiles | Where-Object { (Invoke-RpGit $RepoRoot @('cat-file', '-e', "HEAD:$_")).Code -eq 0 })
-                if ($tracked.Count -gt 0) { [void](Invoke-RpGit $RepoRoot (@('checkout', 'HEAD', '--') + $tracked)) }
+                $edited = @(Get-RpEditedFiles $RepoRoot $written)
+                foreach ($f in $edited) { Write-Host "AVISO: $f foi alterado durante a preparacao e nao foi descartado: confira-o (git diff $f)." -ForegroundColor Yellow }
+                $restore = @($written.Keys | Where-Object { $edited -notcontains $_ -and (Invoke-RpGit $RepoRoot @('cat-file', '-e', "HEAD:$_")).Code -eq 0 })
+                if ($restore.Count -gt 0) { [void](Invoke-RpGit $RepoRoot (@('checkout', 'HEAD', '--') + $restore)) }
                 [void](Invoke-RpGit $RepoRoot @('checkout', 'main'))
                 [void](Invoke-RpGit $RepoRoot @('branch', '-D', $branch))
             }
@@ -890,6 +936,9 @@ function Invoke-ReleasePrepare {
                 Remove-Item -LiteralPath $outDir -Recurse -Force -ErrorAction SilentlyContinue
                 if ($distCreated -and @(Get-ChildItem -LiteralPath $distDir -Force -ErrorAction SilentlyContinue).Count -eq 0) { Remove-Item -LiteralPath $distDir -Force -ErrorAction SilentlyContinue }
             }
+        } else {
+            Write-Host ("O commit 'release: ThinQQ $Version' ($($prepSha.Substring(0, [Math]::Min(7, $prepSha.Length)))) foi feito na branch $branch, mas o state.json nao foi gravado em $outDir " +
+                "(nada foi enviado). Para recomecar: git checkout main ; git branch -D $branch ; apague a pasta $outDir ; e rode de novo publicar-release.bat $Version.") -ForegroundColor Yellow
         }
         throw $err
     }
@@ -903,7 +952,8 @@ function Invoke-ReleasePrepare {
     if ($NoBrowser) { Write-Host "Abra o pull request: $compare" }
     else { Write-Host "Abrindo o pull request no navegador: $compare"; & $BrowserStep $compare }
     Write-Host ''
-    Write-Host "Proximo passo: crie e mescle o pull request (Create a merge commit) e depois rode: publicar-release.bat $Version publicar" -ForegroundColor Green
+    Write-Host "Proximo passo: crie e mescle o pull request (Create a merge commit) e rode IMEDIATAMENTE a etapa publicar depois de mesclar: publicar-release.bat $Version publicar" -ForegroundColor Green
+    Write-Host "(a partir do merge a main ja anuncia a versao nova). Voce continua na branch ${branch}: no fim, volte com git checkout main e git pull."
     return [pscustomobject]@{ Version = $Version; Branch = $branch; DryRun = $false; CompareUrl = $compare; StateDir = $outDir; PrepareCommit = $prepSha; SourceMain = $mainSha }
 }
 

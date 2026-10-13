@@ -20,7 +20,7 @@ $unrel = '## [N' + [char]0xE3 + 'o lan' + [char]0xE7 + 'ado]'
 function Invoke-Scenario([scriptblock]$Block) {
     $script:scnError = $null
     $script:scnResult = $null
-    $captured = (& { try { $script:scnResult = & $Block } catch { $script:scnError = $_ } } *>&1 | Out-String)
+    $captured = (& { try { $script:scnResult = & $Block } catch { $script:scnError = $_ } } *>&1 | Out-String -Width 4096)
     $kind = ''; $msg = ''; $status = 0
     if ($script:scnError) {
         $kind = Get-RpErrorKind $script:scnError
@@ -166,7 +166,12 @@ try {
     foreach ($k in $ct.Keys) { Check ((Get-AssetContentType $k) -ceq $ct[$k]) "Content-Type de $k" }
     $names = Get-ReleaseAssetNames '1.2.1'
     Check (($names -join '|') -ceq 'ThinQQ-1.2.1.zip|ThinQQ.xlam|ThinQQ.core.xlam|manifest.json|tutorial.html') 'nomes EXATOS dos 5 assets'
-    Check ((Get-CompareUrl $R '1.2.1') -ceq 'https://github.com/israeldias-hub/ThinQQ/compare/main...release/v1.2.1?expand=1') 'URL do pull request'
+    $cu = Get-CompareUrl $R '1.2.1'
+    Check ($cu.StartsWith('https://github.com/israeldias-hub/ThinQQ/compare/main...release/v1.2.1?expand=1&title=')) "URL do pull request ($cu)"
+    $cuq = @{}
+    foreach ($kv in ($cu.Split('?')[1].Split('&'))) { $parts = $kv.Split('=', 2); $cuq[$parts[0]] = [uri]::UnescapeDataString($parts[1]) }
+    Check ($cuq['title'] -ceq 'release: ThinQQ 1.2.1' -and $cuq['body'] -match 'IMEDIATAMENTE' -and $cuq['body'] -match 'publicar-release\.bat 1\.2\.1 publicar' -and $cuq['body'] -match 'Create a merge commit') 'URL do pull request preenche titulo e descricao (codificados)'
+    Check ($cu -notmatch '[\s#]' -and $cu.Length -lt 2000) 'URL do pull request sem espacos, sem # e curta'
     Check ((Get-ReleaseBaseUrl $R '1.2.1') -ceq 'https://github.com/israeldias-hub/ThinQQ/releases/download/v1.2.1') 'BaseUrl do release.ps1'
 
     # git credential fill: parsing sem vazar
@@ -187,6 +192,7 @@ try {
     $libText = [IO.File]::ReadAllText((Join-Path $repo 'tools\lib\Release-Publish.ps1'))
     Check ($libText -match "GIT_TERMINAL_PROMPT = '0'" -and $libText -match "GCM_INTERACTIVE = 'never'") 'git credential fill sem prompt (GIT_TERMINAL_PROMPT=0, GCM_INTERACTIVE=never)'
     Check ($libText -match 'SecurityProtocolType\]::Tls12') 'TLS 1.2 forcado no Windows PowerShell 5.1'
+    Check ($libText -match 'robocopy \S+ \S+ /MIR /XJ ') 'copia do build com robocopy /XJ (nao segue juncoes)'
     Check ((Protect-RpSecret "x Bearer $sentinel y $sentinel" $sentinel) -notmatch $sentinel) 'Protect-RpSecret troca o segredo'
     Check ((Protect-RpSecret 'Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz0123' '') -notmatch 'ghp_') 'Protect-RpSecret troca um token com cara de token'
 
@@ -396,6 +402,8 @@ try {
     Write-WorkFile 'release\manifest.json' ('{ "coreVersion": "1.2.0" }' + "`n")
     Write-WorkFile 'docs\tutorial\tutorial.html' "<html><body><p>ThinQQ 1.2.0. Duvidas: issue.</p></body></html>`n"
     Write-WorkFile 'installer\LEIA-ME.txt' "ex.: versions\1.2.0\). Copie`n"
+    $leiaBom = Join-Path $work 'installer\LEIA-ME.txt'
+    [IO.File]::WriteAllText($leiaBom, (Read-RpText $leiaBom), (New-Object Text.UTF8Encoding($true)))   # o LEIA-ME real tem BOM (vai no ZIP)
     Write-WorkFile '.gitignore' "dist/`n"
     [void](Invoke-WorkGit @('add', '-A')); [void](Invoke-WorkGit @('commit', '-q', '-m', 'inicial')); [void](Invoke-WorkGit @('tag', 'v1.2.0'))
     [void](Invoke-WorkGit @('remote', 'add', 'origin', $remote)); [void](Invoke-WorkGit @('push', '-q', '-u', 'origin', 'main', '--tags'))
@@ -497,7 +505,27 @@ try {
     $after = Get-RepoSnapshot
     Check ($after -ceq $snap -and -not (Test-Path (Join-Path $work 'dist\release-1.2.1'))) ("build que falha: volta para a main, apaga a branch e a pasta, restaura os arquivos" + $(if ($after -cne $snap) { " (antes: $snap; depois: $after)" } else { '' }))
 
+    # arquivo da versao alterado por fora enquanto o build rodava: nada e commitado e a alteracao NAO e descartada
+    $snapMain = Invoke-WorkGit @('rev-parse', 'main')
+    $p2 = $prep.Clone()
+    $p2.BuildStep = { param($Ctx) & $fakeBuild $Ctx; $cp = Join-Path $Ctx.RepoRoot 'CHANGELOG.md'; Write-RpText $cp ((Read-RpText $cp) + "- editado por fora`n") }
+    $s = Invoke-Scenario { Invoke-ReleasePrepare @p2 }
+    Check ($s.Failed -and $s.Message -match 'CHANGELOG\.md' -and $s.Message -match 'alterado') "arquivo editado durante a preparacao: recusa o commit ($($s.Message))"
+    Check ((Invoke-WorkGit @('rev-parse', '--abbrev-ref', 'HEAD')) -ceq 'main' -and (Invoke-WorkGit @('rev-parse', 'main')) -ceq $snapMain -and (Invoke-RpGit $work @('rev-parse', '--verify', '--quiet', 'refs/heads/release/v1.2.1')).Code -ne 0) 'arquivo editado: volta para a main, sem commit e sem a branch'
+    Check ((Read-RpText (Join-Path $work 'CHANGELOG.md')) -match 'editado por fora' -and $s.Output -match 'nao foi descartad') 'arquivo editado: a alteracao de quem editou fica (e e dito)'
+    Check ((Read-RpText (Join-Path $work 'version.json')) -match '"1\.2\.0"' -and -not (Test-Path (Join-Path $work 'dist\release-1.2.1'))) 'arquivo editado: os outros arquivos voltam e a pasta sai'
+    [void](Invoke-WorkGit @('checkout', '--', 'CHANGELOG.md'))
+    # falha depois do commit e antes do state.json: orientacao de como recomecar
+    $p2 = $prep.Clone()
+    $p2.BuildStep = { param($Ctx) & $fakeBuild $Ctx; New-Item -ItemType Directory -Force (Join-Path $Ctx.OutDir 'state.json') | Out-Null }
+    $s = Invoke-Scenario { Invoke-ReleasePrepare @p2 }
+    Check ($s.Failed -and $s.Output -match 'git checkout main' -and $s.Output -match 'git branch -D release/v1\.2\.1' -and $s.Output -match 'release-1\.2\.1') "falha entre o commit e o state.json: diz como recomecar ($($s.Message))"
+    [void](Invoke-WorkGit @('checkout', '-q', 'main')); [void](Invoke-WorkGit @('branch', '-q', '-D', 'release/v1.2.1'))
+    Remove-Item -LiteralPath (Join-Path $work 'dist') -Recurse -Force
+    Check ((Get-RepoSnapshot) -ceq $snap) 'depois de recomecar como orientado, o repositorio volta ao estado anterior'
+
     # caminho feliz
+    $script:buildCalls = 0
     $mainBefore = (Invoke-WorkGit @('rev-parse', 'main'))
     $s = Invoke-Scenario { Invoke-ReleasePrepare @prep }
     Check (-not $s.Failed) "Prepare: sem erro ($($s.Message))"
@@ -511,6 +539,10 @@ try {
     Check ($clAfter.Replace("`r`n", "`n").Contains("$unrel`n`n## [1.2.1] - 2026-10-13`n`n### Adicionado`n- Algo novo.")) 'Prepare: CHANGELOG com [1.2.1] - data e [Nao lancado] nova'
     Check ((Read-RpText (Join-Path $work 'docs\tutorial\tutorial.html')) -match '<p>ThinQQ 1\.2\.1\. ') 'Prepare: rodape do tutorial'
     Check ((Read-RpText (Join-Path $work 'installer\LEIA-ME.txt')) -match 'versions\\1\.2\.1\\') 'Prepare: exemplo do LEIA-ME'
+    $leiaBytes = [IO.File]::ReadAllBytes((Join-Path $work 'installer\LEIA-ME.txt'))
+    Check ($leiaBytes.Length -gt 3 -and $leiaBytes[0] -eq 0xEF -and $leiaBytes[1] -eq 0xBB -and $leiaBytes[2] -eq 0xBF) 'Prepare: o LEIA-ME continua com BOM'
+    $clBytes = [IO.File]::ReadAllBytes((Join-Path $work 'CHANGELOG.md'))
+    Check (-not ($clBytes[0] -eq 0xEF -and $clBytes[1] -eq 0xBB)) 'Prepare: o CHANGELOG continua sem BOM'
     $outDir = Join-Path $work 'dist\release-1.2.1'
     Check ((Get-TextSha256 (Invoke-WorkGit @('show', 'HEAD:release/manifest.json'))) -ceq (Get-TextSha256 (Read-RpText (Join-Path $outDir 'manifest.json')))) 'Prepare: release/manifest.json = manifest.json construido (no commit)'
     $changed = @((Invoke-WorkGit @('diff', '--name-only', 'HEAD~1', 'HEAD')) -split "\r?\n" | Sort-Object)
@@ -522,6 +554,7 @@ try {
     Check ((Invoke-WorkGit @('rev-parse', 'origin/main')) -ceq $mainBefore) 'Prepare: a main do remoto nao foi tocada'
     Check ($script:browserUrls.Count -eq 1 -and $script:browserUrls[0] -ceq (Get-CompareUrl $R '1.2.1')) 'Prepare: abre a pagina do pull request'
     Check ($s.Output -match 'publicar-release\.bat 1\.2\.1 publicar') 'Prepare: imprime o proximo passo'
+    Check ($s.Output -match 'IMEDIATAMENTE' -and $s.Output -match 'git checkout main' -and $s.Output -match 'git pull') 'Prepare: pede a etapa publicar logo depois do merge e lembra de voltar para a main'
 
     # ================================================================ Publish com git
     $script:credCalls = 0
