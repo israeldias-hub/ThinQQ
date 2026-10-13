@@ -339,7 +339,7 @@ Check ($readme -match 'v1\.2\.0') 'README cita a release v1.2.0 (a primeira publ
 Check ($readme -notmatch 'v1\.0\.0') 'README não cita mais a release v1.0.0'
 Check ((Read-Utf8 $leiamePath) -match [regex]::Escape("versions\$ver\")) "LEIA-ME cita a pasta versions\$ver\ no exemplo"
 $notesLines = @((Read-Utf8 (Join-Path $RepoRoot 'release\notes.txt')) -split "\r?\n" | Where-Object { $_.Trim().Length -gt 0 })
-Check ($notesLines.Count -ge 6 -and $notesLines.Count -le 8) "release/notes.txt tem de 6 a 8 linhas ($($notesLines.Count))"
+Check ($notesLines.Count -ge 1 -and $notesLines.Count -le 8) "release/notes.txt tem de 1 a 8 linhas ($($notesLines.Count)): uma versao de correcao pode ter poucas"
 Check (@($notesLines | Where-Object { -not $_.StartsWith([string][char]0x2022) }).Count -eq 0) 'release/notes.txt: toda linha começa com o marcador'
 
 # ---- exemplos: a contagem citada na documentação é a de Samples_Create
