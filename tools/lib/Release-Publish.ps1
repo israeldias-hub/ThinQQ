@@ -122,10 +122,14 @@ function Write-RpTextLike([string]$Path, [string]$Text, [bool]$Bom) { [IO.File]:
 
 # Arquivos (relativos) cujo conteudo nao e mais o que a etapa gravou ($Written: relativo -> SHA-256)
 function Get-RpEditedFiles([string]$RepoRoot, [hashtable]$Written) {
+    # arquivo travado ou ilegivel (outro programa com ele aberto) conta como alterado: nunca e commitado nem descartado, e o erro de E/S
+    # nao escapa (quem chama pode estar no meio de uma limpeza)
     $out = @()
     foreach ($rel in @($Written.Keys | Sort-Object)) {
         $p = Join-Path $RepoRoot $rel
-        if (-not (Test-Path -LiteralPath $p) -or (Get-FileSha256 $p) -cne $Written[$rel]) { $out += $rel }
+        $changed = $true
+        try { $changed = -not (Test-Path -LiteralPath $p) -or (Get-FileSha256 $p) -cne $Written[$rel] } catch { $changed = $true }
+        if ($changed) { $out += $rel }
     }
     return $out
 }
@@ -914,6 +918,13 @@ function Invoke-ReleasePrepare {
             else { Write-RpTextLike $p $n (Test-RpFileBom $p); $written[$pair[0]] = Get-FileSha256 $p }
         }
         Write-Host "version.json, CHANGELOG.md, tutorial e LEIA-ME atualizados para $Version."
+        # tudo o que vai no commit e a etapa nao grava (release/notes.txt; tutorial ou LEIA-ME sem a versao para trocar) tambem e conferido
+        # antes do commit: o SHA-256 de agora (antes do build); o release/manifest.json e registrado quando for copiado do build
+        $toAdd = @(@($changedFiles + @($notesRel)) | Where-Object { Test-Path -LiteralPath (Join-Path $RepoRoot $_) } | Select-Object -Unique)
+        $guard = @{}
+        foreach ($rel in $toAdd) {
+            if (-not $written.ContainsKey($rel) -and $rel -ne 'release/manifest.json') { $guard[$rel] = Get-FileSha256 (Join-Path $RepoRoot $rel) }
+        }
         $distDir = Split-Path $outDir
         $distCreated = -not (Test-Path -LiteralPath $distDir)
         New-Item -ItemType Directory -Force $outDir | Out-Null
@@ -925,12 +936,13 @@ function Invoke-ReleasePrepare {
         $manPath = Join-Path $RepoRoot 'release\manifest.json'
         Copy-Item -LiteralPath (Join-Path $outDir 'manifest.json') -Destination $manPath -Force
         $written['release/manifest.json'] = Get-FileSha256 $manPath
-        $edited = @(Get-RpEditedFiles $RepoRoot $written)
+        $check = $written.Clone()
+        foreach ($k in $guard.Keys) { $check[$k] = $guard[$k] }
+        $edited = @(Get-RpEditedFiles $RepoRoot $check)
         if ($edited.Count -gt 0) {
-            throw (New-RpError ("$($edited -join ', ') foi alterado durante a preparacao (fora deste script): nada foi commitado. " +
-                "Confira a alteracao, faca o commit dela na main pela via normal e rode de novo.") 'falha')
+            throw (New-RpError ("$($edited -join ', ') foi alterado (ou nao pode ser lido) durante a preparacao, fora deste script: nada foi commitado. " +
+                "Confira a alteracao (feche o programa que estiver com o arquivo aberto), faca o commit dela na main pela via normal e rode de novo.") 'falha')
         }
-        $toAdd = @(@($changedFiles + @($notesRel)) | Where-Object { Test-Path -LiteralPath (Join-Path $RepoRoot $_) } | Select-Object -Unique)
         [void](Invoke-RpGitChecked $RepoRoot (@('add', '--') + $toAdd) 'git add')
         [void](Invoke-RpGitChecked $RepoRoot @('commit', '-q', '-m', "release: ThinQQ $Version") 'git commit')
         $committed = $true
@@ -941,17 +953,23 @@ function Invoke-ReleasePrepare {
         $err = $_
         if (-not $committed) {
             Write-Host 'Falhou antes do commit: desfazendo (arquivos, branch e pasta da preparacao)...' -ForegroundColor Yellow
+            # cada passo da limpeza isolado: uma falha aqui nunca troca o erro original nem pula os passos seguintes
             if ($branchCreated) {
-                $edited = @(Get-RpEditedFiles $RepoRoot $written)
-                foreach ($f in $edited) { Write-Host "AVISO: $f foi alterado durante a preparacao e nao foi descartado: confira-o (git diff $f)." -ForegroundColor Yellow }
-                $restore = @($written.Keys | Where-Object { $edited -notcontains $_ -and (Invoke-RpGit $RepoRoot @('cat-file', '-e', "HEAD:$_")).Code -eq 0 })
-                if ($restore.Count -gt 0) { [void](Invoke-RpGit $RepoRoot (@('checkout', 'HEAD', '--') + $restore)) }
-                [void](Invoke-RpGit $RepoRoot @('checkout', 'main'))
-                [void](Invoke-RpGit $RepoRoot @('branch', '-D', $branch))
+                $edited = @()
+                try { $edited = @(Get-RpEditedFiles $RepoRoot $written) } catch { $edited = @($written.Keys) }
+                foreach ($f in $edited) { Write-Host "AVISO: $f foi alterado (ou nao pode ser lido) durante a preparacao e nao foi descartado: confira-o (git diff $f)." -ForegroundColor Yellow }
+                try {
+                    $restore = @($written.Keys | Where-Object { $edited -notcontains $_ -and (Invoke-RpGit $RepoRoot @('cat-file', '-e', "HEAD:$_")).Code -eq 0 })
+                    if ($restore.Count -gt 0) { [void](Invoke-RpGit $RepoRoot (@('checkout', 'HEAD', '--') + $restore)) }
+                } catch { Write-Host "AVISO: nao consegui restaurar os arquivos: $($_.Exception.Message)" -ForegroundColor Yellow }
+                try { [void](Invoke-RpGit $RepoRoot @('checkout', 'main')) } catch { Write-Host "AVISO: nao consegui voltar para a main: $($_.Exception.Message)" -ForegroundColor Yellow }
+                try { [void](Invoke-RpGit $RepoRoot @('branch', '-D', $branch)) } catch { Write-Host "AVISO: nao consegui apagar a branch ${branch}: $($_.Exception.Message)" -ForegroundColor Yellow }
             }
             if ($outCreated) {
-                Remove-Item -LiteralPath $outDir -Recurse -Force -ErrorAction SilentlyContinue
-                if ($distCreated -and @(Get-ChildItem -LiteralPath $distDir -Force -ErrorAction SilentlyContinue).Count -eq 0) { Remove-Item -LiteralPath $distDir -Force -ErrorAction SilentlyContinue }
+                try {
+                    Remove-Item -LiteralPath $outDir -Recurse -Force -ErrorAction SilentlyContinue
+                    if ($distCreated -and @(Get-ChildItem -LiteralPath $distDir -Force -ErrorAction SilentlyContinue).Count -eq 0) { Remove-Item -LiteralPath $distDir -Force -ErrorAction SilentlyContinue }
+                } catch { Write-Host "AVISO: nao consegui apagar ${outDir}: $($_.Exception.Message)" -ForegroundColor Yellow }
             }
         } else {
             Write-Host ("O commit 'release: ThinQQ $Version' ($($prepSha.Substring(0, [Math]::Min(7, $prepSha.Length)))) foi feito na branch $branch, mas o state.json nao foi gravado em $outDir " +

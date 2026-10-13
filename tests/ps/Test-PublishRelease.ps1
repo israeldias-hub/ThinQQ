@@ -594,6 +594,24 @@ Write-Output 'FIM-DO-INVOCADOR'
     Check ((Read-RpText (Join-Path $work 'CHANGELOG.md')) -match 'editado por fora' -and $s.Output -match 'nao foi descartad') 'arquivo editado: a alteracao de quem editou fica (e e dito)'
     Check ((Read-RpText (Join-Path $work 'version.json')) -match '"1\.2\.0"' -and -not (Test-Path (Join-Path $work 'dist\release-1.2.1'))) 'arquivo editado: os outros arquivos voltam e a pasta sai'
     [void](Invoke-WorkGit @('checkout', '--', 'CHANGELOG.md'))
+    # um arquivo que vai no commit mas que a etapa NAO grava (release/notes.txt) editado durante o build: tambem recusa
+    $p2 = $prep.Clone()
+    $p2.BuildStep = { param($Ctx) & $fakeBuild $Ctx; $np = Join-Path $Ctx.RepoRoot 'release\notes.txt'; Write-RpText $np ((Read-RpText $np) + "* editado por fora`n") }
+    $s = Invoke-Scenario { Invoke-ReleasePrepare @p2 }
+    Check ($s.Failed -and $s.Message -match 'release/notes\.txt' -and $s.Message -match 'nada foi commitado') "notas editadas durante o build: recusa o commit ($($s.Message))"
+    Check ((Invoke-WorkGit @('rev-parse', 'main')) -ceq $snapMain -and (Invoke-WorkGit @('rev-parse', '--abbrev-ref', 'HEAD')) -ceq 'main' -and (Read-RpText (Join-Path $work 'release\notes.txt')) -match 'editado por fora') 'notas editadas: sem commit, de volta a main e a edicao fica'
+    [void](Invoke-WorkGit @('checkout', '--', 'release/notes.txt'))
+    # arquivo da versao TRAVADO (outro programa com ele aberto) durante a preparacao: tratado como alterado, sem trocar o erro original e
+    # sem pular a limpeza
+    $script:lockHandle = $null
+    $p2 = $prep.Clone()
+    $p2.BuildStep = { param($Ctx) & $fakeBuild $Ctx; $script:lockHandle = [IO.File]::Open((Join-Path $Ctx.RepoRoot 'CHANGELOG.md'), 'Open', 'Read', 'None') }
+    try { $s = Invoke-Scenario { Invoke-ReleasePrepare @p2 } } finally { if ($script:lockHandle) { $script:lockHandle.Dispose(); $script:lockHandle = $null } }
+    Check ($s.Failed -and $s.Message -match 'CHANGELOG\.md' -and $s.Message -match 'nada foi commitado') "arquivo travado: recusa com a mensagem certa, nao um erro de E/S ($($s.Message))"
+    Check ((Invoke-WorkGit @('rev-parse', '--abbrev-ref', 'HEAD')) -ceq 'main' -and (Invoke-RpGit $work @('rev-parse', '--verify', '--quiet', 'refs/heads/release/v1.2.1')).Code -ne 0 -and -not (Test-Path (Join-Path $work 'dist\release-1.2.1'))) 'arquivo travado: a limpeza foi ate o fim (main, sem branch, sem pasta)'
+    Check ((Read-RpText (Join-Path $work 'version.json')) -match '"1\.2\.0"') 'arquivo travado: os outros arquivos foram restaurados'
+    [void](Invoke-WorkGit @('checkout', '--', 'CHANGELOG.md'))
+    Check ((Get-RepoSnapshot) -ceq $snap) 'depois dos cenarios de arquivo editado/travado, o repositorio volta ao estado anterior'
     # falha depois do commit e antes do state.json: orientacao de como recomecar
     $p2 = $prep.Clone()
     $p2.BuildStep = { param($Ctx) & $fakeBuild $Ctx; New-Item -ItemType Directory -Force (Join-Path $Ctx.OutDir 'state.json') | Out-Null }
