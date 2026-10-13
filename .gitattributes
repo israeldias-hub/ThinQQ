@@ -1,0 +1,2 @@
+# Scripts .bat do Windows sempre com CRLF (o cmd.exe le linha a linha; LF solto quebra rotulos e goto)
+*.bat text eol=crlf
