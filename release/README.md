@@ -23,6 +23,8 @@ ou pwsh 7). Detalhes, pré-condições e opções no README, seção "Publicar u
 `-DryRun` (ou `set DRYRUN=1`) mostra o que cada etapa faria sem gravar, construir, enviar, ler o token nem chamar a API. O token do GitHub vem
 de `git credential fill` (o login do Git desta máquina), fica só na memória, vai só no cabeçalho `Authorization` das chamadas a
 `api.github.com` e `uploads.github.com` e nunca é impresso nem gravado. Testes: `tests/ps/Test-PublishRelease.ps1` (sem rede e sem Excel).
+A biblioteca desliga o rastreamento do `Set-PSDebug` na sessão que a carrega (ele mostraria o token) e ignora `-Debug`/`-Verbose` padrão nos
+trechos com o token; uma transcrição (`Start-Transcript`) no 5.1 grava o texto bruto dos erros da API (não o token): não publique transcrições.
 
 ## Alternativa manual
 

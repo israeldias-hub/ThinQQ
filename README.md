@@ -289,7 +289,11 @@ que gravou, menos um arquivo que alguém tenha editado enquanto o build rodava (
 sem um login guardado, o script para e pede um `git fetch` para fazer o login), fica só na memória do processo e vai apenas no cabeçalho
 `Authorization` das chamadas a `api.github.com` e `uploads.github.com` (TLS 1.2; redirecionamentos para outros endereços são recusados). Ele
 nunca é impresso, gravado (nem no `state.json`, nem em log ou arquivo temporário) nem passado em linha de comando, e as mensagens de erro da
-API são filtradas. A conta precisa poder escrever no repositório e criar releases.
+API são filtradas. A conta precisa poder escrever no repositório e criar releases. Os trechos que lidam com o token ignoram `-Debug`,
+`-Verbose` e os padrões de `$PSDefaultParameterValues` de quem chama, e a biblioteca (`tools/lib/Release-Publish.ps1`) desliga o
+rastreamento do `Set-PSDebug` na sessão que a carrega, porque o rastreamento mostraria o token. Uma transcrição (`Start-Transcript`) no
+Windows PowerShell 5.1 grava o texto bruto das respostas de erro da API (nunca o token, que só vai no cabeçalho `Authorization`); mesmo
+assim, quem guarda transcrições não deve publicá-las.
 
 ### Alternativa manual
 
