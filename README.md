@@ -244,7 +244,7 @@ Ele não roda no GitHub Actions porque a construção dos `.xlam` usa o Excel in
 linhas com o marcador •; vão para o campo `notes` do manifesto e para o texto da release) e as entradas do `CHANGELOG.md` na seção
 `[Não lançado]`, e faça o commit delas pela via normal (pull request).
 
-1. **Preparar:** `publicar-release.bat x.y.z` (por exemplo `publicar-release.bat 1.2.1`). O script confere as pré-condições e para com uma
+1. **Preparar:** `publicar-release.bat x.y.z` (por exemplo `publicar-release.bat 1.2.1`). Com dois cliques no arquivo, sem informar a versão, o `.bat` pergunta a versão (x.y.z) e a etapa (1 ou 2); em um terminal, passe a versão como argumento. O script confere as pré-condições e para com uma
    mensagem clara se alguma falhar: árvore limpa; branch atual `main`, igual à `origin/main` depois de um `git fetch`; versão x.y.z maior que
    a do `version.json`; `release/notes.txt` alterado desde a última tag `v*`; entradas em `[Não lançado]` (se estiver vazia, avisa e pergunta);
    `Test-Docs.ps1` e `Test-Privacy.ps1` passando. Depois cria a branch `release/vx.y.z`, atualiza o `version.json` (loader e core), o
