@@ -509,7 +509,8 @@ try {
     $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft }
     Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'mescle o pull request') "Publish antes do merge: recusa ($($s.Message))"
     Check ($script:credCalls -eq 0 -and $script:gh.Requests.Count -eq 0) 'Publish recusado: nao leu o token nem chamou a API'
-    $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft -Repo 'outra-conta/ThinQQ' }
+    $pubOther = $pubGit.Clone(); $pubOther.Repo = 'outra-conta/ThinQQ'
+    $s = Invoke-Scenario { Invoke-ReleasePublish @pubOther -Draft }
     Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'outra-conta/ThinQQ' -and $s.Message -match 'israeldias-hub/ThinQQ') "Publish: -Repo diferente do state.json => recusa ($($s.Message))"
     [void](Invoke-WorkGit @('checkout', '-q', 'main'))
     # merge por squash (ou rebase): o commit de preparacao nao entra na main, mas os arquivos da versao sao os mesmos => aceito
