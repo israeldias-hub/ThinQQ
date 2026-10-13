@@ -1,5 +1,33 @@
 # Publicação de um release
 
+## Fluxo automático (publicar-release.bat)
+
+Um comando local em duas etapas, `publicar-release.bat` na raiz do repositório (chama `tools/Publish-Release.ps1`; Windows PowerShell 5.1
+ou pwsh 7). Detalhes, pré-condições e opções no README, seção "Publicar uma versão".
+
+0. Na `main`: notas da versão nova em `release/notes.txt` e entradas do `CHANGELOG.md` em `[Não lançado]`, já commitadas.
+1. `publicar-release.bat x.y.z`: confere as pré-condições, cria a branch `release/vx.y.z` com `version.json`, `CHANGELOG.md`, rodapé do
+   tutorial, exemplo do LEIA-ME e `release/manifest.json` da versão nova, constrói numa cópia em `C:\temp`, guarda os 5 arquivos e o
+   `state.json` em `dist\release-x.y.z\`, envia a branch e abre o pull request.
+2. Mescle o pull request (manual, com "Create a merge commit"; recomendado desmarcar "Allow squash merging" e "Allow rebase merging" em
+   Settings > General > Pull Requests) e rode o passo 3 IMEDIATAMENTE: a partir do merge a `main` já anuncia a versão nova. Num merge por
+   squash ou rebase, o passo 3 só segue se os arquivos da versão na `main` forem idênticos aos da preparação. Depois, `git checkout main` e
+   `git pull` (a etapa 1 deixa você na branch `release/vx.y.z`).
+3. `publicar-release.bat x.y.z publicar`: cria a release em rascunho, envia os assets, confere tamanho e SHA-256 de cada um pelo campo
+   `digest` da API (sem ele, nada é publicado) e publica. Com `-Draft` a release fica em rascunho; rodar de novo depois de uma falha é seguro
+   (um rascunho editado no GitHub não é apagado). Se a `origin/main` mudou depois da preparação, a etapa recusa (ou segue com
+   `-AllowMainChanges`).
+4. Verifique a instalação em Excel real (manual): baixe o ZIP pela release, extraia a pasta inteira, rode `Instalar-ThinQQ.cmd` e confira
+   a aba ThinQQ.
+
+`-DryRun` (ou `set DRYRUN=1`) mostra o que cada etapa faria sem gravar, construir, enviar, ler o token nem chamar a API. O token do GitHub vem
+de `git credential fill` (o login do Git desta máquina), fica só na memória, vai só no cabeçalho `Authorization` das chamadas a
+`api.github.com` e `uploads.github.com` e nunca é impresso nem gravado. Testes: `tests/ps/Test-PublishRelease.ps1` (sem rede e sem Excel).
+A biblioteca desliga o rastreamento do `Set-PSDebug` na sessão que a carrega (ele mostraria o token) e ignora `-Debug`/`-Verbose` padrão nos
+trechos com o token; uma transcrição (`Start-Transcript`) no 5.1 grava o texto bruto dos erros da API (não o token): não publique transcrições.
+
+## Alternativa manual
+
 1. Rode `pwsh build/release.ps1 -Version x.y.z -BaseUrl <endereço>` (ex.: `https://github.com/israeldias-hub/ThinQQ/releases/download/vx.y.z`
    ou uma pasta de rede, usando também `-PublishTo` para copiar os arquivos).
 2. Publique no `BaseUrl`: o ZIP `dist/ThinQQ-x.y.z.zip` e os arquivos soltos `ThinQQ.xlam`, `ThinQQ.core.xlam`,
