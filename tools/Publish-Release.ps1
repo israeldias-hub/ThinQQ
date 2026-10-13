@@ -25,6 +25,7 @@ param(
     [switch]$DryRun,
     [switch]$NoBrowser,
     [switch]$RunTests,
+    [switch]$AllowMainChanges,
     [string]$StateDir = '',
     [string]$RepoRoot = ''
 )
@@ -36,13 +37,13 @@ try {
     if (-not $Version) {
         Write-Host 'Uso: publicar-release.bat x.y.z            (etapa 1: prepara, constroi e abre o pull request)'
         Write-Host '     publicar-release.bat x.y.z publicar   (etapa 2: depois de mesclar o pull request, publica a release no GitHub)'
-        Write-Host '     Opcoes: -DryRun (so mostra o que faria), -Draft (etapa 2 termina em rascunho), -NoBrowser, -RunTests (suite completa antes do build)'
+        Write-Host '     Opcoes: -DryRun (so mostra o que faria), -Draft (etapa 2 termina em rascunho), -NoBrowser, -RunTests (suite completa antes do build), -AllowMainChanges (etapa 2 aceita uma origin/main que mudou depois da preparacao)'
         $exitCode = 2
     } else {
         $isPublish = ($Phase -eq 'Publish' -or $Phase -eq 'publicar')
         if ($isPublish) {
             if ($RunTests) { Write-Host 'AVISO: -RunTests so vale na etapa Preparar (ignorado).' -ForegroundColor Yellow }
-            [void](Invoke-ReleasePublish -RepoRoot $RepoRoot -Version $Version -Repo $Repo -NotesFile $NotesFile -StateDir $StateDir -Draft:$Draft -DryRun:$DryRun -NoBrowser:$NoBrowser)
+            [void](Invoke-ReleasePublish -RepoRoot $RepoRoot -Version $Version -Repo $Repo -NotesFile $NotesFile -StateDir $StateDir -Draft:$Draft -DryRun:$DryRun -NoBrowser:$NoBrowser -AllowMainChanges:$AllowMainChanges)
         } else {
             if ($Draft) { Write-Host 'AVISO: -Draft so vale na etapa Publicar (ignorado).' -ForegroundColor Yellow }
             [void](Invoke-ReleasePrepare -RepoRoot $RepoRoot -Version $Version -Repo $Repo -NotesFile $NotesFile -DryRun:$DryRun -NoBrowser:$NoBrowser -RunTests:$RunTests)

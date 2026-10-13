@@ -14,6 +14,8 @@ $script:RpAllowedHosts = @('api.github.com', 'uploads.github.com')
 $script:RpApiVersion = '2022-11-28'
 $script:RpUserAgent = 'ThinQQ-Publish-Release'
 $script:RpTestAllowLoopback = $false
+# Arquivos que a etapa Preparar grava e commita (conferidos num merge por squash/rebase)
+$script:RpVersionFiles = @('version.json', 'CHANGELOG.md', 'release/manifest.json', 'release/notes.txt', 'docs/tutorial/tutorial.html', 'installer/LEIA-ME.txt')
 
 # ---------------------------------------------------------------------------------------------------------------------------------------
 # Erros: Kind 'precondicao' (o script sai com 2: nada foi alterado) ou 'falha' (sai com 1). HttpStatus quando veio da API.
@@ -898,6 +900,7 @@ function Invoke-ReleasePublish {
         [switch]$Draft,
         [switch]$DryRun,
         [switch]$NoBrowser,
+        [switch]$AllowMainChanges,
         [scriptblock]$Transport = $null,
         [scriptblock]$CredentialRunner = $null,
         [scriptblock]$BrowserStep = $null
@@ -912,31 +915,74 @@ function Invoke-ReleasePublish {
     if (-not (Test-RepoName $Repo)) { throw (New-RpError "Repositorio invalido '$Repo' (use dono/nome)." $pre) }
 
     $state = Read-ReleaseState $StateDir $Version
+    if ([string]$state.repo -cne $Repo) {
+        throw (New-RpError "O state.json de $StateDir e do repositorio '$($state.repo)', nao de '$Repo': confira o -Repo (nada foi alterado)." $pre)
+    }
     Write-Host "Arquivos da preparacao conferidos ($StateDir)."
-    $notesPath = $(if ([IO.Path]::IsPathRooted($NotesFile)) { $NotesFile } else { Join-Path $RepoRoot $NotesFile })
-    if (-not (Test-Path -LiteralPath $notesPath)) { throw (New-RpError "Arquivo de notas nao encontrado: $NotesFile" $pre) }
-    $body = New-ReleaseBody (Read-RpText $notesPath)
 
     if ($DryRun) { Write-Host '[ENSAIO] git fetch origin (pulado: usa a origin/main ja baixada)' }
     else { [void](Invoke-RpGitChecked $RepoRoot @('fetch', 'origin') 'git fetch origin' $pre) }
     $originSha = Invoke-RpGitChecked $RepoRoot @('rev-parse', '--verify', '--quiet', 'refs/remotes/origin/main') 'origin/main' $pre
-    $anc = Invoke-RpGit $RepoRoot @('merge-base', '--is-ancestor', [string]$state.prepareCommit, $originSha)
-    if ($anc.Code -eq 1) {
-        throw (New-RpError "O commit de preparacao ($($state.prepareCommit.Substring(0, 7))) ainda nao esta na origin/main: mescle o pull request da branch release/$tag (com 'Create a merge commit') e rode de novo." $pre)
-    } elseif ($anc.Code -ne 0) {
-        throw (New-RpError "Nao achei o commit de preparacao $($state.prepareCommit) neste repositorio: rode git fetch e confira a branch release/$tag." $pre)
+    $prep = [string]$state.prepareCommit
+    $short = $prep.Substring(0, 7)
+    if ((Invoke-RpGit $RepoRoot @('cat-file', '-e', "$prep^{commit}")).Code -ne 0) {
+        throw (New-RpError "Nao achei o commit de preparacao $prep neste repositorio: rode git fetch e confira a branch release/$tag." $pre)
     }
     $remoteManifest = Invoke-RpGit $RepoRoot @('show', "${originSha}:release/manifest.json")
-    if ($remoteManifest.Code -ne 0) { throw (New-RpError 'A origin/main nao tem release/manifest.json.' $pre) }
     $localManifest = Read-RpText (Join-Path $StateDir 'manifest.json')
-    if ((Get-TextSha256 $remoteManifest.Output) -cne (Get-TextSha256 $localManifest)) {
+    $manifestOk = ($remoteManifest.Code -eq 0) -and ((Get-TextSha256 $remoteManifest.Output) -ceq (Get-TextSha256 $localManifest))
+    $anc = Invoke-RpGit $RepoRoot @('merge-base', '--is-ancestor', $prep, $originSha)
+    if ($anc.Code -eq 1) {
+        if (-not $manifestOk) {
+            throw (New-RpError "O commit de preparacao ($short) ainda nao esta na origin/main: mescle o pull request da branch release/$tag (com 'Create a merge commit') e rode de novo." $pre)
+        }
+        # mesclado por 'Squash and merge' ou 'Rebase and merge': o commit muda, o conteudo dos arquivos da versao tem de ser o mesmo
+        $same = (Invoke-RpGit $RepoRoot (@('diff', '--quiet', $prep, $originSha, '--') + $script:RpVersionFiles)).Code -eq 0
+        if (-not $same) {
+            throw (New-RpError ("O pull request da branch release/$tag parece ter sido mesclado por 'Squash and merge' ou 'Rebase and merge' (o commit de preparacao $short nao esta na origin/main), " +
+                "e os arquivos da versao na origin/main (" + ($script:RpVersionFiles -join ', ') + ") nao sao os do commit de preparacao. Nada foi publicado. " +
+                "Publique pela 'Alternativa manual' do README (secao Publicar uma versao) usando os arquivos de $StateDir, ou prepare uma versao nova; " +
+                "use sempre 'Create a merge commit' no pull request da versao.") $pre)
+        }
+        Write-Host "O pull request foi mesclado por squash/rebase: o commit de preparacao ($short) nao esta na origin/main, mas os arquivos da versao sao identicos; seguindo." -ForegroundColor Yellow
+    } elseif ($anc.Code -ne 0) {
+        throw (New-RpError "Nao foi possivel comparar o commit de preparacao $prep com a origin/main (git merge-base, codigo $($anc.Code))." $pre)
+    }
+    if ($remoteManifest.Code -ne 0) { throw (New-RpError 'A origin/main nao tem release/manifest.json.' $pre) }
+    if (-not $manifestOk) {
         throw (New-RpError "O release/manifest.json da origin/main nao e o manifest.json desta preparacao ($StateDir): os assets nao casariam com o manifesto que os usuarios leem. Nada foi publicado." $pre)
+    }
+    # a tag vai para a origin/main: o codigo dela tem de ser o que gerou os arquivos (um PR mesclado depois do da versao muda isso)
+    $diffAll = Invoke-RpGit $RepoRoot @('diff', '--name-only', $prep, $originSha)
+    if ($diffAll.Code -ne 0) { throw (New-RpError "Nao foi possivel comparar o commit de preparacao com a origin/main (git diff, codigo $($diffAll.Code))." $pre) }
+    $changedSince = @(([string]$diffAll.Output) -split "\r?\n" | Where-Object { $_.Trim() })
+    if ($changedSince.Count -gt 0) {
+        $list = (@($changedSince | Select-Object -First 10) -join ', ') + $(if ($changedSince.Count -gt 10) { ', ...' } else { '' })
+        if (-not $AllowMainChanges) {
+            throw (New-RpError ("A origin/main mudou depois da preparacao ($($changedSince.Count) arquivo(s): $list): a tag $tag apontaria para um codigo diferente do que gerou os arquivos. " +
+                "Prepare uma versao nova, ou rode com -AllowMainChanges para publicar assim mesmo (a tag fica na origin/main atual).") $pre)
+        }
+        Write-Host "AVISO (-AllowMainChanges): a origin/main mudou depois da preparacao ($list); a tag $tag vai para a origin/main atual, os arquivos sao os da preparacao." -ForegroundColor Yellow
     }
     Write-Host "origin/main ($($originSha.Substring(0, 7))) contem a preparacao e o manifesto confere."
 
+    # texto da release: o release/notes.txt da origin/main (o que foi revisado e mesclado), nao o da arvore de trabalho; um -NotesFile fora do
+    # repositorio (ensaio) e lido do disco
+    $notesRel = Get-RpRepoRelativePath $RepoRoot $NotesFile
+    if ($notesRel) {
+        $nshow = Invoke-RpGit $RepoRoot @('show', "${originSha}:$notesRel")
+        if ($nshow.Code -ne 0) { throw (New-RpError "A origin/main nao tem $notesRel." $pre) }
+        $body = New-ReleaseBody $nshow.Output
+        $notesSource = "origin/main:$notesRel"
+    } else {
+        if (-not (Test-Path -LiteralPath $NotesFile)) { throw (New-RpError "Arquivo de notas nao encontrado: $NotesFile" $pre) }
+        $body = New-ReleaseBody (Read-RpText $NotesFile)
+        $notesSource = $NotesFile
+    }
+
     if ($DryRun) {
         Write-Host "[ENSAIO] conferiria na API que a tag $tag e a release nao existem"
-        Write-Host "[ENSAIO] criaria o rascunho 'ThinQQ $Version' (tag $tag, alvo $originSha) com o texto de $NotesFile"
+        Write-Host "[ENSAIO] criaria o rascunho 'ThinQQ $Version' (tag $tag, alvo $originSha) com o texto de $notesSource"
         foreach ($f in @($state.files)) { Write-Host ("[ENSAIO] enviaria {0} ({1:N0} bytes, {2})" -f $f.name, [long]$f.size, (Get-AssetContentType $f.name)) }
         Write-Host '[ENSAIO] conferiria tamanho e SHA-256 de cada asset'
         if ($Draft) { Write-Host '[ENSAIO] deixaria a release em RASCUNHO (-Draft)' } else { Write-Host '[ENSAIO] publicaria a release (draft=false, make_latest=true)' }

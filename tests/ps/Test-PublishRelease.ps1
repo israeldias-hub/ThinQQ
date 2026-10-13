@@ -509,11 +509,30 @@ try {
     $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft }
     Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'mescle o pull request') "Publish antes do merge: recusa ($($s.Message))"
     Check ($script:credCalls -eq 0 -and $script:gh.Requests.Count -eq 0) 'Publish recusado: nao leu o token nem chamou a API'
+    $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft -Repo 'outra-conta/ThinQQ' }
+    Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'outra-conta/ThinQQ' -and $s.Message -match 'israeldias-hub/ThinQQ') "Publish: -Repo diferente do state.json => recusa ($($s.Message))"
     [void](Invoke-WorkGit @('checkout', '-q', 'main'))
+    # merge por squash (ou rebase): o commit de preparacao nao entra na main, mas os arquivos da versao sao os mesmos => aceito
+    $mainPre = Invoke-WorkGit @('rev-parse', 'main')
+    [void](Invoke-WorkGit @('merge', '-q', '--squash', 'release/v1.2.1')); [void](Invoke-WorkGit @('commit', '-q', '-m', 'release: ThinQQ 1.2.1 (#9)')); [void](Invoke-WorkGit @('push', '-q', 'origin', 'main'))
+    Reset-FakeGitHub
+    $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft }
+    Check (-not $s.Failed -and $s.Output -match 'squash') "Publish depois de um squash merge com o mesmo conteudo: aceito e dito ($($s.Message))"
+    Check (((Get-FakeRequests 'POST' '/releases$')[0].BodyText | ConvertFrom-Json).target_commitish -ceq (Invoke-WorkGit @('rev-parse', 'origin/main'))) 'squash: a tag vai para a origin/main'
+    [void](Invoke-WorkGit @('reset', '-q', '--hard', $mainPre)); [void](Invoke-WorkGit @('push', '-q', '-f', 'origin', 'main'))
+    # squash com conteudo diferente nos arquivos da versao => recusa explicando squash/rebase e a alternativa manual
+    [void](Invoke-WorkGit @('merge', '-q', '--squash', 'release/v1.2.1'))
+    Write-WorkFile 'CHANGELOG.md' ((Read-RpText (Join-Path $work 'CHANGELOG.md')) + "- editado no merge`n")
+    [void](Invoke-WorkGit @('commit', '-q', '-am', 'release squash editado')); [void](Invoke-WorkGit @('push', '-q', 'origin', 'main'))
+    Reset-FakeGitHub
+    $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft }
+    Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'squash' -and $s.Message -match 'Alternativa manual' -and $s.Message -match 'release-1\.2\.1' -and $script:gh.Requests.Count -eq 0) "squash com conteudo diferente: recusa especifica ($($s.Message))"
+    [void](Invoke-WorkGit @('reset', '-q', '--hard', $mainPre)); [void](Invoke-WorkGit @('push', '-q', '-f', 'origin', 'main'))
     [void](Invoke-WorkGit @('merge', '-q', '--no-ff', '-m', 'Merge pull request #9 from israeldias-hub/release/v1.2.1', 'release/v1.2.1'))
     [void](Invoke-WorkGit @('push', '-q', 'origin', 'main'))
     $origin = Invoke-WorkGit @('rev-parse', 'origin/main')
     $tut = Join-Path $outDir 'tutorial.html'
+    $script:credCalls = 0
     $tutBytes = [IO.File]::ReadAllBytes($tut)
     [IO.File]::WriteAllText($tut, 'alterado depois da preparacao')
     $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft }
@@ -526,20 +545,33 @@ try {
     $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft }
     Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'manifest' -and $script:credCalls -eq 0) "Publish: manifesto da origin/main diferente => recusa ($($s.Message))"
     [void](Invoke-WorkGit @('revert', '--no-edit', 'HEAD')); [void](Invoke-WorkGit @('push', '-q', 'origin', 'main'))
+    # outro PR mesclado DEPOIS do da versao: a tag apontaria para um codigo diferente do que gerou os arquivos => recusa sem -AllowMainChanges
+    Write-WorkFile 'depois.txt' "mudanca depois da versao`n"
+    [void](Invoke-WorkGit @('add', 'depois.txt')); [void](Invoke-WorkGit @('commit', '-q', '-m', 'outro PR')); [void](Invoke-WorkGit @('push', '-q', 'origin', 'main'))
+    Reset-FakeGitHub
+    $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft }
+    Check ($s.Failed -and $s.Kind -eq 'precondicao' -and $s.Message -match 'depois\.txt' -and $s.Message -match 'AllowMainChanges' -and $script:gh.Requests.Count -eq 0) "origin/main mudou depois da preparacao: recusa ($($s.Message))"
+    $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft -AllowMainChanges }
+    Check (-not $s.Failed -and $s.Output -match 'AVISO' -and $s.Output -match 'depois\.txt') "com -AllowMainChanges: segue com aviso ($($s.Message))"
+    [void](Invoke-WorkGit @('revert', '--no-edit', 'HEAD')); [void](Invoke-WorkGit @('push', '-q', 'origin', 'main'))
     $origin = Invoke-WorkGit @('rev-parse', 'origin/main')
 
-    Reset-FakeGitHub
+    Reset-FakeGitHub; $script:credCalls = 0
     $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft -DryRun }
     Check (-not $s.Failed -and $s.Result.DryRun -and $s.Output -match '\[ENSAIO\]') "Publish -DryRun: mostra o plano ($($s.Message))"
     Check ($script:gh.Requests.Count -eq 0 -and $script:credCalls -eq 0) 'Publish -DryRun: nao le o token nem chama o transporte'
 
-    Reset-FakeGitHub
+    Reset-FakeGitHub; $script:credCalls = 0
+    $notesWork = Join-Path (Join-Path $work 'release') 'notes.txt'
+    $notesSaved = [IO.File]::ReadAllBytes($notesWork)
+    Write-RpText $notesWork "texto NAO commitado da arvore de trabalho`n"
     $s = Invoke-Scenario { Invoke-ReleasePublish @pubGit -Draft }
+    [IO.File]::WriteAllBytes($notesWork, $notesSaved)
     Check (-not $s.Failed -and -not $s.Result.Published) "Publish -Draft completo: rascunho criado e conferido ($($s.Message))"
     Check ($script:credCalls -eq 1 -and $script:credInput -ceq (Get-GitCredentialRequest 'israeldias-hub')) 'Publish: token lido uma vez pelo git credential fill (protocol/host/username)'
     $pb = (Get-FakeRequests 'POST' '/releases$')[0].BodyText | ConvertFrom-Json
     Check ($pb.target_commitish -ceq $origin) 'Publish: target_commitish = SHA da origin/main'
-    Check ($pb.body -ceq ([char]0x2022 + " nota nova da 1.2.1`n" + [char]0x2022 + ' outra linha')) 'Publish: corpo = release/notes.txt'
+    Check ($pb.body -ceq ([char]0x2022 + " nota nova da 1.2.1`n" + [char]0x2022 + ' outra linha')) 'Publish: corpo = release/notes.txt da origin/main (nao o da arvore de trabalho)'
     Check ((Get-FakeRequests 'PATCH' '.').Count -eq 0) 'Publish -Draft: sem PATCH'
     Check ($s.Output -match 'Instalar-ThinQQ\.cmd') 'Publish: lembrete da verificacao manual'
 
