@@ -210,6 +210,7 @@ pwsh tests/ps/Test-Privacy.ps1                                    # só a privac
 pwsh tests/ps/Test-ReleaseGuard.ps1                                  # só a guarda do release: módulos de teste nos artefatos, manifesto e conteúdo do ZIP (exemplos\, sem macros)
 pwsh tests/ps/Test-DemoWorkbook.ps1                                  # só a pasta de demonstração (Excel próprio, somente leitura)
 pwsh tests/ps/Test-Signing.ps1                                       # só o ciclo do certificado de teste e o diagnóstico da assinatura (remove o que criou)
+pwsh tests/ps/Test-PublishRelease.ps1                                # só o publicar-release (sem rede e sem Excel: backend HTTP falso e repositório git descartável)
 pwsh tools/New-DemoWorkbook.ps1 -CoreXlam <core de teste>            # regenera exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx (Excel novo e invisível; use o core de TESTE de uma cópia em C:\temp)
 pwsh tools/Export-DemoChartImages.ps1 -OutDir C:\temp\tqq-imagens       # exporta os 27 gráficos da pasta de demonstração em PNG (Excel próprio, invisível, numa cópia do .xlsx) e reduz cada um
 pwsh tools/Build-TutorialGallery.ps1 -ImageDir C:\temp\tqq-imagens       # embute as imagens na galeria do tutorial (idempotente; refaça depois de mudar a demonstração)
@@ -236,6 +237,54 @@ publicado: o `release.ps1` recusa artefatos com módulos de teste.
 
 ## Publicar uma versão
 
+A publicação é um comando local em duas etapas: `publicar-release.bat` (na raiz do repositório), que chama `tools/Publish-Release.ps1`.
+Ele não roda no GitHub Actions porque a construção dos `.xlam` usa o Excel instalado na máquina.
+
+**Antes de começar**, na `main` (atualizada e sem alterações pendentes): escreva as notas da versão nova em `release/notes.txt` (de 6 a 8
+linhas com o marcador •; vão para o campo `notes` do manifesto e para o texto da release) e as entradas do `CHANGELOG.md` na seção
+`[Não lançado]`, e faça o commit delas pela via normal (pull request).
+
+1. **Preparar:** `publicar-release.bat x.y.z` (por exemplo `publicar-release.bat 1.2.1`). O script confere as pré-condições e para com uma
+   mensagem clara se alguma falhar: árvore limpa; branch atual `main`, igual à `origin/main` depois de um `git fetch`; versão x.y.z maior que
+   a do `version.json`; `release/notes.txt` alterado desde a última tag `v*`; entradas em `[Não lançado]` (se estiver vazia, avisa e pergunta);
+   `Test-Docs.ps1` e `Test-Privacy.ps1` passando. Depois cria a branch `release/vx.y.z`, atualiza o `version.json` (loader e core), o
+   `CHANGELOG.md` (`[Não lançado]` vira `[x.y.z] - AAAA-MM-DD` e uma `[Não lançado]` vazia fica no topo), o rodapé do tutorial e o exemplo de
+   pasta do `installer/LEIA-ME.txt`; constrói o release numa cópia em `C:\temp\tqq-release-x.y.z` com `build/release.ps1` (Excel próprio e
+   invisível; a cópia é apagada no fim) e guarda o ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html` e um `state.json`
+   (SHA-256 e tamanho de cada arquivo, o commit de preparação e a `main` de origem) em `dist\release-x.y.z\`; copia o `manifest.json` para
+   `release/manifest.json`, faz o commit `release: ThinQQ x.y.z`, envia a branch (nunca a `main`) e abre a página do pull request. Se falhar
+   antes do commit, tudo é desfeito (arquivos, branch e pasta).
+2. **Mesclar o pull request** (manual): confira o diff e mescle com "Create a merge commit" ("Squash and merge" e "Rebase and merge" trocam o
+   commit, e a etapa 3 confere que o commit de preparação está na `main`). Rode a etapa 3 logo em seguida: a partir do merge, o
+   `release/manifest.json` da `main` já anuncia a versão nova, e quem clicar em atualizar antes de os assets existirem recebe um erro de download.
+3. **Publicar:** `publicar-release.bat x.y.z publicar`. Confere que os arquivos de `dist\release-x.y.z\` não mudaram desde a preparação
+   (`state.json`), que a `origin/main` contém o commit de preparação e tem o mesmo `release/manifest.json` desses arquivos e, pela API, que a
+   tag `vx.y.z` e a release não existem; cria a release em **rascunho** (tag `vx.y.z` no commit da `origin/main`, nome `ThinQQ x.y.z`, texto de
+   `release/notes.txt`), envia os 5 assets com os nomes exatos (`ThinQQ-x.y.z.zip`, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`,
+   `tutorial.html`), confere no GitHub o tamanho e o SHA-256 de cada um (campo `digest` da API ou, sem ele, baixando pela API) e só então
+   publica a release como a mais recente. Qualquer divergência ou falha no meio: nada é publicado, a mensagem diz o que houve e rodar de novo
+   é seguro (um rascunho `ThinQQ x.y.z` deixado por uma execução interrompida é apagado e recriado; release publicada, tag existente ou
+   rascunho com outro nome fazem o script recusar).
+4. **Verificar** (manual): baixe o ZIP pela página da release, extraia a pasta inteira, rode `Instalar-ThinQQ.cmd` e confira a aba ThinQQ no
+   Excel. Os usuários recebem o aviso na próxima abertura do Excel (no máximo uma verificação por dia).
+
+Opções (o `.bat` repassa ao PowerShell): `-DryRun` (ou `set DRYRUN=1`) confere as pré-condições locais e mostra o que faria, sem gravar,
+construir, enviar, ler o token nem chamar a API; `-Draft` termina a etapa 3 com a release em rascunho (publique-a depois pela página dela);
+`-NoBrowser` não abre o navegador; `-RunTests` roda a suíte completa (`build/run-tests.ps1 -Target all -LoaderSwap -TimeoutSec 900`) na cópia
+antes de construir; `-Repo` (padrão `israeldias-hub/ThinQQ`) e `-NotesFile` (padrão `release/notes.txt`). `set NOPAUSE=1` dispensa a pausa no
+fim. Códigos de saída: 0 ok, 1 falha (a mensagem diz o que ficou feito e como retomar), 2 pré-condição recusada (nada mudou). Exemplo de
+ensaio completo: `publicar-release.bat 1.2.1 -DryRun` e `publicar-release.bat 1.2.1 publicar -DryRun`.
+
+**Token do GitHub.** A etapa 3 usa o login do Git desta máquina: o token vem de `git credential fill` (Git Credential Manager, sem janela:
+sem um login guardado, o script para e pede um `git fetch` para fazer o login), fica só na memória do processo e vai apenas no cabeçalho
+`Authorization` das chamadas a `api.github.com` e `uploads.github.com` (TLS 1.2; redirecionamentos para outros endereços são recusados). Ele
+nunca é impresso, gravado (nem no `state.json`, nem em log ou arquivo temporário) nem passado em linha de comando, e as mensagens de erro da
+API são filtradas. A conta precisa poder escrever no repositório e criar releases.
+
+### Alternativa manual
+
+O caminho antigo, passo a passo, continua valendo (por exemplo para publicar numa pasta de rede):
+
 1. Atualize `release/notes.txt` (vai para o campo `notes` do manifesto) e o `CHANGELOG.md`.
 2. Rode o release (a partir da raiz do repositório, com o Excel fechado):
 
@@ -260,8 +309,8 @@ publicado: o `release.ps1` recusa artefatos com módulos de teste.
 **O que uma instalação pelo ZIP consulta.** O instalador grava como fonte de atualização (`UpdateSource`) o campo `manifestUrl` do
 `manifest.json` do ZIP (só se o usuário ainda não tiver uma fonte própria). Com `-BaseUrl` http(s), como a release do GitHub, esse campo
 é o endereço estável `https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json` (o mesmo padrão do
-carregador), nunca o `manifest.json` anexado à release: quem instalou uma versão pelo ZIP (por exemplo a 1.2.0) passa a ver a seguinte (1.2.1) assim que o passo 4 atualizar o
-`release/manifest.json` da `main`. Com `-BaseUrl` numa pasta de rede ou local, o campo é `<pasta>\manifest.json`, e cada versão nova deve
+carregador), nunca o `manifest.json` anexado à release: quem instalou uma versão pelo ZIP (por exemplo a 1.2.0) passa a ver a seguinte (1.2.1) assim que o `release/manifest.json` da `main` mudar (no fluxo automático, ao mesclar o pull request da etapa 1; na alternativa manual, no passo 4).
+Com `-BaseUrl` numa pasta de rede ou local, o campo é `<pasta>\manifest.json`, e cada versão nova deve
 ser publicada na mesma pasta (o manifesto é substituído no lugar). `-ManifestUrl` grava outro endereço.
 
 Para ensaiar sem publicar, use uma cópia do repositório (o Excel do usuário pode manter `dist\ThinQQ.core.test.xlam` travado):
@@ -309,7 +358,8 @@ src/core/    fonte do core: um módulo por família de gráfico (modChartStacked
 tests/       testes VBA (TAP), testes PowerShell, servidor Node de fixtures
 installer/   instalador e desinstalador por usuário, LEIA-ME.txt
 release/     notas e manifesto publicado
-tools/       certificado e assinatura (New-ThinQQCert, Trust-ThinQQPublisher, Sign-ThinQQ) e gerador da pasta de demonstração e da galeria do tutorial
+tools/       publicação da release (Publish-Release, chamado por publicar-release.bat na raiz), certificado e assinatura
+             (New-ThinQQCert, Trust-ThinQQPublisher, Sign-ThinQQ) e gerador da pasta de demonstração e da galeria do tutorial
 exemplos/    ThinQQ-Demonstracao-Materiais-Construcao.xlsx (Excel de exemplo; vai no ZIP da release)
 docs/        tutorial (tutorial.html), especificações e planos
 ```
