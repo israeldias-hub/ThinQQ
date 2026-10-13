@@ -43,8 +43,8 @@ $html = Read-Utf8 $tutorialPath
 $bytes = (Get-Item $tutorialPath).Length
 Check ($html -notmatch 'THINQQ-TUTORIAL-STUB') 'tutorial sem marcador de esqueleto'
 Check ($bytes -ge 2000) "tutorial com tamanho mínimo ($bytes bytes)"
-# limite de 192 KB (decisao da revisao final da Fase 3, era 160 KB): o tutorial e um arquivo unico e autocontido e cresce a cada fase
-Check ($bytes -le 196608) "tutorial com até 192 KB ($bytes bytes)"
+# limite de 640 KB (era 192 KB): o tutorial e um arquivo unico e autocontido e a galeria embute as imagens dos exemplos em base64 (~320 KB)
+Check ($bytes -le 655360) "tutorial com até 640 KB ($bytes bytes)"
 Check ($html -match '<html lang="pt-BR">' -and $html -match 'name="viewport"') 'idioma pt-BR e viewport'
 Check ($html -match 'prefers-color-scheme:\s*dark' -and $html -match '@media print') 'modo escuro e impressão'
 Check ($html -match 'class="skip"' -and $html -match '<nav[^>]*aria-label' -and $html -match '<main') 'link de pular, nav e main'
@@ -80,7 +80,7 @@ if ($parsed) {
         }
     }
     Check ($bad.Count -eq 0) "sem recursos externos (src/href http só em <a> para o repositório): $($bad -join '; ')"
-    Check ($xml.SelectNodes('//link|//img|//iframe|//object|//embed|//video|//audio|//source').Count -eq 0) 'sem link/img/iframe/object/embed/video/audio/source'
+    Check ($xml.SelectNodes('//link|//iframe|//object|//embed|//video|//audio|//source').Count -eq 0) 'sem link/iframe/object/embed/video/audio/source'
     # Único script permitido: o inline que abre os <details> ao imprimir (sem src, sem rede, sem eval)
     $scripts = @($xml.SelectNodes('//script'))
     Check ($scripts.Count -eq 1) 'exatamente um script inline'
@@ -123,6 +123,60 @@ if ($parsed) {
             $cells = @(); if ($row) { $cells = @($row.SelectNodes('th|td') | ForEach-Object { ($_.InnerText -replace '\s+', ' ').Trim() }) }
             Check ($cells.Count -eq 3 -and $cells[0] -eq $it.Sheet -and $cells[1] -eq $it.Title -and $cells[2] -eq $it.KindName) "#demonstracao lista o exemplo $($it.Sheet) com o título e o tipo da cobertura"
         }
+    }
+    # Galeria dos exemplos (tools\Build-TutorialGallery.ps1): uma <figure id="ex-E05"> por exemplo da cobertura, com a(s) imagem(ns) embutida(s)
+    # (data URI image/png) e a legenda com o título ATUAL da cobertura: se alguém mudar o título no gerador do demo, o teste falha e pede para
+    # refazer a galeria (tools\Export-DemoChartImages.ps1 e tools\Build-TutorialGallery.ps1). Os exemplos com "samescale" têm 2 gráficos (E25).
+    Check ($html.Split(@('<!-- galeria:inicio -->'), [StringSplitOptions]::None).Count -eq 2 -and $html.Split(@('<!-- galeria:fim -->'), [StringSplitOptions]::None).Count -eq 2) 'galeria: um par de marcadores <!-- galeria:inicio/fim -->'
+    $galFigs = @($xml.SelectNodes("//figure[starts-with(@id,'ex-')]"))
+    Check ($galFigs.Count -eq $demoCov.Count) "galeria: uma <figure> por exemplo da cobertura ($($galFigs.Count) de $($demoCov.Count))"
+    $expectedImgs = $demoCov.Count + @($demoCov | Where-Object { $_.Features -contains 'samescale' }).Count
+    $allImgs = @($xml.SelectNodes('//img'))
+    Check ($allImgs.Count -eq $expectedImgs) "galeria: $expectedImgs imagens no tutorial, uma por gráfico ($($allImgs.Count))"
+    Check ($xml.SelectNodes('//img[not(ancestor::figure[starts-with(@id,"ex-")])]').Count -eq 0) 'galeria: nenhum <img> fora das figuras ex-E..'
+    $galImgBytes = 0
+    $pngSig = [byte[]](137, 80, 78, 71, 13, 10, 26, 10)
+    foreach ($it in $demoCov) {
+        $fig = $xml.SelectSingleNode("//figure[@id='ex-$($it.Sheet)']")
+        if ($null -eq $fig) { Check $false "galeria: figura ex-$($it.Sheet) existe (refaça a galeria)"; continue }
+        $imgs = @($fig.SelectNodes('.//img'))
+        $nImgs = 1; if ($it.Features -contains 'samescale') { $nImgs = 2 }
+        Check ($imgs.Count -eq $nImgs) "galeria $($it.Sheet): $nImgs imagem(ns) ($($imgs.Count))"
+        $cap = $fig.SelectSingleNode('figcaption')
+        $capText = ''; if ($cap) { $capText = ($cap.InnerText -replace '\s+', ' ').Trim() }
+        Check ($capText.StartsWith($it.Sheet) -and $capText.Contains($it.Title) -and $capText.Contains($it.Desc)) "galeria $($it.Sheet): legenda cita o título e a descrição atuais da cobertura (senão refaça a galeria com tools\Build-TutorialGallery.ps1)"
+        foreach ($img in $imgs) {
+            $src = $img.GetAttribute('src')
+            $okImg = $false; $info = ''
+            if ($src -cmatch '^data:image/png;base64,(?<b>[A-Za-z0-9+/]+={0,2})$') {
+                try {
+                    $png = [Convert]::FromBase64String($Matches['b'])
+                    $sigOk = $png.Length -gt 33
+                    if ($sigOk) { for ($i = 0; $i -lt 8; $i++) { if ($png[$i] -ne $pngSig[$i]) { $sigOk = $false } } }
+                    if ($sigOk) {
+                        $w = ([int]$png[16] -shl 24) -bor ([int]$png[17] -shl 16) -bor ([int]$png[18] -shl 8) -bor [int]$png[19]
+                        $h = ([int]$png[20] -shl 24) -bor ([int]$png[21] -shl 16) -bor ([int]$png[22] -shl 8) -bor [int]$png[23]
+                        $okImg = ($w -gt 0 -and $h -gt 0 -and $img.GetAttribute('width') -eq [string]$w -and $img.GetAttribute('height') -eq [string]$h -and $png.Length -le 61440)
+                        $info = "${w}x$h, $($png.Length) bytes"
+                        $galImgBytes += $png.Length
+                    }
+                } catch { $info = $_.Exception.Message }
+            }
+            Check $okImg "galeria $($it.Sheet): imagem é data URI PNG decodificável, width/height iguais ao IHDR, até 60 KB ($info)"
+            Check ($img.GetAttribute('alt').Trim().Length -gt 0) "galeria $($it.Sheet): imagem com alt não vazio"
+        }
+    }
+    Check ($galImgBytes -le 716800) "galeria: total das imagens até 700 KB ($galImgBytes bytes)"
+    # as imagens ficam embutidas: nenhum src/href de arquivo ou de rede (a regra geral de http acima só olha http/https; aqui também file: e relativos)
+    $badSrc = @($xml.SelectNodes('//*[@src]') | Where-Object { $_.GetAttribute('src') -notmatch '^data:image/png;base64,' } | ForEach-Object { $_.LocalName + ' src=' + $_.GetAttribute('src') })
+    Check ($badSrc.Count -eq 0) "galeria: todo src do tutorial é data URI image/png ($($badSrc -join '; '))"
+    Check (@($xml.SelectNodes('//*[@href]') | Where-Object { $_.GetAttribute('href') -match '^(?i)(file:|[a-z]:\|\\)' }).Count -eq 0) 'galeria: nenhum href para file: nem caminho local'
+    # âncoras: a tabela da demonstração liga cada número à sua figura e o texto do tutorial remete a toda figura (os links #ex-E.. a ids inexistentes
+    # já falham na regra geral das âncoras acima)
+    foreach ($it in $demoCov) {
+        Check ($null -ne $demoSec.SelectSingleNode(".//tr[@data-ex='$($it.Sheet)']/th/a[@href='#ex-$($it.Sheet)']")) "galeria: o número $($it.Sheet) na tabela é link para a figura"
+        $outside = @($xml.SelectNodes("//a[@href='#ex-$($it.Sheet)']") | Where-Object { $null -eq $_.SelectSingleNode("ancestor::*[local-name()='section'][@id='demonstracao']") })
+        Check ($outside.Count -ge 1) "galeria: alguma seção do tutorial remete à figura $($it.Sheet) (Veja a figura $($it.Sheet) na galeria)"
     }
     Check ($null -ne $xml.SelectSingleNode("//*[@id='matriz']")) 'tutorial tem a tabela "O que cada tipo aceita" (#matriz)'
     $noToc = @($xml.SelectNodes("//*[local-name()='section'][@id]") | ForEach-Object { $_.GetAttribute('id') } | Where-Object { $null -eq $xml.SelectSingleNode("//nav//a[@href='#$_']") })

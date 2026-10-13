@@ -104,7 +104,7 @@ Limites: sem o Windows SDK e as SIPs a assinatura automática não roda (o scrip
 1. Digite uma tabela com cabeçalho e categorias à esquerda e clique numa célula dela.
 2. Na aba **ThinQQ**, grupo **Inserir gráfico**, abra **Colunas** e clique em **Colunas empilhadas**: o gráfico aparece à direita, com totais e rótulos.
 3. Troque um número da tabela: colunas, totais e rótulos acompanham.
-4. Para ver o que mais o ThinQQ faz, abra a pasta de demonstração `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` (vem no ZIP; [no GitHub](exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx)): a primeira aba é um índice com 26 exemplos, de E01 a E26; clique no nome do exemplo para ir ao gráfico. Os gráficos também funcionam sem o ThinQQ instalado, mas setas, colchetes e marcas de corte só se recalculam com ele. ThinQQ > Exemplos gera 26 exemplos menores numa pasta nova e ThinQQ > Tutorial abre o tutorial (`docs/tutorial/tutorial.html`), que também explica a pasta de demonstração.
+4. Para ver o que mais o ThinQQ faz, abra a pasta de demonstração `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` (vem no ZIP; [no GitHub](exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx)): a primeira aba é um índice com 26 exemplos, de E01 a E26; clique no nome do exemplo para ir ao gráfico. Os gráficos também funcionam sem o ThinQQ instalado, mas setas, colchetes e marcas de corte só se recalculam com ele. ThinQQ > Exemplos gera 26 exemplos menores numa pasta nova e ThinQQ > Tutorial abre o tutorial (`docs/tutorial/tutorial.html`), que também explica a pasta de demonstração. O tutorial traz uma galeria com a imagem de cada um dos 26 exemplos (embutidas no próprio arquivo, que continua único e funciona sem rede).
 
 ## Recursos
 
@@ -138,7 +138,7 @@ Limites: sem o Windows SDK e as SIPs a assinatura automática não roda (o scrip
 - **Rótulos com soma consistente** (os rótulos dos segmentos somam exatamente o total mostrado: 34% + 33% + 33% = 100%) e **Arredondar intervalo...** (a mesma conta numa tabela comum, em fórmulas da planilha que não dependem do ThinQQ, em até 1.000 células).
 - **Corte de eixo...** em colunas e barras empilhadas e agrupadas: a coluna gigante é cortada, com marca de corte, e o total real continua no rótulo.
 - Menu **PowerPoint**: Copiar como imagem e Copiar como gráfico vinculado (a esta pasta de trabalho) no slide da janela ativa do PowerPoint.
-- **Pasta de demonstração** `exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx`, com 26 exemplos (E01 a E26) e um índice de links, distribuída dentro do ZIP; a planilha Exemplos 3 completa os 26 exemplos de ThinQQ > Exemplos.
+- **Pasta de demonstração** `exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx`, com 26 exemplos (E01 a E26) e um índice de links, distribuída dentro do ZIP; as imagens dos gráficos estão embutidas na galeria do tutorial (`tools/Export-DemoChartImages.ps1` e `tools/Build-TutorialGallery.ps1`); a planilha Exemplos 3 completa os 26 exemplos de ThinQQ > Exemplos.
 - Ícones próprios na faixa de opções; scripts de certificado e de assinatura digital para a TI (`tools/`) e `release.ps1 -SignPfx`.
 - Acertos de aparência: eixos da dispersão no formato da origem e apertados em volta dos dados, pizza e rosca com até 10 cores, linha da combinação acima dos totais, formato inicial dos rótulos pela primeira célula de valor, rótulos das pontas da área e das barras finas da borboleta.
 - Seção **Instalação** completa (passo a passo, atualizações, desinstalação, problemas comuns, repositório privado) e roteiro para a TI.
@@ -211,6 +211,8 @@ pwsh tests/ps/Test-ReleaseGuard.ps1                                  # só a gua
 pwsh tests/ps/Test-DemoWorkbook.ps1                                  # só a pasta de demonstração (Excel próprio, somente leitura)
 pwsh tests/ps/Test-Signing.ps1                                       # só o ciclo do certificado de teste e o diagnóstico da assinatura (remove o que criou)
 pwsh tools/New-DemoWorkbook.ps1 -CoreXlam <core de teste>            # regenera exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx (Excel novo e invisível; use o core de TESTE de uma cópia em C:\temp)
+pwsh tools/Export-DemoChartImages.ps1 -OutDir C:\temp\tqq-imagens       # exporta os 27 gráficos da pasta de demonstração em PNG (Excel próprio, invisível, numa cópia do .xlsx) e reduz cada um
+pwsh tools/Build-TutorialGallery.ps1 -ImageDir C:\temp\tqq-imagens       # embute as imagens na galeria do tutorial (idempotente; refaça depois de mudar a demonstração)
 ```
 
 Os testes VBA ficam em `tests/vba/core` e `tests/vba/loader` (`Test*.bas`, importados pelo build sem registro manual).
@@ -307,7 +309,7 @@ src/core/    fonte do core: um módulo por família de gráfico (modChartStacked
 tests/       testes VBA (TAP), testes PowerShell, servidor Node de fixtures
 installer/   instalador e desinstalador por usuário, LEIA-ME.txt
 release/     notas e manifesto publicado
-tools/       certificado e assinatura (New-ThinQQCert, Trust-ThinQQPublisher, Sign-ThinQQ) e gerador da pasta de demonstração
+tools/       certificado e assinatura (New-ThinQQCert, Trust-ThinQQPublisher, Sign-ThinQQ) e gerador da pasta de demonstração e da galeria do tutorial
 exemplos/    ThinQQ-Demonstracao-Materiais-Construcao.xlsx (Excel de exemplo; vai no ZIP da release)
 docs/        tutorial (tutorial.html), especificações e planos
 ```
