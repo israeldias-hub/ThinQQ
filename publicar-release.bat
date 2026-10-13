@@ -18,6 +18,9 @@ rem ============================================================================
 setlocal EnableExtensions
 cd /d "%~dp0"
 
+rem Um PSModulePath herdado do PowerShell 7 (bat aberto num terminal pwsh) esconde
+rem cmdlets do Windows PowerShell 5.1: sem ele, o 5.1 usa o padrao da maquina.
+set "PSModulePath="
 set "EXTRA="
 if defined DRYRUN set "EXTRA=-DryRun"
 

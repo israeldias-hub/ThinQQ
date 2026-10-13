@@ -120,7 +120,12 @@ function Get-BytesSha256([byte[]]$Bytes) {
 
 function Get-TextSha256([string]$Text) { return (Get-BytesSha256 ($script:RpUtf8.GetBytes((Get-NormalizedText $Text)))) }
 
-function Get-FileSha256([string]$Path) { return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+# .NET direto (sem Get-FileHash: num Windows PowerShell 5.1 aberto a partir do pwsh 7, o PSModulePath herdado pode esconder o cmdlet)
+function Get-FileSha256([string]$Path) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $fs = [IO.File]::OpenRead($Path)
+    try { return ([BitConverter]::ToString($sha.ComputeHash($fs)).Replace('-', '').ToLowerInvariant()) } finally { $fs.Dispose(); $sha.Dispose() }
+}
 
 # ---------------------------------------------------------------------------------------------------------------------------------------
 # CHANGELOG: entradas ("- ...") da secao [Nao lancado]; $null se a secao nao existe
@@ -289,10 +294,29 @@ function Invoke-RpProcess {
     $psi.StandardOutputEncoding = $script:RpUtf8
     $psi.StandardErrorEncoding = $script:RpUtf8
     foreach ($k in $Environment.Keys) { $psi.EnvironmentVariables[[string]$k] = [string]$Environment[$k] }
-    $p = [Diagnostics.Process]::Start($psi)
+    # O Process cria o escritor do stdin com a codificacao de entrada do console e, com AutoFlush, grava logo o preambulo: num console UTF-8
+    # (chcp 65001, terminal pwsh) o processo filho receberia um BOM antes de "protocol=" e o git recusaria a credencial. pwsh 7: codificacao
+    # explicita sem BOM; Windows PowerShell 5.1 (sem essa propriedade): troca a codificacao de entrada do console so durante o Start.
+    $restoreEnc = $null
+    if ($psi.PSObject.Properties.Name -contains 'StandardInputEncoding') { $psi.StandardInputEncoding = $script:RpUtf8 }
+    else {
+        try {
+            $cur = [Console]::InputEncoding
+            if ($cur.GetPreamble().Length -gt 0) { $restoreEnc = $cur; [Console]::InputEncoding = $script:RpUtf8 }
+        } catch { $restoreEnc = $null }
+    }
+    try { $p = [Diagnostics.Process]::Start($psi) }
+    finally { if ($restoreEnc) { try { [Console]::InputEncoding = $restoreEnc } catch { } } }
     try {
         $errTask = $p.StandardError.ReadToEndAsync()
-        if ($InputText) { $p.StandardInput.Write($InputText) }
+        # bytes UTF-8 SEM BOM direto no stream: o StreamWriter do stdin pode gravar um BOM (Console.InputEncoding UTF-8 no Windows
+        # PowerShell 5.1), e o git leria a primeira chave como "<BOM>protocol"
+        if ($InputText) {
+            $inBytes = $script:RpUtf8.GetBytes($InputText)
+            $p.StandardInput.BaseStream.Write($inBytes, 0, $inBytes.Length)
+            $p.StandardInput.BaseStream.Flush()
+            [Array]::Clear($inBytes, 0, $inBytes.Length)
+        }
         $p.StandardInput.Close()
         $out = $p.StandardOutput.ReadToEnd()
         $p.WaitForExit()

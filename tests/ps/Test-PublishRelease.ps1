@@ -168,6 +168,12 @@ try {
     Check ((Get-RepoCredentialUser 'https://fulano@github.com/israeldias-hub/ThinQQ.git' $R) -ceq 'fulano') 'usuario do remoto (https://usuario@github.com)'
     Check ((Get-RepoCredentialUser 'C:\outro\repo.git' $R) -ceq 'israeldias-hub') 'sem usuario no remoto: dono do repositorio'
     Check ((Get-GitCredentialRequest 'israeldias-hub') -ceq "protocol=https`nhost=github.com`nusername=israeldias-hub`n`n") 'pedido ao git credential fill'
+    # stdin de um processo real (como o do git credential fill) chega sem BOM: git hash-object --stdin de "abc`n" = SHA-1 de "blob 4`0abc`n"
+    $sha1 = [Security.Cryptography.SHA1]::Create()
+    $expectedBlob = [BitConverter]::ToString($sha1.ComputeHash([Text.Encoding]::ASCII.GetBytes("blob 4" + [char]0 + "abc`n"))).Replace('-', '').ToLowerInvariant()
+    $sha1.Dispose()
+    $hb = Invoke-RpProcess (Get-RpGitExe) @('hash-object', '--stdin') -InputText "abc`n"
+    Check ($hb.Code -eq 0 -and $hb.Output.Trim() -ceq $expectedBlob) "stdin do processo sem BOM (git hash-object: $($hb.Output.Trim()))"
     $libText = [IO.File]::ReadAllText((Join-Path $repo 'tools\lib\Release-Publish.ps1'))
     Check ($libText -match "GIT_TERMINAL_PROMPT = '0'" -and $libText -match "GCM_INTERACTIVE = 'never'") 'git credential fill sem prompt (GIT_TERMINAL_PROMPT=0, GCM_INTERACTIVE=never)'
     Check ($libText -match 'SecurityProtocolType\]::Tls12') 'TLS 1.2 forcado no Windows PowerShell 5.1'
