@@ -20,7 +20,7 @@ Para quem vai **usar** o ThinQQ: não precisa saber programar nem ser administra
 - Windows com o **Excel do Office 16.0 para desktop**: Excel 2016, 2019, 2021 ou Microsoft 365 (o aplicativo instalado). Não funciona no Mac nem no Excel na web.
 - Não precisa de administrador: tudo é instalado só para o seu usuário do Windows.
 - Os testes automatizados rodaram só no Excel 2019 de 32 bits; o 2016, o 2021 e o Microsoft 365 são esperados, não testados. O código não faz chamadas à API do Windows (nenhuma instrução `Declare`), então deve servir em 32 e 64 bits por construção.
-- Acesso à página de [Releases](https://github.com/israeldias-hub/ThinQQ/releases) do repositório (veja "O repositório é privado", abaixo).
+- Acesso à página de [Releases](https://github.com/israeldias-hub/ThinQQ/releases) do repositório, que hoje é público (veja "Visibilidade do repositório", abaixo).
 
 ### Passo a passo
 
@@ -30,14 +30,14 @@ Para quem vai **usar** o ThinQQ: não precisa saber programar nem ser administra
 4. **Dê dois cliques em `Instalar-ThinQQ.cmd`.** Se o Windows perguntar se quer executar, clique em **Executar**; se aparecer "O Windows protegeu o computador", clique em **Mais informações** > **Executar assim mesmo**. Uma janela mostra o andamento e termina com "INSTALACAO CONCLUIDA".
 5. **Abra o Excel e procure a aba ThinQQ**, ao lado de Inserir. Para ver o ThinQQ funcionando, abra `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` (vem no ZIP, na pasta `exemplos`; no GitHub: [exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx](exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx)): a primeira aba é um índice; clique no nome do exemplo para ir ao gráfico. Os gráficos também funcionam sem o ThinQQ instalado, mas setas, colchetes e marcas de corte só se recalculam com ele. ThinQQ > Exemplos e ThinQQ > Tutorial também estão na aba.
 
-### O repositório é privado: quem consegue baixar
+### Visibilidade do repositório: quem consegue baixar
 
-Hoje o repositório é **privado**. Quem não tem acesso a ele **não consegue abrir a página de Releases nem baixar o ZIP**, e o atualizador do ThinQQ também não alcança o manifesto (`release/manifest.json` no GitHub): a consulta falha em silêncio, sem aviso de versão nova. O tutorial online (GitHub Pages) tampouco abre para o público: no plano gratuito do GitHub o Pages exige repositório público (em repositório privado só existe em plano pago). Por isso o tutorial vai dentro do ZIP e ThinQQ > Tutorial abre o instalado.
+Hoje o repositório é **público**: qualquer pessoa abre a página de Releases e baixa o ZIP, e o atualizador do ThinQQ alcança o manifesto (`release/manifest.json` no GitHub) sem login. O tutorial vai dentro do ZIP e ThinQQ > Tutorial abre o instalado; o tutorial online (GitHub Pages) só existe depois de habilitado (veja "Tutorial online (GitHub Pages)").
 
-Opções para quem mantém o repositório:
+Se o repositório voltar a ser **privado**, quem não tem acesso a ele **deixa de abrir a página de Releases e de baixar o ZIP**, e o atualizador não alcança o manifesto: a consulta falha em silêncio, sem aviso de versão nova (e, no plano gratuito, o GitHub Pages exige repositório público). Opções para quem mantém o repositório nesse caso:
 
 1. **Convidar as pessoas como colaboradores** (Settings > Collaborators; acesso de leitura basta): cada uma precisa de uma conta no GitHub.
-2. **Tornar o repositório público**, só depois da limpeza de privacidade descrita em "Antes de distribuir". As releases têm a mesma visibilidade do repositório; para ter releases públicas sem abrir o código, publique o ZIP e o manifesto num repositório público à parte e use o endereço dele em `-BaseUrl` e `-ManifestUrl`.
+2. **Manter o repositório público** (a situação atual; a limpeza de privacidade descrita em "Antes de distribuir" vale antes de abrir qualquer repositório). As releases têm a mesma visibilidade do repositório; para ter releases públicas sem abrir o código, publique o ZIP e o manifesto num repositório público à parte e use o endereço dele em `-BaseUrl` e `-ManifestUrl`.
 3. **Publicar o ZIP e o manifesto numa pasta compartilhada** (rede, OneDrive ou SharePoint sincronizado), sem passar pelo GitHub: `pwsh build/release.ps1 -Version x.y.z -BaseUrl '\\servidor\ThinQQ' -PublishTo '\\servidor\ThinQQ'`. Quem instala por esse ZIP passa a consultar `<pasta>\manifest.json` (o instalador grava esse caminho como fonte de atualização); quem já tem o ThinQQ pode apontar ThinQQ > Configurações para o `manifest.json` da pasta.
 
 Quem recebeu o ZIP por outro caminho (e-mail, Teams, pasta de rede) instala normalmente pelo passo a passo acima; só as atualizações dependem da fonte configurada em ThinQQ > Configurações.
@@ -48,7 +48,7 @@ Quem recebeu o ZIP por outro caminho (e-mail, Teams, pasta de rede) instala norm
 - ThinQQ > Verificar atualizações consulta na hora e diz também quando você já está na versão mais recente.
 - O download tenta primeiro o mesmo caminho do Windows (proxy e script de configuração automática); se ele falhar na conexão, como no redirecionamento do GitHub para outro domínio, tenta de novo por um segundo caminho que usa só o proxy fixo do Windows (sem script PAC). O log (`%LOCALAPPDATA%\ThinQQ\logs\thinqq.log`) registra qual caminho baixou.
 - Os arquivos baixados são conferidos pelo SHA-256 do manifesto antes de serem instalados. O núcleo é trocado na hora, sem reiniciar o Excel; se a versão traz um loader novo, ele é trocado logo em seguida, também sem reiniciar.
-- A fonte (um endereço `https://...` ou uma pasta ou arquivo de rede) pode ser trocada em ThinQQ > Configurações. Sem acesso ao repositório privado, as atualizações não chegam (veja acima).
+- A fonte (um endereço `https://...` ou uma pasta ou arquivo de rede) pode ser trocada em ThinQQ > Configurações. Se o repositório voltar a ser privado, quem não tem acesso deixa de receber as atualizações (veja "Visibilidade do repositório", acima).
 
 ### Desinstalar
 
@@ -162,7 +162,7 @@ do que cada tipo aceita, as mensagens do ThinQQ e os limites conhecidos.
 
 **Esta lista é de ações suas, fora do código** (as branches já estão no GitHub, em `israeldias-hub/ThinQQ`). A primeira versão a ser publicada é a **1.2.0**: a 1.0.0 (Fase 1) e a 1.1.0 (Fase 2) nunca foram publicadas (não há tags nem releases).
 
-- [ ] Decidir a visibilidade do repositório. Enquanto ele for **privado**, ninguém sem acesso ao repositório consegue baixar a release (ZIP e arquivos) nem o `release/manifest.json`: o atualizador dos colegas falha em silêncio (sem aviso de versão nova) e o GitHub Pages do tutorial não fica público (no plano gratuito o Pages exige repositório público). Para distribuir, torne o repositório público (depois da limpeza de privacidade abaixo) ou use uma fonte de atualização interna (pasta de rede) e o tutorial que vai no ZIP. As opções estão em "O repositório é privado", na seção Instalação.
+- [x] Decidir a visibilidade do repositório: o repositório é **público** desde 13/10/2026. Se ele voltar a ser **privado**, ninguém sem acesso ao repositório consegue baixar a release (ZIP e arquivos) nem o `release/manifest.json`: o atualizador dos colegas falha em silêncio (sem aviso de versão nova) e o GitHub Pages do tutorial não fica público (no plano gratuito o Pages exige repositório público). Para distribuir, torne o repositório público (depois da limpeza de privacidade abaixo) ou use uma fonte de atualização interna (pasta de rede) e o tutorial que vai no ZIP. As opções estão em "Visibilidade do repositório", na seção Instalação.
 - [ ] Gerar os arquivos com `build/release.ps1` e publicar a release **v1.2.0** com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`). O ZIP traz a pasta `exemplos` (o Excel de demonstração e um LEIA-ME) ao lado de `Instalar-ThinQQ.cmd`: confira o conteúdo, e que a pasta de demonstração foi regenerada com o core final (`tools/New-DemoWorkbook.ps1`).
 - [ ] Fazer commit de `release/manifest.json` (com URLs reais) e de `version.json` (já em `{ "loader": "1.2.0", "core": "1.2.0" }`) na `main`.
 - [ ] **Privacidade antes de publicar** (o repositório ou o Pages): os arquivos versionados já foram limpos (caminhos de perfil do Windows, ids de máquina, PIDs do Excel do autor e e-mail corporativo) e `tests/ps/Test-Privacy.ps1` (rodado por `build/run-tests.ps1`) falha se algum voltar. O que sobra é o **histórico do Git**: o autor e o e-mail dos commits e o texto antigo dos arquivos continuam nos commits antigos. Para publicar só o estado atual, crie um repositório novo a partir da árvore de trabalho (`git archive HEAD`); para manter o histórico, reescreva-o antes de publicar (`git filter-repo --mailmap <arquivo>` troca nome e e-mail dos autores; `git filter-repo --replace-text <arquivo>` troca o texto antigo; instale o `git-filter-repo`, rode numa cópia e confira com `git log --format='%an <%ae>'` e `git grep` no histórico).

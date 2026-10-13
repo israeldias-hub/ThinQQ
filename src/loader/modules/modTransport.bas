@@ -141,7 +141,7 @@ Private Function HttpAttempt(server As Boolean, reqUrl As String, url As String,
     Do While http.readyState <> 4
         ' ServerXMLHTTP assincrono so revela erro de conexao por waitForResponse (sem ele fica em readyState 1 ate o prazo).
         If server Then
-            If http.waitForResponse(0.1) Then Exit Do
+            If http.waitForResponse(0) Then Exit Do   ' 0 = so consulta (fracoes viram 0); o DoEvents do laco cede o processador
         End If
         If CDbl(Now) * 86400 > deadline Then timedOut = True: Exit Do
         DoEvents
