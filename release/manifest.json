@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "coreVersion": "1.2.0",
-  "coreUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.2.0/ThinQQ.core.xlam",
-  "coreSha256": "63a456a049c917d9f9ef1f1c6bd8b3f2a5d1bbc52684322127ce10d5ccfc90e4",
-  "loaderVersion": "1.2.0",
-  "loaderUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.2.0/ThinQQ.xlam",
-  "loaderSha256": "6ed9cf1ac61d416c0127d259f115f0feb61fa0031cd27a0a7215b382de412776",
-  "tutorialUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.2.0/tutorial.html",
+  "coreVersion": "1.2.2",
+  "coreUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.2.2/ThinQQ.core.xlam",
+  "coreSha256": "2db99d62caf471b480570712d14ee5072e89bf9d139bd5f5f3b917a94f2303ff",
+  "loaderVersion": "1.2.2",
+  "loaderUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.2.2/ThinQQ.xlam",
+  "loaderSha256": "31748cdb9f20ccdd54af241cf787edb2c7357dd6caf65abbc2db3e25034f698a",
+  "tutorialUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.2.2/tutorial.html",
   "manifestUrl": "https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json",
-  "publishedAt": "2026-10-12",
-  "notes": "• Borboleta, dispersão e bolhas: agora são 20 tipos de gráfico (menu Mais tipos).\n• Rótulos com soma consistente e Arredondar intervalo...: somas que fecham 100%, em fórmulas da planilha.\n• Corte de eixo para colunas e barras: uma coluna gigante deixa de achatar as outras.\n• Menu PowerPoint: copia o gráfico como imagem ou como gráfico vinculado ao Excel.\n• Excel de demonstração com 26 exemplos (pasta exemplos do ZIP) e ícones próprios na faixa.\n• Acertos: eixos da dispersão, cores da pizza até 10 fatias, combinação com totais, borboleta e área.\n• Instalação completa no README e roteiro de assinatura digital para a TI."
+  "publishedAt": "2026-10-13",
+  "notes": "• Exemplo de cascata com seta de diferença: no botão Exemplos (exemplo 2) e no Excel de demonstração (E05), com o passo a passo no tutorial.\r\n• Tutorial com uma galeria com a imagem dos 26 exemplos da demonstração, para ver cada gráfico antes de criar."
 }
