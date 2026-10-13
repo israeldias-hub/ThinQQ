@@ -122,6 +122,9 @@ try {
     foreach ($v in '0.0.0', '1.2.3', '10.20.30', '1.0.0-rc.1', '0.0.0-ensaio', '1.0.0-alpha-1') { Check (Test-SemVer $v) "semver valida: $v" }
     foreach ($v in '', '1.2', '1.2.3.4', 'v1.2.3', '01.2.3', '1.02.3', '1.2.3-', '1.2.3-01', '1.2.3+build', ' 1.2.3', 'abc') { Check (-not (Test-SemVer $v)) "semver invalida: '$v'" }
     Check ((Test-PlainVersion '1.2.1') -and -not (Test-PlainVersion '1.2.1-rc1')) 'Test-PlainVersion so aceita x.y.z'
+    Check (-not (Test-SemVer "1.2.3`n") -and -not (Test-PlainVersion "1.2.3`n") -and -not (Test-SemVer "1.2.3-rc`n")) 'versao com quebra de linha no fim: invalida (\z, nao $)'
+    foreach ($rn in 'israeldias-hub/ThinQQ', 'a.b/c-d_e', 'A/b.c') { Check (Test-RepoName $rn) "repositorio valido: $rn" }
+    foreach ($rn in '../..', 'a/..', '../b', './b', 'a/.', '.a/b', 'a./b', 'a/.b', 'a/b.', "a/b`n", 'a/b/c', 'a', '/b', 'a/', 'a b/c', '') { Check (-not (Test-RepoName $rn)) "repositorio invalido: '$($rn.Replace("`n", '\n'))'" }
     $cmp = @(
         @('1.2.1', '1.2.0', 1), @('1.2.0', '1.2.0', 0), @('1.1.9', '1.2.0', -1), @('1.10.0', '1.9.9', 1), @('2.0.0', '1.99.99', 1),
         @('1.0.0', '1.0.0-rc.1', 1), @('1.0.0-rc.2', '1.0.0-rc.1', 1), @('1.0.0-alpha', '1.0.0-alpha.1', -1),

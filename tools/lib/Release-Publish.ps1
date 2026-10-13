@@ -56,13 +56,13 @@ function Protect-RpSecret([string]$Text, [string]$Secret = '') {
 # Versao (semver 2.0: x.y.z com pre-lancamento opcional, sem metadados de build)
 function Test-SemVer([string]$Version) {
     if (-not $Version) { return $false }
-    return [bool]($Version -cmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?$')
+    return [bool]($Version -cmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?\z')
 }
 
 # So x.y.z (o build/release.ps1 e o version.json usam esse formato)
 function Test-PlainVersion([string]$Version) {
     if (-not $Version) { return $false }
-    return [bool]($Version -cmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$')
+    return [bool]($Version -cmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\z')
 }
 
 # -1 se A < B, 0 se iguais, 1 se A > B (precedencia do semver: pre-lancamento < lancamento; identificadores numericos < alfanumericos)
@@ -84,7 +84,7 @@ function Compare-SemVer([string]$A, [string]$B) {
     $n = [Math]::Min($ia.Count, $ib.Count)
     for ($i = 0; $i -lt $n; $i++) {
         $u = $ia[$i]; $v = $ib[$i]
-        $uNum = $u -cmatch '^\d+$'; $vNum = $v -cmatch '^\d+$'
+        $uNum = $u -cmatch '^\d+\z'; $vNum = $v -cmatch '^\d+\z'
         if ($uNum -and $vNum) {
             $x = [decimal]$u; $y = [decimal]$v
             if ($x -lt $y) { return -1 }
@@ -148,7 +148,7 @@ function Get-UnreleasedEntries([string]$Text) {
 # A secao [Nao lancado] vira "## [x.y.z] - AAAA-MM-DD" (com as entradas dela) e uma secao [Nao lancado] vazia nova fica no topo.
 function Update-ChangelogText([string]$Text, [string]$Version, [string]$Date) {
     if (-not (Test-SemVer $Version)) { throw "Versao invalida: '$Version'" }
-    if ($Date -notmatch '^\d{4}-\d{2}-\d{2}$') { throw "Data invalida: '$Date' (use AAAA-MM-DD)" }
+    if ($Date -notmatch '^\d{4}-\d{2}-\d{2}\z') { throw "Data invalida: '$Date' (use AAAA-MM-DD)" }
     $m = [regex]::Match($Text, '(?m)^' + [regex]::Escape($script:RpUnreleased) + '[ \t]*(?=\r?$)')
     if (-not $m.Success) { throw 'O CHANGELOG.md nao tem a secao "' + $script:RpUnreleased + '".' }
     if ($Text -match ('(?m)^## \[' + [regex]::Escape($Version) + '\]')) { throw "O CHANGELOG.md ja tem a secao [$Version]." }
@@ -210,7 +210,11 @@ function Get-CompareUrl([string]$Repo, [string]$Version) { return "https://githu
 
 function Get-ReleaseBaseUrl([string]$Repo, [string]$Version) { return "https://github.com/$Repo/releases/download/v$Version" }
 
-function Test-RepoName([string]$Repo) { return [bool]($Repo -match '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') }
+# dono/nome: cada parte comeca e termina com letra, numero, _ ou - (nada de ".", ".." nem ponto nas pontas); \z (o $ do .NET aceita um \n no fim)
+function Test-RepoName([string]$Repo) {
+    $seg = '[A-Za-z0-9_-](?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?'
+    return [bool]($Repo -cmatch ('^' + $seg + '/' + $seg + '\z'))
+}
 
 # ---------------------------------------------------------------------------------------------------------------------------------------
 # state.json: versao, SHA-256 e tamanho dos 5 arquivos, commit de preparacao e a main de origem. Nunca guarda segredo.
@@ -245,7 +249,7 @@ function Read-ReleaseState([string]$StateDir, [string]$Version) {
     }
     try { $st = (Read-RpText $path) | ConvertFrom-Json } catch { throw (New-RpError "state.json invalido em ${path}: $($_.Exception.Message)" 'precondicao') }
     if ($st.version -cne $Version) { throw (New-RpError "O state.json e da versao '$($st.version)', nao de $Version." 'precondicao') }
-    if ([string]$st.prepareCommit -notmatch '^[0-9a-f]{40}$') { throw (New-RpError 'state.json sem o commit de preparacao (prepareCommit).' 'precondicao') }
+    if ([string]$st.prepareCommit -notmatch '^[0-9a-f]{40}\z') { throw (New-RpError 'state.json sem o commit de preparacao (prepareCommit).' 'precondicao') }
     $problems = New-Object System.Collections.Generic.List[string]
     $byName = @{}
     foreach ($f in @($st.files)) { if ($f -and $f.name) { $byName[[string]$f.name] = $f } }
@@ -639,7 +643,7 @@ function Publish-GitHubRelease {
         $digest = ''
         if ($a.PSObject.Properties.Name -contains 'digest' -and $a.digest) { $digest = [string]$a.digest }
         $how = 'digest'
-        if ($digest -match '^sha256:([0-9a-fA-F]{64})$') { $sha = $Matches[1].ToLowerInvariant() }
+        if ($digest -match '^sha256:([0-9a-fA-F]{64})\z') { $sha = $Matches[1].ToLowerInvariant() }
         else {
             $how = 'download'
             try {
