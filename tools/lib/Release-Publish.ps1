@@ -319,6 +319,7 @@ function ConvertTo-RpArgument([string]$Arg) {
 
 function Invoke-RpProcess {
     param([string]$FilePath, [string[]]$Arguments = @(), [string]$WorkingDirectory = '', [string]$InputText = $null, [hashtable]$Environment = @{})
+    Set-PSDebug -Off   # a saida capturada pode ter segredo (git credential fill)
     $psi = New-Object Diagnostics.ProcessStartInfo
     $psi.FileName = $FilePath
     $psi.Arguments = (@($Arguments | ForEach-Object { ConvertTo-RpArgument $_ }) -join ' ')
@@ -413,6 +414,7 @@ function Get-GitCredentialRequest([string]$UserName) {
 }
 
 function ConvertFrom-GitCredentialOutput([string]$Output) {
+    Set-PSDebug -Off
     $user = $null; $pass = $null; $keys = New-Object System.Collections.Generic.List[string]
     foreach ($line in ([string]$Output -split "\r?\n")) {
         $i = $line.IndexOf('=')
@@ -435,6 +437,8 @@ function ConvertFrom-GitCredentialOutput([string]$Output) {
 
 # Runner (substituivel pelo teste): recebe o texto do stdin e devolve @{ Code; Output; Error }
 function Get-GitHubCredential([string]$RepoRoot, [string]$Repo, [scriptblock]$Runner = $null) {
+    $DebugPreference = 'SilentlyContinue'
+    Set-PSDebug -Off   # a saida do git credential fill tem o token: nada de rastreamento com valores
     $remote = ''
     $r = Invoke-RpGit $RepoRoot @('remote', 'get-url', 'origin')
     if ($r.Code -eq 0) { $remote = $r.Output.Trim() }
@@ -470,6 +474,10 @@ function Remove-RpNewErrors($Mark) {
 # uma Exception NOVA so com a mensagem (sem o objeto da requisicao), e os registros que o Invoke-WebRequest deixou em $Error sao apagados.
 $script:RpDefaultTransport = {
     param($Request)
+    # PRIMEIRA coisa: o Invoke-WebRequest do pwsh 7.4+ escreve os cabecalhos da requisicao (com o Authorization) no fluxo de depuracao, e
+    # um script avancado aceita -Debug; Set-PSDebug -Trace 2 mostraria valores atribuidos. Ambos desligados neste escopo antes de tudo.
+    $DebugPreference = 'SilentlyContinue'
+    Set-PSDebug -Off
     $isCore = $PSVersionTable.PSVersion.Major -ge 6
     if (-not $isCore) {
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -489,10 +497,15 @@ $script:RpDefaultTransport = {
             return @{ Status = [int]$r.StatusCode; Content = $r.RawContentStream.ToArray() }
         } catch {
             $resp = $null
+            # redirecionamento (MaximumRedirection 0): nos dois hosts vira MaximumRedirectExceeded, sem resposta; devolve um 3xx para o
+            # Invoke-GitHubApi dizer "redirecionamento ... nao seguido"
+            if ([string]$_.FullyQualifiedErrorId -like 'MaximumRedirectExceeded*') { return @{ Status = 302; Content = '' } }
             if (-not $isCore -and $_.Exception -is [Net.WebException]) { $resp = $_.Exception.Response }
             if ($resp -is [Net.HttpWebResponse]) {
+                # 5.1: o corpo do erro (texto do GitHub) costuma ja estar em ErrorDetails (o stream foi consumido); o stream e o plano B
                 $text = ''
-                try { $sr = New-Object IO.StreamReader($resp.GetResponseStream()); $text = $sr.ReadToEnd(); $sr.Dispose() } catch { $text = '' }
+                if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $text = [string]$_.ErrorDetails.Message }
+                else { try { $sr = New-Object IO.StreamReader($resp.GetResponseStream()); $text = $sr.ReadToEnd(); $sr.Dispose() } catch { $text = '' } }
                 $status = [int]$resp.StatusCode
                 try { $resp.Close() } catch { }
                 return @{ Status = $status; Content = $text }
@@ -535,6 +548,8 @@ function Invoke-GitHubApi {
         [switch]$Raw,
         [scriptblock]$Transport = $null
     )
+    $DebugPreference = 'SilentlyContinue'   # escopo que monta o cabecalho Authorization: nada de depuracao nem rastreamento aqui
+    Set-PSDebug -Off
     if (-not $Transport) { $Transport = $script:RpDefaultTransport }
     $u = $null
     $okHost = [uri]::TryCreate($Uri, [UriKind]::Absolute, [ref]$u) -and $u.Scheme -eq 'https' -and $script:RpAllowedHosts -contains $u.Host.ToLowerInvariant()
@@ -617,6 +632,8 @@ function Publish-GitHubRelease {
         [scriptblock]$Transport = $null,
         [scriptblock]$Log = $null
     )
+    $DebugPreference = 'SilentlyContinue'   # envios e downloads de assets levam o Authorization (via Invoke-GitHubApi)
+    Set-PSDebug -Off
     if (-not $Log) { $Log = { param($m) Write-Host $m } }
     $api = "https://api.github.com/repos/$Repo"
     $tag = "v$Version"
@@ -974,6 +991,8 @@ function Invoke-ReleasePublish {
         [scriptblock]$CredentialRunner = $null,
         [scriptblock]$BrowserStep = $null
     )
+    $DebugPreference = 'SilentlyContinue'
+    Set-PSDebug -Off
     if (-not $BrowserStep) { $BrowserStep = $script:RpDefaultBrowser }
     if (-not $StateDir) { $StateDir = Join-Path $RepoRoot "dist\release-$Version" }
     $pre = 'precondicao'

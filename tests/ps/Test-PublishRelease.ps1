@@ -339,6 +339,8 @@ try {
                 $path = $ctx.Request.Url.AbsolutePath.Trim('/')
                 if ($path -match '^\d{3}$') { $code = [int]$path }
                 $b = [Text.Encoding]::UTF8.GetBytes('{"message":"resposta ' + $code + '"}')
+                if ($code -eq 422) { $b = [Text.Encoding]::UTF8.GetBytes('{"message":"Validation Failed","errors":[{"resource":"Release","code":"already_exists","field":"tag_name"}]}') }
+                if ($code -eq 302) { $ctx.Response.RedirectLocation = 'https://objects.example.invalid/asset' }
                 $ctx.Response.StatusCode = $code
                 $ctx.Response.ContentType = 'application/json'
                 $ctx.Response.ContentLength64 = $b.Length
@@ -381,6 +383,71 @@ try {
         if (Get-Command Get-Error -ErrorAction SilentlyContinue) {
             $ge = (Get-Error -Newest ([Math]::Max(1, $global:Error.Count)) | Out-String -Width 400)
             Check (-not $ge.Contains($sentinel)) 'o token nao aparece em Get-Error (pwsh 7)'
+        }
+
+        # ---- 422 com o texto do GitHub e 302 como redirecionamento (nao como "falha de rede"), nos dois hosts
+        $script:RpTestAllowLoopback = $true
+        try {
+            $s = Invoke-Scenario { Invoke-GitHubApi -Method POST -Uri "http://127.0.0.1:$lport/422" -Body @{ x = 1 } -Credential $cred }
+            Check ($s.Failed -and $s.Status -eq 422 -and $s.Message -match 'Validation Failed' -and $s.Message -match 'already_exists') "422: a mensagem traz o texto do GitHub ($($s.Message))"
+            $s = Invoke-Scenario { Invoke-GitHubApi -Method GET -Uri "http://127.0.0.1:$lport/302" -Accept 'application/octet-stream' -Raw -Credential $cred }
+            Check ($s.Failed -and $s.Message -match 'redirecionamento' -and $s.Message -notmatch 'rede ao chamar') "302: 'redirecionamento ... nao seguido', nao falha de rede ($($s.Message))"
+            # o mesmo 302 no download de conferencia (asset sem digest) vira o problema da conferencia com o texto amigavel
+            $redirTransport = { param($Request) $r2 = $Request.Clone(); $r2.Uri = "http://127.0.0.1:$lport/302"; return (& $script:RpDefaultTransport $r2) }
+            Reset-FakeGitHub; $script:gh.DigestMode = 'none'
+            $mixed = { param($Request) if ($Request.Uri -match '/releases/assets/\d+$') { return (& $redirTransport $Request) } else { return (& $fakeTransport $Request) } }
+            $s = Invoke-Scenario { Publish-GitHubRelease -Repo $R -Version '1.2.1' -StateDir $sd -State $stRead -Body 'notas da versao' -TargetSha $tgt -Credential $cred -Transport $mixed }
+            Check ($s.Failed -and $s.Message -match 'redirecionamento' -and (Get-FakeRequests 'PATCH' '.').Count -eq 0) "sem digest e download redirecionado: nao publica e diz 'redirecionamento' ($($s.Message))"
+        } finally { $script:RpTestAllowLoopback = $false }
+
+        # ---- fluxo DEBUG do pwsh 7 (Invoke-WebRequest escreve os cabecalhos, com o Authorization, no Write-Debug) e rastreamento Set-PSDebug
+        $dbgOld = $DebugPreference
+        $script:RpTestAllowLoopback = $true
+        try {
+            $DebugPreference = 'Continue'
+            foreach ($code in 404, 401, 200, 302, 422) {
+                $s = Invoke-Scenario { Invoke-GitHubApi -Method GET -Uri "http://127.0.0.1:$lport/$code" -Credential $cred }
+                Check (-not $s.Output.Contains($sentinel)) "DebugPreference=Continue, HTTP ${code}: o token nao vai para o fluxo de depuracao"
+                $req = @{ Method = 'GET'; Uri = "http://127.0.0.1:$lport/$code"; Headers = @{ Authorization = "Bearer $sentinel" }; Body = $null; ContentType = ''; UserAgent = 'teste' }
+                $s = Invoke-Scenario { & $script:RpDefaultTransport $req }
+                Check (-not $s.Output.Contains($sentinel)) "DebugPreference=Continue, transporte direto, HTTP ${code}: sem o token"
+            }
+            $s = Invoke-Scenario { Invoke-GitHubApi -Method GET -Uri "http://127.0.0.1:$closedPort/x" -Credential $cred }
+            Check (-not $s.Output.Contains($sentinel)) 'DebugPreference=Continue, porta fechada: sem o token'
+        } finally { $DebugPreference = $dbgOld; $script:RpTestAllowLoopback = $false }
+        # script avancado (aceita -Debug) que faz dot-source da lib, num processo proprio: -Debug e -Debug com Set-PSDebug -Trace 2
+        $wrapper = Join-Path $tmp 'invocador-debug.ps1'
+        $wrapperText = @'
+[CmdletBinding()]
+param([Parameter(Mandatory)][string]$Lib, [int]$Port, [int]$Closed, [switch]$Trace)
+. $Lib
+$script:RpTestAllowLoopback = $true
+$sec = New-Object Security.SecureString
+foreach ($ch in $env:TQQ_TESTE_TOKEN.ToCharArray()) { $sec.AppendChar($ch) }
+$cred = New-Object Management.Automation.PSCredential('x', $sec)
+$reqs = @()
+foreach ($code in 404, 302) { $reqs += , @{ Method = 'GET'; Uri = "http://127.0.0.1:$Port/$code"; Headers = @{ Authorization = 'Bearer ' + $env:TQQ_TESTE_TOKEN }; Body = $null; ContentType = ''; UserAgent = 't' } }
+$reqs += , @{ Method = 'GET'; Uri = "http://127.0.0.1:$Closed/x"; Headers = @{ Authorization = 'Bearer ' + $env:TQQ_TESTE_TOKEN }; Body = $null; ContentType = ''; UserAgent = 't' }
+$runner = { param($t) return @{ Code = 0; Output = "protocol=https`nhost=github.com`nusername=x`npassword=" + $env:TQQ_TESTE_TOKEN + "`n"; Error = '' } }
+if ($Trace) { Set-PSDebug -Trace 2 }
+foreach ($code in 404, 401, 200, 302, 422) {
+    try { [void](Invoke-GitHubApi -Method GET -Uri "http://127.0.0.1:$Port/$code" -Credential $cred); Write-Output "api $code ok" } catch { Write-Output ("api $code erro: " + $_.Exception.Message) }
+}
+try { [void](Invoke-GitHubApi -Method GET -Uri "http://127.0.0.1:$Closed/x" -Credential $cred) } catch { Write-Output ('api fechada erro: ' + $_.Exception.Message) }
+foreach ($r in $reqs) { try { $o = & $script:RpDefaultTransport $r; Write-Output ('transporte ' + $o.Status) } catch { Write-Output ('transporte erro: ' + $_.Exception.Message) } }
+try { $c = Get-GitHubCredential $PSScriptRoot 'israeldias-hub/ThinQQ' $runner; Write-Output ('credencial ' + $c.UserName) } catch { Write-Output ('credencial erro: ' + $_.Exception.Message) }
+Set-PSDebug -Off
+Write-Output 'FIM-DO-INVOCADOR'
+'@
+        [IO.File]::WriteAllText($wrapper, $wrapperText, (New-Object Text.UTF8Encoding($false)))
+        $libPath = Join-Path $repo 'tools\lib\Release-Publish.ps1'
+        foreach ($variant in @(@('-Debug'), @('-Debug', '-Trace'))) {
+            $wr = Invoke-RpProcess (Get-Process -Id $PID).Path (@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $wrapper, '-Lib', $libPath, '-Port', "$lport", '-Closed', "$closedPort") + $variant) -Environment @{ TQQ_TESTE_TOKEN = $sentinel }
+            $all = $wr.Output + "`n" + $wr.Error
+            $label = $variant -join ' '
+            Check ($all -match 'FIM-DO-INVOCADOR' -and $all -match 'api 404 erro' -and $all -match 'credencial x') "script avancado com $label rodou ate o fim (codigo $($wr.Code))"
+            Check (-not $all.Contains($sentinel)) "script avancado com ${label}: o token nao aparece na saida (stdout e stderr)"
+            Check ($all -match 'api 422 erro: .*already_exists' -and $all -match 'api 302 erro: .*redirecionamento') "script avancado com ${label}: 422 com o texto do GitHub e 302 como redirecionamento"
         }
     } finally {
         if ($transcribing) { try { Stop-Transcript | Out-Null } catch { } }

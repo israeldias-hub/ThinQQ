@@ -30,6 +30,10 @@ param(
     [string]$RepoRoot = ''
 )
 $ErrorActionPreference = 'Stop'
+# O script aceita -Debug (e um parametro avancado), e o Invoke-WebRequest do pwsh 7.4+ escreve os cabecalhos (com o token) no fluxo de
+# depuracao; Set-PSDebug -Trace mostraria valores. Nenhum dos dois serve aqui: desligados para todo o script.
+$DebugPreference = 'SilentlyContinue'
+Set-PSDebug -Off
 $exitCode = 1
 try {
     . (Join-Path $PSScriptRoot 'lib\Release-Publish.ps1')
