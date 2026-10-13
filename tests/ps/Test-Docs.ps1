@@ -309,11 +309,11 @@ $pubScriptPath = Join-Path $RepoRoot 'tools\Publish-Release.ps1'
 Check ((Test-Path -LiteralPath $pubScriptPath) -and (Test-Path -LiteralPath (Join-Path $RepoRoot 'publicar-release.bat'))) 'publicar-release.bat e tools/Publish-Release.ps1 existem'
 $pubScript = if (Test-Path -LiteralPath $pubScriptPath) { Read-Utf8 $pubScriptPath } else { '' }
 foreach ($doc in @(@{ n = 'README.md'; t = $readme }, @{ n = 'release/README.md'; t = $relReadme })) {
-    foreach ($t in 'publicar-release.bat', 'tools/Publish-Release.ps1', 'publicar-release.bat x.y.z publicar', '-DryRun', '-Draft', 'alternativa manual', 'git credential fill') {
+    foreach ($t in 'publicar-release.bat', 'tools/Publish-Release.ps1', 'publicar-release.bat x.y.z publicar', '-DryRun', '-Draft', 'alternativa manual', 'git credential fill', 'Create a merge commit', 'squash', 'digest') {
         Check ($doc.t -match [regex]::Escape($t)) "$($doc.n) cita '$t' (publicação automatizada)"
     }
 }
-foreach ($p in 'Draft', 'DryRun', 'NoBrowser', 'RunTests') { Check ($pubScript -match "\[switch\]\`$$p" -and $readme -match "-$p") "README e Publish-Release.ps1 concordam no parâmetro -$p" }
+foreach ($p in 'Draft', 'DryRun', 'NoBrowser', 'RunTests', 'AllowMainChanges') { Check ($pubScript -match "\[switch\]\`$$p" -and $readme -match "-$p") "README e Publish-Release.ps1 concordam no parâmetro -$p" }
 
 # ---- CHANGELOG
 $cl = Read-Utf8 $changelogPath

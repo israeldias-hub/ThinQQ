@@ -254,26 +254,36 @@ linhas com o marcador •; vão para o campo `notes` do manifesto e para o texto
    (SHA-256 e tamanho de cada arquivo, o commit de preparação e a `main` de origem) em `dist\release-x.y.z\`; copia o `manifest.json` para
    `release/manifest.json`, faz o commit `release: ThinQQ x.y.z`, envia a branch (nunca a `main`) e abre a página do pull request. Se falhar
    antes do commit, tudo é desfeito (arquivos, branch e pasta).
-2. **Mesclar o pull request** (manual): confira o diff e mescle com "Create a merge commit" ("Squash and merge" e "Rebase and merge" trocam o
-   commit, e a etapa 3 confere que o commit de preparação está na `main`). Rode a etapa 3 logo em seguida: a partir do merge, o
-   `release/manifest.json` da `main` já anuncia a versão nova, e quem clicar em atualizar antes de os assets existirem recebe um erro de download.
+2. **Mesclar o pull request** (manual; a página já vem com título e descrição): confira o diff e mescle com "Create a merge commit".
+   Recomendado: em Settings > General > Pull Requests do repositório, desmarque "Allow squash merging" e "Allow rebase merging". Se mesmo
+   assim o pull request for mesclado por squash ou rebase, a etapa 3 segue quando os arquivos da versão na `main` são idênticos aos do commit
+   de preparação; se não forem, ela recusa e aponta a alternativa manual com os arquivos de `dist\release-x.y.z\`. Rode a etapa 3
+   **imediatamente** depois de mesclar: a partir do merge, o `release/manifest.json` da `main` já anuncia a versão nova, e quem clicar em
+   atualizar antes de os assets existirem recebe um erro de download. Depois da etapa 1 você continua na branch `release/vx.y.z`: no fim,
+   volte com `git checkout main` e `git pull`.
 3. **Publicar:** `publicar-release.bat x.y.z publicar`. Confere que os arquivos de `dist\release-x.y.z\` não mudaram desde a preparação
-   (`state.json`), que a `origin/main` contém o commit de preparação e tem o mesmo `release/manifest.json` desses arquivos e, pela API, que a
-   tag `vx.y.z` e a release não existem; cria a release em **rascunho** (tag `vx.y.z` no commit da `origin/main`, nome `ThinQQ x.y.z`, texto de
-   `release/notes.txt`), envia os 5 assets com os nomes exatos (`ThinQQ-x.y.z.zip`, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`,
-   `tutorial.html`), confere no GitHub o tamanho e o SHA-256 de cada um (campo `digest` da API ou, sem ele, baixando pela API) e só então
-   publica a release como a mais recente. Qualquer divergência ou falha no meio: nada é publicado, a mensagem diz o que houve e rodar de novo
-   é seguro (um rascunho `ThinQQ x.y.z` deixado por uma execução interrompida é apagado e recriado; release publicada, tag existente ou
-   rascunho com outro nome fazem o script recusar).
+   (`state.json`) e são deste repositório (`-Repo`), que a `origin/main` contém a preparação (ou o mesmo conteúdo, num squash) e tem o mesmo
+   `release/manifest.json` desses arquivos, que nada mais mudou na `origin/main` depois da preparação (senão a tag apontaria para outro código:
+   prepare uma versão nova ou use `-AllowMainChanges`) e, pela API, que a tag `vx.y.z` e a release não existem; cria a release em
+   **rascunho** (tag `vx.y.z` no commit da `origin/main`, nome `ThinQQ x.y.z`, texto do `release/notes.txt` da `origin/main`), envia os 5
+   assets com os nomes exatos (`ThinQQ-x.y.z.zip`, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`), confere no GitHub o
+   tamanho e o SHA-256 de cada um pelo campo `digest` da API e só então publica a release como a mais recente. Sem o campo `digest` a
+   conferência falha e nada é publicado (o download do asset pela API redireciona para outro endereço, que o script não segue). Qualquer
+   divergência ou falha no meio: nada é publicado, a mensagem diz o que houve e rodar de novo é seguro (um rascunho `ThinQQ x.y.z` deixado
+   por uma execução interrompida, com o texto das notas, é apagado e recriado; release publicada, tag existente, rascunho com outro nome ou
+   com o texto editado no GitHub fazem o script recusar sem apagar nada).
 4. **Verificar** (manual): baixe o ZIP pela página da release, extraia a pasta inteira, rode `Instalar-ThinQQ.cmd` e confira a aba ThinQQ no
    Excel. Os usuários recebem o aviso na próxima abertura do Excel (no máximo uma verificação por dia).
 
 Opções (o `.bat` repassa ao PowerShell): `-DryRun` (ou `set DRYRUN=1`) confere as pré-condições locais e mostra o que faria, sem gravar,
-construir, enviar, ler o token nem chamar a API; `-Draft` termina a etapa 3 com a release em rascunho (publique-a depois pela página dela);
-`-NoBrowser` não abre o navegador; `-RunTests` roda a suíte completa (`build/run-tests.ps1 -Target all -LoaderSwap -TimeoutSec 900`) na cópia
-antes de construir; `-Repo` (padrão `israeldias-hub/ThinQQ`) e `-NotesFile` (padrão `release/notes.txt`). `set NOPAUSE=1` dispensa a pausa no
-fim. Códigos de saída: 0 ok, 1 falha (a mensagem diz o que ficou feito e como retomar), 2 pré-condição recusada (nada mudou). Exemplo de
-ensaio completo: `publicar-release.bat 1.2.1 -DryRun` e `publicar-release.bat 1.2.1 publicar -DryRun`.
+construir, enviar, ler o token nem chamar a API; `-Draft` termina a etapa 3 com a release em rascunho (publique-a depois pela página dela; se
+editar o texto do rascunho no GitHub, publique por lá, sem rodar a etapa de novo); `-NoBrowser` não abre o navegador; `-RunTests` roda a
+suíte completa (`build/run-tests.ps1 -Target all -LoaderSwap -TimeoutSec 900`) na cópia antes de construir; `-AllowMainChanges` deixa a
+etapa 3 publicar mesmo com a `origin/main` alterada depois da preparação (a tag fica na `origin/main` atual); `-Repo` (padrão
+`israeldias-hub/ThinQQ`) e `-NotesFile` (padrão `release/notes.txt`). `set NOPAUSE=1` dispensa a pausa no fim. Códigos de saída: 0 ok,
+1 falha (a mensagem diz o que ficou feito e como retomar), 2 pré-condição recusada (nada mudou). Exemplo de ensaio completo:
+`publicar-release.bat 1.2.1 -DryRun` e `publicar-release.bat 1.2.1 publicar -DryRun`. Se a etapa 1 falhar antes do commit, ela desfaz o
+que gravou, menos um arquivo que alguém tenha editado enquanto o build rodava (esse fica, e é dito); o `installer/LEIA-ME.txt` mantém o BOM.
 
 **Token do GitHub.** A etapa 3 usa o login do Git desta máquina: o token vem de `git credential fill` (Git Credential Manager, sem janela:
 sem um login guardado, o script para e pede um `git fetch` para fazer o login), fica só na memória do processo e vai apenas no cabeçalho

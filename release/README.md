@@ -9,9 +9,14 @@ ou pwsh 7). Detalhes, pré-condições e opções no README, seção "Publicar u
 1. `publicar-release.bat x.y.z`: confere as pré-condições, cria a branch `release/vx.y.z` com `version.json`, `CHANGELOG.md`, rodapé do
    tutorial, exemplo do LEIA-ME e `release/manifest.json` da versão nova, constrói numa cópia em `C:\temp`, guarda os 5 arquivos e o
    `state.json` em `dist\release-x.y.z\`, envia a branch e abre o pull request.
-2. Mescle o pull request (manual, com "Create a merge commit") e siga logo para o passo 3.
-3. `publicar-release.bat x.y.z publicar`: cria a release em rascunho, envia os assets, confere tamanho e SHA-256 de cada um no GitHub e
-   publica. Com `-Draft` a release fica em rascunho; rodar de novo depois de uma falha é seguro.
+2. Mescle o pull request (manual, com "Create a merge commit"; recomendado desmarcar "Allow squash merging" e "Allow rebase merging" em
+   Settings > General > Pull Requests) e rode o passo 3 IMEDIATAMENTE: a partir do merge a `main` já anuncia a versão nova. Num merge por
+   squash ou rebase, o passo 3 só segue se os arquivos da versão na `main` forem idênticos aos da preparação. Depois, `git checkout main` e
+   `git pull` (a etapa 1 deixa você na branch `release/vx.y.z`).
+3. `publicar-release.bat x.y.z publicar`: cria a release em rascunho, envia os assets, confere tamanho e SHA-256 de cada um pelo campo
+   `digest` da API (sem ele, nada é publicado) e publica. Com `-Draft` a release fica em rascunho; rodar de novo depois de uma falha é seguro
+   (um rascunho editado no GitHub não é apagado). Se a `origin/main` mudou depois da preparação, a etapa recusa (ou segue com
+   `-AllowMainChanges`).
 4. Verifique a instalação em Excel real (manual): baixe o ZIP pela release, extraia a pasta inteira, rode `Instalar-ThinQQ.cmd` e confira
    a aba ThinQQ.
 
