@@ -317,7 +317,10 @@ foreach ($p in 'Draft', 'DryRun', 'NoBrowser', 'RunTests') { Check ($pubScript -
 
 # ---- CHANGELOG
 $cl = Read-Utf8 $changelogPath
-$ver = ((Read-Utf8 (Join-Path $RepoRoot 'version.json')) | ConvertFrom-Json).core
+$vj = $null
+try { $vj = (Read-Utf8 (Join-Path $RepoRoot 'version.json')) | ConvertFrom-Json } catch { $vj = $null }
+Check ($null -ne $vj) 'version.json é um JSON válido'
+$ver = if ($vj) { [string]$vj.core } else { '' }
 Check ($cl -match "(?m)^## \[$([regex]::Escape($ver))\] - \d{4}-\d{2}-\d{2}") "CHANGELOG tem a seção da versão $ver"
 Check ($cl -match '(?m)^## \[1\.2\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG tem a seção 1.2.0'
 Check ($cl -match '(?m)^## \[1\.1\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG tem a seção 1.1.0'
@@ -326,9 +329,11 @@ Check ($cl.IndexOf('## [Não lançado]') -ge 0 -and $cl.IndexOf('## [Não lança
 
 # ---- versões: loader e core em x.y.z, a partir da 1.2.0 (a primeira publicada); o rodapé do tutorial e o exemplo do LEIA-ME seguem o
 # version.json (o publicar-release.bat os atualiza junto com o version.json e o CHANGELOG)
-$vj = (Read-Utf8 (Join-Path $RepoRoot 'version.json')) | ConvertFrom-Json
-Check ([string]$vj.loader -match '^\d+\.\d+\.\d+$' -and [string]$vj.core -match '^\d+\.\d+\.\d+$') "version.json: loader e core em x.y.z ($($vj.loader), $($vj.core))"
-Check (([version]$vj.core) -ge [version]'1.2.0' -and ([version]$vj.loader) -ge [version]'1.2.0') 'version.json: loader e core a partir da 1.2.0'
+$vjOk = ($null -ne $vj) -and ([string]$vj.loader -match '^\d{1,6}\.\d{1,6}\.\d{1,6}\z') -and ([string]$vj.core -match '^\d{1,6}\.\d{1,6}\.\d{1,6}\z')
+Check $vjOk "version.json: loader e core em x.y.z ($(if ($vj) { "$($vj.loader), $($vj.core)" } else { 'ilegível' }))"
+$vjMin = $false
+if ($vjOk) { try { $vjMin = ([version]$vj.core) -ge [version]'1.2.0' -and ([version]$vj.loader) -ge [version]'1.2.0' } catch { $vjMin = $false } }
+Check $vjMin 'version.json: loader e core a partir da 1.2.0'
 Check ($html -match "ThinQQ $([regex]::Escape($ver))\.") "rodapé do tutorial mostra a versão $ver"
 Check ($readme -match 'v1\.2\.0') 'README cita a release v1.2.0 (a primeira publicada)'
 Check ($readme -notmatch 'v1\.0\.0') 'README não cita mais a release v1.0.0'

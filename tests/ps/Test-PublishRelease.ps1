@@ -187,8 +187,20 @@ try {
     $sha1 = [Security.Cryptography.SHA1]::Create()
     $expectedBlob = [BitConverter]::ToString($sha1.ComputeHash([Text.Encoding]::ASCII.GetBytes("blob 4" + [char]0 + "abc`n"))).Replace('-', '').ToLowerInvariant()
     $sha1.Dispose()
-    $hb = Invoke-RpProcess (Get-RpGitExe) @('hash-object', '--stdin') -InputText "abc`n"
-    Check ($hb.Code -eq 0 -and $hb.Output.Trim() -ceq $expectedBlob) "stdin do processo sem BOM (git hash-object: $($hb.Output.Trim()))"
+    # o defeito so aparece com a entrada do console em UTF-8 COM preambulo (terminal UTF-8): o teste a liga ele mesmo, para reproduzir em
+    # qualquer ambiente, e a devolve no fim
+    $prevInEnc = $null
+    try { $prevInEnc = [Console]::InputEncoding; [Console]::InputEncoding = New-Object Text.UTF8Encoding($true) } catch { Write-Host "(nao deu para trocar a codificacao do console: $($_.Exception.Message))" }
+    try {
+        $hb = Invoke-RpProcess (Get-RpGitExe) @('hash-object', '--stdin') -InputText "abc`n"
+        Check ($hb.Code -eq 0 -and $hb.Output.Trim() -ceq $expectedBlob) "stdin do processo sem BOM, mesmo com o console em UTF-8 com preambulo (git hash-object: $($hb.Output.Trim()))"
+        Check ($null -eq $prevInEnc -or [Console]::InputEncoding.GetPreamble().Length -eq 3) 'Invoke-RpProcess devolve a codificacao do console como estava'
+    } finally { if ($prevInEnc) { try { [Console]::InputEncoding = $prevInEnc } catch { } } }
+    # SHA-256 sem o Get-FileHash (num 5.1 aberto a partir do pwsh 7 o cmdlet pode faltar): com ele mascarado, Get-FileSha256 continua certo
+    $hf = Join-Path $tmp 'hash.txt'; [IO.File]::WriteAllBytes($hf, [Text.Encoding]::ASCII.GetBytes('abc'))
+    function Get-FileHash { throw 'Get-FileHash mascarado pelo teste' }
+    try { $hv = Get-FileSha256 $hf } catch { $hv = "erro: $($_.Exception.Message)" } finally { Remove-Item Function:\Get-FileHash }
+    Check ($hv -ceq 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad') "Get-FileSha256 nao depende do Get-FileHash ($hv)"
     $libText = [IO.File]::ReadAllText((Join-Path $repo 'tools\lib\Release-Publish.ps1'))
     Check ($libText -match "GIT_TERMINAL_PROMPT = '0'" -and $libText -match "GCM_INTERACTIVE = 'never'") 'git credential fill sem prompt (GIT_TERMINAL_PROMPT=0, GCM_INTERACTIVE=never)'
     Check ($libText -match 'SecurityProtocolType\]::Tls12') 'TLS 1.2 forcado no Windows PowerShell 5.1'
