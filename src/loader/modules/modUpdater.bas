@@ -53,6 +53,7 @@ Public Function Updater_FriendlyError(errNumber As Long, errDescription As Strin
         Case vbObjectError + 1002: Updater_FriendlyError = "Arquivo de atualização não encontrado. " & errDescription
         Case vbObjectError + 1003: Updater_FriendlyError = "Não foi possível verificar a integridade do arquivo baixado."
         Case vbObjectError + 1004: Updater_FriendlyError = "A fonte de atualização demorou demais para responder."
+        Case vbObjectError + 1005: Updater_FriendlyError = "Sem conexão com a fonte de atualização. Verifique a rede e o proxy. " & errDescription
         Case vbObjectError + 2000 To vbObjectError + 2009: Updater_FriendlyError = errDescription
         Case 1 To 65535: Updater_FriendlyError = "Erro ao gravar os arquivos da atualização: " & errDescription
         Case Else: Updater_FriendlyError = "Sem conexão com a fonte de atualização. Verifique a rede e o endereço configurado."
