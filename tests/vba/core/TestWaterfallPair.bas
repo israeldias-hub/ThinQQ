@@ -965,3 +965,187 @@ Public Sub Test_Wfp_Arrows_Geometry_CrossesZero()
     AssertAlmost YOf(cht, 0) - WFP_PT_GAP, s.Points(WFP_ROWS_PER_PAIR * 3 + 1).Top, 1.5, "total negativo: a seta sai 3 pt acima do zero"
     CloseTemp wb
 End Sub
+
+Private Function LblText(cht As Chart, seriesName As String, k As Long) As String
+    LblText = Chart_FindSeries(cht, seriesName).Points(k).DataLabel.Text
+End Function
+
+Public Sub Test_Wfp_Labels_StepsCenterTotalsAbove()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, la As Series, lt As Series, lbl As DataLabel, p As Point
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    cht.Refresh
+    AssertEqual "1", Registry_GetOption(cht, "labels")
+    AssertEqual Format$(-4, "#,##0"), LblText(cht, "tqq_lbl_a", 4), "degrau A2 assinado"
+    AssertEqual Format$(-7, "#,##0"), LblText(cht, "tqq_lbl_b", 5), "degrau B2"
+    AssertEqual Format$(-2, "#,##0"), LblText(cht, "tqq_lbl_b", 8), "degrau B3 de 2 visivel no tamanho padrao"
+    AssertEqual "", LblText(cht, "tqq_lbl_a", 1), "barra grande: sem rotulo de degrau"
+    AssertEqual "", LblText(cht, "tqq_lbl_a", 3), "vao"
+    AssertEqual Format$(27, "#,##0"), LblText(cht, "tqq_lbltot", 1), "barra inicial: so o valor"
+    AssertEqual Format$(11, "#,##0") & " (" & Format$(41, "0") & "%)", LblText(cht, "tqq_lbltot", 13), "total A: valor e % do 1o total (11 / 27)"
+    AssertEqual Format$(10, "#,##0") & " (" & Format$(34, "0") & "%)", LblText(cht, "tqq_lbltot", 14), "total B (10 / 29)"
+    Set la = Chart_FindSeries(cht, "tqq_lbl_a"): Set lt = Chart_FindSeries(cht, "tqq_lbltot")
+    AssertEqual xlLabelPositionCenter, la.Points(4).DataLabel.Position
+    AssertEqual xlLabelPositionAbove, lt.Points(13).DataLabel.Position
+    AssertTrue lt.Points(13).DataLabel.Font.Bold
+    AssertEqual RGB(255, 255, 255), la.Points(4).DataLabel.Font.Color, "contraste na barra escura"
+    AssertEqual RGB(64, 64, 64), Chart_FindSeries(cht, "tqq_lbl_b").Points(5).DataLabel.Font.Color, "contraste na barra clara"
+    ForceLayout cht
+    Set lbl = la.Points(4).DataLabel
+    AssertTrue lbl.Top + lbl.Height / 2 > YOf(cht, 27) And lbl.Top + lbl.Height / 2 < YOf(cht, 23), "rotulo do degrau dentro da barra (de 27 a 23)"
+    Set lbl = lt.Points(13).DataLabel: Set p = cht.SeriesCollection(2).Points(13)
+    AssertTrue Chart_FindSeries(cht, "tqq_pd").Points(WFP_ROWS_PER_PAIR * 4 + 1).Top <= lbl.Top - 1, "a seta do total comeca acima do rotulo do total"
+    AssertTrue lbl.Top + lbl.Height <= p.Top + 1, "rotulo do total acima da barra"
+    CloseTemp wb
+End Sub
+
+' Review Focus 1 (rotulos): total negativo com o rotulo ABAIXO da barra.
+Public Sub Test_Wfp_Labels_NegativeTotalBelow()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, lt As Series, lbl As DataLabel, p As Point
+    Set wb = NewTempWorkbook(): Set d = FixtureZero(wb)
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    cht.Refresh
+    Set lt = Chart_FindSeries(cht, "tqq_lbltot")
+    AssertEqual Format$(-7, "#,##0") & " (" & Format$(-70, "0") & "%)", LblText(cht, "tqq_lbltot", 10), "total A -7 de um inicio de 10"
+    AssertEqual xlLabelPositionBelow, lt.Points(10).DataLabel.Position, "total negativo: abaixo"
+    AssertEqual xlLabelPositionAbove, lt.Points(11).DataLabel.Position, "total positivo: acima"
+    ForceLayout cht
+    Set lbl = lt.Points(10).DataLabel: Set p = cht.SeriesCollection(3).Points(10)
+    AssertTrue lbl.Top >= p.Top + p.Height - 1, "abaixo da barra negativa"
+    CloseTemp wb
+End Sub
+
+' Degrau fino demais: texto vazio (LblOn = 0) e volta quando cabe; rotulo apagado pelo usuario continua apagado.
+Public Sub Test_Wfp_Labels_ThinTextHidden_UserDeletedStays()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, la As Series
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set cht = Wfp_Insert(ws, d).Chart
+    ws.Range("B4").Value = -0.2
+    Core_SafeRefresh cht
+    cht.Refresh
+    AssertEqual 0, Util_ToDouble(BodyOf(cht).Cells(8, WFP_COL_LBLON).Value), "degrau A3 de 0,2: fino demais"
+    AssertEqual "", LblText(cht, "tqq_lbl_a", 7)
+    ws.Range("B4").Value = -6
+    Core_SafeRefresh cht
+    cht.Refresh
+    AssertEqual Format$(-6, "#,##0"), LblText(cht, "tqq_lbl_a", 7), "voltou a caber"
+    Set la = Chart_FindSeries(cht, "tqq_lbl_a")
+    la.Points(4).HasDataLabel = False                ' o usuario apagou o rotulo do degrau A2
+    Core_SafeRefresh cht
+    AssertFalse la.Points(4).HasDataLabel, "o refresh nao recria rotulo apagado pelo usuario"
+    Teardown wb
+End Sub
+
+Public Sub Test_Wfp_Totals_PctToggle_And_NumFmt()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, dec As String
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    d.Source.Select
+    Core_Insert "waterfallpair"
+    Set cht = Core_ActiveChart()
+    AssertTrue Wfp_TotalPctOn(cht): AssertTrue Core_GetToggle("totals")
+    Core_SetToggle "totals", False
+    cht.Refresh
+    AssertEqual Format$(11, "#,##0"), LblText(cht, "tqq_lbltot", 13), "sem o percentual"
+    AssertFalse Wfp_TotalPctOn(cht): AssertEqual "0", Registry_GetOption(cht, "totals")
+    Core_SetToggle "totals", True
+    Core_SetOption "numfmt", "dec1"
+    cht.Refresh
+    dec = Application.International(xlDecimalSeparator)
+    AssertEqual "-4" & dec & "0", LblText(cht, "tqq_lbl_a", 4), "degrau com 1 casa"
+    AssertEqual "11" & dec & "0 (41%)", LblText(cht, "tqq_lbltot", 13), "total com 1 casa e o percentual inteiro"
+    Core_SetToggle "pairabs", True
+    cht.Refresh
+    AssertEqual "+2" & dec & "0", Chart_FindSeries(cht, "tqq_pd").Points(3).DataLabel.Text, "variacao em valor no formato do grafico"
+    Core_SetOption "numfmt", "pct0"
+    AssertEqual " p.p.", CStr(Registry_Block(cht).Cells(1, WFP_META_SUFD).Value), "diferenca de percentuais em pontos percentuais"
+    Teardown wb
+End Sub
+
+Public Sub Test_Wfp_Labels_Toggle_MovesArrowStart()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, s As Series, k As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    d.Source.Select
+    Core_Insert "waterfallpair"
+    Set cht = Core_ActiveChart()
+    k = WFP_ROWS_PER_PAIR * 4 + 1                    ' P1 do par 5 (Liquido A, barra grande)
+    Core_SetToggle "labels", False
+    AssertTrue Chart_FindSeries(cht, "tqq_lbl_a") Is Nothing: AssertTrue Chart_FindSeries(cht, "tqq_lbltot") Is Nothing
+    AssertEqual 0, Util_ToDouble(Registry_Block(cht).Cells(1, WFP_META_LBL).Value)
+    ForceLayout cht
+    Set s = Chart_FindSeries(cht, "tqq_pd")
+    AssertAlmost YOf(cht, SideVal(cht, 5, 1, "Hi")) - 3, s.Points(k).Top, 1.5, "sem rotulos a seta sai 3 pt acima do total"
+    Core_SetToggle "labels", True
+    ForceLayout cht
+    AssertAlmost YOf(cht, SideVal(cht, 5, 1, "Hi")) - WFP_PT_LBLROOM, s.Points(k).Top, 1.5, "com rotulos, 22 pt (acima do rotulo do total)"
+    AssertTrue Not Chart_FindSeries(cht, "tqq_lbl_b") Is Nothing
+    Core_SetOption "legend", "right"
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "rotulos fora da legenda"
+    Teardown wb
+End Sub
+
+' Um degrau que vira subtotal e um total que vira degrau DEPOIS de inserir: os pontos que eram NA() na insercao aparecem ligados, com o texto,
+' a posicao e a cor certos (o refresh nao religa rotulos).
+Public Sub Test_Wfp_Labels_MarkerChange_PointsThatWereNA()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set cht = Wfp_Insert(ws, d).Chart
+    ws.Range("C5").Value = "e"                       ' Componente 3 de B vira subtotal (fatia 11): 29 - 7 - 2 = 20
+    ws.Range("B6").Value = -5                        ' Liquido de A vira degrau (fatia 13)
+    Core_SafeRefresh cht
+    cht.Refresh
+    AssertEqual Format$(20, "#,##0") & " (" & Format$(69, "0") & "%)", LblText(cht, "tqq_lbltot", 11), "subtotal novo de B (20 / 29)"
+    AssertEqual xlLabelPositionAbove, Chart_FindSeries(cht, "tqq_lbltot").Points(11).DataLabel.Position
+    AssertEqual Format$(-5, "#,##0"), LblText(cht, "tqq_lbl_a", 13), "degrau novo de A"
+    AssertEqual xlLabelPositionCenter, Chart_FindSeries(cht, "tqq_lbl_a").Points(13).DataLabel.Position
+    AssertEqual RGB(255, 255, 255), Chart_FindSeries(cht, "tqq_lbl_a").Points(13).DataLabel.Font.Color
+    CloseTemp wb
+End Sub
+
+' Falha no meio de ligar os rotulos (gancho depois de tqq_lbl_a, de tqq_lbl_b, de tqq_lbltot e depois do passo da legenda), com os rotulos
+' ligados ou desligados antes e a legenda visivel: nada fica pela metade (nenhuma das tres series, opcao "0", meta Lbl 0, o numero de series sem
+' os rotulos, legenda com 2 entradas) e o erro chega ao chamador. Sem o gancho, ligar de novo funciona. O gancho e zerado antes de qualquer
+' afirmacao e no tratamento de erro.
+Public Sub Test_Wfp_Labels_FailMidway_RollsBack()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, en As Long, es As String, ed As String, base As Long, site As Variant, prevOn As Variant, tag As String
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    On Error GoTo Fail
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    Registry_SetOption cht, "legend", "right"
+    Wfp_SetLegend cht, "right"
+    Wfp_SetLabels cht, False
+    base = cht.SeriesCollection.Count
+    For Each prevOn In Array(True, False)
+        For Each site In Array("lbl:a", "lbl:b", "lbl:tot", "lbllegend:1")
+            tag = site & IIf(prevOn, " (ligados antes)", " (desligados antes)")
+            Wfp_SetLabels cht, CBool(prevOn)
+            Util_FailThinSyncForTest = "wfp-" & site
+            On Error Resume Next
+            Wfp_SetLabels cht, True
+            en = Err.Number
+            On Error GoTo Fail
+            Util_FailThinSyncForTest = ""
+            AssertEqual vbObjectError + 9996, en, tag & ": o erro chega ao chamador"
+            AssertTrue Chart_FindSeries(cht, "tqq_lbl_a") Is Nothing, tag & ": sem tqq_lbl_a"
+            AssertTrue Chart_FindSeries(cht, "tqq_lbl_b") Is Nothing, tag & ": sem tqq_lbl_b"
+            AssertTrue Chart_FindSeries(cht, "tqq_lbltot") Is Nothing, tag & ": sem tqq_lbltot"
+            AssertEqual "0", Registry_GetOption(cht, "labels"), tag & ": a opcao reflete o estado real"
+            AssertEqual 0, Util_ToDouble(Registry_Block(cht).Cells(1, WFP_META_LBL).Value), tag & ": meta Lbl 0 (as setas descem)"
+            AssertEqual base, cht.SeriesCollection.Count, tag & ": o numero de series sem os rotulos"
+            AssertTrue cht.HasLegend, tag & ": legenda visivel": AssertEqual 2, cht.Legend.LegendEntries.Count, tag & ": legenda com 2 entradas"
+            Wfp_SetLabels cht, True
+            cht.Refresh
+            AssertEqual "1", Registry_GetOption(cht, "labels"), tag & ": ligar de novo funciona"
+            AssertEqual base + 3, cht.SeriesCollection.Count, tag
+            AssertEqual 2, cht.Legend.LegendEntries.Count, tag & ": os rotulos ficam fora da legenda"
+            AssertEqual Format$(11, "#,##0") & " (" & Format$(41, "0") & "%)", LblText(cht, "tqq_lbltot", 13), tag
+        Next
+    Next
+    Util_FailThinSyncForTest = ""
+    CloseTemp wb
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub

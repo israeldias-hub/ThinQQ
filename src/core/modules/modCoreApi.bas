@@ -290,6 +290,7 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
                 Case "area": Area_SetTotals c, value
                 Case "mekko": Mekko_SetTotals c, value
                 Case "butterfly": Bfly_SetTotals c, value             ' borboleta: auxiliar XY tqq_total no fim da barra direita
+                Case "waterfallpair": Wfp_SetTotalPct c, value          ' cascata comparativa: o percentual do 1o total nas barras de total
                 Case "stacked", "combo": Stacked_SetTotals c, value     ' colunas, barras (empilhadas e 100%) e a combinacao (so os totais das colunas)
                 Case Else: RefuseUndispatched key, c, fam
             End Select
@@ -302,6 +303,7 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
                 Case "pie": Pie_SetLabels c, value
                 Case "butterfly": Bfly_SetLabels c, value             ' borboleta: rotulos nativos dos dois lados (esquerdo absoluto)
                 Case "scatter": Scatter_SetLabels c, value            ' dispersao e bolhas: o nome de cada ponto (ligado a coluna Nome do bloco)
+                Case "waterfallpair": Wfp_SetLabels c, value          ' cascata comparativa: degraus no centro, barras grandes acima
                 Case "stacked", "combo": Stacked_SetLabels c, value     ' colunas, barras, linha e a combinacao
                 Case Else: RefuseUndispatched key, c, fam
             End Select

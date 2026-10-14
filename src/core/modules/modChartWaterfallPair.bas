@@ -72,6 +72,7 @@ Private Const WFP_NAME_MARGIN As Double = 8      ' pt alem da largura estimada d
 Private Const WFP_NAME_MIN_W As Double = 14      ' largura (pt) de um texto vertical de 9 pt (medido: 14,0)
 Private Const WFP_ROOM_PASSES As Long = 3        ' teto de passadas da calibracao do valor por ponto (PtV)
 Private Const WFP_ROOM_TOL As Double = 0.02      ' so grava PtV quando muda mais de 2%
+Private Const WFP_LBL_MIN_H As Double = 10       ' degrau mais baixo que isto (pt) fica sem texto (texto de 9 pt; a caixa de 14 pt tem margem)
 Private Const WFP_ERR_FEW As String = "A cascata comparativa precisa de exatamente 2 colunas de valores (uma por série); a tabela tem só 1."
 Private Const WFP_ERR_MANY1 As String = "A cascata comparativa compara exatamente 2 séries; a tabela tem "
 Private Const WFP_ERR_MANY2 As String = " colunas de valores. Selecione a coluna das etapas e só as duas colunas a comparar."
@@ -624,6 +625,189 @@ Private Function Wfp_RefreshRoom(cht As Chart) As Boolean
     Next
 End Function
 
+' Rotulos: tqq_lbl_a / tqq_lbl_b (auxiliares de linha em LblAPos/LblBPos, ligadas a LblAVal/LblBVal: o degrau assinado no centro da barra, fonte
+' por contraste) e tqq_lbltot (auxiliar de linha em TotPos ligada a TotTxt: "valor (percentual do 1o total)" das barras grandes, negrito, acima;
+' abaixo quando o total e negativo: Wfp_SyncLabels). Pontos NA() nao aparecem (xlNotPlotted) e o texto deles e "". Desligar apaga as tres e
+' zera a meta Lbl (as setas descem para 3 pt das barras grandes). Transacional (como as setas): a opcao labels e a meta Lbl so sao gravadas
+' depois das series prontas (e da legenda); em qualquer falha as tres somem, a opcao fica "0" e a meta Lbl 0 (o estado real) e o erro e
+' repropagado. Termina com Wfp_RefreshAfterDataChange (nunca propaga erro): a sala das setas e os rotulos finos.
+Public Sub Wfp_SetLabels(cht As Chart, turnOn As Boolean)
+    Dim blk As Range, body As Range, ns As Long, fmt As String, s As Series, nm As Variant, en As Long, es As String, ed As String
+    On Error GoTo Fail
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Sub
+    If Not turnOn Then
+        For Each nm In Array("tqq_lbl_a", "tqq_lbl_b", "tqq_lbltot")
+            Set s = Chart_FindSeries(cht, CStr(nm))
+            If Not s Is Nothing Then s.Delete
+        Next
+        Registry_SetOption cht, "labels", "0"
+        SetMeta blk, WFP_META_LBL, 0
+        On Error GoTo 0
+        Wfp_RefreshAfterDataChange cht               ' as setas descem para 3 pt: a sala e a escala mudam
+        Exit Sub
+    End If
+    Set body = Block_Body(blk)
+    ns = Wfp_SlotCount(Wfp_StepCount(cht))
+    fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
+    Set s = Chart_FindSeries(cht, "tqq_lbl_a")
+    If s Is Nothing Then Set s = Chart_AddHelperSeries(cht, "tqq_lbl_a", body.Cells(2, WFP_COL_LBLAPOS).Resize(ns, 1))
+    Labels_LinkPoints s, body.Cells(2, WFP_COL_LBLAVAL).Resize(ns, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(Style_DataSeriesColor(cht, 1))
+    WfpTestHook "lbl", "a"
+    Set s = Chart_FindSeries(cht, "tqq_lbl_b")
+    If s Is Nothing Then Set s = Chart_AddHelperSeries(cht, "tqq_lbl_b", body.Cells(2, WFP_COL_LBLBPOS).Resize(ns, 1))
+    Labels_LinkPoints s, body.Cells(2, WFP_COL_LBLBVAL).Resize(ns, 1), fmt, xlLabelPositionCenter, Style_ContrastFont(Style_DataSeriesColor(cht, 2))
+    WfpTestHook "lbl", "b"
+    Set s = Chart_FindSeries(cht, "tqq_lbltot")
+    If s Is Nothing Then Set s = Chart_AddHelperSeries(cht, "tqq_lbltot", body.Cells(2, WFP_COL_TOTPOS).Resize(ns, 1))
+    Labels_LinkPoints s, body.Cells(2, WFP_COL_TOTTXT).Resize(ns, 1), fmt, xlLabelPositionAbove
+    s.DataLabels.Font.Bold = True                    ' logo depois de ligar (todos os pontos tem rotulo); o refresh nunca escreve no nivel da serie
+    WfpTestHook "lbl", "tot"
+    If cht.HasLegend Then
+        Chart_HideHelperLegendEntries cht
+        WfpTestHook "lbllegend", "1"
+    End If
+    Registry_SetOption cht, "labels", "1"
+    SetMeta blk, WFP_META_LBL, 1
+    Wfp_ApplyCellFormat cht
+    On Error GoTo 0
+    Wfp_RefreshAfterDataChange cht
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1                                 ' encerra o tratamento do erro: sem isso o Resume Next abaixo nao protegeria a limpeza
+    On Error Resume Next
+    For Each nm In Array("tqq_lbl_a", "tqq_lbl_b", "tqq_lbltot")
+        Set s = Nothing
+        Set s = Chart_FindSeries(cht, CStr(nm))
+        If Not s Is Nothing Then s.Delete
+        Err.Clear
+    Next
+    Registry_SetOption cht, "labels", "0"
+    Err.Clear
+    If Not blk Is Nothing Then SetMeta blk, WFP_META_LBL, 0
+    On Error GoTo 0
+    Err.Raise en, es, ed
+End Sub
+
+' Totais (alternador Totais neste tipo): o "(41%)" depois do valor das barras de total (meta TotPct; o texto e formula no bloco).
+Public Sub Wfp_SetTotalPct(cht As Chart, turnOn As Boolean)
+    Dim blk As Range
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Sub
+    SetMeta blk, WFP_META_TOTPCT, IIf(turnOn, 1, 0)
+    Registry_SetOption cht, "totals", IIf(turnOn, "1", "0")
+End Sub
+
+Public Function Wfp_TotalPctOn(cht As Chart) As Boolean
+    Dim blk As Range
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Function
+    Wfp_TotalPctOn = (Util_ToDouble(blk.Cells(1, WFP_META_TOTPCT).Value) = 1)
+End Function
+
+' Partes do formato (chave numfmt) dos textos montados por FIXED no bloco: divisor, casas, sufixo dos valores e sufixo das diferencas (nos
+' percentuais a diferenca de duas taxas e em pontos percentuais). Pura.
+Public Sub Wfp_FormatParts(key As String, ByRef div As Double, ByRef dec As Long, ByRef suf As String, ByRef sufd As String)
+    div = 1: dec = 0: suf = "": sufd = ""
+    Select Case key
+        Case "dec1": dec = 1
+        Case "dec2": dec = 2
+        Case "pct0": div = 0.01: suf = "%": sufd = " p.p."
+        Case "pct1": div = 0.01: dec = 1: suf = "%": sufd = " p.p."
+        Case "mil": div = 1000
+        Case "mi": div = 1000000: dec = 1
+    End Select
+End Sub
+
+' Formato nas celulas do bloco: os degraus (numero; NumberFormatLocal do codigo do grafico) e a meta dos textos FIXED (totais e setas).
+Public Sub Wfp_ApplyCellFormat(cht As Chart)
+    Dim blk As Range, body As Range, ns As Long, key As String, loc As String, div As Double, dec As Long, suf As String, sufd As String
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Sub
+    ns = Wfp_SlotCount(Wfp_StepCount(cht))
+    If ns < 1 Then Exit Sub
+    Set body = Block_Body(blk)
+    key = Registry_GetOption(cht, "numfmt", "int")
+    loc = Style_LocalizeCode(Style_NumberFormat(key))
+    body.Cells(2, WFP_COL_LBLAVAL).Resize(ns, 1).NumberFormatLocal = loc
+    body.Cells(2, WFP_COL_LBLBVAL).Resize(ns, 1).NumberFormatLocal = loc
+    Wfp_FormatParts key, div, dec, suf, sufd
+    SetMeta blk, WFP_META_DIV, div
+    SetMeta blk, WFP_META_DEC, dec
+    SetMeta blk, WFP_META_SUF, suf
+    SetMeta blk, WFP_META_SUFD, sufd
+End Sub
+
+' numfmt: celulas e meta (Wfp_ApplyCellFormat) e o formato de cada rotulo de degrau, ponto a ponto (ponto sem rotulo fica como esta).
+Public Sub Wfp_ApplyNumberFormat(cht As Chart)
+    Dim fmt As String, s As Series, nm As Variant, i As Long
+    fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
+    Wfp_ApplyCellFormat cht
+    For Each nm In Array("tqq_lbl_a", "tqq_lbl_b")
+        Set s = Chart_FindSeries(cht, CStr(nm))
+        If Not s Is Nothing Then
+            For i = 1 To s.Points.Count
+                If PointHasLabel(s, i) Then Style_AssignNumberFormat s.Points(i).DataLabel, fmt
+            Next
+        End If
+    Next
+End Sub
+
+' Rotulos de degrau finos demais (altura < 10 pt ou texto mais largo que a fatia) ficam com o texto vazio (coluna LblOn = 0) e voltam quando
+' cabem; o rotulo continua existindo, entao um rotulo apagado pelo usuario continua apagado (nada e recriado aqui). Barra grande com total
+' negativo: rotulo abaixo (TotPos < Top). So escreve o que muda; cada ponto e isolado. Chamada por ultimo em Wfp_RefreshAfterDataChange.
+Private Sub Wfp_SyncLabels(cht As Chart)
+    Dim blk As Range, body As Range, n As Long, ns As Long, i As Long, j As Long, k As Long, ax As Axis, ppu As Double, slotPt As Double
+    Dim sec As String, d As Double, want As Long, arr As Variant, changed As Boolean, s As Series, tp As Variant, tt As Variant, pos As Long
+    If Registry_GetOption(cht, "labels", "1") <> "1" Then Exit Sub
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Sub
+    n = Wfp_StepCount(cht)
+    If n < 1 Then Exit Sub
+    ns = Wfp_SlotCount(n)
+    Set body = Block_Body(blk)
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    If ax.MaximumScale <= ax.MinimumScale Then Exit Sub
+    ppu = cht.PlotArea.InsideHeight / (ax.MaximumScale - ax.MinimumScale)
+    slotPt = cht.PlotArea.InsideWidth / ns
+    sec = Split(Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int")), ";")(0)
+    arr = body.Cells(2, WFP_COL_LBLON).Resize(ns, 1).Value
+    For i = 1 To n
+        For j = 1 To 2
+            If Not CBool(body.Cells(i + 1, Wfp_SideCol(j, "Big")).Value) Then
+                d = Util_ToDouble(body.Cells(i + 1, Wfp_SideCol(j, "D")).Value)
+                k = Wfp_SlotOf(i, j)
+                If d <> 0 Then                               ' degrau zero: o formato ja mostra vazio
+                    want = 1
+                    If Abs(d) * ppu < WFP_LBL_MIN_H Then want = 0
+                    If Labels_EstimateWidth(Format$(d, sec)) > slotPt Then want = 0
+                    If Util_ToDouble(arr(k, 1)) <> want Then arr(k, 1) = want: changed = True
+                End If
+            End If
+        Next
+    Next
+    If changed Then
+        body.Cells(2, WFP_COL_LBLON).Resize(ns, 1).Value = arr
+        Wfp_CalcIfManual blk
+    End If
+    Set s = Chart_FindSeries(cht, "tqq_lbltot")
+    If s Is Nothing Then Exit Sub
+    tp = body.Cells(2, WFP_COL_TOTPOS).Resize(ns, 1).Value
+    tt = body.Cells(2, WFP_COL_TOP).Resize(ns, 1).Value
+    For k = 1 To ns
+        If Not IsError(tp(k, 1)) Then
+            If Util_ToDouble(tp(k, 1)) < Util_ToDouble(tt(k, 1)) - 0.000000001 Then pos = xlLabelPositionBelow Else pos = xlLabelPositionAbove
+            On Error Resume Next
+            If s.Points(k).HasDataLabel Then
+                If s.Points(k).DataLabel.Position <> pos Then s.Points(k).DataLabel.Position = pos
+            End If
+            If Err.Number <> 0 Then Errors_Log "Wfp_SyncLabels" & vbTab & "ponto " & k & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+            On Error GoTo 0
+        End If
+    Next
+End Sub
+
 Public Function Wfp_Insert(ws As Worksheet, data As clsChartData) As ChartObject
     Dim id As String, co As ChartObject, cht As Chart, anchor As Range, blk As Range, body As Range, n As Long, ns As Long, cats As String
     Dim en As Long, es As String, ed As String
@@ -665,6 +849,7 @@ Public Function Wfp_Insert(ws As Worksheet, data As clsChartData) As ChartObject
     Wfp_ApplyColors cht, "padrao"
     Wfp_AddZeroLine cht
     Wfp_SetNames cht
+    Wfp_SetLabels cht, True
     Wfp_SetConnectors cht, True
     Wfp_SetArrowMode cht, False
     Wfp_SetArrows cht, True
@@ -822,6 +1007,8 @@ Public Sub Wfp_RefreshAfterDataChange(cht As Chart)
         Wfp_RefreshRoom cht                          ' e a legenda que mudou, a altura interna
         If Err.Number <> 0 Then Errors_Log "Wfp_RefreshAfterDataChange/sala2" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     End If
+    Wfp_SyncLabels cht                               ' por ultimo: a escala final decide os rotulos finos
+    If Err.Number <> 0 Then Errors_Log "Wfp_RefreshAfterDataChange/rotulos" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
 Done:
     If Err.Number <> 0 Then Errors_Log "Wfp_RefreshAfterDataChange" & vbTab & Err.Number & vbTab & Err.Description
     mBusy = False

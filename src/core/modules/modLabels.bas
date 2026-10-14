@@ -478,7 +478,7 @@ Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
     End If
     If Kinds_Family(kind) = "gantt" Then Exit Sub              ' Gantt: sem formato numerico; os rotulos mostram datas (dd/mm, mmm/yy) ou texto da tabela
     If Kinds_Family(kind) = "scatter" Then Exit Sub            ' Dispersao/bolhas: formato dos rotulos pela propria familia
-    If Kinds_Family(kind) = "waterfallpair" Then Exit Sub     ' Cascata comparativa: formato pela propria familia (Tarefa 4: Wfp_ApplyCellFormat)
+    If Kinds_Family(kind) = "waterfallpair" Then Wfp_ApplyCellFormat cht: Exit Sub    ' Cascata comparativa: celulas dos degraus e meta dos textos FIXED
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
     If n < 1 Then Exit Sub
