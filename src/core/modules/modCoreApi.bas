@@ -1307,6 +1307,7 @@ Private Sub CopyToPowerPointImpl(mode As String)
         Set shp = Ppt_PasteChart(co, slide)
         On Error Resume Next: Application.CutCopyMode = False: Err.Clear: On Error GoTo Fail    ' a colagem ja deu certo: cancelar a copia nao pode desfazer nada
         linkState = Ppt_LinkState(shp)               ' o PowerPoint pode colar sem o vinculo: o aviso diz isso
+        If linkState = 1 Then PptSyncAfterPaste shp, co     ' etiquetas e anotacoes no tamanho do slide (o ajuste ao slide estica as formas)
     Else
         Set shp = Ppt_PasteImage(c, slide)
     End If
@@ -1346,6 +1347,19 @@ Fail:
     Else
         Errors_HandleErr "Core_CopyToPowerPoint(" & mode & ")", en, Ppt_ErrorText(en, ed)
     End If
+End Sub
+
+' Grafico vinculado recem-colado (Parte A): etiquetas TQQ_* (para a atualizacao ao reabrir) e as anotacoes recalculadas no tamanho do slide
+' (medido: Ppt_PlaceShape estica as formas internas junto com o grafico). Falha aqui NAO desfaz a colagem: fica registrada (o botao
+' "Atualizar graficos no PowerPoint" refaz).
+Private Sub PptSyncAfterPaste(shp As Object, co As ChartObject)
+    On Error Resume Next
+    PptSync_TagShape shp, co
+    If Err.Number <> 0 Then Errors_Log "CopyToPowerPoint/etiquetas" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    PptSync_SyncShape shp, co
+    If Err.Number <> 0 Then Errors_Log "CopyToPowerPoint/sincronizar" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    shp.Tags.Add PPTSYNC_TAG_FP, PptSync_Fingerprint(co, shp)
+    Err.Clear
 End Sub
 
 ' Gancho de teste de Core_RebuildFromRange (Util_FailThinSyncForTest = "rebuild-<ponto>:1"): dispara UMA vez. Inerte fora do build Test.

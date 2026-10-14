@@ -27,6 +27,8 @@ Public SlideIndexValue As Long
 Public Deleted As Boolean                       ' Delete foi chamado (slide ou forma apagados pelo desfazer)
 Public ProtectedViewWindows As Collection       ' janelas do Modo de Exibicao Protegido (fora de Windows e de Presentations)
 Public QuitCalled As Boolean                    ' Quit foi chamado (aplicativo encerrado pelo teste)
+Public Width As Double                          ' forma do slide (PptSync_SyncShape le Width/Height antes de tocar no grafico)
+Public Height As Double
 
 Public Property Get SlideIndex() As Long
     If SlideIndexValue <= 0 Then Err.Raise 438, "TestPptFake", "nao e um slide"
