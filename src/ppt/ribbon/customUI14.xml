@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Faixa do suplemento do PowerPoint do ThinQQ (ThinQQ.ppam). So imageMso. -->
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="PptRx_OnLoad">
+  <ribbon>
+    <tabs>
+      <tab id="tabThinQQPpt" label="ThinQQ">
+        <group id="grpPptSync" label="Gráficos do Excel">
+          <button id="btnPptSyncNow" label="Atualizar gráficos" size="large" imageMso="Refresh" onAction="PptRx_OnSync"
+                  screentip="Atualizar gráficos do ThinQQ" supertip="Atualiza dados e setas de todos os gráficos do ThinQQ colados como gráfico vinculado nesta apresentação, pelo ThinQQ do Excel."/>
+          <dropDown id="ddOpenMode" label="Ao abrir" getSelectedItemID="PptRx_GetOpenMode" onAction="PptRx_OnOpenMode"
+                    screentip="Ao abrir a apresentação" supertip="O que fazer ao abrir uma apresentação com gráficos do ThinQQ vinculados: perguntar, atualizar sempre ou não atualizar.">
+            <item id="modeask" label="Perguntar"/>
+            <item id="modealways" label="Atualizar sempre"/>
+            <item id="modenever" label="Não atualizar"/>
+          </dropDown>
+          <button id="btnPptAbout" label="Sobre" imageMso="Info" onAction="PptRx_OnAbout" screentip="Sobre o ThinQQ para PowerPoint"/>
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>

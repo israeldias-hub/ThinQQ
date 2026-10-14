@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 
 $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $script:DistDir  = Join-Path $script:RepoRoot 'dist'
+$script:PptPid   = @()   # PID do PowerPoint criado por New-PptApp (encerrado por Close-PptApp)
 . "$PSScriptRoot\Ribbon-Icons.ps1"
 
 function Assert-VbomTrusted {
@@ -12,6 +13,65 @@ function Assert-VbomTrusted {
     if ($v -ne 1) {
         throw "Habilite 'Confiar no acesso ao modelo de objeto do projeto VBA' (Arquivo > Opções > Central de Confiabilidade > Configurações de Macro) ou execute: Set-ItemProperty '$key' AccessVBOM 1"
     }
+}
+
+function Test-PptVbomTrusted {
+    $v = (Get-ItemProperty 'HKCU:\Software\Microsoft\Office\16.0\PowerPoint\Security' -ErrorAction SilentlyContinue).AccessVBOM
+    return ($v -eq 1)
+}
+function Assert-PptVbomTrusted {
+    if (-not (Test-PptVbomTrusted)) {
+        throw "Habilite no POWERPOINT 'Confiar no acesso ao modelo de objeto do projeto VBA' (Arquivo > Opções > Central de Confiabilidade > Configurações de Macro). Sem isso o suplemento ThinQQ.ppam não pode ser montado."
+    }
+}
+# PowerPoint e de instancia unica: so cria se NENHUM POWERPNT estiver em execucao (senao CreateObject anexaria ao do usuario).
+# O PID criado fica em $script:PptPid; o processo tem que ser de automacao (linha de comando com -Embedding), senao nao e nosso.
+function New-PptApp {
+    if (Get-Process POWERPNT -ErrorAction SilentlyContinue) { throw 'Há um PowerPoint aberto. Feche-o para montar/testar o suplemento (o PowerPoint é de instância única).' }
+    $script:PptPid = @()
+    $app = New-Object -ComObject PowerPoint.Application
+    $ids = @(Get-Process POWERPNT -ErrorAction SilentlyContinue | ForEach-Object Id)
+    $cmd = ''
+    if ($ids.Count -eq 1) { try { $cmd = [string](Get-CimInstance Win32_Process -Filter "ProcessId = $($ids[0])" -ErrorAction Stop).CommandLine } catch { $cmd = '' } }
+    if ($ids.Count -ne 1 -or $cmd -notmatch 'Embedding') {
+        # Nao chama Quit nem encerra: pode ser um PowerPoint do usuario aberto no mesmo instante.
+        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($app) } catch { }
+        throw "PowerPoint do build não identificado ($($ids.Count) processos; linha de comando '$cmd'); nada foi encerrado."
+    }
+    $script:PptPid = $ids
+    $app.DisplayAlerts = 1          # ppAlertsNone
+    return $app
+}
+# Fecha o PowerPoint criado por New-PptApp: Quit e, se o processo (PID registrado) nao terminar em $WaitSec s, encerra esse PID.
+function Close-PptApp($app, [int]$WaitSec = 15) {
+    if ($null -ne $app) {
+        # Fecha pelo indice, soltando cada objeto (enumerar a colecao com foreach deixa referencias que impedem o Quit: medido).
+        $rcw = [System.Runtime.InteropServices.Marshal]
+        $col = $null; $p = $null
+        try {
+            $col = $app.Presentations
+            for ($i = 0; $i -lt 50 -and $col.Count -gt 0; $i++) {
+                $p = $col.Item(1)
+                try { $p.Saved = -1; $p.Close() } finally { [void]$rcw::ReleaseComObject($p); $p = $null }
+            }
+        } catch { } finally { if ($null -ne $col) { try { [void]$rcw::ReleaseComObject($col) } catch { } }; $col = $null }
+        [GC]::Collect(); [GC]::WaitForPendingFinalizers()
+        try { $app.Quit() } catch { }
+        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($app) } catch { }
+    }
+    [GC]::Collect(); [GC]::WaitForPendingFinalizers(); [GC]::Collect()
+    foreach ($id in @($script:PptPid)) {
+        if (-not $id) { continue }
+        $proc = Get-Process -Id $id -ErrorAction SilentlyContinue
+        # Dispose: um handle aberto deixa o processo que ja saiu ainda listado por Get-Process (contagem falsa logo depois)
+        if ($proc) { try { [void]$proc.WaitForExit($WaitSec * 1000) } catch { } finally { $proc.Dispose(); $proc = $null } }
+        if (Get-Process -Id $id -ErrorAction SilentlyContinue) {
+            Write-Host "PowerPoint (PID $id) não fechou em $WaitSec s: encerrado pelo PID." -ForegroundColor Yellow
+            Stop-Process -Id $id -Force -ErrorAction SilentlyContinue
+            for ($i = 0; $i -lt 50 -and (Get-Process -Id $id -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 200 }
+        }
+    }
+    $script:PptPid = @()
 }
 
 function New-ExcelApp {
@@ -164,6 +224,45 @@ function Add-RibbonToPackage([string]$PackagePath, [string]$RibbonXmlPath, [Vali
     } finally { $zip.Dispose(); if ($iconDir) { Remove-Item $iconDir -Recurse -Force -ErrorAction SilentlyContinue } }
 }
 
+# Garante docProps/core.xml com dc:description = $Description (o "Comments" do Office) no pacote. O PowerPoint grava o .ppam so com
+# ppt/presentation.xml e ppt/vbaProject.bin, sem propriedades do documento (medido): o carimbo de versao lido sem abrir o arquivo
+# (como o do loader, docProps/core.xml) e inserido aqui, com o content type e a relacao core-properties. Pacote que ja tem core.xml:
+# troca (ou acrescenta) so o dc:description.
+function Set-PackageDescription([string]$PackagePath, [string]$Description, [string]$Title = 'ThinQQ') {
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $esc = [Security.SecurityElement]::Escape($Description)
+    $zip = [System.IO.Compression.ZipFile]::Open($PackagePath, [System.IO.Compression.ZipArchiveMode]::Update)
+    try {
+        function Get-ZipText($zip, [string]$name) { $e = $zip.GetEntry($name); if (-not $e) { return $null }; $r = New-Object System.IO.StreamReader($e.Open()); try { return $r.ReadToEnd() } finally { $r.Dispose() } }
+        function Set-ZipText($zip, [string]$name, [string]$text) {
+            $old = $zip.GetEntry($name); if ($old) { $old.Delete() }
+            $e = $zip.CreateEntry($name); $w = New-Object System.IO.StreamWriter($e.Open(), (New-Object System.Text.UTF8Encoding($false))); $w.Write($text); $w.Dispose()
+        }
+        $core = Get-ZipText $zip 'docProps/core.xml'
+        if ($null -ne $core) {
+            if ($core -match '<dc:description>[^<]*</dc:description>') { $core = $core -replace '<dc:description>[^<]*</dc:description>', "<dc:description>$esc</dc:description>" }
+            elseif ($core -match '<dc:description\s*/>') { $core = $core -replace '<dc:description\s*/>', "<dc:description>$esc</dc:description>" }
+            else { $core = $core -replace '</cp:coreProperties>', "<dc:description>$esc</dc:description></cp:coreProperties>" }
+            Set-ZipText $zip 'docProps/core.xml' $core
+        } else {
+            $t = [Security.SecurityElement]::Escape($Title)
+            $core = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+                '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
+                "<dc:title>$t</dc:title><dc:description>$esc</dc:description></cp:coreProperties>"
+            Set-ZipText $zip 'docProps/core.xml' $core
+            $ct = Get-ZipText $zip '[Content_Types].xml'
+            if ($ct -notmatch 'PartName="/docProps/core\.xml"') {
+                Set-ZipText $zip '[Content_Types].xml' ($ct -replace '</Types>', '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>')
+            }
+            $rels = Get-ZipText $zip '_rels/.rels'
+            if ($rels -notmatch 'metadata/core-properties') {
+                Set-ZipText $zip '_rels/.rels' ($rels -replace '</Relationships>', '<Relationship Id="rIdThinQQCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>')
+            }
+        }
+    } finally { $zip.Dispose() }
+}
+
 # ---- Watchdog do Excel -------------------------------------------------------
 # Erro de compilação VBA ou diálogo modal trava a chamada COM para sempre. Um processo pwsh
 # separado mata SOMENTE o Excel que este script iniciou (PID obtido via $xl.Hwnd) após o timeout;
@@ -228,6 +327,8 @@ function Write-TestDispatchModule([string[]]$TestFiles, [string]$OutPath) {
         }
     }
     $body = ($cases -join "`r`n")
+    $names = @($cases | ForEach-Object { if ($_ -match 'Case "([^"]+)"') { '    s = s & "' + $Matches[1] + '|"' } })
+    $list = ($names -join "`r`n")
     $content = @"
 Attribute VB_Name = "modTestDispatch"
 ' Gerado pelo build - nao editar
@@ -239,6 +340,12 @@ $body
         Case Else: Err.Raise vbObjectError + 514, "Dispatch", "teste nao despachado: " & qualifiedName
     End Select
 End Sub
+
+Public Function AllTests() As String
+    Dim s As String
+$list
+    AllTests = s
+End Function
 "@
     Set-Content -Path $OutPath -Value $content -Encoding ascii
 }

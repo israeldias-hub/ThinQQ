@@ -164,4 +164,44 @@ try {
 }
 Check (-not $PSDefaultParameterValues.ContainsKey('Add-RibbonToPackage:IconTempRoot')) 'padrao de IconTempRoot removido da sessao'
 Check (-not (Test-Path -LiteralPath $tmpP)) 'pasta tqq_pkg_* do teste removida'
+# ---- Faixa do suplemento do PowerPoint (src/ppt/ribbon/customUI14.xml): bem formada, so imageMso, ids e callbacks esperados
+$pptXmlPath = Join-Path $RepoRoot 'src\ppt\ribbon\customUI14.xml'
+[xml]$px = [IO.File]::ReadAllText($pptXmlPath, (New-Object Text.UTF8Encoding($false)))
+$pns = New-Object Xml.XmlNamespaceManager($px.NameTable); $pns.AddNamespace('u', 'http://schemas.microsoft.com/office/2009/07/customui')
+Check ($px.customUI.onLoad -eq 'PptRx_OnLoad') 'ppt: onLoad PptRx_OnLoad'
+Check ($null -eq $px.SelectSingleNode('//u:*[@image]', $pns)) 'ppt: nenhum image= (so imageMso)'
+Check ($null -ne $px.SelectSingleNode("//u:button[@id='btnPptSyncNow'][@onAction='PptRx_OnSync']", $pns)) 'ppt: Atualizar gráficos'
+Check ((@($px.SelectNodes("//u:dropDown[@id='ddOpenMode']/u:item", $pns) | ForEach-Object { $_.id }) -join ',') -eq 'modeask,modealways,modenever') 'ppt: itens de Ao abrir'
+# ---- Carimbo do .ppam (Set-PackageDescription): o PowerPoint grava o suplemento sem docProps; pacotes sinteticos, sem Office
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$tmpD = Join-Path ([IO.Path]::GetTempPath()) ("tqq_pkgd_" + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Force $tmpD | Out-Null
+try {
+    function New-SynPkg([string]$path, [hashtable]$parts) {
+        $z = [System.IO.Compression.ZipFile]::Open($path, [System.IO.Compression.ZipArchiveMode]::Create)
+        try { foreach ($k in $parts.Keys) { $e = $z.CreateEntry($k); $w = New-Object IO.StreamWriter($e.Open(), (New-Object Text.UTF8Encoding($false))); $w.Write($parts[$k]); $w.Dispose() } } finally { $z.Dispose() }
+    }
+    function Read-PkgText([string]$path, [string]$name) { $z = [System.IO.Compression.ZipFile]::OpenRead($path); try { $b = Read-Entry $z $name; if ($null -eq $b) { return $null }; return [Text.Encoding]::UTF8.GetString($b) } finally { $z.Dispose() } }
+    $ctBare = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>'
+    $relBare = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/></Relationships>'
+    $a = Join-Path $tmpD 'a.ppam'
+    New-SynPkg $a @{ '[Content_Types].xml' = $ctBare; '_rels/.rels' = $relBare; 'ppt/presentation.xml' = '' }
+    Set-PackageDescription -PackagePath $a -Description 'ThinQQ ppt 9.8.7 (Release)'
+    Set-PackageDescription -PackagePath $a -Description 'ThinQQ ppt 9.8.7 (Release)'   # repetir nao duplica
+    $core = Read-PkgText $a 'docProps/core.xml'
+    Check ($null -ne $core -and ([xml]$core).coreProperties.description -eq 'ThinQQ ppt 9.8.7 (Release)') 'carimbo: pacote sem docProps ganha core.xml com dc:description'
+    Check ($core -match 'ThinQQ ppt (\d+\.\d+\.\d+)' -and $Matches[1] -eq '9.8.7') 'carimbo: versao legivel pela mesma regex do instalador'
+    $ctA = Read-PkgText $a '[Content_Types].xml'; $relA = Read-PkgText $a '_rels/.rels'
+    Check (([regex]::Matches($ctA, 'PartName="/docProps/core\.xml" ContentType="application/vnd\.openxmlformats-package\.core-properties\+xml"')).Count -eq 1) 'carimbo: content type de core.xml (uma vez)'
+    Check (([regex]::Matches($relA, 'relationships/metadata/core-properties" Target="docProps/core\.xml"')).Count -eq 1) 'carimbo: relacao core-properties (uma vez)'
+    Check ($null -ne ([xml]$ctA) -and $null -ne ([xml]$relA)) 'carimbo: [Content_Types].xml e _rels/.rels continuam XML valido'
+    $b = Join-Path $tmpD 'b.pptm'
+    New-SynPkg $b @{ '[Content_Types].xml' = $ctBare; '_rels/.rels' = $relBare; 'docProps/core.xml' = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>X</dc:title><dc:description>velho</dc:description></cp:coreProperties>' }
+    Set-PackageDescription -PackagePath $b -Description 'ThinQQ ppt 1.2.3 (Test)'
+    $coreB = Read-PkgText $b 'docProps/core.xml'
+    Check (([xml]$coreB).coreProperties.description -eq 'ThinQQ ppt 1.2.3 (Test)' -and ([xml]$coreB).coreProperties.title -eq 'X') 'carimbo: core.xml existente troca so o dc:description'
+    Check ((Read-PkgText $b '[Content_Types].xml') -eq $ctBare) 'carimbo: core.xml existente nao mexe no content type'
+} finally { Remove-Item -LiteralPath $tmpD -Recurse -Force -ErrorAction SilentlyContinue }
+Check (-not (Test-Path -LiteralPath $tmpD)) 'pasta tqq_pkgd_* do teste removida'
 if ($script:fail -gt 0) { Write-Host "FALHAS ribbon-pacote: $script:fail"; exit 1 }

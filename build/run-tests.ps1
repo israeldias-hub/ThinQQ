@@ -2,6 +2,7 @@ param(
     [ValidateSet('loader','core','all')] [string]$Target = 'all',
     [switch]$NoBuild,
     [switch]$LoaderSwap,     # tambem roda tests/ps/Test-LoaderSwap.ps1 (Excel real; monta Release em dist; ~30 s)
+    [switch]$Ppt,            # tambem monta ThinQQ.ppt.test.pptm e roda tests/ps/Test-PptAddin.ps1 (PowerPoint proprio; so sem POWERPNT aberto)
     [string]$Filter = '',    # so roda testes cujo 'Modulo.Teste' contem este texto (iteracao rapida; pula as suites PowerShell)
     [int]$TimeoutSec = 600   # watchdog da execução no Excel: mata o Excel iniciado aqui se não terminar (saída 2)
 )
@@ -154,6 +155,24 @@ if (-not $timedOut) {
             if ($LASTEXITCODE -ne 0) { Write-Host "FALHOU: $tst em $exe" -ForegroundColor Red; $totalFailed += 1 }
         }
     }
+}
+if (-not $timedOut) {
+    if ($Ppt) {
+        Write-Host '=== powerpoint (suplemento ThinQQ.ppam: suite VBA + ponta a ponta) ==='
+        if (Get-Process POWERPNT -ErrorAction SilentlyContinue) { Write-Host 'SKIP: há um PowerPoint aberto (instância única); feche-o para rodar esta parte.' -ForegroundColor Yellow }
+        elseif (-not (Test-PptVbomTrusted)) { Write-Host "SKIP: habilite no PowerPoint 'Confiar no acesso ao modelo de objeto do projeto VBA'." -ForegroundColor Yellow }
+        else {
+            $global:LASTEXITCODE = 0
+            # processo proprio: uma excecao do build do PowerPoint nao derruba o resto da suite
+            & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\build.ps1" -Target ppt -Configuration Test
+            if ($LASTEXITCODE -ne 0) { Write-Host "FALHOU: build do suplemento do PowerPoint (saída $LASTEXITCODE)" -ForegroundColor Red; $totalFailed += 1 }
+            else {
+                $global:LASTEXITCODE = 0
+                & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'tests\ps\Test-PptAddin.ps1') -RepoRoot $RepoRoot
+                if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
+            }
+        }
+    } else { Write-Host '=== powerpoint: pulado (use -Ppt) ===' }
 }
 if (-not $timedOut -and $LoaderSwap) {
     Write-Host '=== loader-swap ==='
