@@ -1351,14 +1351,17 @@ End Sub
 
 ' Grafico vinculado recem-colado (Parte A): etiquetas TQQ_* (para a atualizacao ao reabrir) e as anotacoes recalculadas no tamanho do slide
 ' (medido: Ppt_PlaceShape estica as formas internas junto com o grafico). Falha aqui NAO desfaz a colagem: fica registrada (o botao
-' "Atualizar graficos no PowerPoint" refaz).
+' "Atualizar graficos no PowerPoint" refaz). A impressao digital TQQ_FP so e gravada se a sincronizacao deu certo (senao a proxima
+' atualizacao pularia o grafico como "sem mudanca" com as setas ainda esticadas).
 Private Sub PptSyncAfterPaste(shp As Object, co As ChartObject)
+    Dim ok As Boolean
     On Error Resume Next
     PptSync_TagShape shp, co
     If Err.Number <> 0 Then Errors_Log "CopyToPowerPoint/etiquetas" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     PptSync_SyncShape shp, co
-    If Err.Number <> 0 Then Errors_Log "CopyToPowerPoint/sincronizar" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
-    shp.Tags.Add PPTSYNC_TAG_FP, PptSync_Fingerprint(co, shp)
+    ok = (Err.Number = 0)
+    If Not ok Then Errors_Log "CopyToPowerPoint/sincronizar" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    If ok Then shp.Tags.Add PPTSYNC_TAG_FP, PptSync_Fingerprint(co, shp)
     Err.Clear
 End Sub
 

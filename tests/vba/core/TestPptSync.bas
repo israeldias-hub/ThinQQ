@@ -116,6 +116,27 @@ Private Function PptSeriesValue(pc As Object, seriesName As String, i As Long) A
     Err.Raise vbObjectError + 1, "TestPptSync", "serie nao encontrada no grafico do slide: " & seriesName
 End Function
 
+' PowerPoint proprio com um slide fixado como destino e pasta SALVA (fileName) com grafico empilhado e seta CAGR. False (motivo no log) se
+' o teste deve ser pulado; erros sobem ao chamador (que limpa no Cleanup: app, own e wb podem estar parcialmente montados).
+Private Function PasteSetup(ByRef app As Object, own As Collection, ByRef slide As Object, ByRef wb As Workbook, ByRef rng As Range, ByRef c As Chart, fileName As String) As Boolean
+    Dim pres As Object
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Function
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set slide = pres.Slides.Add(1, 12)
+    Ppt_PinTargetForTest slide
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    wb.SaveAs TempDir() & "\" & fileName, xlOpenXMLWorkbook
+    rng.Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    Ann_AddCagr c, 1, 2
+    If Not ClipboardUsable(c) Then Errors_Log "TestPptSync: colagem pulada (area de transferencia indisponivel)": Exit Function
+    Ppt_SetAppForTest app
+    If UserWindowAppeared(app) Then Exit Function
+    PasteSetup = True
+End Function
+
 Public Sub Test_PptSync_SourcePath()
     AssertEqual "C:\a\b.xlsx", PptSync_SourcePath("C:\a\b.xlsx", "")
     AssertEqual "C:\a\b.xlsx", PptSync_SourcePath("C:\a\b.xlsx!Dados![b.xlsx]Dados Gráfico 1", "C:\x.xlsx"), "OLE: o caminho vai ate o primeiro '!'"
@@ -271,6 +292,36 @@ Cleanup:
     On Error GoTo -1
     On Error Resume Next
     Set seq = Nothing: Set pc = Nothing: Set shp = Nothing: Set slide = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Colagem cuja sincronizacao falha (ganchos "update", "snapshot", "apply"): a colagem vale, as etiquetas ficam, a impressao digital NAO e
+' gravada (a proxima atualizacao nao pode pular o grafico como "sem mudanca") e o grafico do Excel volta ao tamanho dele.
+Public Sub Test_PptSync_PasteSyncFailure_NoFingerprint_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, slide As Object, c As Chart, shp As Object, pt As Variant
+    Dim own As New Collection, en As Long, ed As String, w0 As Double, h0 As Double, n As Long
+    On Error GoTo Cleanup
+    If Not PasteSetup(app, own, slide, wb, rng, c, "pptsync-fp.xlsx") Then GoTo Cleanup
+    w0 = c.Parent.Width: h0 = c.Parent.Height
+    For Each pt In Array("update", "snapshot", "apply")
+        n = n + 1
+        PptSync_SetFailForTest CStr(pt)
+        Core_CopyToPowerPoint "chart"
+        AssertEqual n, CLng(slide.Shapes.Count), "a colagem continua valendo (" & pt & ")"
+        Set shp = slide.Shapes(slide.Shapes.Count)
+        AssertEqual Registry_IdFromChart(c), PptSync_Tag(shp, PPTSYNC_TAG_CHART), "etiquetas gravadas (" & pt & ")"
+        AssertEqual "", PptSync_Tag(shp, PPTSYNC_TAG_FP), "sem impressao digital: a sincronizacao falhou (" & pt & ")"
+        AssertAlmost w0, c.Parent.Width, 0.01, "largura restaurada (" & pt & ")"
+        AssertAlmost h0, c.Parent.Height, 0.01, "altura restaurada (" & pt & ")"
+    Next
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set shp = Nothing: Set slide = Nothing
     StopScratchPowerPoint app, own
     If Not wb Is Nothing Then Teardown wb
     On Error GoTo 0
