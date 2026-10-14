@@ -1374,6 +1374,7 @@ Public Function Core_PptSyncPresentation(pres As Object, Optional force As Boole
     Exit Function
 Fail:
     en = Err.Number: ed = Err.Description
+    On Error GoTo -1
     On Error Resume Next
     Errors_Log "Core_PptSyncPresentation" & vbTab & en & vbTab & ed
     Core_PptSyncPresentation = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
@@ -1387,23 +1388,29 @@ Public Function Core_PptApiVersion() As Long
 End Function
 
 ' Botao "Atualizar graficos no PowerPoint": todas as apresentacoes abertas que nao sao somente leitura, forcando a atualizacao; o aviso traz
-' o resumo de cada uma. Sem PowerPoint aberto (nunca abre um): aviso. Nunca propaga erro.
+' o resumo de cada uma (cada apresentacao e isolada: o erro de uma vira uma linha dela, sem perder o resumo das outras). Sem PowerPoint aberto
+' (nunca abre um): aviso; so apresentacoes somente leitura: aviso proprio. Nunca propaga erro.
 Public Sub Core_PptSyncOpen()
-    Dim app As Object, pres As Object, msg As String, n As Long, en As Long, ed As String
+    Dim app As Object, pres As Object, msg As String, n As Long, nRO As Long, en As Long, ed As String
     On Error GoTo Fail
     Set app = Ppt_GetApp(False)
     If app Is Nothing Then Core_Notify PPTSYNC_NO_PPT, vbInformation: Exit Sub
     For Each pres In app.Presentations
-        If CLng(pres.ReadOnly) = 0 Then
+        If PptSyncIsReadOnly(pres) Then
+            nRO = nRO + 1
+        Else
             n = n + 1
-            msg = msg & IIf(Len(msg) > 0, vbLf & vbLf, "") & "'" & CStr(pres.Name) & "': " & PptSync_Presentation(pres, True)
+            msg = msg & IIf(Len(msg) > 0, vbLf & vbLf, "") & "'" & PptSyncPresName(pres) & "': " & Core_PptSyncPresentation(pres, True)
         End If
     Next
-    If n = 0 Then msg = PPTSYNC_NO_PPT
+    If n = 0 Then
+        If nRO > 0 Then msg = PPTSYNC_ALL_RO Else msg = PPTSYNC_NO_PPT
+    End If
     Core_Notify msg, vbInformation
     Exit Sub
 Fail:
     en = Err.Number: ed = Err.Description
+    On Error GoTo -1
     On Error Resume Next
     Application.StatusBar = False
     If Ppt_IsKnownFailure(en) Then
@@ -1412,6 +1419,20 @@ Fail:
         Errors_HandleErr "Core_PptSyncOpen", en, ed
     End If
 End Sub
+
+' Somente leitura? Leitura que falha (apresentacao fechando): conta como editavel e o erro cai no resumo daquela apresentacao.
+Private Function PptSyncIsReadOnly(pres As Object) As Boolean
+    On Error Resume Next
+    PptSyncIsReadOnly = (CLng(pres.ReadOnly) <> 0)
+    Err.Clear
+End Function
+
+Private Function PptSyncPresName(pres As Object) As String
+    On Error Resume Next
+    PptSyncPresName = CStr(pres.Name)
+    If Err.Number <> 0 Or Len(PptSyncPresName) = 0 Then PptSyncPresName = "(sem nome)"
+    Err.Clear
+End Function
 
 ' Gancho de teste de Core_RebuildFromRange (Util_FailThinSyncForTest = "rebuild-<ponto>:1"): dispara UMA vez. Inerte fora do build Test.
 Private Sub RebuildTestHook(site As String)

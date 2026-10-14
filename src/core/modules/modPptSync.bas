@@ -18,6 +18,17 @@ Public Const PPTSYNC_TAG_FP As String = "TQQ_FP"            ' impressao digital 
 Public Const CORE_PPT_API As Long = 1                       ' versao da API do core usada pelo suplemento do PowerPoint (Core_PptApiVersion)
 Public Const PPTSYNC_NONE As String = "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."
 Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."
+Public Const PPTSYNC_ALL_RO As String = "Todas as apresentações abertas estão em modo somente leitura (Modo de Exibição Protegido): ative a edição e tente de novo."
+Public Const PPTSYNC_UNKNOWN_SRC As String = "(origem desconhecida)"      ' forma marcada sem SourceFullName e sem TQQ_BOOK
+Public Const PPTSYNC_C_PROCEED As Long = 0                   ' PptSync_Classify: segue para a pasta de origem
+Public Const PPTSYNC_C_UNLINKED As Long = 1                  ' colado sem vinculo ("Sem vinculo com o Excel")
+Public Const PPTSYNC_C_UNKNOWN As Long = 2                   ' estado do vinculo ilegivel (falha)
+Public Const PPTSYNC_C_NOPATH As Long = 3                    ' vinculado, mas sem caminho de origem (origem desconhecida)
+Private Const PPTSYNC_R_OK As Long = 1                       ' resultado de PptSync_SyncOne
+Private Const PPTSYNC_R_SAME As Long = 2
+Private Const PPTSYNC_R_NOCHART As Long = 3
+Private Const PPTSYNC_R_FAIL As Long = 4
+Private Const PPTSYNC_R_SKIPPED As Long = 5
 Private Const MSO_AUTOSHAPE As Long = 1
 Private Const MSO_LINE As Long = 9
 Private Const MSO_TEXTBOX As Long = 17
@@ -33,16 +44,26 @@ Private Const SN_TEXT As Long = 8
 Private Const SN_HASTEXT As Long = 9
 Private Const PPTSYNC_LAYOUT_TOL As Double = 2              ' pt: area interna do slide diferente da do Excel alem disso = log
 Private mTestFail As String                                 ' gancho de teste: ponto de falha injetada (so no build Test)
+Private mTestSkip As Long                                 ' gancho de teste: quantos acertos do ponto saltar antes de falhar (PptSync_SetFailAfterForTest)
 Private mUpdateCount As Long                                ' chamadas de LinkFormat.Update feitas por PptSync_SyncShape (lido so no build Test)
 
 ' Gancho de teste: o proximo ponto nomeado ("update", "snapshot", "apply") levanta erro (uso unico). Inerte fora do build Test.
 Public Sub PptSync_SetFailForTest(point As String)
     If BUILD_CONFIG <> "Test" Then Exit Sub
     mTestFail = point
+    mTestSkip = 0
+End Sub
+
+' Gancho de teste: como PptSync_SetFailForTest, mas salta os primeiros skipFirst acertos do ponto (a falha cai na (skipFirst+1)-esima vez).
+Public Sub PptSync_SetFailAfterForTest(point As String, skipFirst As Long)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestFail = point
+    mTestSkip = skipFirst
 End Sub
 
 Public Sub PptSync_ResetTestHooks()
     mTestFail = ""
+    mTestSkip = 0
     mUpdateCount = 0
 End Sub
 
@@ -55,6 +76,7 @@ End Function
 Private Sub PptSync_Hook(point As String)
     If BUILD_CONFIG <> "Test" Then Exit Sub
     If mTestFail <> point Then Exit Sub
+    If mTestSkip > 0 Then mTestSkip = mTestSkip - 1: Exit Sub
     mTestFail = ""
     Err.Raise vbObjectError + 9992, "modPptSync", "falha injetada (" & point & ")"
 End Sub
@@ -98,15 +120,27 @@ End Function
 ' (FullName igual) ou, se for caminho local/de rede, existente no disco. Endereco http(s) (OneDrive/SharePoint) so conta aberta. Nunca
 ' propaga erro.
 Public Function PptSync_SourceReachable(path As String) As Boolean
-    Dim wb As Workbook, p As String
+    Dim wb As Workbook, names As New Collection
+    On Error GoTo Done
+    For Each wb In Application.Workbooks
+        names.Add wb.FullName
+    Next
+    PptSync_SourceReachable = PptSync_ReachableAmong(path, names)
+Done:
+End Function
+
+' Regra de PptSync_SourceReachable com a lista dos FullName das pastas abertas (names): path igual a um deles (sem diferenciar maiusculas;
+' vale tambem para o endereco https do OneDrive/SharePoint) ou, se nao for http(s), arquivo existente no disco. Nunca propaga erro.
+Public Function PptSync_ReachableAmong(path As String, names As Collection) As Boolean
+    Dim n As Variant, p As String
     On Error GoTo Done
     p = Trim$(path)
     If Len(p) = 0 Then Exit Function
-    For Each wb In Application.Workbooks
-        If StrComp(wb.FullName, p, vbTextCompare) = 0 Then PptSync_SourceReachable = True: Exit Function
+    For Each n In names
+        If StrComp(CStr(n), p, vbTextCompare) = 0 Then PptSync_ReachableAmong = True: Exit Function
     Next
     If LCase$(Left$(p, 7)) = "http://" Or LCase$(Left$(p, 8)) = "https://" Then Exit Function
-    PptSync_SourceReachable = CBool(CreateObject("Scripting.FileSystemObject").FileExists(p))
+    PptSync_ReachableAmong = CBool(CreateObject("Scripting.FileSystemObject").FileExists(p))
 Done:
 End Function
 
@@ -381,18 +415,25 @@ Public Function PptSync_FileExists(path As String) As Boolean
 End Function
 
 ' Pasta de origem: a ja aberta neste Excel (com as alteracoes nao salvas, como o proprio vinculo le) ou aberta agora SOMENTE LEITURA, sem
-' atualizar vinculos, sem MRU e com eventos desligados durante a abertura (registrada em opened para fechar no fim). Nothing se nao abre.
+' atualizar vinculos, sem MRU e com eventos desligados durante a abertura (registrada em opened para fechar no fim). Nothing se nao abre
+' (registrado). Pasta protegida por senha: Open mostraria uma caixa modal INVISIVEL (DisplayAlerts = False nao a evita) e travaria o
+' Application.Run; uma Password ficticia faz a senha errada levantar o erro 1004 em vez de perguntar (ignorada em pasta sem senha). A
+' recomendacao "somente leitura" e a notificacao de arquivo em uso tambem nao perguntam.
 Private Function PptSync_OpenBook(path As String, opened As Collection) As Workbook
-    Dim w As Workbook, prevAlerts As Boolean, prevEvents As Boolean
+    Dim w As Workbook, prevAlerts As Boolean, prevEvents As Boolean, en As Long, ed As String
     For Each w In Application.Workbooks
         If StrComp(w.FullName, path, vbTextCompare) = 0 Then Set PptSync_OpenBook = w: Exit Function
     Next
     prevAlerts = Application.DisplayAlerts: prevEvents = Application.EnableEvents
     Application.DisplayAlerts = False: Application.EnableEvents = False
     On Error Resume Next
-    Set w = Application.Workbooks.Open(Filename:=path, UpdateLinks:=0, ReadOnly:=True, AddToMru:=False)
-    If Err.Number <> 0 Then Errors_Log "PptSync_OpenBook" & vbTab & Err.Number & vbTab & Err.Description: Set w = Nothing
-    Err.Clear
+    Set w = Application.Workbooks.Open(Filename:=path, UpdateLinks:=0, ReadOnly:=True, Password:="x", IgnoreReadOnlyRecommended:=True, Notify:=False, AddToMru:=False)
+    If Err.Number <> 0 Then
+        en = Err.Number: ed = Err.Description
+        Set w = Nothing
+        Err.Clear
+        Errors_Log "PptSync_OpenBook" & vbTab & en & vbTab & ed & vbTab & path
+    End If
     On Error GoTo 0
     Application.DisplayAlerts = prevAlerts: Application.EnableEvents = prevEvents
     If Not w Is Nothing Then opened.Add w
@@ -407,71 +448,147 @@ Private Sub PptSync_CloseOpened(opened As Collection)
     Next
 End Sub
 
-' True se PptSync_SyncShape terminou sem erro. updateSkipped = True quando o LinkFormat.Update foi ignorado por origem inalcancavel.
-Private Function PptSync_TrySync(shp As Object, co As ChartObject, ByRef updateSkipped As Boolean) As Boolean
+' O que fazer com uma forma marcada antes de olhar a pasta de origem (pura): linkState de Ppt_LinkState (1 vinculado, 0 sem vinculo, -1
+' ilegivel) e o caminho de origem ja resolvido (PptSync_SourcePath; "" = nem SourceFullName nem TQQ_BOOK). Nunca sincroniza sem estado 1.
+Public Function PptSync_Classify(linkState As Long, path As String) As Long
+    If linkState = 0 Then
+        PptSync_Classify = PPTSYNC_C_UNLINKED
+    ElseIf linkState <> 1 Then
+        PptSync_Classify = PPTSYNC_C_UNKNOWN
+    ElseIf Len(Trim$(path)) = 0 Then
+        PptSync_Classify = PPTSYNC_C_NOPATH
+    Else
+        PptSync_Classify = PPTSYNC_C_PROCEED
+    End If
+End Function
+
+' Nome do arquivo para o aviso: depois da ultima barra (invertida ou normal: endereco https do OneDrive/SharePoint); "" = origem desconhecida.
+Private Function PptSync_DisplayName(path As String) As String
+    Dim p As String, k As Long
+    p = Trim$(path)
+    If Len(p) = 0 Then PptSync_DisplayName = PPTSYNC_UNKNOWN_SRC: Exit Function
+    k = InStrRev(p, "\")
+    If InStrRev(p, "/") > k Then k = InStrRev(p, "/")
+    PptSync_DisplayName = Mid$(p, k + 1)
+End Function
+
+' Lista do aviso "Pasta de origem nao encontrada ou sem acesso" (", "): o nome do arquivo de cada caminho (paths = Variant com os caminhos,
+' sem repeticao); caminhos diferentes com o MESMO nome aparecem pelo caminho completo para nao se confundirem. Pura.
+Public Function PptSync_MissingText(paths As Variant) As String
+    Dim i As Long, j As Long, lo As Long, hi As Long, nm() As String, dup As Boolean, s As String, lbl As String
+    lo = LBound(paths): hi = UBound(paths)
+    If hi < lo Then Exit Function
+    ReDim nm(lo To hi)
+    For i = lo To hi
+        nm(i) = PptSync_DisplayName(CStr(paths(i)))
+    Next
+    For i = lo To hi
+        dup = False
+        For j = lo To hi
+            If j <> i Then
+                If StrComp(nm(i), nm(j), vbTextCompare) = 0 Then dup = True: Exit For
+            End If
+        Next
+        If dup And Len(Trim$(CStr(paths(i)))) > 0 Then lbl = Trim$(CStr(paths(i))) Else lbl = nm(i)
+        s = s & IIf(Len(s) > 0, ", ", "") & lbl
+    Next
+    PptSync_MissingText = s
+End Function
+
+' Sincroniza UMA forma ja ligada a pasta de origem wb, isolada: qualquer erro (achar o grafico, impressao digital, SyncShape) conta a forma como
+' falha, registra e devolve PPTSYNC_R_FAIL sem levantar. A TQQ_FP e calculada DEPOIS da sincronizacao (descreve o que o slide acabou de receber,
+' igual a colagem); se so a gravacao dela falha, o grafico conta como atualizado, a TQQ_FP velha e apagada (senao uma volta do dado ao valor
+' antigo seria pulada como "sem mudanca") e fica registrado.
+Private Function PptSync_SyncOne(shp As Object, wb As Workbook, force As Boolean) As Long
+    Dim co As ChartObject, fp As String, skipped As Boolean
     On Error GoTo Fail
-    PptSync_SyncShape shp, co, True, updateSkipped
-    PptSync_TrySync = True
+    PptSync_Hook "findchart"
+    Set co = Registry_FindChartObject(wb, PptSync_Tag(shp, PPTSYNC_TAG_CHART))
+    If co Is Nothing Then PptSync_SyncOne = PPTSYNC_R_NOCHART: Exit Function
+    PptSync_Hook "fingerprint"
+    fp = PptSync_Fingerprint(co, shp)
+    If Not force And fp = PptSync_Tag(shp, PPTSYNC_TAG_FP) Then PptSync_SyncOne = PPTSYNC_R_SAME: Exit Function
+    PptSync_SyncShape shp, co, True, skipped
+    If skipped Then PptSync_SyncOne = PPTSYNC_R_SKIPPED: Exit Function   ' Update ignorado: sem TQQ_FP, sem contar como atualizado
+    PptSync_SyncOne = PPTSYNC_R_OK
+    On Error GoTo FpFail
+    PptSync_Hook "tagfp"
+    shp.Tags.Add PPTSYNC_TAG_FP, PptSync_Fingerprint(co, shp)
+    Exit Function
+FpFail:
+    Errors_Log "PptSync/TQQ_FP" & vbTab & Err.Number & vbTab & Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    shp.Tags.Delete PPTSYNC_TAG_FP
     Exit Function
 Fail:
     Errors_Log "PptSync" & vbTab & Err.Number & vbTab & Err.Description
+    PptSync_SyncOne = PPTSYNC_R_FAIL
 End Function
 
 ' Sincroniza todos os graficos ThinQQ vinculados (formas soltas com a etiqueta TQQ_CHART) da apresentacao. force = False pula os que nao
-' mudaram (TQQ_FP). Pasta de origem inexistente ou que nao abre: o grafico fica como esta (NUNCA LinkFormat.Update: travaria o PowerPoint).
-' Se o Update foi ignorado por origem inalcancavel (a pasta sumiu depois da conferencia), o grafico NAO conta como atualizado, a TQQ_FP NAO e
-' gravada e a pasta entra no aviso. Pastas abertas por esta chamada sao fechadas sem salvar. Devolve o resumo (PptSync_SummaryText).
-' Erro de um grafico e contado e registrado; so falha estrutural sobe.
+' mudaram (TQQ_FP). Pasta de origem inexistente ou que nao abre (senha, corrompida): o grafico fica como esta e a pasta entra no aviso (NUNCA
+' LinkFormat.Update com a origem ausente: travaria o PowerPoint). Se o Update foi ignorado por origem inalcancavel (a pasta sumiu depois da
+' conferencia), o grafico NAO conta como atualizado, a TQQ_FP NAO e gravada e a pasta entra no aviso. Forma sem vinculo ou com estado do
+' vinculo ilegivel nunca e sincronizada ("Sem vinculo" / "Falha"); forma sem caminho de origem entra no aviso como "(origem desconhecida)".
+' Pastas abertas por esta chamada sao fechadas sem salvar, com a tela congelada (restaurada em todo caminho). Devolve o resumo
+' (PptSync_SummaryText). Erro de um grafico e contado e registrado (PptSync_SyncOne); so falha estrutural sobe.
 Public Function PptSync_Presentation(pres As Object, force As Boolean) As String
-    Dim sl As Object, shp As Object, items As Collection, opened As Collection, books As Object, path As String, k As Long
-    Dim wb As Workbook, co As ChartObject, fp As String, missing As String, en As Long, ed As String, skipped As Boolean
+    Dim sl As Object, shp As Object, items As Collection, opened As Collection, books As Object, missingSet As Object, path As String, k As Long
+    Dim wb As Workbook, missing As String, en As Long, ed As String, prevSU As Boolean, ls As Long
     Dim nOk As Long, nSame As Long, nNoChart As Long, nUnlinked As Long, nFail As Long
+    PptSync_Hook "presentation"
     Set items = New Collection: Set opened = New Collection
     Set books = CreateObject("Scripting.Dictionary")
     books.CompareMode = 1                                       ' texto: caminhos sem diferenciar maiusculas
+    Set missingSet = CreateObject("Scripting.Dictionary")
+    missingSet.CompareMode = 1
     For Each sl In pres.Slides
         For Each shp In sl.Shapes
             If Len(PptSync_Tag(shp, PPTSYNC_TAG_CHART)) > 0 Then items.Add shp
         Next
     Next
     If items.Count = 0 Then PptSync_Presentation = PPTSYNC_NONE: Exit Function
+    prevSU = Application.ScreenUpdating
     On Error GoTo Fail
+    Application.ScreenUpdating = False
     For Each shp In items
         k = k + 1
         Application.StatusBar = "ThinQQ: atualizando gráfico " & k & " de " & items.Count & " do PowerPoint..."
-        If Ppt_LinkState(shp) = 0 Then
-            nUnlinked = nUnlinked + 1
-        Else
-            path = PptSync_SourcePath(PptSync_LinkSource(shp), PptSync_Tag(shp, PPTSYNC_TAG_BOOK))
-            If Not books.Exists(path) Then
-                Set wb = Nothing
-                If PptSync_FileExists(path) Then Set wb = PptSync_OpenBook(path, opened)
-                If wb Is Nothing Then missing = PptSync_AddMissing(missing, path)
-                books.Add path, wb
-            End If
-            Set wb = books.Item(path)
-            If Not wb Is Nothing Then
-                Set co = Registry_FindChartObject(wb, PptSync_Tag(shp, PPTSYNC_TAG_CHART))
-                If co Is Nothing Then
-                    nNoChart = nNoChart + 1
-                Else
-                    fp = PptSync_Fingerprint(co, shp)
-                    If Not force And fp = PptSync_Tag(shp, PPTSYNC_TAG_FP) Then
-                        nSame = nSame + 1
-                    ElseIf Not PptSync_TrySync(shp, co, skipped) Then
-                        nFail = nFail + 1
-                    ElseIf skipped Then
-                        missing = PptSync_AddMissing(missing, path)     ' Update ignorado: sem TQQ_FP, sem contar como atualizado
-                    Else
-                        shp.Tags.Add PPTSYNC_TAG_FP, fp
-                        nOk = nOk + 1
-                    End If
+        ls = Ppt_LinkState(shp)
+        path = ""
+        If ls = 1 Then path = PptSync_SourcePath(PptSync_LinkSource(shp), PptSync_Tag(shp, PPTSYNC_TAG_BOOK))
+        Select Case PptSync_Classify(ls, path)
+            Case PPTSYNC_C_UNLINKED
+                nUnlinked = nUnlinked + 1
+            Case PPTSYNC_C_UNKNOWN
+                nFail = nFail + 1
+                Errors_Log "PptSync: estado do vinculo ilegivel; forma nao sincronizada" & vbTab & PptSync_Tag(shp, PPTSYNC_TAG_CHART)
+            Case PPTSYNC_C_NOPATH
+                If Not missingSet.Exists("") Then missingSet.Add "", True
+            Case Else
+                If Not books.Exists(path) Then
+                    Set wb = Nothing
+                    If PptSync_FileExists(path) Then Set wb = PptSync_OpenBook(path, opened)
+                    If wb Is Nothing Then missingSet(path) = True
+                    books.Add path, wb
                 End If
-            End If
-        End If
+                Set wb = books.Item(path)
+                If Not wb Is Nothing Then
+                    Select Case PptSync_SyncOne(shp, wb, force)
+                        Case PPTSYNC_R_OK: nOk = nOk + 1
+                        Case PPTSYNC_R_SAME: nSame = nSame + 1
+                        Case PPTSYNC_R_NOCHART: nNoChart = nNoChart + 1
+                        Case PPTSYNC_R_SKIPPED: missingSet(path) = True
+                        Case Else: nFail = nFail + 1
+                    End Select
+                End If
+        End Select
     Next
     PptSync_CloseOpened opened
+    Application.ScreenUpdating = prevSU
     Application.StatusBar = False
+    If missingSet.Count > 0 Then missing = PptSync_MissingText(missingSet.Keys)
     PptSync_Presentation = PptSync_SummaryText(nOk, nSame, missing, nNoChart, nUnlinked, nFail)
     Exit Function
 Fail:
@@ -479,15 +596,8 @@ Fail:
     On Error GoTo -1
     On Error Resume Next
     PptSync_CloseOpened opened
+    Application.ScreenUpdating = prevSU
     Application.StatusBar = False
     On Error GoTo 0
     Err.Raise en, "PptSync_Presentation", ed
-End Function
-
-' Acrescenta o nome do arquivo de path a lista do aviso (separada por ", ") sem repetir.
-Private Function PptSync_AddMissing(missing As String, path As String) As String
-    Dim nm As String
-    nm = Util_FileName(path)
-    If InStr(", " & missing & ",", ", " & nm & ",") > 0 Then PptSync_AddMissing = missing: Exit Function
-    PptSync_AddMissing = missing & IIf(Len(missing) > 0, ", ", "") & nm
 End Function

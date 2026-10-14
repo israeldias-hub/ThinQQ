@@ -454,7 +454,6 @@ Public Sub Test_PptSync_ForceLayout_KeepsCallerDirLoopAndCleansUp()
     Teardown wb
 End Sub
 
-
 Public Sub Test_PptSync_SummaryText()
     AssertEqual "Gráficos do ThinQQ atualizados: 2.", PptSync_SummaryText(2, 0, "", 0, 0, 0)
     AssertEqual "Gráficos do ThinQQ atualizados: 0. Sem mudança: 3.", PptSync_SummaryText(0, 3, "", 0, 0, 0)
@@ -592,7 +591,6 @@ Cleanup:
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub
 
-
 ' Adendo M8: caminho de pasta so "existe" se estiver aberta neste Excel (FullName igual, inclusive endereco https do OneDrive) ou for um caminho
 ' local/de rede existente no disco; https nao aberto nao e provavel (limite documentado: a pasta tem de estar aberta).
 Public Sub Test_PptSync_FileExists()
@@ -675,6 +673,217 @@ Cleanup:
     On Error GoTo -1
     On Error Resume Next
     Set shp = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Cola de novo o grafico ativo do Excel em um slide novo da apresentacao pres (segunda forma com a mesma etiqueta TQQ_CHART). Devolve a forma.
+Private Function PasteAgain(app As Object, pres As Object) As Object
+    Dim slide As Object
+    Set slide = pres.Slides.Add(pres.Slides.Count + 1, 12)
+    Ppt_PinTargetForTest slide
+    Ppt_SetAppForTest app
+    Core_CopyToPowerPoint "chart"
+    Set PasteAgain = slide.Shapes(slide.Shapes.Count)
+End Function
+
+' Fix 1 (importante 1): pasta de origem protegida por senha (existe, mas nao abre): o Open nao pode abrir a caixa modal de senha (travaria o
+' Application.Run); vai para a lista "sem acesso" e os outros graficos continuam sincronizando. O watchdog do teste pega um travamento.
+Public Sub Test_PptSync_PasswordProtectedSource_ListedAsNoAccess_WhenAvailable()
+    Dim wb As Workbook, wb2 As Workbook, rng As Range, rng2 As Range, app As Object, pres As Object, shp As Object, shp2 As Object
+    Dim own As New Collection, en As Long, ed As String, s As String, p2 As String, t As Single, n0 As Long
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set shp = PasteLinked(app, pres, wb, rng, TempDir() & "\pptsync-aberta.xlsx")
+    Set wb2 = NewTempWorkbook(): Set rng2 = Fixture(wb2)
+    p2 = TempDir() & "\pptsync-senha.xlsx"
+    Set shp2 = PasteLinked(app, pres, wb2, rng2, p2)
+    Application.DisplayAlerts = False
+    wb2.SaveAs p2, xlOpenXMLWorkbook, Password:="segredo"
+    Application.DisplayAlerts = True
+    Watchers_Stop
+    CloseTemp wb2: Set wb2 = Nothing
+    rng.Worksheet.Range("C3").Value = 9
+    n0 = Application.Workbooks.Count
+    t = Timer
+    s = PptSync_Presentation(pres, True)
+    AssertTrue Timer - t < 60, "sem travar (" & Format$(Timer - t, "0.0") & " s)"
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 1.") = 1, s
+    AssertTrue InStr(s, "Pasta de origem não encontrada ou sem acesso") > 0 And InStr(s, "pptsync-senha.xlsx") > 0, s
+    AssertEqual n0, Application.Workbooks.Count, "nenhuma pasta a mais aberta"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Application.DisplayAlerts = True
+    Set shp = Nothing: Set shp2 = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb2 Is Nothing Then Teardown wb2
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Fix 1 (importante 2): cada grafico e isolado em TODOS os passos (achar o grafico, impressao digital, gravar a TQQ_FP): a falha de um conta
+' como "Falha" (ou, se so a gravacao da TQQ_FP falha depois de sincronizar, como atualizado, sem TQQ_FP velha) e o laco continua.
+Public Sub Test_PptSync_PerChartIsolation_Hooks_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, shp As Object, shp2 As Object, own As New Collection, en As Long, ed As String
+    Dim s As String, pt As Variant, expected As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set shp = PasteLinked(app, pres, wb, rng, TempDir() & "\pptsync-iso.xlsx")
+    Set shp2 = PasteAgain(app, pres)
+    AssertTrue Len(PptSync_Tag(shp, PPTSYNC_TAG_FP)) > 0 And Len(PptSync_Tag(shp2, PPTSYNC_TAG_FP)) > 0, "as duas colagens gravaram a impressao digital"
+    For Each pt In Array("findchart", "fingerprint", "tagfp")
+        PptSync_ResetTestHooks
+        PptSync_SetFailForTest CStr(pt)
+        s = PptSync_Presentation(pres, True)
+        If CStr(pt) = "tagfp" Then
+            expected = "Gráficos do ThinQQ atualizados: 2."
+        Else
+            expected = "Gráficos do ThinQQ atualizados: 1." & vbLf & "Falha ao atualizar: 1 (veja o log do ThinQQ)."
+        End If
+        AssertEqual expected, s, "falha em '" & pt & "': o outro grafico continua"
+        AssertTrue Len(PptSync_Tag(shp2, PPTSYNC_TAG_FP)) > 0, "a segunda forma foi sincronizada (" & pt & ")"
+    Next
+    AssertEqual "", PptSync_Tag(shp, PPTSYNC_TAG_FP), "TQQ_FP que nao pode ser regravada e removida (nao fica velha)"
+    PptSync_ResetTestHooks
+    s = PptSync_Presentation(pres, False)
+    AssertEqual "Gráficos do ThinQQ atualizados: 1. Sem mudança: 1.", s, "a sem TQQ_FP e refeita, a outra e pulada"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set shp = Nothing: Set shp2 = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Fix 1 (menor 10): a impressao digital gravada depois de uma atualizacao nao forcada e a que a proxima chamada calcula (o segundo
+' PptSync_Presentation sem forcar diz "Sem mudanca"). Escolha: a TQQ_FP e calculada DEPOIS do PptSync_SyncShape tambem aqui (como na
+' colagem, PptSyncAfterPaste): ela descreve o estado que o slide acabou de receber; a comparacao usa a de ANTES da sincronizacao.
+Public Sub Test_PptSync_SecondNonForcedCall_ReportsNoChange_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, shp As Object, own As New Collection, en As Long, ed As String, fp1 As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set shp = PasteLinked(app, pres, wb, rng, TempDir() & "\pptsync-fp2.xlsx")
+    rng.Worksheet.Range("C3").Value = 9
+    Application.Calculate
+    AssertEqual "Gráficos do ThinQQ atualizados: 1.", PptSync_Presentation(pres, False), "dado novo: atualiza"
+    fp1 = PptSync_Tag(shp, PPTSYNC_TAG_FP)
+    AssertTrue Len(fp1) > 0, "TQQ_FP gravada"
+    AssertEqual "Gráficos do ThinQQ atualizados: 0. Sem mudança: 1.", PptSync_Presentation(pres, False), "segunda chamada sem forcar: sem mudanca"
+    AssertEqual fp1, PptSync_Tag(shp, PPTSYNC_TAG_FP), "TQQ_FP intacta"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set shp = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Fix 1 (menores 3 e 5): classificacao pura do estado do vinculo + caminho e a lista de pastas do aviso.
+Public Sub Test_PptSync_Classify()
+    AssertEqual PPTSYNC_C_PROCEED, PptSync_Classify(1, "C:\a\b.xlsx")
+    AssertEqual PPTSYNC_C_UNLINKED, PptSync_Classify(0, "C:\a\b.xlsx"), "colado sem vinculo"
+    AssertEqual PPTSYNC_C_UNKNOWN, PptSync_Classify(-1, "C:\a\b.xlsx"), "estado ilegivel: falha, nunca sincroniza"
+    AssertEqual PPTSYNC_C_NOPATH, PptSync_Classify(1, ""), "sem SourceFullName e sem TQQ_BOOK"
+End Sub
+
+Public Sub Test_PptSync_MissingText()
+    AssertEqual "a.xlsx, b.xlsx", PptSync_MissingText(Array("C:\x\a.xlsx", "C:\y\b.xlsx"))
+    AssertEqual "Plano.xlsx", PptSync_MissingText(Array("https://contoso.sharepoint.com/sites/x/Documentos/Plano.xlsx")), "https: nome depois da ultima barra"
+    AssertEqual "C:\x\a.xlsx, C:\y\A.xlsx, b.xlsx", PptSync_MissingText(Array("C:\x\a.xlsx", "C:\y\A.xlsx", "C:\z\b.xlsx")), "mesmo nome em pastas diferentes: caminho completo"
+    AssertEqual "(origem desconhecida)", PptSync_MissingText(Array("")), "sem origem"
+    AssertEqual "(origem desconhecida), a.xlsx", PptSync_MissingText(Array("", "C:\x\a.xlsx"))
+End Sub
+
+' M8 (menor 10): pasta aberta no Excel com endereco https conta como alcancavel (um Workbook https real e impossivel nos testes: a regra pura
+' PptSync_ReachableAmong recebe a lista de FullName); https nao aberto nao.
+Public Sub Test_PptSync_ReachableAmong_Https()
+    Dim names As New Collection
+    names.Add "C:\x\local.xlsx"
+    names.Add "https://contoso.sharepoint.com/sites/x/Documentos/Aberta.xlsx"
+    AssertTrue PptSync_ReachableAmong("https://contoso.sharepoint.com/sites/x/Documentos/Aberta.xlsx", names), "https aberto"
+    AssertTrue PptSync_ReachableAmong("HTTPS://CONTOSO.SHAREPOINT.COM/sites/x/Documentos/aberta.xlsx", names), "sem diferenciar maiusculas"
+    AssertFalse PptSync_ReachableAmong("https://contoso.sharepoint.com/sites/x/Documentos/Outra.xlsx", names), "https nao aberto"
+    AssertFalse PptSync_ReachableAmong("", names), "vazio"
+End Sub
+
+' Fix 1 (menor 6): Core_PptSyncOpen com so apresentacoes somente leitura: texto proprio (nao "abra a apresentacao").
+Public Sub Test_Core_PptSyncOpen_AllReadOnly_WhenAvailable()
+    Dim app As Object, pres As Object, ro As Object, own As New Collection, en As Long, ed As String, p As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0)
+    p = TempDir() & "\pptsync-ro.pptx"
+    pres.SaveAs p
+    pres.Close
+    Set pres = Nothing
+    Set ro = app.Presentations.Open(p, -1, 0, 0)               ' somente leitura, sem titulo, sem janela
+    own.Add ro
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Ppt_SetAppForTest app
+    Core_ClearLastNotice
+    Core_PptSyncOpen
+    AssertEqual PPTSYNC_ALL_RO, Core_LastNotice()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set ro = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Fix 1 (menor 6): erro estrutural na apresentacao N (gancho "presentation", pula a 1a) nao descarta o resumo da 1..N-1: a linha de erro entra.
+Public Sub Test_Core_PptSyncOpen_RaiseInOnePresentation_KeepsOthers_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, pres2 As Object, shp As Object, shp2 As Object
+    Dim own As New Collection, en As Long, ed As String, n As String, n2 As String, m As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set pres2 = app.Presentations.Add(0): own.Add pres2
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set shp = PasteLinked(app, pres, wb, rng, TempDir() & "\pptsync-open2.xlsx")
+    Set shp2 = PasteAgain(app, pres2)
+    n = CStr(pres.Name): n2 = CStr(pres2.Name)
+    Ppt_SetAppForTest app
+    PptSync_ResetTestHooks
+    PptSync_SetFailAfterForTest "presentation", 1
+    Core_ClearLastNotice
+    Core_PptSyncOpen
+    m = Core_LastNotice()
+    AssertTrue InStr(m, "'" & n & "': Gráficos do ThinQQ atualizados: 1.") = 1, m
+    AssertTrue InStr(m, "'" & n2 & "': Não foi possível atualizar os gráficos do ThinQQ") > 0, m
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set shp = Nothing: Set shp2 = Nothing: Set pres = Nothing: Set pres2 = Nothing
     StopScratchPowerPoint app, own
     If Not wb Is Nothing Then Teardown wb
     On Error GoTo 0
