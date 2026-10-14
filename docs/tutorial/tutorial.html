@@ -323,6 +323,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
     <li><a href="#tipos">Tipos de gráfico</a></li>
     <li><a href="#barras">Colunas e barras</a></li>
     <li><a href="#cascata">Cascata</a></li>
+    <li><a href="#cascata-comparativa">Cascata comparativa</a></li>
     <li><a href="#linha-area">Linha, área e combinação</a></li>
     <li><a href="#mekko">Mekko</a></li>
     <li><a href="#gantt">Gantt</a></li>
@@ -722,6 +723,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
       <tr><td><span class="ui">Barras</span> › <a href="#barras"><span class="ui">Barras 100%</span></a></td><td>Cada barra soma 100%.</td><td>O mesmo das colunas empilhadas.</td></tr>
       <tr><td><span class="ui">Cascata</span> › <a href="#cascata"><span class="ui">Cascata (colunas)</span></a></td><td>Ponte de valores: positivos sobem, negativos descem e um <code>e</code> no valor vira uma barra de total.</td><td>Etapa e valor. Com mais colunas de valores, cada uma vira uma série (até 6).</td></tr>
       <tr><td><span class="ui">Cascata</span> › <a href="#cascata"><span class="ui">Cascata (barras)</span></a></td><td>A mesma ponte na horizontal.</td><td>O mesmo da cascata em colunas.</td></tr>
+      <tr><td><span class="ui">Cascata</span> › <a href="#cascata-comparativa"><span class="ui">Cascata comparativa</span></a></td><td>Duas pontes lado a lado, uma por série, com conectores e a variação entre as duas barras de cada etapa.</td><td>Etapa e exatamente 2 colunas de valores.</td></tr>
       <tr><td><span class="ui">Linha e área</span> › <a href="#linha-area"><span class="ui">Linha</span></a></td><td>Uma linha por série, com o valor de cada ponto escrito acima dele.</td><td>Uma coluna de valores por série.</td></tr>
       <tr><td><span class="ui">Linha e área</span> › <a href="#linha-area"><span class="ui">Área empilhada</span></a></td><td>Áreas empilhadas, com totais e rótulos.</td><td>O mesmo da linha; as categorias podem ser datas.</td></tr>
       <tr><td><span class="ui">Linha e área</span> › <a href="#linha-area"><span class="ui">Área 100%</span></a></td><td>Áreas que somam 100% em cada categoria.</td><td>O mesmo da área empilhada.</td></tr>
@@ -853,6 +855,19 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
 
   <h3 id="cascata-diferenca">Cascata com seta de diferença</h3>
   <p>Para mostrar de uma vez quanto a ponte tirou (ou somou) entre a primeira e a última barra: selecione a tabela (<em>Etapa</em>/<em>Valor</em>, com <code>e</code> nas barras de total calculadas), clique em <span class="ui">Inserir gráfico</span> &gt; <span class="ui">Cascata</span> &gt; <span class="ui">Cascata (colunas)</span>, clique no gráfico e abra <span class="ui">Setas</span> &gt; <span class="ui">Seta diferença</span>. Escolha <em>Da categoria</em> e <em>Até a categoria</em> (por padrão, a primeira e a última) e clique em <span class="ui">OK</span>: a seta liga as duas barras e o rótulo mostra a diferença entre o valor final de cada uma, em valor e em %, por exemplo <code>-1.030 (-86%)</code> de Receita até Lucro. Sem legenda, a área de plotagem chega à borda do gráfico e o rótulo da seta pode ficar sobre ela: reduza a largura da área de plotagem para dar folga à direita. Veja o exemplo 2 de <span class="ui">Exemplos</span> e a planilha <strong>E05</strong> da <a href="#demonstracao">pasta de demonstração</a>. Veja a figura <a href="#ex-E05">E05</a> na galeria.</p>
+</section>
+
+<section id="cascata-comparativa" aria-labelledby="h-cascata-comparativa">
+  <h2 id="h-cascata-comparativa">Cascata comparativa</h2>
+  <p>Duas pontes lado a lado, uma por série, para comparar etapa por etapa (por exemplo 2024 x 2025, ou duas lojas): em cada etapa a barra da primeira série fica à esquerda e a da segunda à direita, e uma seta mostra a variação entre elas.</p>
+  <dl class="ficha">
+    <dt>Selecione</dt><dd>A tabela com o cabeçalho: a etapa na primeira coluna e exatamente 2 colunas de valores.</dd>
+    <dt>Menu</dt><dd><span class="ui">Cascata</span> › <span class="ui">Cascata comparativa</span>.</dd>
+    <dt>Marcador</dt><dd><code>e</code> (ou <code>t</code>, <code>=</code>, <code>total</code>, <code>subtotal</code>) no lugar do valor: barra de total calculada, em cada série.</dd>
+    <dt>Opções</dt><dd><span class="ui">Setas</span> › <span class="ui">Setas de variação</span> e <span class="ui">Variação em valor</span>; <span class="ui">Legenda</span> › <span class="ui">Nome dentro das barras</span>; <span class="ui">Totais</span> liga e desliga o percentual do primeiro total.</dd>
+    <dt>Variação</dt><dd>Em %, (B − A) / A, em que A é a barra da primeira série e B a da segunda; <code>n/d</code> quando A é zero, quando os sinais são opostos ou quando um lado é total e o outro é degrau. Com <span class="ui">Variação em valor</span>, a diferença B − A.</dd>
+    <dt>Limites</dt><dd>O percentual do primeiro total só aparece quando o gráfico é largo o bastante (cerca de 600 pt ou mais com 5 etapas); em gráfico estreito o rótulo do total mostra só o valor.</dd>
+  </dl>
 </section>
 
 <section id="linha-area" aria-labelledby="h-linha-area">
@@ -1213,7 +1228,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
       <tr data-kind="butterfly"><th scope="row"><span class="ui">Borboleta</span></th><td class="y">Sim</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
       <tr data-kind="scatter"><th scope="row"><span class="ui">Dispersão</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
       <tr data-kind="bubble"><th scope="row"><span class="ui">Bolhas</span></th><td>—</td><td class="y">Sim</td><td>—</td><td>—</td><td class="y">Sim</td><td>—</td><td class="y">Sim</td><td>—</td></tr>
-      <tr data-kind="waterfallpair"><th scope="row"><span class="k">Cascata comparativa</span></th><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
+      <tr data-kind="waterfallpair"><th scope="row"><span class="ui">Cascata comparativa</span></th><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td><td>—</td></tr>
     </tbody>
   </table>
   </div>
@@ -1242,7 +1257,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
       <tr data-kind="butterfly"><th scope="row"><span class="ui">Borboleta</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td></tr>
       <tr data-kind="scatter"><th scope="row"><span class="ui">Dispersão</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr data-kind="bubble"><th scope="row"><span class="ui">Bolhas</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-      <tr data-kind="waterfallpair"><th scope="row"><span class="k">Cascata comparativa</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td></tr>
+      <tr data-kind="waterfallpair"><th scope="row"><span class="ui">Cascata comparativa</span></th><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="y">Sim</td></tr>
     </tbody>
   </table>
   </div>
@@ -1271,14 +1286,14 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
       <tr data-kind="butterfly"><th scope="row"><span class="ui">Borboleta</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr data-kind="scatter"><th scope="row"><span class="ui">Dispersão</span></th><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td></tr>
       <tr data-kind="bubble"><th scope="row"><span class="ui">Bolhas</span></th><td>—</td><td>—</td><td class="y">Sim</td><td class="y">Sim</td></tr>
-      <tr data-kind="waterfallpair"><th scope="row"><span class="k">Cascata comparativa</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr data-kind="waterfallpair"><th scope="row"><span class="ui">Cascata comparativa</span></th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
     </tbody>
   </table>
   </div>
   <h4>Cascata comparativa</h4>
   <div class="tw" tabindex="0" role="region" aria-label="Tabela do que cada tipo aceita: recursos da cascata comparativa (em telas estreitas, role para os lados)">
   <table class="mx">
-    <thead><tr><th scope="col">Tipo</th><th scope="col" data-f="pairdiff"><span class="k">Setas de variação</span></th><th scope="col" data-f="pairabs"><span class="k">Variação em valor</span></th><th scope="col" data-f="inbar"><span class="k">Nome dentro das barras</span></th></tr></thead>
+    <thead><tr><th scope="col">Tipo</th><th scope="col" data-f="pairdiff"><span class="ui">Setas de variação</span></th><th scope="col" data-f="pairabs"><span class="ui">Variação em valor</span></th><th scope="col" data-f="inbar"><span class="ui">Nome dentro das barras</span></th></tr></thead>
     <tbody>
       <tr data-kind="stacked"><th scope="row"><span class="ui">Colunas empilhadas</span></th><td>—</td><td>—</td><td>—</td></tr>
       <tr data-kind="clustered"><th scope="row"><span class="ui">Colunas agrupadas</span></th><td>—</td><td>—</td><td>—</td></tr>
@@ -1300,7 +1315,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
       <tr data-kind="butterfly"><th scope="row"><span class="ui">Borboleta</span></th><td>—</td><td>—</td><td>—</td></tr>
       <tr data-kind="scatter"><th scope="row"><span class="ui">Dispersão</span></th><td>—</td><td>—</td><td>—</td></tr>
       <tr data-kind="bubble"><th scope="row"><span class="ui">Bolhas</span></th><td>—</td><td>—</td><td>—</td></tr>
-      <tr data-kind="waterfallpair"><th scope="row"><span class="k">Cascata comparativa</span></th><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td></tr>
+      <tr data-kind="waterfallpair"><th scope="row"><span class="ui">Cascata comparativa</span></th><td class="y">Sim</td><td class="y">Sim</td><td class="y">Sim</td></tr>
     </tbody>
   </table>
   </div>
@@ -1675,6 +1690,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
   <ul>
     <li><strong>Colunas e barras:</strong> empilhadas com sinais misturados têm o rótulo do total líquido no topo da parte positiva; segmentos muito finos deixam os rótulos sobrepostos; a <span class="ui">Linha de valor (média)</span> pode riscar o rótulo do total de uma coluna que fica perto da média, e a caixa "Média" cobre parte da última coluna.</li>
     <li><strong>Cascata:</strong> até 6 séries (a 6.ª repete a cor da 1.ª); com várias séries, o rótulo de um segmento mais fino que o texto fica oculto; nas colunas, um rótulo abaixo de uma barra perto do mínimo do eixo pode encostar nos nomes das categorias; as setas ligam as pontas das barras e podem passar sobre rótulos do meio.</li>
+    <li><strong>Cascata comparativa:</strong> exatamente 2 colunas de valores; o percentual do primeiro total só aparece em gráfico largo (cerca de 600 pt ou mais com 5 etapas), e em gráfico estreito o rótulo do total mostra só o valor.</li>
     <li><strong>Combinação:</strong> o rótulo da linha pode ficar sobre o total de uma coluna; a <span class="ui">Linha de valor (média)</span> e o rótulo "Média" podem cobrir o total da última coluna.</li>
     <li><strong>Área:</strong> valores negativos empilham algebricamente e as faixas se sobrepõem; o rótulo da ponta (primeira ou última categoria) que encosta no do vizinho fica oculto e volta quando cabe.</li>
     <li><strong>Borboleta:</strong> exatamente 2 colunas de valores; na borboleta que define a <span class="ui">Mesma escala</span>, um nome longo pode encostar nas barras; rótulos de barras muito finas ficam fora da barra (ocultos só se nem fora cabem).</li>

@@ -111,6 +111,10 @@ if ($parsed) {
     foreach ($id in 'borboleta', 'dispersao') {
         Check ($null -ne $xml.SelectSingleNode("//*[@id='tipos']//a[@href='#$id']")) "a tabela de #tipos leva à seção #$id"
     }
+    # Cascata comparativa (1.3.0): seção própria, no índice, e a linha da tabela de #tipos leva a ela
+    Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='cascata-comparativa']")) 'tutorial tem a seção #cascata-comparativa'
+    Check ($null -ne $xml.SelectSingleNode("//nav//a[@href='#cascata-comparativa']")) 'o índice leva à seção #cascata-comparativa'
+    Check ($null -ne $xml.SelectSingleNode("//*[@id='tipos']//a[@href='#cascata-comparativa']")) 'a tabela de #tipos leva à seção #cascata-comparativa'
     # #demonstracao: uma linha por exemplo da lista de cobertura (a mesma que o gerador e o Test-DemoWorkbook usam): número, título e tipo
     . (Join-Path $RepoRoot 'tools\DemoCoverage.ps1')
     $demoCov = @(Get-TqqDemoCoverage)
