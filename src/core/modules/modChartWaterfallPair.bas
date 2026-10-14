@@ -429,16 +429,18 @@ End Sub
 
 ' Conectores: duas auxiliares XY sem marcador (tqq_conn_a, tqq_conn_b), um ponto por conector (n - 1) no lado direito da barra i, com barra de
 ' erro X custom (CLen do bloco) ate o lado esquerdo da barra i + 1 da MESMA serie, tracejada e sem ponta (medido; vivos sem o ThinQQ). Passam
-' sobre a barra da outra serie (como no think-cell). Uma etapa so: sem conectores (a opcao fica gravada).
+' sobre a barra da outra serie (como no think-cell). Uma etapa so: sem conectores (a opcao fica gravada). Cinza escuro RGB(89, 89, 89): sobre a
+' barra azul-clara o contraste e ~3,8:1 (o cinza 127 dava 2,2:1).
 ' Faixa da barra de erro em R1C1 (a forma que o Excel aceita para valores personalizados; em A1 pode recusar com 1004 ou virar constante).
-' Transacional: a opcao so e gravada depois das series prontas; em falha as duas somem, a opcao fica "0" (o estado real) e o erro e repropagado.
+' Transacional: a opcao so e gravada depois das series prontas (e da legenda); em qualquer falha as duas series somem, a opcao fica "0" (o estado
+' real, mesmo que antes fosse "1") e o erro e repropagado.
 Public Sub Wfp_SetConnectors(cht As Chart, turnOn As Boolean)
     Dim body As Range, n As Long, j As Long, s As Series, nm As String, en As Long, es As String, ed As String
+    On Error GoTo Fail
     DropConnectors cht
     If turnOn Then
         n = Wfp_StepCount(cht)
         If n >= 2 Then
-            On Error GoTo Fail
             Set body = Block_Body(Registry_Block(cht))
             For j = 1 To 2
                 nm = "tqq_conn_" & Mid$("ab", j, 1)
@@ -451,13 +453,16 @@ Public Sub Wfp_SetConnectors(cht As Chart, turnOn As Boolean)
                 With s.ErrorBars
                     .EndStyle = xlNoCap
                     .Format.Line.Visible = msoTrue
-                    .Format.Line.ForeColor.RGB = RGB(127, 127, 127)
+                    .Format.Line.ForeColor.RGB = RGB(89, 89, 89)
                     .Format.Line.DashStyle = msoLineDash
                     .Format.Line.Weight = 0.75
                 End With
+                WfpTestHook "conn", CStr(j)
             Next
-            On Error GoTo 0
-            If cht.HasLegend Then Chart_HideHelperLegendEntries cht
+            If cht.HasLegend Then
+                Chart_HideHelperLegendEntries cht
+                WfpTestHook "connlegend", "1"
+            End If
         End If
     End If
     Registry_SetOption cht, "connectors", IIf(turnOn, "1", "0")
@@ -466,7 +471,12 @@ Fail:
     en = Err.Number: es = Err.Source: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
-    DropConnectors cht
+    For j = 1 To 2                                   ' a limpeza aqui nao usa DropConnectors: um erro la dentro saltaria o resto desta limpeza
+        Set s = Nothing
+        Set s = Chart_FindSeries(cht, "tqq_conn_" & Mid$("ab", j, 1))
+        If Not s Is Nothing Then s.Delete
+        Err.Clear
+    Next
     Registry_SetOption cht, "connectors", "0"
     On Error GoTo 0
     Err.Raise en, es, ed
@@ -478,6 +488,16 @@ Private Sub DropConnectors(cht As Chart)
         Set s = Chart_FindSeries(cht, "tqq_conn_" & Mid$("ab", j, 1))
         If Not s Is Nothing Then s.Delete
     Next
+End Sub
+
+' Gancho de teste (Util_FailThinSyncForTest = "wfp-<ponto>:<chave>", como o scatter- do dispersao): falha simulada num ponto do codigo para
+' testar o caminho de erro. Inerte fora do build Test.
+Private Sub WfpTestHook(site As String, key As String)
+    If BUILD_CONFIG = "Test" Then
+        If Len(Util_FailThinSyncForTest) > 0 Then
+            If Util_FailThinSyncForTest = "wfp-" & site & ":" & key Then Err.Raise vbObjectError + 9996, "ThinQQ", "Falha simulada (teste) " & site & " " & key
+        End If
+    End If
 End Sub
 
 ' Setas de variacao: tqq_pd (XY com linhas; 5 pontos por par e uma linha vazia entre pares; com DisplayBlanksAs = xlNotPlotted cada par vira um

@@ -364,41 +364,84 @@ Public Sub Test_Wfp_Palette_And_Orphan()
     Teardown wb
 End Sub
 
-' Review Focus 5 (conectores): do lado direito da barra i ao lado esquerdo da barra i + 1 da MESMA serie, na altura do fim da barra i; vivos.
-Public Sub Test_Wfp_Connectors_GeometryAndLive()
-    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, body As Range, ca As Series, cb As Series, cs As Series
-    Dim i As Long, j As Long, sIdx As Long, x As Double, clen As Double, hw As Double, p As Point, q As Point
-    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
-    Set cht = Wfp_Insert(ws, d).Chart
+' Estilo dos conectores: tracejado cinza escuro fino, sem ponta e sem marcador (o cinza 127 dava ~2,2:1 sobre a barra azul-clara; 89 da ~3,8:1).
+Private Sub AssertConnectorStyle(s As Series, label As String)
+    AssertTrue s.HasErrorBars, label & ": barra de erro"
+    AssertEqual xlNoCap, s.ErrorBars.EndStyle, label & ": sem ponta"
+    AssertEqual msoTrue, s.ErrorBars.Format.Line.Visible, label & ": visivel"
+    AssertEqual RGB(89, 89, 89), s.ErrorBars.Format.Line.ForeColor.RGB, label & ": cinza escuro"
+    AssertEqual msoLineDash, s.ErrorBars.Format.Line.DashStyle, label & ": tracejada"
+    AssertAlmost 0.75, s.ErrorBars.Format.Line.Weight, 0.001, label & ": 0,75 pt"
+    AssertEqual xlMarkerStyleNone, s.MarkerStyle, label & ": sem marcador"
+    AssertEqual xlPrimary, s.AxisGroup, label & ": eixo principal"
+End Sub
+
+' Indice (em SeriesCollection) da serie de colunas que desenha a barra i do lado j: a parte positiva (2 e 4) ou, se ela tem altura zero, a negativa
+' (3 e 5): a geometria de um ponto de altura zero nao e confiavel, a da parte que existe sim.
+Private Function BarSeriesIdx(cht As Chart, i As Long, j As Long) As Long
+    BarSeriesIdx = IIf(j = 1, 2, 4)
+    If SideVal(cht, i, j, "PP") = 0 Then BarSeriesIdx = BarSeriesIdx + 1
+End Function
+
+' O Excel NAO expoe a geometria de uma barra de erro (nem Left/Width/Top do traco): o que se confere e o ponto XY de cada conector (Top = altura
+' do fim da barra i, regra de tres sobre o eixo real) e a MATEMATICA da barra de erro a partir das celulas do bloco (x + CLen cai na borda
+' esquerda da barra i + 1 da MESMA serie, regra de tres sobre a area interna), nao o desenho; o desenho e conferido nos PNG da verificacao e o
+' XML salvo (Test_Wfp_Connectors_SavedXml_HoldsErrBarsOnBlock) garante que a barra de erro cita a faixa do bloco.
+Private Sub AssertConnectorsGeometry(cht As Chart)
+    Dim body As Range, ca As Series, cb As Series, cs As Series, i As Long, j As Long, n As Long, x As Double, clen As Double, hw As Double
+    Dim p As Point, q As Point
     Set ca = Chart_FindSeries(cht, "tqq_conn_a"): Set cb = Chart_FindSeries(cht, "tqq_conn_b")
     AssertTrue Not ca Is Nothing, "conector da serie 1": AssertTrue Not cb Is Nothing, "conector da serie 2"
-    AssertEqual "1", Registry_GetOption(cht, "connectors")
-    AssertEqual 4, ca.Points.Count, "n - 1 conectores": AssertTrue ca.HasErrorBars
-    AssertEqual xlNoCap, ca.ErrorBars.EndStyle: AssertEqual msoLineDash, ca.ErrorBars.Format.Line.DashStyle
-    AssertEqual xlPrimary, ca.AxisGroup
+    n = Wfp_StepCount(cht)
+    AssertEqual n - 1, ca.Points.Count, "n - 1 conectores": AssertEqual n - 1, cb.Points.Count
     Set body = BodyOf(cht)
     hw = Util_ToDouble(Registry_Block(cht).Cells(1, WFP_META_HW).Value)
-    clen = Util_ToDouble(body.Cells(2, WFP_COL_CLEN).Value)
-    AssertAlmost 3 - 2 * hw, clen, 0.000001
     ForceLayout cht
-    For i = 1 To 4
+    For i = 1 To n - 1
+        clen = Util_ToDouble(body.Cells(i + 1, WFP_COL_CLEN).Value)
+        AssertAlmost 3 - 2 * hw, clen, 0.000001, "comprimento do conector " & i
         For j = 1 To 2
             If j = 1 Then
-                Set cs = ca: sIdx = 2: x = Util_ToDouble(body.Cells(i + 1, WFP_COL_CXA).Value)
+                Set cs = ca: x = Util_ToDouble(body.Cells(i + 1, WFP_COL_CXA).Value)
             Else
-                Set cs = cb: sIdx = 4: x = Util_ToDouble(body.Cells(i + 1, WFP_COL_CXB).Value)
+                Set cs = cb: x = Util_ToDouble(body.Cells(i + 1, WFP_COL_CXB).Value)
             End If
             AssertAlmost Wfp_SlotOf(i, j) + hw, x, 0.000001, "x do conector " & i & "/" & j
-            Set p = cht.SeriesCollection(sIdx).Points(Wfp_SlotOf(i, j))
-            Set q = cht.SeriesCollection(sIdx).Points(Wfp_SlotOf(i + 1, j))
+            Set p = cht.SeriesCollection(BarSeriesIdx(cht, i, j)).Points(Wfp_SlotOf(i, j))
+            Set q = cht.SeriesCollection(BarSeriesIdx(cht, i + 1, j)).Points(Wfp_SlotOf(i + 1, j))
             AssertAlmost p.Left + p.Width, XOfX(cht, x), 1, "sai da borda direita da barra " & i & "/" & j
             AssertAlmost q.Left, XOfX(cht, x + clen), 1, "chega a borda esquerda da proxima barra da mesma serie " & i & "/" & j
             AssertAlmost YOf(cht, SideVal(cht, i, j, "End")), cs.Points(i).Top, 1, "na altura do fim da barra " & i & "/" & j
         Next
     Next
+End Sub
+
+' Review Focus 5 (conectores): do lado direito da barra i ao lado esquerdo da barra i + 1 da MESMA serie, na altura do fim da barra i; vivos.
+Public Sub Test_Wfp_Connectors_GeometryAndLive()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, body As Range
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set cht = Wfp_Insert(ws, d).Chart
+    AssertEqual "1", Registry_GetOption(cht, "connectors")
+    AssertEqual 4, Chart_FindSeries(cht, "tqq_conn_a").Points.Count, "n - 1 conectores"
+    AssertConnectorStyle Chart_FindSeries(cht, "tqq_conn_a"), "serie 1"
+    AssertConnectorStyle Chart_FindSeries(cht, "tqq_conn_b"), "serie 2"
+    AssertConnectorsGeometry cht
+    Set body = BodyOf(cht)
     ws.Range("B3").Value = -9
     cht.Refresh
     AssertEqual 18, Util_ToDouble(body.Cells(3, WFP_COL_CYA).Value), "sem o ThinQQ o conector acompanha o dado"
+    CloseTemp wb
+End Sub
+
+' Cruza o zero: fim negativo (abaixo do zero do eixo), barras so de parte negativa (a positiva de altura zero) e total negativo.
+Public Sub Test_Wfp_Connectors_GeometryCrossesZero()
+    Dim wb As Workbook, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook(): Set d = FixtureZero(wb)
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    AssertTrue SideVal(cht, 2, 1, "End") < 0, "a serie A termina a etapa 2 abaixo de zero"
+    AssertTrue SideVal(cht, 3, 1, "PP") = 0, "a barra 3 da serie A so tem parte negativa (positiva de altura zero)"
+    AssertConnectorStyle Chart_FindSeries(cht, "tqq_conn_a"), "serie 1"
+    AssertConnectorsGeometry cht
     CloseTemp wb
 End Sub
 
@@ -420,14 +463,136 @@ Public Sub Test_Wfp_Connectors_ToggleGapLegendAndSingleStep()
     Set p = cht.SeriesCollection(2).Points(1): Set q = cht.SeriesCollection(2).Points(4)
     AssertAlmost p.Left + p.Width, XOfX(cht, x), 1, "espaco 80: o conector continua na borda da barra"
     AssertAlmost q.Left, XOfX(cht, x + clen), 1
+    x = Util_ToDouble(body.Cells(2, WFP_COL_CXB).Value)
+    Set p = cht.SeriesCollection(4).Points(Wfp_SlotOf(1, 2)): Set q = cht.SeriesCollection(4).Points(Wfp_SlotOf(2, 2))
+    AssertAlmost p.Left + p.Width, XOfX(cht, x), 1, "espaco 80, serie 2: o conector continua na borda da barra"
+    AssertAlmost q.Left, XOfX(cht, x + clen), 1, "espaco 80, serie 2: chega a borda da proxima barra"
+    AssertConnectorsGeometry cht
     Core_SetOption "legend", "right"
     AssertEqual 2, cht.Legend.LegendEntries.Count, "os conectores ficam fora da legenda"
+    Core_SetToggle "connectors", False
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "desligar com a legenda visivel: continua com 2 entradas"
+    Core_SetToggle "connectors", True
+    AssertEqual 4, Chart_FindSeries(cht, "tqq_conn_b").Points.Count
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "ligar com a legenda visivel: os conectores continuam fora da legenda"
     ws.Range("E1:G1").Value = Array("Etapa", "S1", "S2"): ws.Range("E2:G2").Value = Array("Unico", 5, 7)
     Set c1 = Wfp_Insert(ws, ChartData_FromRange(ws.Range("E1:G2"))).Chart
     AssertEqual 2, SlotN(c1), "uma etapa: 2 fatias, sem vao"
     AssertTrue Chart_FindSeries(c1, "tqq_conn_a") Is Nothing, "uma etapa: sem conectores"
     AssertEqual "1", Registry_GetOption(c1, "connectors"), "a opcao fica gravada"
     Teardown wb
+End Sub
+
+' Falha no meio de ligar os conectores (gancho depois da barra de erro da 2a serie, depois da 1a serie e depois do passo da legenda): nada fica
+' pela metade (nenhuma das duas series, opcao "0" mesmo que antes fosse "1", mesmo numero de series do grafico, legenda com 2 entradas) e o erro
+' chega ao chamador. Sem o gancho, ligar de novo funciona. O gancho e zerado no mesmo caminho, antes de qualquer afirmacao, e no tratamento de erro.
+Public Sub Test_Wfp_Connectors_FailMidway_RollsBack()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, en As Long, es As String, ed As String, base As Long, hook As Variant
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    On Error GoTo Fail
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    AssertEqual "1", Registry_GetOption(cht, "connectors"), "ligados desde o Insert: DropConnectors e o desfazer rodam"
+    base = cht.SeriesCollection.Count
+    For Each hook In Array("wfp-conn:2", "wfp-conn:1")
+        Util_FailThinSyncForTest = CStr(hook)
+        On Error Resume Next
+        Wfp_SetConnectors cht, True
+        en = Err.Number
+        On Error GoTo Fail
+        Util_FailThinSyncForTest = ""
+        AssertEqual vbObjectError + 9996, en, hook & ": o erro chega ao chamador"
+        AssertTrue Chart_FindSeries(cht, "tqq_conn_a") Is Nothing, hook & ": sem o conector da serie 1"
+        AssertTrue Chart_FindSeries(cht, "tqq_conn_b") Is Nothing, hook & ": sem o conector da serie 2"
+        AssertEqual "0", Registry_GetOption(cht, "connectors"), hook & ": a opcao reflete o estado real"
+        AssertEqual base - 2, cht.SeriesCollection.Count, hook & ": so as duas series dos conectores sairam"
+        Wfp_SetConnectors cht, True
+        AssertEqual "1", Registry_GetOption(cht, "connectors"), hook & ": ligar de novo funciona"
+        AssertEqual base, cht.SeriesCollection.Count
+        AssertConnectorStyle Chart_FindSeries(cht, "tqq_conn_a"), "religado a"
+        AssertConnectorStyle Chart_FindSeries(cht, "tqq_conn_b"), "religado b"
+    Next
+    ' conectores desligados antes: a falha deixa tudo como estava (opcao "0", nenhuma serie)
+    Wfp_SetConnectors cht, False
+    base = cht.SeriesCollection.Count
+    Util_FailThinSyncForTest = "wfp-conn:2"
+    On Error Resume Next
+    Wfp_SetConnectors cht, True
+    en = Err.Number
+    On Error GoTo Fail
+    Util_FailThinSyncForTest = ""
+    AssertEqual vbObjectError + 9996, en, "desligados antes: o erro chega ao chamador"
+    AssertEqual "0", Registry_GetOption(cht, "connectors")
+    AssertEqual base, cht.SeriesCollection.Count, "desligados antes: nenhuma serie sobra"
+    ' com a legenda visivel: falha DEPOIS das duas series, no passo da legenda: o desfazer cobre as duas
+    Wfp_SetLegend cht, "right"
+    AssertEqual 2, cht.Legend.LegendEntries.Count
+    Util_FailThinSyncForTest = "wfp-connlegend:1"
+    On Error Resume Next
+    Wfp_SetConnectors cht, True
+    en = Err.Number
+    On Error GoTo Fail
+    Util_FailThinSyncForTest = ""
+    AssertEqual vbObjectError + 9996, en, "legenda: o erro chega ao chamador"
+    AssertTrue Chart_FindSeries(cht, "tqq_conn_a") Is Nothing, "legenda: sem o conector da serie 1"
+    AssertTrue Chart_FindSeries(cht, "tqq_conn_b") Is Nothing, "legenda: sem o conector da serie 2"
+    AssertEqual "0", Registry_GetOption(cht, "connectors"), "legenda: opcao atual"
+    AssertEqual base, cht.SeriesCollection.Count
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "legenda: 2 entradas"
+    Wfp_SetConnectors cht, True
+    AssertEqual "1", Registry_GetOption(cht, "connectors")
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "legenda: os conectores ficam fora"
+    Util_FailThinSyncForTest = ""
+    CloseTemp wb
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub
+
+' O arquivo salvo guarda a barra de erro dos conectores citando a faixa do bloco (c:errBars/c:plus/c:numRef com a planilha _ThinQQ), nao uma
+' constante (c:numLit): a prova de que continuam vivos sem o ThinQQ. Salva uma copia na pasta temporaria do teste e le o XML do grafico com o
+' PowerShell (System.IO.Compression), sem tocar na pasta do usuario.
+Public Sub Test_Wfp_Connectors_SavedXml_HoldsErrBarsOnBlock()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, dir As String, xlsx As String, ps1 As String, outTxt As String, xml As String, pos As Long, endPos As Long
+    Dim fso As Object, ts As Object, sh As Object, barXml As String, k As Long, q As String
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    dir = TempDir(): xlsx = dir & "\copia.xlsx": ps1 = dir & "\le.ps1": outTxt = dir & "\chart.txt"
+    wb.SaveCopyAs xlsx
+    CloseTemp wb
+    q = Chr$(34)
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set ts = fso.CreateTextFile(ps1, True)
+    ts.WriteLine "Add-Type -AssemblyName System.IO.Compression.FileSystem"
+    ts.WriteLine "$z = [IO.Compression.ZipFile]::OpenRead('" & xlsx & "')"
+    ts.WriteLine "$o = foreach ($e in $z.Entries) { if ($e.FullName -like 'xl/charts/chart*.xml') { $r = New-Object IO.StreamReader($e.Open()); $r.ReadToEnd(); $r.Close() } }"
+    ts.WriteLine "$z.Dispose()"
+    ts.WriteLine "[IO.File]::WriteAllText('" & outTxt & "', ($o -join ''), (New-Object Text.UTF8Encoding($false)))"
+    ts.Close
+    Set sh = CreateObject("WScript.Shell")
+    sh.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -File " & q & ps1 & q, 0, True
+    AssertTrue fso.FileExists(outTxt), "o PowerShell leu o XML do grafico"
+    Set ts = fso.OpenTextFile(outTxt, 1, False, 0)
+    If Not ts.AtEndOfStream Then xml = ts.ReadAll
+    ts.Close
+    AssertTrue Len(xml) > 1000, "XML do grafico lido"
+    pos = 1
+    Do
+        pos = InStr(pos, xml, "<c:errBars>")
+        If pos = 0 Then Exit Do
+        k = k + 1
+        endPos = InStr(pos, xml, "</c:errBars>")
+        AssertTrue endPos > pos, "errBars fechada"
+        barXml = Mid$(xml, pos, endPos - pos)
+        AssertTrue InStr(barXml, "<c:errDir val=" & q & "x" & q) > 0, "barra de erro na direcao X (" & k & ")"
+        AssertTrue InStr(barXml, "<c:plus><c:numRef>") > 0, "o plus e uma referencia (" & k & ")"
+        AssertTrue InStr(barXml, "<c:numLit>") = 0, "nenhuma constante (" & k & ")"
+        AssertTrue InStr(barXml, CALC_SHEET) > 0, "a referencia cita a planilha do bloco (" & k & ")"
+        pos = endPos
+    Loop
+    AssertEqual 2, k, "uma barra de erro por serie de conectores"
 End Sub
 
 ' Copia do grafico (como colada: outro nome) com o original apagado: a limpeza nao remove o bloco (colunas, XY e rotulos citam o bloco).
