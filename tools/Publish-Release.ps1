@@ -4,11 +4,11 @@
   Etapa 1, Prepare (padrao): confere as pre-condicoes (arvore limpa, branch main igual a origin/main, versao maior que a do version.json,
   release/notes.txt alterado desde a ultima tag v*, CHANGELOG com entradas em [Nao lancado], Test-Docs e Test-Privacy), cria a branch
   release/v<versao>, atualiza version.json, CHANGELOG, rodape do tutorial e exemplo do LEIA-ME, constroi numa copia em C:\temp com
-  build\release.ps1, guarda os 5 arquivos e o state.json em dist\release-<versao>\, faz o commit "release: ThinQQ <versao>" (com
+  build\release.ps1, guarda os 6 arquivos e o state.json em dist\release-<versao>\, faz o commit "release: ThinQQ <versao>" (com
   release/manifest.json), envia a BRANCH e abre a pagina do pull request.
   Etapa 2, Publish (depois de mesclar o pull request com "Create a merge commit"): confere os arquivos contra o state.json, que a
   origin/main contem a preparacao e tem o mesmo release/manifest.json, que a tag e a release nao existem; cria a release em rascunho,
-  envia os 5 assets, confere tamanho e SHA-256 de cada um e publica (sem -Draft).
+  envia os 6 assets, confere tamanho e SHA-256 de cada um e publica (sem -Draft).
   O token do GitHub vem do login do Git (git credential fill), fica so na memoria e nunca e impresso nem gravado. -DryRun nao le o token.
 .EXAMPLE   publicar-release.bat 1.2.1             (etapa 1)
 .EXAMPLE   publicar-release.bat 1.2.1 publicar    (etapa 2)

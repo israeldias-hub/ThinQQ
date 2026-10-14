@@ -162,10 +162,10 @@ try {
     Check ((Get-TextSha256 "a`r`nb`r`n") -ceq (Get-TextSha256 "a`nb")) 'Get-TextSha256 ignora CRLF/LF e espacos nas pontas'
 
     $ct = @{ 'ThinQQ-1.2.1.zip' = 'application/zip'; 'ThinQQ.xlam' = 'application/vnd.ms-excel.addin.macroEnabled.12'; 'ThinQQ.core.xlam' = 'application/vnd.ms-excel.addin.macroEnabled.12'
-        'manifest.json' = 'application/json'; 'tutorial.html' = 'text/html'; 'outro.bin' = 'application/octet-stream' }
+        'ThinQQ.ppam' = 'application/vnd.ms-powerpoint.addin.macroEnabled.12'; 'manifest.json' = 'application/json'; 'tutorial.html' = 'text/html'; 'outro.bin' = 'application/octet-stream' }
     foreach ($k in $ct.Keys) { Check ((Get-AssetContentType $k) -ceq $ct[$k]) "Content-Type de $k" }
     $names = Get-ReleaseAssetNames '1.2.1'
-    Check (($names -join '|') -ceq 'ThinQQ-1.2.1.zip|ThinQQ.xlam|ThinQQ.core.xlam|manifest.json|tutorial.html') 'nomes EXATOS dos 5 assets'
+    Check (($names -join '|') -ceq 'ThinQQ-1.2.1.zip|ThinQQ.xlam|ThinQQ.core.xlam|ThinQQ.ppam|manifest.json|tutorial.html') 'nomes EXATOS dos 6 assets (com o suplemento do PowerPoint)'
     $cu = Get-CompareUrl $R '1.2.1'
     Check ($cu.StartsWith('https://github.com/israeldias-hub/ThinQQ/compare/main...release/v1.2.1?expand=1&title=')) "URL do pull request ($cu)"
     $cuq = @{}
@@ -215,7 +215,7 @@ try {
     $state = New-ReleaseState '1.2.1' $R $sd ('a' * 40) ('b' * 40)
     Write-ReleaseState $state $sd
     $stRead = Read-ReleaseState $sd '1.2.1'
-    Check ($stRead.version -ceq '1.2.1' -and @($stRead.files).Count -eq 5) 'state.json: ida e volta'
+    Check ($stRead.version -ceq '1.2.1' -and @($stRead.files).Count -eq 6 -and @($stRead.files | Where-Object { $_.name -ceq 'ThinQQ.ppam' }).Count -eq 1) 'state.json: ida e volta (6 arquivos, com o ThinQQ.ppam)'
     $tgt = 'c' * 40
     $pubArgs = @{ Repo = $R; Version = '1.2.1'; StateDir = $sd; State = $stRead; Body = 'notas da versao'; TargetSha = $tgt; Credential = $cred; Transport = $fakeTransport }
 
@@ -227,12 +227,12 @@ try {
     $pb = $post[0].BodyText | ConvertFrom-Json
     Check ($pb.tag_name -ceq 'v1.2.1' -and $pb.target_commitish -ceq $tgt -and $pb.name -ceq 'ThinQQ 1.2.1' -and $pb.body -ceq 'notas da versao' -and $pb.draft -eq $true -and $pb.prerelease -eq $false) 'rascunho: tag, alvo, nome, corpo, draft=true, prerelease=false'
     $up = Get-FakeRequests 'POST' '/assets$'
-    Check ($up.Count -eq 5 -and @($up | Where-Object { $_.Host -ne 'uploads.github.com' }).Count -eq 0) 'os 5 assets vao para uploads.github.com'
+    Check ($up.Count -eq 6 -and @($up | Where-Object { $_.Host -ne 'uploads.github.com' }).Count -eq 0) 'os 6 assets vao para uploads.github.com'
     Check ((@($up | ForEach-Object { [uri]::UnescapeDataString(($_.Query -replace '^\?name=', '')) }) -join '|') -ceq ($names -join '|')) 'assets com os nomes exatos'
     Check ((@($up | ForEach-Object { $_.ContentType }) -join '|') -ceq ((@($names | ForEach-Object { Get-AssetContentType $_ })) -join '|')) 'Content-Type de cada asset'
     Check ((Get-FakeRequests 'PATCH' '.').Count -eq 0) '-Draft: nada e publicado (sem PATCH)'
     Check ($script:gh.Releases[0].draft -eq $true -and $s.Result.Published -eq $false) '-Draft: a release continua rascunho'
-    Check (@($s.Result.Assets | Where-Object { $_.Method -eq 'digest' }).Count -eq 5) 'conferencia pelo campo digest da API'
+    Check (@($s.Result.Assets | Where-Object { $_.Method -eq 'digest' }).Count -eq 6) 'conferencia pelo campo digest da API'
     Check (@($script:gh.Requests | Where-Object { $_.Auth -cne "Bearer $sentinel" }).Count -eq 0) 'toda chamada leva Authorization: Bearer <token> no cabecalho'
     Check (@($script:gh.Requests | Where-Object { $RpAllowedHosts -notcontains $_.Host }).Count -eq 0) 'so api.github.com e uploads.github.com'
     Check (@($script:gh.Requests | Where-Object { $_.Uri.Contains($sentinel) -or $_.BodyText.Contains($sentinel) }).Count -eq 0) 'o token nunca vai na URL nem no corpo'
@@ -253,8 +253,8 @@ try {
     Reset-FakeGitHub; $script:gh.DigestMode = 'none'
     $s = Invoke-Scenario { Publish-GitHubRelease @pubArgs }
     $dl = Get-FakeRequests 'GET' '/releases/assets/\d+$'
-    Check (-not $s.Failed -and $dl.Count -eq 5 -and @($dl | Where-Object { $_.Accept -cne 'application/octet-stream' }).Count -eq 0) "sem digest: baixa cada asset pela API (Accept octet-stream) e confere ($($s.Message))"
-    Check (@($s.Result.Assets | Where-Object { $_.Method -eq 'download' }).Count -eq 5 -and $s.Result.Published) 'sem digest: conferido por download e publicado'
+    Check (-not $s.Failed -and $dl.Count -eq 6 -and @($dl | Where-Object { $_.Accept -cne 'application/octet-stream' }).Count -eq 0) "sem digest: baixa cada asset pela API (Accept octet-stream) e confere ($($s.Message))"
+    Check (@($s.Result.Assets | Where-Object { $_.Method -eq 'download' }).Count -eq 6 -and $s.Result.Published) 'sem digest: conferido por download e publicado'
     Reset-FakeGitHub; $script:gh.DigestMode = 'none-bad'
     $s = Invoke-Scenario { Publish-GitHubRelease @pubArgs }
     Check ($s.Failed -and $s.Message -match 'tutorial\.html' -and (Get-FakeRequests 'PATCH' '.').Count -eq 0) 'sem digest e conteudo diferente: nao publica'
@@ -305,6 +305,9 @@ try {
     $s = Invoke-Scenario { Publish-GitHubRelease @pubArgs }
     Check ($s.Failed -and $s.Message -match 'ThinQQ\.core\.xlam' -and $s.Message -match 'rascunho' -and $s.Message -match 'publicar-release\.bat 1\.2\.1 publicar') "upload que falha no meio: diz o arquivo, o rascunho e como retomar ($($s.Message))"
     Check ((Get-FakeRequests 'POST' '/assets$').Count -eq 3 -and $script:gh.Releases[0].assets.Count -eq 2 -and (Get-FakeRequests 'PATCH' '.').Count -eq 0) 'upload que falha no meio: para no 3.o arquivo e nao publica'
+    Reset-FakeGitHub; $script:gh.FailUploadOn = 'ThinQQ.ppam'
+    $s = Invoke-Scenario { Publish-GitHubRelease @pubArgs }
+    Check ($s.Failed -and $s.Message -match 'ThinQQ\.ppam' -and $s.Message -match 'rascunho' -and (Get-FakeRequests 'POST' '/assets$').Count -eq 4 -and $script:gh.Releases[0].assets.Count -eq 3 -and (Get-FakeRequests 'PATCH' '.').Count -eq 0) "upload do ThinQQ.ppam que falha: diz o arquivo, para no 4.o e nao publica ($($s.Message))"
 
     Reset-FakeGitHub
     foreach ($bad in 'https://example.com/repos/x', 'http://api.github.com/repos/x', 'https://api.github.com.example.com/x', 'https://objects.githubusercontent.com/x') {
@@ -673,6 +676,7 @@ Write-Output 'FIM-DO-INVOCADOR'
     Check (($changed -join ',') -ceq 'CHANGELOG.md,docs/tutorial/tutorial.html,installer/LEIA-ME.txt,release/manifest.json,version.json') "Prepare: o commit tem so os arquivos da versao ($($changed -join ','))"
     Check ((Invoke-WorkGit @('status', '--porcelain')) -eq '') 'Prepare: arvore limpa depois do commit (dist ignorado)'
     $stPrep = Read-ReleaseState $outDir '1.2.1'
+    Check ((Test-Path -LiteralPath (Join-Path $outDir 'ThinQQ.ppam')) -and @($stPrep.files).Count -eq 6 -and @($stPrep.files | Where-Object { $_.name -ceq 'ThinQQ.ppam' }).Count -eq 1) 'Prepare: o ThinQQ.ppam fica em dist\release-<versao>\ e no state.json (6 arquivos)'
     Check ($stPrep.prepareCommit -ceq (Invoke-WorkGit @('rev-parse', 'HEAD')) -and $stPrep.sourceMain -ceq $mainBefore -and $stPrep.repo -ceq $R) 'Prepare: state.json com o commit de preparacao e a main de origem'
     Check ((Invoke-RpGit $work @('ls-remote', '--heads', 'origin', 'release/v1.2.1')).Output -match [regex]::Escape($stPrep.prepareCommit)) 'Prepare: branch enviada ao remoto'
     Check ((Invoke-WorkGit @('rev-parse', 'origin/main')) -ceq $mainBefore) 'Prepare: a main do remoto nao foi tocada'
