@@ -327,3 +327,53 @@ Cleanup:
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub
+
+' Foto da geometria do grafico do USUARIO (Excel): area interna e caixa de cada tqq_ann_*, depois de forcar o layout.
+Private Function ExcelGeometry(c As Chart) As Collection
+    Dim out As New Collection, i As Long, s As Shape
+    PptSync_ForceLayout c
+    out.Add Array("PlotArea", CDbl(c.PlotArea.InsideLeft), CDbl(c.PlotArea.InsideTop), CDbl(c.PlotArea.InsideWidth), CDbl(c.PlotArea.InsideHeight)), "PlotArea"
+    For i = 1 To c.Shapes.Count
+        Set s = c.Shapes(i)
+        If Left$(s.Name, Len(ANN_PREFIX)) = ANN_PREFIX Then out.Add Array(s.Name, CDbl(s.Left), CDbl(s.Top), CDbl(s.Width), CDbl(s.Height)), s.Name
+    Next
+    Set ExcelGeometry = out
+End Function
+
+Private Sub AssertSameGeometry(before As Collection, c As Chart, stage As String)
+    Dim now_ As Collection, g As Variant, h As Variant, k As Long
+    Set now_ = ExcelGeometry(c)
+    AssertEqual before.Count, now_.Count, "mesmas formas (" & stage & ")"
+    For Each g In before
+        h = now_(CStr(g(0)))
+        For k = 1 To 4
+            AssertAlmost CDbl(g(k)), CDbl(h(k)), 0.5, g(0) & " campo " & k & " (" & stage & ")"
+        Next
+    Next
+End Sub
+
+' O grafico do Excel do usuario fica como estava (area interna e setas, 0,5 pt) depois da colagem e de mais duas sincronizacoes: a volta ao
+' tamanho original refaz o layout como a ida.
+Public Sub Test_PptSync_ExcelChartGeometryUnchanged_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, slide As Object, c As Chart, shp As Object, geo As Collection
+    Dim own As New Collection, en As Long, ed As String
+    On Error GoTo Cleanup
+    If Not PasteSetup(app, own, slide, wb, rng, c, "pptsync-geo.xlsx") Then GoTo Cleanup
+    Set geo = ExcelGeometry(c)
+    Core_CopyToPowerPoint "chart"
+    AssertEqual 1, CLng(slide.Shapes.Count), "grafico colado"
+    AssertSameGeometry geo, c, "depois da colagem"
+    Set shp = slide.Shapes(1)
+    PptSync_SyncShape shp, c.Parent
+    PptSync_SyncShape shp, c.Parent
+    AssertSameGeometry geo, c, "depois de mais duas sincronizacoes"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set shp = Nothing: Set slide = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub

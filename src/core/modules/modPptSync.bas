@@ -258,7 +258,9 @@ End Sub
 Private Sub PptSync_Restore(co As ChartObject, w0 As Double, h0 As Double, wb As Workbook, saved0 As Boolean)
     If Abs(co.Width - w0) > 0.01 Or Abs(co.Height - h0) > 0.01 Then
         co.Width = w0: co.Height = h0
+        PptSync_ForceLayout co.Chart                        ' como na ida: o Excel invisivel so refaz a geometria ao desenhar
         Core_SafeRefresh co.Chart
+        PptSync_ForceLayout co.Chart
     End If
     If saved0 Then wb.Saved = True
 End Sub
