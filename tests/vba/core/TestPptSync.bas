@@ -453,3 +453,230 @@ Public Sub Test_PptSync_ForceLayout_KeepsCallerDirLoopAndCleansUp()
     AssertEqual "", left_, "sem PNG temporario sobrando"
     Teardown wb
 End Sub
+
+
+Public Sub Test_PptSync_SummaryText()
+    AssertEqual "Gráficos do ThinQQ atualizados: 2.", PptSync_SummaryText(2, 0, "", 0, 0, 0)
+    AssertEqual "Gráficos do ThinQQ atualizados: 0. Sem mudança: 3.", PptSync_SummaryText(0, 3, "", 0, 0, 0)
+    AssertEqual "Gráficos do ThinQQ atualizados: 1." & vbLf & "Pasta de origem não encontrada ou sem acesso (o gráfico ficou como estava): a.xlsx, b.xlsx. Se ela foi movida ou renomeada, use no PowerPoint Arquivo > Informações > Editar Links para Arquivos > Alterar Origem.", PptSync_SummaryText(1, 0, "a.xlsx, b.xlsx", 0, 0, 0)
+    AssertEqual "Gráficos do ThinQQ atualizados: 0." & vbLf & "Gráfico não encontrado na pasta de origem (apagado ou recriado): 2." & vbLf & "Sem vínculo com o Excel (Quebrar Vínculo no PowerPoint): 1." & vbLf & "Falha ao atualizar: 1 (veja o log do ThinQQ).", PptSync_SummaryText(0, 0, "", 2, 1, 1)
+End Sub
+
+Public Sub Test_Core_PptApiVersion()
+    AssertEqual 1, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9)"
+End Sub
+
+Public Sub Test_Core_PptSyncPresentation_NeverRaises()
+    Dim s As String
+    s = Core_PptSyncPresentation(Nothing, True)
+    AssertTrue InStr(s, "Não foi possível atualizar os gráficos do ThinQQ") = 1, s
+End Sub
+
+Public Sub Test_Core_PptSyncOpen_WithoutPowerPoint_Notifies()
+    Ppt_ResetTestHooks                                         ' build Test sem instancia injetada: Ppt_GetApp devolve Nothing
+    Core_ClearLastNotice
+    Core_PptSyncOpen
+    AssertEqual PPTSYNC_NO_PPT, Core_LastNotice()
+End Sub
+
+' Cola um grafico de colunas empilhadas com seta CAGR da pasta salva em p (uma apresentacao do teste, sem janela). Devolve a forma colada.
+Private Function PasteLinked(app As Object, pres As Object, wb As Workbook, rng As Range, p As String) As Object
+    Dim slide As Object, c As Chart
+    Set slide = pres.Slides.Add(pres.Slides.Count + 1, 12)
+    Ppt_PinTargetForTest slide
+    wb.SaveAs p, xlOpenXMLWorkbook
+    rng.Worksheet.Activate
+    rng.Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    Ann_AddCagr c, 1, 2
+    Ppt_SetAppForTest app
+    Core_CopyToPowerPoint "chart"
+    Set PasteLinked = slide.Shapes(slide.Shapes.Count)
+End Function
+
+' Review Focus 3: pasta de origem inexistente (salva com outro nome e a original apagada): nenhum LinkFormat.Update (travaria), o grafico fica,
+' o resumo diz o arquivo; tudo em menos de 10 s.
+Public Sub Test_PptSync_MissingSource_DoesNotHang_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, shp As Object, own As New Collection, en As Long, ed As String
+    Dim a As String, s As String, t As Single, v0 As Double
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    a = TempDir() & "\pptsync-orig.xlsx"
+    Set shp = PasteLinked(app, pres, wb, rng, a)
+    v0 = PptSeriesValue(shp.Chart, "Sul", 1)
+    wb.SaveAs TempDir() & "\pptsync-outro.xlsx", xlOpenXMLWorkbook
+    Kill a
+    t = Timer
+    s = PptSync_Presentation(pres, True)
+    AssertTrue Timer - t < 10, "sem travar (" & Format$(Timer - t, "0.0") & " s)"
+    AssertTrue InStr(s, "Pasta de origem não encontrada ou sem acesso") > 0 And InStr(s, "pptsync-orig.xlsx") > 0, s
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 0.") = 1, s
+    AssertAlmost v0, PptSeriesValue(shp.Chart, "Sul", 1), 0.0001, "grafico ficou como estava"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set shp = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Review Focus 2: pasta fechada com dado novo salvo: aberta somente leitura, sincronizada e fechada (nenhuma pasta a mais aberta no fim).
+Public Sub Test_PptSync_ClosedSource_OpenedReadOnlyAndClosed_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, shp As Object, own As New Collection, en As Long, ed As String
+    Dim s As String, n0 As Long
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set shp = PasteLinked(app, pres, wb, rng, TempDir() & "\pptsync-fechada.xlsx")
+    rng.Worksheet.Range("B2").Value = 33
+    wb.Save
+    Watchers_Stop
+    CloseTemp wb: Set wb = Nothing
+    n0 = Application.Workbooks.Count
+    s = PptSync_Presentation(pres, True)
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 1.") = 1, s
+    AssertAlmost 33, PptSeriesValue(shp.Chart, "Sul", 1), 0.0001, "dado novo da pasta fechada"
+    AssertEqual n0, Application.Workbooks.Count, "a pasta aberta pela sincronizacao foi fechada"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set shp = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Impressao digital: sem mudanca o grafico e pulado ("Sem mudança"), com dado novo e atualizado; forcar atualiza sempre. Core_PptSyncOpen
+' (instancia injetada) cita a apresentacao no aviso.
+Public Sub Test_PptSync_Fingerprint_SkipsUnchanged_AndCoreOpen_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, shp As Object, own As New Collection, en As Long, ed As String, s As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set shp = PasteLinked(app, pres, wb, rng, TempDir() & "\pptsync-fp.xlsx")
+    s = PptSync_Presentation(pres, False)
+    AssertEqual "Gráficos do ThinQQ atualizados: 0. Sem mudança: 1.", s
+    rng.Worksheet.Range("C3").Value = 9
+    Application.Calculate
+    s = PptSync_Presentation(pres, False)
+    AssertEqual "Gráficos do ThinQQ atualizados: 1.", s
+    AssertEqual "Gráficos do ThinQQ atualizados: 1.", PptSync_Presentation(pres, True), "forcar: atualiza mesmo sem mudanca"
+    Ppt_SetAppForTest app
+    Core_ClearLastNotice
+    Core_PptSyncOpen
+    AssertTrue InStr(Core_LastNotice(), "'" & CStr(pres.Name) & "': Gráficos do ThinQQ atualizados: 1.") > 0, Core_LastNotice()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set shp = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+
+' Adendo M8: caminho de pasta so "existe" se estiver aberta neste Excel (FullName igual, inclusive endereco https do OneDrive) ou for um caminho
+' local/de rede existente no disco; https nao aberto nao e provavel (limite documentado: a pasta tem de estar aberta).
+Public Sub Test_PptSync_FileExists()
+    Dim wb As Workbook
+    Set wb = NewTempWorkbook()
+    wb.SaveAs TempDir() & "\pptsync-exists.xlsx", xlOpenXMLWorkbook
+    AssertTrue PptSync_FileExists(wb.FullName), "arquivo no disco e aberto"
+    AssertFalse PptSync_FileExists(TempDir() & "\pptsync-nao-existe.xlsx"), "inexistente"
+    AssertFalse PptSync_FileExists("https://contoso.sharepoint.com/sites/x/Documentos/nao-aberta.xlsx"), "https nao aberto: nao provavel"
+    AssertFalse PptSync_FileExists(""), "vazio"
+    Teardown wb
+End Sub
+
+' Re-revisao da A1: o resultado "Update ignorado por origem inalcancavel" e visivel a quem chama (updateSkipped); com a pasta alcancavel ou
+' updateData = False, False. O Update so roda quando nao foi ignorado.
+Public Sub Test_PptSync_UpdateSkipped_IsReported_Fake()
+    Dim wb As Workbook, rng As Range, c As Chart, shp As TestPptFake, ch As TestPptFake, cd As TestPptFake, lf As TestPptFake, src As Variant
+    Dim expSkip As Variant, expUpd As Variant, k As Long, sk As Boolean
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    wb.SaveAs TempDir() & "\pptsync-skipped.xlsx", xlOpenXMLWorkbook
+    rng.Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    Set cd = New TestPptFake: cd.IsLinked = True
+    Set ch = New TestPptFake: Set ch.ChartData = cd
+    Set lf = New TestPptFake
+    Set shp = New TestPptFake: shp.Width = 709.7: shp.Height = 432: Set shp.Chart = ch: Set shp.LinkFormat = lf
+    src = Array(TempDir() & "\pptsync-nao-existe.xlsx", "https://contoso.sharepoint.com/x/nao-aberta.xlsx", wb.FullName)
+    expSkip = Array(True, True, False)
+    expUpd = Array(0, 0, 1)
+    For k = 0 To 2
+        lf.SourceFullName = CStr(src(k)): lf.UpdateCount = 0
+        sk = Not CBool(expSkip(k))                                  ' valor inicial oposto: a rotina tem de gravar o resultado
+        PptSync_SetFailForTest "update"
+        On Error Resume Next
+        PptSync_SyncShape shp, c.Parent, True, sk
+        On Error GoTo 0
+        AssertEqual CBool(expSkip(k)), sk, "updateSkipped (" & src(k) & ")"
+        AssertEqual CLng(expUpd(k)), lf.UpdateCount, "Update chamado? " & src(k)
+    Next
+    lf.SourceFullName = TempDir() & "\pptsync-nao-existe.xlsx": lf.UpdateCount = 0
+    sk = True
+    PptSync_SetFailForTest "update"
+    On Error Resume Next
+    PptSync_SyncShape shp, c.Parent, False, sk
+    On Error GoTo 0
+    AssertFalse sk, "updateData = False: nada foi ignorado"
+    Teardown wb
+End Sub
+
+' Re-revisao da A1: Update ignorado por origem inalcancavel (gancho "unreachable": a pasta some entre a conferencia e o Update): o grafico
+' NAO conta como atualizado, a TQQ_FP NAO e gravada (a proxima atualizacao nao pode pular o grafico como "sem mudanca") e o resumo o lista
+' em "Pasta de origem nao encontrada".
+Public Sub Test_PptSync_UpdateSkipped_NoFingerprint_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, shp As Object, own As New Collection, en As Long, ed As String
+    Dim s As String, fp0 As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set shp = PasteLinked(app, pres, wb, rng, TempDir() & "\pptsync-skip.xlsx")
+    fp0 = PptSync_Tag(shp, PPTSYNC_TAG_FP)
+    AssertTrue Len(fp0) > 0, "a colagem gravou a impressao digital"
+    rng.Worksheet.Range("C3").Value = 9
+    Application.Calculate
+    PptSync_ResetTestHooks
+    PptSync_SetFailForTest "unreachable"
+    s = PptSync_Presentation(pres, False)
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 0.") = 1, s
+    AssertTrue InStr(s, "Pasta de origem não encontrada ou sem acesso") > 0 And InStr(s, "pptsync-skip.xlsx") > 0, s
+    AssertEqual 0, PptSync_UpdateCountForTest(), "nenhum LinkFormat.Update"
+    AssertEqual fp0, PptSync_Tag(shp, PPTSYNC_TAG_FP), "TQQ_FP intacta: o Update foi ignorado"
+    s = PptSync_Presentation(pres, False)
+    AssertEqual "Gráficos do ThinQQ atualizados: 1.", s, "o grafico nao e pulado como sem mudanca"
+    AssertTrue PptSync_Tag(shp, PPTSYNC_TAG_FP) <> fp0, "agora a impressao digital reflete o dado novo"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set shp = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub

@@ -1365,6 +1365,54 @@ Private Sub PptSyncAfterPaste(shp As Object, co As ChartObject)
     Err.Clear
 End Sub
 
+' Parte A (1.4.0): atualiza os graficos ThinQQ vinculados de UMA apresentacao. O suplemento ThinQQ.ppam chama por Application.Run com o
+' objeto da apresentacao (ao abrir e no botao do PowerPoint). Devolve o resumo para o usuario; nunca propaga erro.
+Public Function Core_PptSyncPresentation(pres As Object, Optional force As Boolean = False) As String
+    Dim en As Long, ed As String
+    On Error GoTo Fail
+    Core_PptSyncPresentation = PptSync_Presentation(pres, force)
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error Resume Next
+    Errors_Log "Core_PptSyncPresentation" & vbTab & en & vbTab & ed
+    Core_PptSyncPresentation = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
+End Function
+
+' Contrato com o suplemento do PowerPoint (spec 4.9): o .ppam so chama Core_PptSyncPresentation se Core_PptApiVersion >= o que ele exige.
+' Regra: a assinatura de Core_PptSyncPresentation nunca muda; mudanca incompativel = funcao nova + CORE_PPT_API maior (a antiga continua).
+Public Function Core_PptApiVersion() As Long
+    On Error Resume Next                                    ' constante: nao falha; a guarda mantem o contrato "Core_* nunca propaga" (teste de contencao)
+    Core_PptApiVersion = CORE_PPT_API
+End Function
+
+' Botao "Atualizar graficos no PowerPoint": todas as apresentacoes abertas que nao sao somente leitura, forcando a atualizacao; o aviso traz
+' o resumo de cada uma. Sem PowerPoint aberto (nunca abre um): aviso. Nunca propaga erro.
+Public Sub Core_PptSyncOpen()
+    Dim app As Object, pres As Object, msg As String, n As Long, en As Long, ed As String
+    On Error GoTo Fail
+    Set app = Ppt_GetApp(False)
+    If app Is Nothing Then Core_Notify PPTSYNC_NO_PPT, vbInformation: Exit Sub
+    For Each pres In app.Presentations
+        If CLng(pres.ReadOnly) = 0 Then
+            n = n + 1
+            msg = msg & IIf(Len(msg) > 0, vbLf & vbLf, "") & "'" & CStr(pres.Name) & "': " & PptSync_Presentation(pres, True)
+        End If
+    Next
+    If n = 0 Then msg = PPTSYNC_NO_PPT
+    Core_Notify msg, vbInformation
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error Resume Next
+    Application.StatusBar = False
+    If Ppt_IsKnownFailure(en) Then
+        Core_Notify Ppt_ErrorText(en, ed), vbExclamation
+    Else
+        Errors_HandleErr "Core_PptSyncOpen", en, ed
+    End If
+End Sub
+
 ' Gancho de teste de Core_RebuildFromRange (Util_FailThinSyncForTest = "rebuild-<ponto>:1"): dispara UMA vez. Inerte fora do build Test.
 Private Sub RebuildTestHook(site As String)
     If BUILD_CONFIG = "Test" Then
