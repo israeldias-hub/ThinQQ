@@ -389,7 +389,7 @@ End Sub
 ' Atualizar (btnRefresh) e "Mais opcoes" (mnuMore: contem Mesma escala, Escala automatica e Arredondar intervalo, sempre ativos) ficam
 ' sempre habilitados de proposito; os demais controles do grupo "Grafico selecionado" dependem do grafico selecionado. Dentro de mnuMore,
 ' os 7 toggles e os 2 botoes de corte de eixo tem getEnabled; os 2 botoes de escala e o Arredondar intervalo (age sobre celulas) nao.
-' PowerPoint e os seus 2 itens exigem um grafico.
+' O menu PowerPoint e "Atualizar graficos no PowerPoint" ficam sempre ativos; so os 2 itens de copiar exigem um grafico.
 Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
     Dim d As Object, n As Object, c As Long, id As String
     Set d = LoadRibbon()

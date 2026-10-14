@@ -18,7 +18,6 @@ Public Const PPTSYNC_TAG_FP As String = "TQQ_FP"            ' impressao digital 
 Public Const CORE_PPT_API As Long = 1                       ' versao da API do core usada pelo suplemento do PowerPoint (Core_PptApiVersion)
 Public Const PPTSYNC_NONE As String = "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."
 Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."
-Public Const PPTSYNC_ALL_RO As String = "Todas as apresentações abertas estão em modo somente leitura (Modo de Exibição Protegido): ative a edição e tente de novo."
 Public Const PPTSYNC_UNKNOWN_SRC As String = "(origem desconhecida)"      ' forma marcada sem SourceFullName e sem TQQ_BOOK
 Public Const PPTSYNC_C_PROCEED As Long = 0                   ' PptSync_Classify: segue para a pasta de origem
 Public Const PPTSYNC_C_UNLINKED As Long = 1                  ' colado sem vinculo ("Sem vinculo com o Excel")

@@ -1387,25 +1387,19 @@ Public Function Core_PptApiVersion() As Long
     Core_PptApiVersion = CORE_PPT_API
 End Function
 
-' Botao "Atualizar graficos no PowerPoint": todas as apresentacoes abertas que nao sao somente leitura, forcando a atualizacao; o aviso traz
-' o resumo de cada uma (cada apresentacao e isolada: o erro de uma vira uma linha dela, sem perder o resumo das outras). Sem PowerPoint aberto
-' (nunca abre um): aviso; so apresentacoes somente leitura: aviso proprio. Nunca propaga erro.
+' Botao "Atualizar graficos no PowerPoint": todas as apresentacoes abertas (inclusive as somente leitura: a atualizacao fica so na memoria e o
+' PowerPoint pergunta se quer salvar ao fechar; so a atualizacao automatica ao abrir pula somente leitura, decisao do suplemento), forcando a
+' atualizacao; o aviso traz o resumo de cada uma (cada apresentacao e isolada: o erro de uma vira uma linha dela, sem perder o resumo das
+' outras). Sem PowerPoint aberto (nunca abre um) ou sem apresentacao: aviso. Nunca propaga erro.
 Public Sub Core_PptSyncOpen()
-    Dim app As Object, pres As Object, msg As String, n As Long, nRO As Long, en As Long, ed As String
+    Dim app As Object, pres As Object, msg As String, en As Long, ed As String
     On Error GoTo Fail
     Set app = Ppt_GetApp(False)
     If app Is Nothing Then Core_Notify PPTSYNC_NO_PPT, vbInformation: Exit Sub
     For Each pres In app.Presentations
-        If PptSyncIsReadOnly(pres) Then
-            nRO = nRO + 1
-        Else
-            n = n + 1
-            msg = msg & IIf(Len(msg) > 0, vbLf & vbLf, "") & "'" & PptSyncPresName(pres) & "': " & Core_PptSyncPresentation(pres, True)
-        End If
+        msg = msg & IIf(Len(msg) > 0, vbLf & vbLf, "") & "'" & PptSyncPresName(pres) & "': " & Core_PptSyncPresentation(pres, True)
     Next
-    If n = 0 Then
-        If nRO > 0 Then msg = PPTSYNC_ALL_RO Else msg = PPTSYNC_NO_PPT
-    End If
+    If Len(msg) = 0 Then msg = PPTSYNC_NO_PPT
     Core_Notify msg, vbInformation
     Exit Sub
 Fail:
@@ -1419,13 +1413,6 @@ Fail:
         Errors_HandleErr "Core_PptSyncOpen", en, ed
     End If
 End Sub
-
-' Somente leitura? Leitura que falha (apresentacao fechando): conta como editavel e o erro cai no resumo daquela apresentacao.
-Private Function PptSyncIsReadOnly(pres As Object) As Boolean
-    On Error Resume Next
-    PptSyncIsReadOnly = (CLng(pres.ReadOnly) <> 0)
-    Err.Clear
-End Function
 
 Private Function PptSyncPresName(pres As Object) As String
     On Error Resume Next

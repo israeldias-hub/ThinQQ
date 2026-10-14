@@ -829,30 +829,46 @@ Public Sub Test_PptSync_ReachableAmong_Https()
     AssertFalse PptSync_ReachableAmong("", names), "vazio"
 End Sub
 
-' Fix 1 (menor 6): Core_PptSyncOpen com so apresentacoes somente leitura: texto proprio (nao "abra a apresentacao").
-Public Sub Test_Core_PptSyncOpen_AllReadOnly_WhenAvailable()
-    Dim app As Object, pres As Object, ro As Object, own As New Collection, en As Long, ed As String, p As String
+' Ruling A3 (spec 4.4): o botao atualiza TODAS as apresentacoes abertas, inclusive somente leitura (so na memoria; so a atualizacao automatica ao abrir
+' pula somente leitura, no suplemento). Apresentacao com o grafico vinculado salva, fechada e reaberta somente leitura (sem titulo, sem janela);
+' o dado muda na pasta; Core_PptSyncOpen atualiza o grafico em memoria e o resumo cita a apresentacao.
+Public Sub Test_Core_PptSyncOpen_ReadOnlyPresentation_IsUpdatedInMemory_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, ro As Object, shp As Object, own As New Collection, en As Long, ed As String
+    Dim p As String, m As String, nm As String
     Set app = StartScratchPowerPoint()
     If app Is Nothing Then Exit Sub
     On Error GoTo Cleanup
     Set pres = app.Presentations.Add(0)
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then own.Add pres: GoTo Cleanup
+    Set shp = PasteLinked(app, pres, wb, rng, TempDir() & "\pptsync-ro-data.xlsx")
     p = TempDir() & "\pptsync-ro.pptx"
     pres.SaveAs p
+    Set shp = Nothing
     pres.Close
     Set pres = Nothing
     Set ro = app.Presentations.Open(p, -1, 0, 0)               ' somente leitura, sem titulo, sem janela
     own.Add ro
     If UserWindowAppeared(app) Then GoTo Cleanup
+    AssertTrue CLng(ro.ReadOnly) <> 0, "a apresentacao do teste esta somente leitura"
+    Set shp = ro.Slides(1).Shapes(ro.Slides(1).Shapes.Count)
+    AssertAlmost 10, PptSeriesValue(shp.Chart, "Sul", 1), 0.0001, "dado antes"
+    rng.Worksheet.Range("B2").Value = 77
+    Application.Calculate
     Ppt_SetAppForTest app
     Core_ClearLastNotice
     Core_PptSyncOpen
-    AssertEqual PPTSYNC_ALL_RO, Core_LastNotice()
+    nm = CStr(ro.Name)
+    m = Core_LastNotice()
+    AssertTrue InStr(m, "'" & nm & "': Gráficos do ThinQQ atualizados: 1.") > 0, m
+    AssertAlmost 77, PptSeriesValue(shp.Chart, "Sul", 1), 0.0001, "somente leitura: atualizada em memoria"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
-    Set ro = Nothing: Set pres = Nothing
+    Set shp = Nothing: Set ro = Nothing: Set pres = Nothing
     StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub
