@@ -380,6 +380,7 @@ Private Function AddXY(cht As Chart, name As String, xCells As Range, yCells As 
     Exit Function
 Fail:
     en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1                                 ' encerra o tratamento do erro: sem isso o Resume Next abaixo nao protegeria a limpeza
     On Error Resume Next
     If Not s Is Nothing Then s.Delete
     On Error GoTo 0
@@ -525,6 +526,7 @@ Public Function Wfp_Insert(ws As Worksheet, data As clsChartData) As ChartObject
     Exit Function
 Fail:
     en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1                                 ' encerra o tratamento do erro: sem isso o Resume Next abaixo nao protegeria a limpeza
     On Error Resume Next
     If Not co Is Nothing Then co.Delete
     If Len(id) > 0 Then CalcSheet_DeleteBlock ws.Parent, id
