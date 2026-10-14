@@ -308,6 +308,7 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
         Case "connectors"
             Select Case fam
                 Case "waterfall": Ann_SetWaterfallConnectors c, value
+                Case "waterfallpair": Wfp_SetConnectors c, value     ' cascata comparativa: auxiliares XY com barra de erro, por serie
                 Case "stacked", "combo": Stacked_SetConnectors c, value
                 Case Else: RefuseUndispatched key, c, fam
             End Select

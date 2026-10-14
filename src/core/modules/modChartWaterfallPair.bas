@@ -424,6 +424,59 @@ Private Sub Wfp_SetNames(cht As Chart)
     Next
 End Sub
 
+' Conectores: duas auxiliares XY sem marcador (tqq_conn_a, tqq_conn_b), um ponto por conector (n - 1) no lado direito da barra i, com barra de
+' erro X custom (CLen do bloco) ate o lado esquerdo da barra i + 1 da MESMA serie, tracejada e sem ponta (medido; vivos sem o ThinQQ). Passam
+' sobre a barra da outra serie (como no think-cell). Uma etapa so: sem conectores (a opcao fica gravada).
+' Faixa da barra de erro em R1C1 (a forma que o Excel aceita para valores personalizados; em A1 pode recusar com 1004 ou virar constante).
+' Transacional: a opcao so e gravada depois das series prontas; em falha as duas somem, a opcao fica "0" (o estado real) e o erro e repropagado.
+Public Sub Wfp_SetConnectors(cht As Chart, turnOn As Boolean)
+    Dim body As Range, n As Long, j As Long, s As Series, nm As String, en As Long, es As String, ed As String
+    DropConnectors cht
+    If turnOn Then
+        n = Wfp_StepCount(cht)
+        If n >= 2 Then
+            On Error GoTo Fail
+            Set body = Block_Body(Registry_Block(cht))
+            For j = 1 To 2
+                nm = "tqq_conn_" & Mid$("ab", j, 1)
+                If j = 1 Then
+                    Set s = AddXY(cht, nm, body.Cells(2, WFP_COL_CXA).Resize(n - 1, 1), body.Cells(2, WFP_COL_CYA).Resize(n - 1, 1), False)
+                Else
+                    Set s = AddXY(cht, nm, body.Cells(2, WFP_COL_CXB).Resize(n - 1, 1), body.Cells(2, WFP_COL_CYB).Resize(n - 1, 1), False)
+                End If
+                s.ErrorBar Direction:=xlX, Include:=xlErrorBarIncludePlusValues, Type:=xlErrorBarTypeCustom, Amount:="='" & CALC_SHEET & "'!" & body.Cells(2, WFP_COL_CLEN).Resize(n - 1, 1).Address(True, True, xlR1C1)
+                With s.ErrorBars
+                    .EndStyle = xlNoCap
+                    .Format.Line.Visible = msoTrue
+                    .Format.Line.ForeColor.RGB = RGB(127, 127, 127)
+                    .Format.Line.DashStyle = msoLineDash
+                    .Format.Line.Weight = 0.75
+                End With
+            Next
+            On Error GoTo 0
+            If cht.HasLegend Then Chart_HideHelperLegendEntries cht
+        End If
+    End If
+    Registry_SetOption cht, "connectors", IIf(turnOn, "1", "0")
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    DropConnectors cht
+    Registry_SetOption cht, "connectors", "0"
+    On Error GoTo 0
+    Err.Raise en, es, ed
+End Sub
+
+Private Sub DropConnectors(cht As Chart)
+    Dim j As Long, s As Series
+    For j = 1 To 2
+        Set s = Chart_FindSeries(cht, "tqq_conn_" & Mid$("ab", j, 1))
+        If Not s Is Nothing Then s.Delete
+    Next
+End Sub
+
 Public Function Wfp_Insert(ws As Worksheet, data As clsChartData) As ChartObject
     Dim id As String, co As ChartObject, cht As Chart, anchor As Range, blk As Range, body As Range, n As Long, ns As Long, cats As String
     Dim en As Long, es As String, ed As String
@@ -465,6 +518,7 @@ Public Function Wfp_Insert(ws As Worksheet, data As clsChartData) As ChartObject
     Wfp_ApplyColors cht, "padrao"
     Wfp_AddZeroLine cht
     Wfp_SetNames cht
+    Wfp_SetConnectors cht, True
     Wfp_SetLegend cht, "inbar"
     Wfp_RefreshAfterDataChange cht
     Set Wfp_Insert = co

@@ -363,3 +363,83 @@ Public Sub Test_Wfp_Palette_And_Orphan()
     AssertEqual 1, CalcSheet_Cleanup(wb), "o bloco do grafico apagado e removido"
     Teardown wb
 End Sub
+
+' Review Focus 5 (conectores): do lado direito da barra i ao lado esquerdo da barra i + 1 da MESMA serie, na altura do fim da barra i; vivos.
+Public Sub Test_Wfp_Connectors_GeometryAndLive()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, body As Range, ca As Series, cb As Series, cs As Series
+    Dim i As Long, j As Long, sIdx As Long, x As Double, clen As Double, hw As Double, p As Point, q As Point
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set cht = Wfp_Insert(ws, d).Chart
+    Set ca = Chart_FindSeries(cht, "tqq_conn_a"): Set cb = Chart_FindSeries(cht, "tqq_conn_b")
+    AssertTrue Not ca Is Nothing, "conector da serie 1": AssertTrue Not cb Is Nothing, "conector da serie 2"
+    AssertEqual "1", Registry_GetOption(cht, "connectors")
+    AssertEqual 4, ca.Points.Count, "n - 1 conectores": AssertTrue ca.HasErrorBars
+    AssertEqual xlNoCap, ca.ErrorBars.EndStyle: AssertEqual msoLineDash, ca.ErrorBars.Format.Line.DashStyle
+    AssertEqual xlPrimary, ca.AxisGroup
+    Set body = BodyOf(cht)
+    hw = Util_ToDouble(Registry_Block(cht).Cells(1, WFP_META_HW).Value)
+    clen = Util_ToDouble(body.Cells(2, WFP_COL_CLEN).Value)
+    AssertAlmost 3 - 2 * hw, clen, 0.000001
+    ForceLayout cht
+    For i = 1 To 4
+        For j = 1 To 2
+            If j = 1 Then
+                Set cs = ca: sIdx = 2: x = Util_ToDouble(body.Cells(i + 1, WFP_COL_CXA).Value)
+            Else
+                Set cs = cb: sIdx = 4: x = Util_ToDouble(body.Cells(i + 1, WFP_COL_CXB).Value)
+            End If
+            AssertAlmost Wfp_SlotOf(i, j) + hw, x, 0.000001, "x do conector " & i & "/" & j
+            Set p = cht.SeriesCollection(sIdx).Points(Wfp_SlotOf(i, j))
+            Set q = cht.SeriesCollection(sIdx).Points(Wfp_SlotOf(i + 1, j))
+            AssertAlmost p.Left + p.Width, XOfX(cht, x), 1, "sai da borda direita da barra " & i & "/" & j
+            AssertAlmost q.Left, XOfX(cht, x + clen), 1, "chega a borda esquerda da proxima barra da mesma serie " & i & "/" & j
+            AssertAlmost YOf(cht, SideVal(cht, i, j, "End")), cs.Points(i).Top, 1, "na altura do fim da barra " & i & "/" & j
+        Next
+    Next
+    ws.Range("B3").Value = -9
+    cht.Refresh
+    AssertEqual 18, Util_ToDouble(body.Cells(3, WFP_COL_CYA).Value), "sem o ThinQQ o conector acompanha o dado"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Wfp_Connectors_ToggleGapLegendAndSingleStep()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, c1 As Chart, body As Range, x As Double, clen As Double, p As Point, q As Point
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    d.Source.Select
+    Core_Insert "waterfallpair"
+    Set cht = Core_ActiveChart()
+    Core_SetToggle "connectors", False
+    AssertTrue Chart_FindSeries(cht, "tqq_conn_a") Is Nothing: AssertTrue Chart_FindSeries(cht, "tqq_conn_b") Is Nothing
+    AssertEqual "0", Registry_GetOption(cht, "connectors"): AssertFalse Core_GetToggle("connectors")
+    Core_SetToggle "connectors", True
+    AssertEqual 4, Chart_FindSeries(cht, "tqq_conn_a").Points.Count
+    Core_SetOption "gap", "80"
+    ForceLayout cht
+    Set body = BodyOf(cht)
+    x = Util_ToDouble(body.Cells(2, WFP_COL_CXA).Value): clen = Util_ToDouble(body.Cells(2, WFP_COL_CLEN).Value)
+    Set p = cht.SeriesCollection(2).Points(1): Set q = cht.SeriesCollection(2).Points(4)
+    AssertAlmost p.Left + p.Width, XOfX(cht, x), 1, "espaco 80: o conector continua na borda da barra"
+    AssertAlmost q.Left, XOfX(cht, x + clen), 1
+    Core_SetOption "legend", "right"
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "os conectores ficam fora da legenda"
+    ws.Range("E1:G1").Value = Array("Etapa", "S1", "S2"): ws.Range("E2:G2").Value = Array("Unico", 5, 7)
+    Set c1 = Wfp_Insert(ws, ChartData_FromRange(ws.Range("E1:G2"))).Chart
+    AssertEqual 2, SlotN(c1), "uma etapa: 2 fatias, sem vao"
+    AssertTrue Chart_FindSeries(c1, "tqq_conn_a") Is Nothing, "uma etapa: sem conectores"
+    AssertEqual "1", Registry_GetOption(c1, "connectors"), "a opcao fica gravada"
+    Teardown wb
+End Sub
+
+' Copia do grafico (como colada: outro nome) com o original apagado: a limpeza nao remove o bloco (colunas, XY e rotulos citam o bloco).
+Public Sub Test_Wfp_CopiedChart_KeepsBlockAlive()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, dup As Object
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Wfp_Insert ws, d
+    Set dup = ws.ChartObjects(1).Duplicate
+    ws.ChartObjects(2).Name = "Gráfico 2"
+    ws.ChartObjects(1).Delete
+    AssertEqual 0, CalcSheet_Cleanup(wb), "a copia cita o bloco: nada e removido"
+    AssertFalse CalcSheet_CleanupReadFailed()
+    AssertEqual 1, TqqNameCount(wb)
+    CloseTemp wb
+End Sub
