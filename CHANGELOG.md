@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.3.0] - 2026-10-14
+
 ### Adicionado
 - Cascata comparativa (menu Cascata): duas pontes lado a lado, uma por série, com conectores tracejados por série, uma seta de variação em cotovelo entre as duas barras de cada etapa (`(B - A) / A` numa elipse; `n/d` com o primeiro valor zero, sinais opostos ou total contra degrau na mesma linha; ou a diferença em valor pelo alternador Setas > Variação em valor), totais com o percentual do primeiro total da série ("11 (41%)") e os nomes das séries dentro das barras da primeira etapa (Legenda > Nome dentro das barras; quando não cabem, a legenda). Exatamente 2 colunas de valores; marcadores `e`, `t`, `=`, `total`, `subtotal`. Tudo em séries nativas ligadas ao bloco da `_ThinQQ`: barras, conectores, setas e textos acompanham os números mesmo sem o ThinQQ.
 - Exemplo 27 em ThinQQ > Exemplos (planilha Exemplos 3) e exemplos E27 e E28 na pasta de demonstração, com as imagens na galeria do tutorial.
