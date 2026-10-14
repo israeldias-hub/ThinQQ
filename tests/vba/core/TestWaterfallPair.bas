@@ -834,3 +834,49 @@ Public Sub Test_Wfp_Arrows_ResizeKeepsNamesConsistent()
         CloseTemp wb
     Next
 End Sub
+
+' Falha no meio de ligar as setas (gancho depois de tqq_pd, depois de tqq_pdroom e depois do passo da legenda), com as setas ligadas ou
+' desligadas antes e a legenda visivel: nada fica pela metade (nenhuma das duas series, opcao "0", o numero de series sem as setas, legenda com 2
+' entradas) e o erro chega ao chamador. Sem o gancho, ligar de novo funciona. O gancho e zerado antes de qualquer afirmacao e no tratamento de erro.
+Public Sub Test_Wfp_Arrows_FailMidway_RollsBack()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, en As Long, es As String, ed As String, base As Long, site As Variant, prevOn As Variant, tag As String
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    On Error GoTo Fail
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    Registry_SetOption cht, "legend", "right"
+    Wfp_SetLegend cht, "right"
+    Wfp_SetArrows cht, False
+    base = cht.SeriesCollection.Count
+    For Each prevOn In Array(True, False)
+        For Each site In Array("pd", "pdroom", "pdlegend")
+            tag = site & IIf(prevOn, " (ligadas antes)", " (desligadas antes)")
+            Wfp_SetArrows cht, CBool(prevOn)
+            Util_FailThinSyncForTest = "wfp-" & site & ":1"
+            On Error Resume Next
+            Wfp_SetArrows cht, True
+            en = Err.Number
+            On Error GoTo Fail
+            Util_FailThinSyncForTest = ""
+            AssertEqual vbObjectError + 9996, en, tag & ": o erro chega ao chamador"
+            AssertTrue Chart_FindSeries(cht, "tqq_pd") Is Nothing, tag & ": sem tqq_pd"
+            AssertTrue Chart_FindSeries(cht, "tqq_pdroom") Is Nothing, tag & ": sem tqq_pdroom"
+            AssertEqual "0", Registry_GetOption(cht, "pairdiff"), tag & ": a opcao reflete o estado real"
+            AssertEqual base, cht.SeriesCollection.Count, tag & ": o numero de series sem as setas"
+            AssertTrue cht.HasLegend, tag & ": legenda visivel": AssertEqual 2, cht.Legend.LegendEntries.Count, tag & ": legenda com 2 entradas"
+            Wfp_SetArrows cht, True
+            cht.Refresh
+            AssertEqual "1", Registry_GetOption(cht, "pairdiff"), tag & ": ligar de novo funciona"
+            AssertEqual base + 2, cht.SeriesCollection.Count, tag
+            AssertEqual 2, cht.Legend.LegendEntries.Count, tag & ": as setas ficam fora da legenda"
+            AssertEqual "+7%", ArrowLabel(cht, 1), tag
+        Next
+    Next
+    Util_FailThinSyncForTest = ""
+    CloseTemp wb
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    CloseTemp wb
+    Err.Raise en, es, ed
+End Sub

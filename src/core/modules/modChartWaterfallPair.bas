@@ -507,12 +507,12 @@ End Sub
 ' gravada depois das series prontas; em falha as duas somem, a opcao fica "0" (o estado real) e o erro e repropagado. Termina recalibrando o
 ' valor por ponto (Wfp_RefreshAfterDataChange, que nunca propaga erro).
 Public Sub Wfp_SetArrows(cht As Chart, turnOn As Boolean)
-    Dim body As Range, n As Long, i As Long, s As Series, rows As Long, en As Long, es As String, ed As String
+    Dim body As Range, n As Long, i As Long, s As Series, rows As Long, en As Long, es As String, ed As String, nm As Variant
+    On Error GoTo Fail
     DropArrows cht
     If turnOn Then
         n = Wfp_StepCount(cht)
         If n >= 1 Then
-            On Error GoTo Fail
             Set body = Block_Body(Registry_Block(cht))
             rows = WFP_ROWS_PER_PAIR * n - 1             ' sem a linha vazia depois do ultimo par
             Set s = AddXY(cht, "tqq_pd", body.Cells(2, WFP_COL_PX).Resize(rows, 1), body.Cells(2, WFP_COL_PY).Resize(rows, 1), True)
@@ -540,19 +540,29 @@ Public Sub Wfp_SetArrows(cht As Chart, turnOn As Boolean)
                     .DataLabel.Format.Line.Weight = 0.75
                 End With
             Next
+            WfpTestHook "pd", "1"
             AddXY cht, "tqq_pdroom", body.Cells(2, WFP_COL_RX).Resize(n, 1), body.Cells(2, WFP_COL_RY).Resize(n, 1), False
-            On Error GoTo 0
-            If cht.HasLegend Then Chart_HideHelperLegendEntries cht
+            WfpTestHook "pdroom", "1"
+            If cht.HasLegend Then
+                Chart_HideHelperLegendEntries cht
+                WfpTestHook "pdlegend", "1"
+            End If
         End If
     End If
-    Registry_SetOption cht, "pairdiff", IIf(turnOn, "1", "0")
-    Wfp_RefreshAfterDataChange cht                   ' calibra o valor por ponto com (ou sem) as setas no grafico
+    Registry_SetOption cht, "pairdiff", IIf(turnOn And n >= 1, "1", "0")     ' sem etapas nao ha setas: nunca "1" sem as series
+    On Error GoTo 0
+    Wfp_RefreshAfterDataChange cht                   ' calibra o valor por ponto com (ou sem) as setas no grafico (nunca propaga erro)
     Exit Sub
 Fail:
     en = Err.Number: es = Err.Source: ed = Err.Description
     On Error GoTo -1                                 ' encerra o tratamento do erro: sem isso o Resume Next abaixo nao protegeria a limpeza
     On Error Resume Next
-    DropArrows cht
+    For Each nm In Array("tqq_pd", "tqq_pdroom")     ' a limpeza aqui nao usa DropArrows: um erro la dentro saltaria o resto desta limpeza
+        Set s = Nothing
+        Set s = Chart_FindSeries(cht, CStr(nm))
+        If Not s Is Nothing Then s.Delete
+        Err.Clear
+    Next
     Registry_SetOption cht, "pairdiff", "0"
     On Error GoTo 0
     Err.Raise en, es, ed
