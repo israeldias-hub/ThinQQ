@@ -935,3 +935,33 @@ Public Sub Test_Wfp_Arrows_TotalVersusStep_Nd()
     AssertEqual "+300%", ArrowLabel(cht, 3)
     CloseTemp wb
 End Sub
+
+' Review Focus 1 (setas): cruza o zero e total negativo (FixtureZero). Esperado pela tabela, sem o bloco: topos (Hi) A = 10, 10, -7, 0 (o total -7
+' vai de 0 a -7) e B = 5, 5, 13, 13; afastamento 22 pt nas barras grandes com fim >= 0 (2024 dos dois lados e o total 13 de B) e 3 pt nas demais
+' (degraus e o total negativo de A); textos -50%, (-12 + 25) / -25 = -52%, (20 - 8) / 8 = +150% e n/d (totais -7 e 13: sinais opostos).
+Public Sub Test_Wfp_Arrows_Geometry_CrossesZero()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, s As Series, i As Long, r0 As Long, hiA As Variant, hiB As Variant, gA As Variant, gB As Variant
+    Dim txt As Variant, yA As Double, yB As Double, lbl As DataLabel
+    Set wb = NewTempWorkbook(): Set d = FixtureZero(wb)
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    ForceLayout cht
+    Core_SafeRefresh cht
+    ForceLayout cht
+    hiA = Array(10, 10, -7, 0): hiB = Array(5, 5, 13, 13)
+    gA = Array(22, 3, 3, 3): gB = Array(22, 3, 3, 22)
+    txt = Array("-50%", "-52%", "+150%", "n/d")
+    Set s = Chart_FindSeries(cht, "tqq_pd")
+    For i = 1 To 4
+        r0 = WFP_ROWS_PER_PAIR * (i - 1)
+        yA = YOf(cht, CDbl(hiA(i - 1))) - gA(i - 1): yB = YOf(cht, CDbl(hiB(i - 1))) - gB(i - 1)
+        AssertAlmost yA, s.Points(r0 + 1).Top, 1.5, "par " & i & ": inicio acima da barra A"
+        AssertAlmost yB, s.Points(r0 + 5).Top, 1.5, "par " & i & ": ponta acima da barra B"
+        AssertAlmost IIf(yA < yB, yA, yB) - WFP_PT_RISE, s.Points(r0 + 3).Top, 1.5, "par " & i & ": linha 12 pt acima do inicio mais alto"
+        Set lbl = s.Points(r0 + 3).DataLabel
+        AssertEqual CStr(txt(i - 1)), lbl.Text, "par " & i
+        AssertAlmost s.Points(r0 + 3).Top, lbl.Top + lbl.Height / 2, 1.5, "par " & i & ": elipse centrada na linha"
+        AssertTrue lbl.Top >= cht.PlotArea.InsideTop - 0.5, "par " & i & ": elipse dentro da area"
+    Next
+    AssertAlmost YOf(cht, 0) - WFP_PT_GAP, s.Points(WFP_ROWS_PER_PAIR * 3 + 1).Top, 1.5, "total negativo: a seta sai 3 pt acima do zero"
+    CloseTemp wb
+End Sub
