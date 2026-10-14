@@ -1423,7 +1423,7 @@ End Function
 
 **Interfaces:**
 - Consumes (Tarefa 1): `AddXY`, `Wfp_StepCount`, `Wfp_SlotOf`, `WFP_COL_CXA/CYA/CLEN/CXB/CYB`, `WFP_META_HW`, `Wfp_SyncGap` (já chamada no refresh e em `ApplyOption "gap"`).
-- Produces: `Wfp_SetConnectors(cht, turnOn)` — apaga e recria `tqq_conn_a`/`tqq_conn_b` (n − 1 pontos cada, barra de erro X custom `CLen` passada em R1C1, sem ponta, cinza RGB(127,127,127), tracejada `msoLineDash`, 0,75 pt), grava `connectors`; com uma etapa só não cria séries (a opção fica gravada). `Wfp_Insert` passa a chamar `Wfp_SetConnectors cht, True` logo depois de `Wfp_SetNames cht`.
+- Produces: `Wfp_SetConnectors(cht, turnOn)` — apaga e recria `tqq_conn_a`/`tqq_conn_b` (n − 1 pontos cada, barra de erro X custom `CLen` passada em R1C1, sem ponta, cinza escuro RGB(89,89,89), tracejada `msoLineDash`, 0,75 pt), grava `connectors`; com uma etapa só não cria séries (a opção fica gravada). `Wfp_Insert` passa a chamar `Wfp_SetConnectors cht, True` logo depois de `Wfp_SetNames cht`.
 
 - [ ] **Passo 1: Testes (RED)** — acrescente a `tests/vba/core/TestWaterfallPair.bas`:
 
@@ -1541,7 +1541,7 @@ Public Sub Wfp_SetConnectors(cht As Chart, turnOn As Boolean)
         With s.ErrorBars
             .EndStyle = xlNoCap
             .Format.Line.Visible = msoTrue
-            .Format.Line.ForeColor.RGB = RGB(127, 127, 127)
+            .Format.Line.ForeColor.RGB = RGB(89, 89, 89)
             .Format.Line.DashStyle = msoLineDash
             .Format.Line.Weight = 0.75
         End With
