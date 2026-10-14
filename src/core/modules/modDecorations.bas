@@ -23,7 +23,7 @@ Private Const VLINE_PREFIX As String = "Média "         ' texto antes do numero
 ' fixa tirar a legenda nao devolvia o espaco) e as folgas, que so encolhem, sao refeitas por cima (Chart_EnsureRoomAfterChange:
 ' legenda a direita, totais, setas, fim da linha). Mesma opcao duas vezes da o mesmo resultado.
 Public Sub Deco_SetLegend(cht As Chart, mode As String)
-    Dim kind As String
+    Dim kind As String, prevMode As String, en As Long, es As String, ed As String
     Select Case mode
         Case "right", "none", "lineend", "inbar"
         Case Else: Err.Raise 5, "Deco_SetLegend", "Modo de legenda desconhecido: " & mode
@@ -46,9 +46,12 @@ Public Sub Deco_SetLegend(cht As Chart, mode As String)
     End If
     If Kinds_Family(kind) = "waterfallpair" Then
         ' Cascata comparativa: Direita (legenda), Nenhuma, Nome dentro das barras (nomes verticais na 1a barra; a legenda se nao couberem).
-        ' A opcao e gravada antes: Wfp_SyncNames a le.
+        ' A opcao e gravada antes (Wfp_SyncNames a le); se aplicar falhar, volta o valor anterior (o registro nunca fica diferente do grafico).
+        prevMode = Registry_GetOption(cht, "legend", "inbar")
         Registry_SetOption cht, "legend", mode
+        On Error GoTo WfpFail
         Wfp_SetLegend cht, mode
+        On Error GoTo 0
         On Error Resume Next
         cht.PlotArea.Position = xlChartElementPositionAutomatic
         If Err.Number <> 0 Then Errors_Log "Deco_SetLegend/PlotArea.Position" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
@@ -76,6 +79,14 @@ Public Sub Deco_SetLegend(cht As Chart, mode As String)
     If Err.Number <> 0 Then Errors_Log "Deco_SetLegend/PlotArea.Position" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     On Error GoTo 0
     Chart_EnsureRoomAfterChange cht
+    Exit Sub
+WfpFail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1                                 ' encerra o tratamento do erro: sem isso o Resume Next abaixo nao protegeria a restauracao
+    On Error Resume Next
+    Registry_SetOption cht, "legend", prevMode
+    On Error GoTo 0
+    Err.Raise en, es, ed
 End Sub
 
 ' Reaplica o nome no fim da linha quando a opcao e lineend (chamada no fim de Stacked_SetLabels: ligar/desligar os rotulos

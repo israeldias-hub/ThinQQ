@@ -977,6 +977,7 @@ Public Sub Wfp_SetLegend(cht As Chart, mode As String)
     Dim blk As Range
     Set blk = Registry_Block(cht)
     If blk Is Nothing Then Exit Sub
+    WfpTestHook "legend", mode
     SetMeta blk, WFP_META_NAMEON, IIf(mode = "inbar", 1, 0)
     Select Case mode
         Case "right": ShowLegend cht, True

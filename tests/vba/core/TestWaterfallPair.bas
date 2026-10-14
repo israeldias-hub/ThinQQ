@@ -286,6 +286,43 @@ Public Sub Test_Wfp_NamesInsideBars_And_LegendModes()
     Teardown wb
 End Sub
 
+' Deco_SetLegend (cascata comparativa) grava a opcao "legend" antes de aplicar; se aplicar falhar, a opcao volta ao valor anterior e o erro chega
+' ao chamador (contrato de ApplyOption: aplica e SO ENTAO grava). Gancho wfp-legend:right dentro de Wfp_SetLegend; zerado em todos os caminhos.
+Public Sub Test_Wfp_SetLegend_FailRestoresPreviousOption()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, s As Series, en As Long, es As String, ed As String
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    On Error GoTo Fail
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    cht.Refresh
+    AssertEqual "inbar", Registry_GetOption(cht, "legend"), "o padrao e 'dentro das barras'"
+    Set s = Chart_FindSeries(cht, "tqq_names")
+    AssertEqual "Segmento 1", s.Points(1).DataLabel.Text, "os nomes estao nas barras antes"
+    Util_FailThinSyncForTest = "wfp-legend:right"
+    On Error Resume Next
+    Deco_SetLegend cht, "right"
+    en = Err.Number
+    On Error GoTo Fail
+    Util_FailThinSyncForTest = ""
+    AssertEqual vbObjectError + 9996, en, "o erro chega ao chamador"
+    AssertEqual "inbar", Registry_GetOption(cht, "legend"), "a opcao continua a anterior"
+    AssertEqual 1, Util_ToDouble(Registry_Block(cht).Cells(1, WFP_META_NAMEON).Value), "os nomes continuam gerenciados"
+    cht.Refresh
+    AssertEqual "Segmento 1", s.Points(1).DataLabel.Text, "os nomes continuam nas barras"
+    AssertFalse cht.HasLegend, "sem legenda, como antes"
+    Deco_SetLegend cht, "right"                      ' sem o gancho a mesma troca funciona
+    cht.Refresh
+    AssertEqual "right", Registry_GetOption(cht, "legend")
+    AssertTrue cht.HasLegend: AssertEqual "", s.Points(1).DataLabel.Text, "Direita: sem nomes nas barras"
+    Util_FailThinSyncForTest = ""
+    Teardown wb
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    Util_FailThinSyncForTest = ""
+    Teardown wb
+    Err.Raise en, es, ed
+End Sub
+
 Public Sub Test_Wfp_CategoryLabels_TwoLevels_DateAndBlank()
     Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, body As Range
     Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
@@ -1150,7 +1187,7 @@ Public Sub Test_Wfp_Totals_PctToggle_And_NumFmt()
     d.Source.Select
     Core_Insert "waterfallpair"
     Set cht = Core_ActiveChart()
-    cht.Parent.Width = 760                           ' fatia de ~52 pt: "11,0 (41%)" (49 pt estimados) cabe sem tocar o vizinho
+    cht.Parent.Width = 800                           ' fatia de ~55 pt: "11,0 (41%)" (49 pt estimados) cabe sem tocar o vizinho (margem folgada)
     ForceLayout cht
     Core_SafeRefresh cht
     AssertTrue Wfp_TotalPctOn(cht): AssertTrue Core_GetToggle("totals")
@@ -1271,24 +1308,24 @@ Private Sub AssertTotalBoxesApart(cht As Chart, k As Long, tag As String)
 End Sub
 
 ' Totais vizinhos (os dois lados sao barras grandes) que se tocariam: so o valor nas duas fatias (LblOn = 0), o percentual volta quando cabe.
-' Medido (sonda): fixture a 300 x 220 e 380 x 240, caixas "11 (41%)" / "10 (34%)" sobrepostas 18,6 e 12,9 pt; 4 digitos a 460 x 280
+' Medido (sonda): fixture a 300 x 220 (o teste usa 320 x 220, com folga) e 380 x 240, caixas "11 (41%)" / "10 (34%)" sobrepostas 18,6 e 12,9 pt; 4 digitos a 460 x 280
 ' ("1.234 (62%)" / "1.230 (62%)"), 18,7 pt. O texto continua vivo sem o ThinQQ (so a coluna LblOn fica como esta).
 Public Sub Test_Wfp_Labels_TotalsCollide_ValueOnly()
     Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, lt As Series, a As DataLabel, b As DataLabel
     Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
     Set cht = Wfp_Insert(ws, d).Chart
-    cht.Parent.Width = 300: cht.Parent.Height = 220
+    cht.Parent.Width = 320: cht.Parent.Height = 220
     ForceLayout cht
     Core_SafeRefresh cht
     cht.Refresh
     AssertEqual 0, Util_ToDouble(BodyOf(cht).Cells(14, WFP_COL_LBLON).Value), "fatia 13 (total A): so o valor"
     AssertEqual 0, Util_ToDouble(BodyOf(cht).Cells(15, WFP_COL_LBLON).Value), "fatia 14 (total B): so o valor"
-    AssertEqual Format$(11, "#,##0"), LblText(cht, "tqq_lbltot", 13), "300 x 220: total A sem o percentual"
-    AssertEqual Format$(10, "#,##0"), LblText(cht, "tqq_lbltot", 14), "300 x 220: total B sem o percentual"
+    AssertEqual Format$(11, "#,##0"), LblText(cht, "tqq_lbltot", 13), "320 x 220: total A sem o percentual"
+    AssertEqual Format$(10, "#,##0"), LblText(cht, "tqq_lbltot", 14), "320 x 220: total B sem o percentual"
     AssertEqual Format$(27, "#,##0"), LblText(cht, "tqq_lbltot", 1), "inicio: cabe (16 pt)"
     ForceLayout cht
-    AssertTotalBoxesApart cht, 1, "300 x 220 (so o valor), inicio"
-    AssertTotalBoxesApart cht, 13, "300 x 220 (so o valor), liquido"
+    AssertTotalBoxesApart cht, 1, "320 x 220 (so o valor), inicio"
+    AssertTotalBoxesApart cht, 13, "320 x 220 (so o valor), liquido"
     ws.Range("B2").Value = 30                        ' sem o ThinQQ (so o calculo): o texto acompanha
     cht.Refresh
     AssertEqual Format$(14, "#,##0"), LblText(cht, "tqq_lbltot", 13), "vivo sem o ThinQQ"
