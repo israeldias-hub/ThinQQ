@@ -220,9 +220,11 @@ try {
     Assert ((Get-ItemProperty (Join-Path $regP $upSub)).PpamVersion -eq '1.2.3') 'PpamVersion gravada (o atualizador do Excel compara com pptAddinVersion)'
     Set-ItemProperty (Join-Path $regP $upSub) -Name PendingPpam -Value '1'
     Set-Content (Join-Path $rootP 'ThinQQ.ppam.new') 'velho'
+    Set-Content (Join-Path $rootP 'ThinQQ.ppam.old') 'sobra de troca interrompida'
     & $install -Root $rootP -RegistryRoot $regP -PackageDir $pkgP -SkipExcelCheck
     Assert ((Get-ItemProperty (Join-Path $regP $pptAddSub)).AutoLoad -eq 1) 'reinstalacao idempotente'
     Assert (-not (Test-Path (Join-Path $rootP 'ThinQQ.ppam.new'))) 'reinstalar descarta a pendencia antiga do atualizador'
+    Assert (-not (Test-Path (Join-Path $rootP 'ThinQQ.ppam.old'))) 'reinstalar limpa a sobra ThinQQ.ppam.old'
     Assert ($null -eq (Get-ItemProperty (Join-Path $regP $upSub)).PendingPpam) 'PendingPpam limpo'
     & $uninstall -Root $rootP -RegistryRoot $regP -SkipExcelCheck
     Assert (-not (Test-Path (Join-Path $regP $pptAddSub))) 'AddIns\ThinQQ removido'
@@ -246,6 +248,9 @@ try {
     Expect-Failure 'falha injetada (ppam)' { & $install -Root $rootY -RegistryRoot $regY -PackageDir $pkgP -SkipExcelCheck -SimulateFailureForTest } 'simulada'
     Assert (-not (Test-Path $rootY)) 'falha: nada fica'
     Assert (-not (Test-Path (Join-Path $regY $pptAddSub))) 'falha: sem AddIns'
+    Assert (-not (Test-Path (Join-Path $regY $pptTlSub))) 'falha (instalacao nova): sem local confiavel do PowerPoint'
+    $upY = Join-Path $regY $upSub
+    Assert ((-not (Test-Path $upY)) -or ($null -eq (Get-ItemProperty $upY).PpamVersion)) 'falha (instalacao nova): sem PpamVersion'
     # falha injetada numa REINSTALACAO: o ppam anterior volta e a PpamVersion antiga e restaurada
     $regZ = New-Reg; $rootZ = Join-Path $tmp 'rz\ThinQQ'
     & $install -Root $rootZ -RegistryRoot $regZ -PackageDir $pkgP -SkipExcelCheck
@@ -260,6 +265,28 @@ try {
     & $install -Root $rootZ -RegistryRoot $regZ -PackageDir $pkgP2 -SkipExcelCheck
     Assert ((Get-Content (Join-Path $rootZ 'ThinQQ.ppam') -Raw).Trim() -eq 'ppam-novo') 'reinstalacao troca o ppam'
     Assert ((Get-ItemProperty (Join-Path $regZ $upSub)).PpamVersion -eq '1.9.9') 'PpamVersion nova'
+    # .ppam instalado EM USO (PowerPoint aberto): a reinstalacao falha com orientacao clara e deixa tudo como estava.
+    # FileShare.None: nem a copia de seguranca consegue ler; FileShare.Read: le, mas a troca falha DEPOIS de loader e core terem sido movidos (exercita o desfazer).
+    $pkgL = New-Pkg 'pkgL' 'loader-l' -WithPpam
+    Set-Content (Join-Path $pkgL 'ThinQQ.core.xlam') 'core-l'
+    Set-Content (Join-Path $pkgL 'ThinQQ.ppam') 'ppam-l'
+    @{ coreVersion = '1.2.3'; loaderVersion = '1.0.0'; manifestUrl = 'https://exemplo/manifest.json'; pptAddinVersion = '1.7.7'
+       coreSha256 = (Sha $pkgL 'ThinQQ.core.xlam'); loaderSha256 = (Sha $pkgL 'ThinQQ.xlam'); pptAddinSha256 = (Sha $pkgL 'ThinQQ.ppam') } | ConvertTo-Json | Set-Content (Join-Path $pkgL 'manifest.json')
+    $ppamZ = Join-Path $rootZ 'ThinQQ.ppam'; $loaderZ = Join-Path $rootZ 'ThinQQ.xlam'; $coreZ = Join-Path $rootZ 'versions\1.2.3\ThinQQ.core.xlam'
+    foreach ($share in @('None', 'Read')) {
+        $shaBefore = @{ ppam = (Sha $rootZ 'ThinQQ.ppam'); loader = (Sha $rootZ 'ThinQQ.xlam'); core = (Sha $rootZ 'versions\1.2.3\ThinQQ.core.xlam') }
+        $lock = [IO.File]::Open($ppamZ, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]$share)
+        try {
+            Expect-Failure "reinstalar com o ppam em uso (FileShare.$share)" { & $install -Root $rootZ -RegistryRoot $regZ -PackageDir $pkgL -SkipExcelCheck } 'Feche o PowerPoint'
+        } finally { $lock.Dispose() }
+        Assert ((Sha $rootZ 'ThinQQ.ppam') -eq $shaBefore.ppam) "ppam em uso ($share): conteudo nao mudou"
+        Assert ((Sha $rootZ 'ThinQQ.xlam') -eq $shaBefore.loader) "ppam em uso ($share): loader voltou ao estado anterior"
+        Assert ((Sha $rootZ 'versions\1.2.3\ThinQQ.core.xlam') -eq $shaBefore.core) "ppam em uso ($share): core voltou ao estado anterior"
+        Assert ((Get-ItemProperty (Join-Path $regZ $upSub)).PpamVersion -eq '1.9.9') "ppam em uso ($share): PpamVersion intacta"
+        Assert (-not (Test-Path (Join-Path $rootZ '_staging'))) "ppam em uso ($share): staging limpo"
+    }
+    & $install -Root $rootZ -RegistryRoot $regZ -PackageDir $pkgL -SkipExcelCheck
+    Assert ((Get-Content $ppamZ -Raw).Trim() -eq 'ppam-l') 'liberado o arquivo, a reinstalacao troca o ppam'
     # o desinstalador remove SO as chaves do ThinQQ: outros suplementos e locais confiaveis do PowerPoint sobrevivem
     $otherAdd = Join-Path $regZ 'Microsoft\Office\16.0\PowerPoint\AddIns\Outro'
     $otherTl = Join-Path $regZ 'Microsoft\Office\16.0\PowerPoint\Security\Trusted Locations\LocationOutro'

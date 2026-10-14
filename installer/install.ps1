@@ -58,6 +58,10 @@ if ($withPpam) {
 $ppamDest = Join-Path $Root 'ThinQQ.ppam'
 $hadPpam = Test-Path -LiteralPath $ppamDest
 $ppamMoved = $false
+# Copia/troca do .ppam: se o arquivo instalado estiver em uso (PowerPoint aberto), a falha vira uma orientacao clara (o desfazer restaura o resto)
+function Invoke-PpamStep([scriptblock]$Step) {
+    try { & $Step } catch { throw 'Feche o PowerPoint (o suplemento ThinQQ está em uso) e rode o instalador de novo.' }
+}
 
 # Versao do loader gravada no arquivo (propriedade Comentarios: "ThinQQ loader x.y.z (Release)"); $null se ilegivel
 function Get-LoaderFileVersion([string]$Path) {
@@ -116,12 +120,12 @@ try {
     if ($hadLoader) { Copy-Item -LiteralPath $loaderDest -Destination (Join-Path $undoDir 'loader') -Force; Copy-Item -LiteralPath $loaderDest -Destination $bak -Force }
     if ($hadCore) { Copy-Item -LiteralPath (Join-Path $verDir 'ThinQQ.core.xlam') -Destination (Join-Path $undoDir 'core') -Force }
     if ($hadTut) { Copy-Item -LiteralPath (Join-Path $verDir 'tutorial.html') -Destination (Join-Path $undoDir 'tut') -Force }
-    if ($hadPpam) { Copy-Item -LiteralPath $ppamDest -Destination (Join-Path $undoDir 'ppam') -Force }
+    if ($hadPpam) { Invoke-PpamStep { Copy-Item -LiteralPath $ppamDest -Destination (Join-Path $undoDir 'ppam') -Force } }
 
     Move-Item -LiteralPath (Join-Path $stage 'ThinQQ.xlam') -Destination $loaderDest -Force; $loaderMoved = $true
     Move-Item -LiteralPath (Join-Path $stage 'ThinQQ.core.xlam') -Destination $verDir -Force; $coreMoved = $true
     if (Test-Path -LiteralPath (Join-Path $stage 'tutorial.html')) { Move-Item -LiteralPath (Join-Path $stage 'tutorial.html') -Destination $verDir -Force; $tutMoved = $true }
-    if ($withPpam) { Move-Item -LiteralPath (Join-Path $stage 'ThinQQ.ppam') -Destination $ppamDest -Force; $ppamMoved = $true }
+    if ($withPpam) { Invoke-PpamStep { Move-Item -LiteralPath (Join-Path $stage 'ThinQQ.ppam') -Destination $ppamDest -Force }; $ppamMoved = $true }
 
     # --- Local confiavel (macros permitidas sem aviso) ---
     $tl = Join-Path $RegistryRoot 'Microsoft\Office\16.0\Excel\Security\Trusted Locations\LocationThinQQ'
@@ -162,6 +166,8 @@ try {
         # pendencia antiga do atualizador (ThinQQ.ppam.new) perde o sentido: o ZIP acabou de instalar a versao dele
         foreach ($n in @('PendingPpam', 'PendingPpamSha256', 'PendingPpamVersion')) { Remove-ItemProperty -LiteralPath $upk -Name $n -ErrorAction SilentlyContinue }
         Remove-Item -LiteralPath ($ppamDest + '.new') -Force -ErrorAction SilentlyContinue
+        # sobra de troca interrompida do atualizador (ThinQQ.ppam.old)
+        Remove-Item -LiteralPath ($ppamDest + '.old') -Force -ErrorAction SilentlyContinue
     }
     if ($SimulateFailureForTest) { throw 'Falha simulada (teste).' }
 
