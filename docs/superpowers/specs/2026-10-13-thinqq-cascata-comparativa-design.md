@@ -180,8 +180,13 @@ Conectores). Tabela de uma etapa: sem conectores.
 - `tqq_pdroom`: XY invisível com um ponto 12 pt acima de cada elipse: a escala automática deixa a sala da elipse (§3.1).
 - **Calibração `PtV`** (`Wfp_RefreshRoom`, em todo refresh e no fim de `Chart_EnsureRoomAfterChange`): `PtV = (máximo − mínimo do eixo) /
   InsideHeight`; grava só se mudou mais de 2%; no máximo 3 passadas; cálculo manual recalcula o bloco (`Range.Calculate`); guarda de reentrada
-  (gravar dispara o Calculate do gráfico, que volta ao refresh). Medido: converge em 1 gravação (§3.3). Teto: as 3 passadas; com o eixo fixo
-  (Mesma escala) a primeira já é exata. Sem o ThinQQ, `PtV` fica: as setas continuam vivas, só o afastamento em pontos varia com o tamanho.
+  (gravar dispara o Calculate do gráfico, que volta ao refresh). Medido: converge em 1 gravação nos dois conjuntos de dados da §3.3, mas reduzir a
+  altura do gráfico pede 2 ou 3 (o eixo automático sobe de 5 em 5 ou de 10 em 10). Teto: as 3 passadas (a 4.ª leitura só confere a última; o log
+  de "sem convergência" só quando ela não bastou); com o eixo fixo (Mesma escala) a primeira já é exata.
+  **Limite de 92 pt:** com o máximo automático e área interna menor que 2 × (22 + 12 + 12) = 92 pt a sala das setas (até 46 pt acima dos dados) não
+  tem ponto fixo (medido: 460 × 110, área de 48 pt, eixo de 40 a 400, 1500, 6000 em três refresh); a calibração não corre e `PtV` mantém o último
+  valor (as setas só encolhem em pontos; log só se calibraria). Com o máximo fixo (Mesma escala ou a mão) a sala não mexe no eixo e calibra
+  normalmente, mesmo em gráfico baixo. Sem o ThinQQ, `PtV` fica: as setas continuam vivas, só o afastamento em pontos varia com o tamanho.
 - Texto: percentual `(B − A) / A` arredondado a inteiro com sinal ("+75%"), "n/d" se A = 0 ou A·B < 0; com **Variação em valor** (`pairabs=1`,
   meta `Abs`): `B − A` com sinal no formato do gráfico (`Div`/`Dec`; nos formatos percentuais o sufixo é " p.p."). Nos dois modos,
   "n/d" quando um lado da etapa é barra grande (início ou total) e o outro é degrau (o fim acumulado não se compara com um degrau).

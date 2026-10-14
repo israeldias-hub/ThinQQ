@@ -136,7 +136,7 @@ Limites: sem o Windows SDK e as SIPs a assinatura automática não roda (o scrip
 
 **Fase 3 (1.2.0)**
 
-- Três tipos novos no menu Mais tipos (a faixa passa a oferecer 20 tipos): **Borboleta** (duas séries espelhadas, com os nomes no centro e os totais no fim da barra direita), **Dispersão** e **Bolhas** (uma série por grupo, nomes por ponto, Linha de tendência e Quadrantes (médias)).
+- Três tipos novos no menu Mais tipos (a faixa passou a oferecer 20 tipos, e 21 com a cascata comparativa da 1.3.0): **Borboleta** (duas séries espelhadas, com os nomes no centro e os totais no fim da barra direita), **Dispersão** e **Bolhas** (uma série por grupo, nomes por ponto, Linha de tendência e Quadrantes (médias)).
 - **Rótulos com soma consistente** (os rótulos dos segmentos somam exatamente o total mostrado: 34% + 33% + 33% = 100%) e **Arredondar intervalo...** (a mesma conta numa tabela comum, em fórmulas da planilha que não dependem do ThinQQ, em até 1.000 células).
 - **Corte de eixo...** em colunas e barras empilhadas e agrupadas: a coluna gigante é cortada, com marca de corte, e o total real continua no rótulo.
 - Menu **PowerPoint**: Copiar como imagem e Copiar como gráfico vinculado (a esta pasta de trabalho) no slide da janela ativa do PowerPoint.
@@ -145,13 +145,17 @@ Limites: sem o Windows SDK e as SIPs a assinatura automática não roda (o scrip
 - Acertos de aparência: eixos da dispersão no formato da origem e apertados em volta dos dados, pizza e rosca com até 10 cores, linha da combinação acima dos totais, formato inicial dos rótulos pela primeira célula de valor, rótulos das pontas da área e das barras finas da borboleta.
 - Seção **Instalação** completa (passo a passo, atualizações, desinstalação, problemas comuns, repositório privado) e roteiro para a TI.
 
-### Galeria de gráficos (1.2.0)
+**Cascata comparativa (1.3.0)**
+
+- **Cascata comparativa** (ThinQQ > Cascata > Cascata comparativa): duas pontes lado a lado, uma por série (ex.: 2024 x 2025), com conectores por série, uma seta de variação em cotovelo entre as duas barras de cada etapa com `(B - A) / A` numa elipse (ou `n/d` com o primeiro valor zero ou sinais opostos; ThinQQ > Setas > Variação em valor mostra a diferença), totais com o percentual do primeiro total ("11 (41%)") e os nomes das séries dentro das barras (ThinQQ > Legenda > Nome dentro das barras) ou na legenda. Tudo em séries nativas ligadas a fórmulas: acompanha os números mesmo sem o ThinQQ; só o afastamento das setas e os rótulos finos são recalculados por ele.
+
+### Galeria de gráficos (1.3.0)
 
 | Menu | Tipos | Tabela de origem |
 |---|---|---|
 | Colunas | Colunas empilhadas, Colunas agrupadas, Colunas 100% | cabeçalho, categorias na 1ª coluna e uma coluna de valores por série |
 | Barras | Barras empilhadas, Barras agrupadas, Barras 100% | a mesma das colunas |
-| Cascata | Cascata (colunas), Cascata (barras) | etapa e 1 a 6 colunas de valores; `e` marca um total |
+| Cascata | Cascata (colunas), Cascata (barras), Cascata comparativa | etapa e 1 a 6 colunas de valores (a comparativa: exatamente 2); `e` marca um total |
 | Linha e área | Linha, Área empilhada, Área 100%, Combinação (colunas + linha) | a mesma das colunas; a combinação precisa de 2 ou mais colunas de valores |
 | Mais tipos | Mekko (%), Mekko (unidades), Gantt, Pizza, Rosca, Borboleta, Dispersão, Bolhas | Mekko (unidades): 2ª coluna = largura; Gantt: atividade, início, fim; pizza e rosca: categorias e uma coluna de valores; borboleta: categorias e exatamente 2 colunas de valores; dispersão: nome, X, Y e grupo opcional; bolhas: nome, X, Y, tamanho e grupo opcional |
 
@@ -390,6 +394,9 @@ cada tipo e a matriz de capacidades: `docs/superpowers/specs/2026-10-11-thinqq-f
 Fase 3 (1.2.0): pesquisa, sondas em Excel e PowerPoint reais, decisões e matriz 20 x 20 em
 `docs/superpowers/specs/2026-10-11-thinqq-fase3-design.md`. Plano de execução: `docs/superpowers/plans/2026-10-11-thinqq-fase3.md`.
 
+Cascata comparativa (1.3.0): decisões e medições em Excel real em
+`docs/superpowers/specs/2026-10-13-thinqq-cascata-comparativa-design.md`. Plano de execução: `docs/superpowers/plans/2026-10-13-thinqq-cascata-comparativa.md`.
+
 ## Verificações manuais no Excel real
 
 Os testes automáticos usam um Excel invisível; estas verificações precisam de uma sessão de Excel real (depois de `Instalar-ThinQQ.cmd` ou de `build.ps1 -Install`), com uma tabela 4x3 com cabeçalho para os itens 1 a 11 e as tabelas de exemplo de cada tipo (planilhas "Exemplos 2" e "Exemplos 3") para os demais:
@@ -430,11 +437,12 @@ Os testes automáticos usam um Excel invisível; estas verificações precisam d
 34. PowerPoint, gráfico vinculado (pasta salva): o gráfico colado é do PowerPoint, Arquivo > Informações > Editar Links para Arquivos (em versões mais antigas, Editar Vínculos com Arquivos) mostra a pasta, as setas de CAGR vêm junto; mudar um valor no Excel, salvar e, com o gráfico selecionado, Design do Gráfico > Atualizar Dados atualiza o gráfico; Quebrar Vínculo incorpora os dados; renomear o arquivo do Excel quebra o vínculo.
 35. PowerPoint, avisos: com alterações não salvas o aviso acrescenta a nota da pasta; numa pasta nova o aviso pede para salvar e nada é colado; com a área de transferência ocupada por outro programa o aviso pede para tentar de novo; com o PowerPoint em edição de texto o aviso diz que ele está ocupado; sem o PowerPoint instalado o aviso diz que ele não está instalado; com uma célula selecionada o menu PowerPoint fica cinza.
 36. PowerPoint, segurança: depois de qualquer cópia, o PowerPoint e as apresentações que já estavam abertas continuam abertas e intactas; o que o ThinQQ criou (a apresentação nova) fica aberto para você; rodar `pwsh build/run-tests.ps1 -Target core -Filter PowerPoint` com nenhum PowerPoint aberto (os testes reais criam o deles e o fecham; a colagem substitui a área de transferência).
-37. Ícones próprios: os controles com ícone do ThinQQ (Colunas, Barras, Cascata, Linha e área, Mais tipos, Borboleta, Dispersão, Bolhas, Mais opções, Rótulos com soma consistente, Linha de tendência, Quadrantes (médias), Corte de eixo..., Arredondar intervalo..., Setas e PowerPoint) desenham o próprio ícone, nenhum em branco (confira também com os itens cinza).
+37. Ícones próprios: os controles com ícone do ThinQQ (Colunas, Barras, Cascata, Cascata comparativa, Linha e área, Mais tipos, Borboleta, Dispersão, Bolhas, Mais opções, Rótulos com soma consistente, Linha de tendência, Quadrantes (médias), Corte de eixo..., Arredondar intervalo..., Setas (com Setas de variação e Variação em valor) e PowerPoint) desenham o próprio ícone, nenhum em branco (confira também com os itens cinza).
 38. Pasta de demonstração: abrir `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` do ZIP, com e sem o ThinQQ instalado: a primeira aba é o índice, cada nome leva ao exemplo e "Voltar ao índice" (A1) volta; os 28 exemplos mostram o que a legenda diz; sem macros e sem aviso de vínculo externo.
 39. Instalação pelo ZIP num perfil limpo: o ZIP traz a pasta `exemplos`, `Instalar-ThinQQ.cmd` conclui e o Excel abre com a aba ThinQQ; ThinQQ > Verificar atualizações informa a versão; `uninstall.ps1` deixa o perfil como estava.
 40. Com um core 1.1.0 e o loader 1.2.0 (ou um core de teste antigo), Arredondar intervalo... e o menu PowerPoint (com um gráfico selecionado) respondem "Atualize o ThinQQ para usar este recurso." em vez de não fazer nada.
 41. Assinatura (TI): com um certificado de teste de `tools/New-ThinQQCert.ps1` (e depois remover o certificado pelo `certmgr.msc`), assinar um `.xlam` pelo Editor do VBA (Ferramentas > Assinatura Digital) e abri-lo; em uma máquina com Windows SDK e Office SIPs, rodar `tools/Sign-ThinQQ.ps1` (ainda não foi executado ponta a ponta) e conferir o resultado no Excel.
+42. Cascata comparativa com a tabela da imagem do think-cell (Bruto 27/29 até Líquido e/e): ThinQQ > Cascata > Cascata comparativa mostra as duas pontes, as elipses +7%, +75%, -67%, +67%, -9%, "11 (41%)" e "10 (34%)" e os nomes dentro das barras; ThinQQ > Setas > Variação em valor troca as elipses pela diferença; Legenda > Direita troca os nomes pela legenda; redimensionar mantém as setas acima dos rótulos; abrir a pasta sem o ThinQQ e mudar um número muda as elipses.
 
 ## Limitações conhecidas
 
@@ -445,6 +453,7 @@ Os detalhes de cada tipo estão na seção "Limitações" do tutorial.
 - Cópias de gráficos do ThinQQ e gráficos movidos para planilha de gráfico mantêm os dados, mas deixam de ser reconhecidos como gráficos do ThinQQ (sem botões nem setas automáticas).
 - Copiar uma planilha inteira (Mover ou copiar > Criar uma cópia) copia o gráfico com o mesmo nome: a cópia divide o bloco e as opções com o original e as séries auxiliares (totais, rótulos) continuam na tabela original. O ThinQQ avisa uma vez ao abrir a planilha copiada; use Alterar dados no gráfico da cópia para separá-lo.
 - Somente Excel para Windows, Office 16.0; sem Mac nem Excel na web. A compatibilidade com Excel 64 bits é por construção (sem `Declare`), ainda não verificada em teste.
+- **Cascata comparativa:** exatamente 2 séries (mais de 2 séries lado a lado não existe); só na vertical; com o primeiro valor zero ou sinais opostos a seta mostra n/d (percentual (B - A) / A); o afastamento das setas e os rótulos finos só se recalculam com o ThinQQ; os conectores passam por cima da barra da outra série. Em gráfico muito estreito ou com cerca de 60 etapas as elipses das setas podem se sobrepor (desligue as setas de variação); com menos de cerca de 92 pt de altura útil e escala automática a reserva de espaço das setas não é recalibrada; com Mesma escala, um gráfico parceiro que estende o mínimo para baixo (ou um gráfico baixo) pode cortar as setas do topo (use Escala automática ou desligue as setas). O percentual do primeiro total só aparece em gráfico largo (cerca de 600 pt com 5 etapas, 800 a 840 pt com 7, para um percentual de 1 dígito) e rótulos de total vizinhos podem se sobrepor em gráfico estreito ou com números de 5 ou mais dígitos (desligue Totais ou alargue o gráfico).
 - Cascata com no máximo 6 séries. Pizza e rosca usam só a primeira coluna de valores; valores negativos, zero, texto e erros viram fatias vazias. As cores se repetem a partir da 11.ª fatia (a paleta tem 10 cores).
 - A seta de diferença não existe em gráficos 100%, Mekko, pizza e Gantt; a seta CAGR não existe em Mekko, pizza e Gantt; o colchete só existe no Gantt.
 - Mesma escala é uma escala fixa, não dinâmica: depois de mudar muito os dados, use de novo ou Escala automática; um ajuste manual do eixo é desfeito no próximo cálculo ou redimensionamento. Gráficos 100%, Mekko (%), pizza, rosca, dispersão, bolhas, Gantt e gráficos com corte de eixo não entram. Mesma escala entre uma borboleta e gráficos de outro tipo tira a borboleta do centro (use só entre borboletas). Com um só gráfico selecionado (ou nenhum), a Mesma escala vale para todos os gráficos ThinQQ da planilha.

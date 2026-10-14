@@ -199,6 +199,8 @@ if ($parsed) {
     }
     Check ($allKinds.Count -eq 21) "21 tipos de gráfico em modChartKinds.bas ($($allKinds.Count))"
     Check ($matrix.Count -eq 23) "23 recursos na matriz de capacidades de modChartKinds.bas ($($matrix.Count))"
+    $nk = $allKinds.Count
+    Check ($html -match "\b$nk tipos" -and $html -notmatch "\b$($nk - 1) tipos") "tutorial cita os $nk tipos (e nenhum '$($nk - 1) tipos')"
     # Rótulo de cada recurso: Kinds_FeatureLabel (modChartKinds.bas) ou, nos que ela não cobre, o controle da faixa que o aciona
     $featureLabel = @{}
     foreach ($m in [regex]::Matches($kindsSrc, 'Case "(?<f>[a-z0-9]+)":\s*Kinds_FeatureLabel = "(?<l>[^"]*)"')) { $featureLabel[$m.Groups['f'].Value] = $m.Groups['l'].Value }
@@ -394,7 +396,11 @@ $messages = @(
     ' já têm conteúdo. Substituir? Esta ação não pode ser desfeita.',
     'A planilha de destino está protegida sem a permissão de formatar células: desproteja-a ou escolha um destino em outra planilha.',
     'células; o Arredondar intervalo aceita no máximo ',
-    'O gráfico saiu do grupo de Mesma escala: corte de eixo e Mesma escala são excludentes.'
+    'O gráfico saiu do grupo de Mesma escala: corte de eixo e Mesma escala são excludentes.',
+    'As setas de variação passam do máximo da escala fixa (Mesma escala) e ficam cortadas. Use ''Escala automática'' ou desligue as setas de variação.',
+    'A cascata comparativa precisa de exatamente 2 colunas de valores (uma por série); a tabela tem só 1.',
+    'A cascata comparativa compara exatamente 2 séries; a tabela tem ',
+    ' colunas de valores. Selecione a coluna das etapas e só as duas colunas a comparar.'
 )
 foreach ($msg in $messages) {
     Check ($html -match [regex]::Escape($msg)) "tutorial cita a mensagem '$msg'"
@@ -450,6 +456,18 @@ $mustDocument = [ordered]@{
     'copiar a planilha: avisa uma vez e usa Alterar dados na cópia'  = @('both', 'Alterar dados')
     'assinatura: o ramo signtool + SIPs não rodou ponta a ponta'     = @('both', 'ponta a ponta')
     'assinatura: roteiro manual pelo VBE (Ferramentas > Assinatura Digital)' = @('both', 'Assinatura Digital')
+    'comparativa: percentual (B - A) / A'                            = @('both', '(B - A) / A')
+    'comparativa: n/d com zero ou sinais opostos'                    = @('both', 'sinais opostos')
+    'comparativa: conectores atravessam a barra da outra série'      = @('tutorial', 'atravessam a barra da outra série')
+    'comparativa: afastamento das setas só com o ThinQQ'             = @('both', 'afastamento das setas')
+    'comparativa: sem cálculo de trás para frente'                   = @('tutorial', 'não calcula para trás')
+    'comparativa: no máximo 2 séries'                                = @('both', 'mais de 2 séries')
+    'comparativa: elipses das setas se sobrepõem em gráfico estreito' = @('both', 'elipses das setas podem se sobrepor')
+    'comparativa: sem recalibração com menos de 92 pt'               = @('both', '92 pt')
+    'comparativa: Mesma escala pode cortar as setas do topo'         = @('both', 'cortar as setas do topo')
+    'comparativa: total negativo mostra o percentual com sinal'      = @('tutorial', '(-50%)')
+    'comparativa: o percentual dos totais volta ao alargar'          = @('tutorial', 'volta sozinho')
+    'comparativa: rótulos de total vizinhos podem se sobrepor'       = @('both', 'ou alargue o gráfico')
 }
 foreach ($k in $mustDocument.Keys) {
     $scope = $mustDocument[$k][0]; $phrase = $mustDocument[$k][1]

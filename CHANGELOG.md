@@ -4,6 +4,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+### Adicionado
+- Cascata comparativa (menu Cascata): duas pontes lado a lado, uma por série, com conectores tracejados por série, uma seta de variação em cotovelo entre as duas barras de cada etapa (`(B - A) / A` numa elipse; `n/d` com o primeiro valor zero ou sinais opostos; ou a diferença em valor pelo alternador Setas > Variação em valor), totais com o percentual do primeiro total da série ("11 (41%)") e os nomes das séries dentro das barras da primeira etapa (Legenda > Nome dentro das barras; quando não cabem, a legenda). Exatamente 2 colunas de valores; marcadores `e`, `t`, `=`, `total`, `subtotal`. Tudo em séries nativas ligadas ao bloco da `_ThinQQ`: barras, conectores, setas e textos acompanham os números mesmo sem o ThinQQ.
+- Exemplo 27 em ThinQQ > Exemplos (planilha Exemplos 3) e exemplos E27 e E28 na pasta de demonstração, com as imagens na galeria do tutorial.
+
+### Alterado
+- Faixa de opções: Cascata ganha "Cascata comparativa" (ícone próprio); Setas ganha "Setas de variação" e "Variação em valor"; Legenda ganha "Nome dentro das barras"; o alternador Totais, na cascata comparativa, liga o percentual do primeiro total. A matriz de capacidades passa a 21 tipos x 23 recursos.
+
 ### Corrigido
 - Atualização pelo Excel: o download dos arquivos da release do GitHub parava com "Falha ao atualizar: O servidor de atualização respondeu com erro. HTTP 0 ao acessar https://github.com/.../ThinQQ.core.xlam". O GitHub redireciona (302) o download para outro domínio (`release-assets.githubusercontent.com`) e o `MSXML2.XMLHTTP` do carregador bloqueia esse redirecionamento. O carregador continua tentando primeiro o `MSXML2.XMLHTTP` (respeita o proxy e o script de configuração automática do Windows) e, numa falha de transporte (exceção, HTTP 0 ou erro de rede 12xxx), repete a mesma requisição com `MSXML2.ServerXMLHTTP`, que segue o redirecionamento, usando o proxy fixo do usuário (`ProxyServer`/`ProxyOverride` de Internet Settings); script de configuração automática (PAC) não é usado nessa segunda tentativa. Respostas HTTP de erro (404, 500...) não disparam a segunda tentativa; se as duas falharem, a mensagem traz as duas causas. O log do carregador registra qual caminho baixou. Quem tem a 1.2.0, 1.2.1 ou 1.2.2 precisa reinstalar uma vez pelo ZIP da 1.2.3 (o carregador antigo não consegue baixar a atualização).
 - Testes: o servidor HTTP de teste (`tests/http/server.js`) ganhou as rotas `/redir-host/` (302 entre `127.0.0.1` e `localhost`, como o GitHub) e `/redir-same/`; testes novos do transporte com a reserva, o 404 sem reserva, as duas falhas e a escolha do proxy a partir de valores.
