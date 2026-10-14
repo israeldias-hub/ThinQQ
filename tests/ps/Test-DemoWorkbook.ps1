@@ -222,7 +222,9 @@ try {
         $la = 0.0; $lb = 0.0; foreach ($rr in 7, 8, 9, 11, 12) { $la += [double]$e27.Cells.Item($rr, 2).Value2; $lb += [double]$e27.Cells.Item($rr, 3).Value2 }
         $pd = $null; foreach ($sr in $c27.SeriesCollection()) { if ([string]$sr.Name -eq 'tqq_pd') { $pd = $sr } }
         Check ($null -ne $pd) 'E27: setas de variacao (tqq_pd)'
-        if ($null -ne $pd -and $la -ne 0 -and $la * $lb -gt 0) {
+        $okE27 = ($la -ne 0 -and $la * $lb -gt 0)
+        Check $okE27 'E27: lucro com mesmo sinal'
+        if ($null -ne $pd -and $okE27) {
             $r = [Math]::Round(100 * ($lb - $la) / $la, [MidpointRounding]::AwayFromZero)
             $want = $(if ($r -gt 0) { '+' } else { '' }) + ([string][int]$r) + '%'
             $got = [string]$pd.Points(39).DataLabel.Text

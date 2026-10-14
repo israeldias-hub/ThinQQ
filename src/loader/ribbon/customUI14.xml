@@ -167,10 +167,10 @@
                     getEnabled="Rx_GetEnabled" screentip="Colchete sobre uma ou mais atividades do Gantt, com o seu período"/>
             <toggleButton id="tglPairDiff" label="Setas de variação" image="tqq_arrows16" tag="pairdiff"
                           onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
-                          screentip="Setas de variação (cascata comparativa)" supertip="Na cascata comparativa, uma seta em cotovelo da barra da 1ª série para a da 2ª em cada etapa, com a variação numa elipse: (B - A) / A em %, ou n/d quando A é zero ou os sinais são opostos."/>
+                          screentip="Setas de variação (cascata comparativa)" supertip="Na cascata comparativa, uma seta em cotovelo da barra da 1ª série para a da 2ª em cada etapa, com a variação numa elipse: (B - A) / A em %, ou n/d quando A é zero, os sinais são opostos ou um lado é total e o outro é degrau. As setas já vêm ligadas por padrão; desligue-as aqui."/>
             <toggleButton id="tglPairAbs" label="Variação em valor" image="tqq_waterfallpair16" tag="pairabs"
                           onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
-                          screentip="Variação em valor (cascata comparativa)" supertip="As setas de variação mostram a diferença B - A no formato dos números do gráfico (com Formato em %, em pontos percentuais) em vez do percentual."/>
+                          screentip="Variação em valor (cascata comparativa)" supertip="Só muda o texto das setas de variação, que continuam ligadas: em vez do percentual, mostram a diferença B - A no formato dos números do gráfico (com Formato em %, em pontos percentuais). Aparece n/d só quando um lado da etapa é total e o outro é degrau."/>
             <menuSeparator id="msepArrows"/>
             <button id="btnRemoveAnn" label="Remover setas" imageMso="Delete" onAction="Rx_OnRemoveAnnotations"
                     getEnabled="Rx_GetEnabled" screentip="Remove todas as setas e colchetes do gráfico selecionado"/>
