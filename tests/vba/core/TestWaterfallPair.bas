@@ -982,6 +982,11 @@ Public Sub Test_Wfp_Labels_StepsCenterTotalsAbove()
     AssertEqual "", LblText(cht, "tqq_lbl_a", 1), "barra grande: sem rotulo de degrau"
     AssertEqual "", LblText(cht, "tqq_lbl_a", 3), "vao"
     AssertEqual Format$(27, "#,##0"), LblText(cht, "tqq_lbltot", 1), "barra inicial: so o valor"
+    AssertEqual Format$(11, "#,##0"), LblText(cht, "tqq_lbltot", 13), "460 x 280: os totais do par se tocariam (41 pt numa fatia de 31): so o valor"
+    cht.Parent.Width = 720                           ' fatia de ~50 pt: o percentual cabe
+    ForceLayout cht
+    Core_SafeRefresh cht
+    cht.Refresh
     AssertEqual Format$(11, "#,##0") & " (" & Format$(41, "0") & "%)", LblText(cht, "tqq_lbltot", 13), "total A: valor e % do 1o total (11 / 27)"
     AssertEqual Format$(10, "#,##0") & " (" & Format$(34, "0") & "%)", LblText(cht, "tqq_lbltot", 14), "total B (10 / 29)"
     Set la = Chart_FindSeries(cht, "tqq_lbl_a"): Set lt = Chart_FindSeries(cht, "tqq_lbltot")
@@ -1042,6 +1047,9 @@ Public Sub Test_Wfp_Totals_PctToggle_And_NumFmt()
     d.Source.Select
     Core_Insert "waterfallpair"
     Set cht = Core_ActiveChart()
+    cht.Parent.Width = 760                           ' fatia de ~52 pt: "11,0 (41%)" (49 pt estimados) cabe sem tocar o vizinho
+    ForceLayout cht
+    Core_SafeRefresh cht
     AssertTrue Wfp_TotalPctOn(cht): AssertTrue Core_GetToggle("totals")
     Core_SetToggle "totals", False
     cht.Refresh
@@ -1112,6 +1120,8 @@ Public Sub Test_Wfp_Labels_FailMidway_RollsBack()
     Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
     Registry_SetOption cht, "legend", "right"
     Wfp_SetLegend cht, "right"
+    cht.Parent.Width = 760                           ' o percentual cabe ao lado do vizinho com a legenda a direita
+    ForceLayout cht
     Wfp_SetLabels cht, False
     base = cht.SeriesCollection.Count
     For Each prevOn In Array(True, False)
@@ -1148,4 +1158,108 @@ Fail:
     Util_FailThinSyncForTest = ""
     CloseTemp wb
     Err.Raise en, es, ed
+End Sub
+
+' Totais vizinhos (os dois lados sao barras grandes) que se tocariam: so o valor nas duas fatias (LblOn = 0), o percentual volta quando cabe.
+' Medido (sonda): fixture a 300 x 220 e 380 x 240, caixas "11 (41%)" / "10 (34%)" sobrepostas 18,6 e 12,9 pt; 4 digitos a 460 x 280
+' ("1.234 (62%)" / "1.230 (62%)"), 18,7 pt. O texto continua vivo sem o ThinQQ (so a coluna LblOn fica como esta).
+Public Sub Test_Wfp_Labels_TotalsCollide_ValueOnly()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, lt As Series, a As DataLabel, b As DataLabel
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set cht = Wfp_Insert(ws, d).Chart
+    cht.Parent.Width = 300: cht.Parent.Height = 220
+    ForceLayout cht
+    Core_SafeRefresh cht
+    cht.Refresh
+    AssertEqual 0, Util_ToDouble(BodyOf(cht).Cells(14, WFP_COL_LBLON).Value), "fatia 13 (total A): so o valor"
+    AssertEqual 0, Util_ToDouble(BodyOf(cht).Cells(15, WFP_COL_LBLON).Value), "fatia 14 (total B): so o valor"
+    AssertEqual Format$(11, "#,##0"), LblText(cht, "tqq_lbltot", 13), "300 x 220: total A sem o percentual"
+    AssertEqual Format$(10, "#,##0"), LblText(cht, "tqq_lbltot", 14), "300 x 220: total B sem o percentual"
+    AssertEqual Format$(27, "#,##0"), LblText(cht, "tqq_lbltot", 1), "inicio: cabe (16 pt)"
+    ws.Range("B2").Value = 30                        ' sem o ThinQQ (so o calculo): o texto acompanha
+    cht.Refresh
+    AssertEqual Format$(14, "#,##0"), LblText(cht, "tqq_lbltot", 13), "vivo sem o ThinQQ"
+    ws.Range("B2").Value = 27
+    cht.Parent.Width = 720: cht.Parent.Height = 280
+    ForceLayout cht
+    Core_SafeRefresh cht
+    cht.Refresh
+    AssertEqual 1, Util_ToDouble(BodyOf(cht).Cells(14, WFP_COL_LBLON).Value)
+    AssertEqual Format$(11, "#,##0") & " (" & Format$(41, "0") & "%)", LblText(cht, "tqq_lbltot", 13), "720 x 280: o percentual volta"
+    AssertEqual Format$(10, "#,##0") & " (" & Format$(34, "0") & "%)", LblText(cht, "tqq_lbltot", 14)
+    ForceLayout cht
+    Set lt = Chart_FindSeries(cht, "tqq_lbltot"): Set a = lt.Points(13).DataLabel: Set b = lt.Points(14).DataLabel
+    AssertTrue b.Left >= a.Left + a.Width, "720 x 280: as caixas nao se sobrepoem (" & a.Left + a.Width & " x " & b.Left & ")"
+    ws.Range("B2:C2").Value = Array(2000, 1990): ws.Range("B3:C3").Value = Array(-300, -360)
+    ws.Range("B4:C4").Value = Array(-266, -200): ws.Range("B5:C5").Value = Array(-200, -200)
+    cht.Parent.Width = 460
+    ForceLayout cht
+    Core_SafeRefresh cht
+    cht.Refresh
+    AssertEqual Format$(1234, "#,##0"), LblText(cht, "tqq_lbltot", 13), "4 digitos a 460 x 280: totais 1.234 e 1.230 lado a lado, so o valor"
+    AssertEqual Format$(1230, "#,##0"), LblText(cht, "tqq_lbltot", 14)
+    Teardown wb
+End Sub
+
+' 1o total = 0: o percentual e omitido; 1o total negativo: -10 -> 5 da "(-50%)" (100 * 5 / -10).
+Public Sub Test_Wfp_Totals_FirstTotalZeroOrNegative()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Etapa", "S1", "S2")
+    ws.Range("A2:C2").Value = Array("Inicio", 0, -10)
+    ws.Range("A3:C3").Value = Array("Passo", 5, 15)
+    ws.Range("A4:C4").Value = Array("Fim", "e", "e")
+    Set d = ChartData_FromRange(ws.Range("A1:C4"))
+    Set cht = Wfp_Insert(ws, d).Chart
+    ForceLayout cht
+    Core_SafeRefresh cht
+    cht.Refresh
+    AssertEqual Format$(5, "#,##0"), LblText(cht, "tqq_lbltot", 7), "1o total zero: sem o percentual"
+    AssertEqual Format$(5, "#,##0") & " (" & Format$(-50, "0") & "%)", LblText(cht, "tqq_lbltot", 8), "1o total -10: 5 / -10 = -50%"
+    AssertEqual Format$(-10, "#,##0"), LblText(cht, "tqq_lbltot", 2), "inicio negativo: so o valor"
+    CloseTemp wb
+End Sub
+
+' Degrau escondido so pela largura: alto o bastante (regra de tres no eixo real >= 10 pt), mas "-4.000" (32 pt estimados) nao cabe na fatia
+' de ~27 pt a 400 pt de largura; volta a 720.
+Public Sub Test_Wfp_Labels_StepHiddenByWidthOnly()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, ax As Axis, slotPt As Double
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    ws.Range("B2:C2").Value = Array(27000, 29000): ws.Range("B3:C3").Value = Array(-4000, -7000)
+    ws.Range("B4:C4").Value = Array(-6000, -2000): ws.Range("B5:C5").Value = Array(-6000, -10000)
+    Set cht = Wfp_Insert(ws, d).Chart
+    cht.Parent.Width = 400
+    ForceLayout cht
+    Core_SafeRefresh cht
+    cht.Refresh
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    slotPt = cht.PlotArea.InsideWidth / SlotN(cht)
+    AssertTrue 4000 * cht.PlotArea.InsideHeight / (ax.MaximumScale - ax.MinimumScale) >= 10, "alto o bastante: a regra da altura nao age"
+    AssertTrue Labels_EstimateWidth(Format$(-4000, "#,##0")) > slotPt, "o texto e mais largo que a fatia (" & slotPt & " pt)"
+    AssertEqual 0, Util_ToDouble(BodyOf(cht).Cells(5, WFP_COL_LBLON).Value), "degrau A2 escondido pela largura"
+    AssertEqual "", LblText(cht, "tqq_lbl_a", 4)
+    cht.Parent.Width = 720
+    ForceLayout cht
+    Core_SafeRefresh cht
+    cht.Refresh
+    AssertEqual Format$(-4000, "#,##0"), LblText(cht, "tqq_lbl_a", 4), "720: cabe e volta"
+    CloseTemp wb
+End Sub
+
+' Rotulo de um total negativo apagado pelo usuario continua apagado no refresh (o acerto de posicao pula ponto sem rotulo), mesmo quando o
+' total vira positivo (a posicao mudaria para Acima).
+Public Sub Test_Wfp_Labels_UserDeletedNegativeTotalStays()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, lt As Series
+    Set wb = NewTempWorkbook(): Set d = FixtureZero(wb): Set ws = d.Source.Worksheet
+    Set cht = Wfp_Insert(ws, d).Chart
+    Set lt = Chart_FindSeries(cht, "tqq_lbltot")
+    AssertEqual xlLabelPositionBelow, lt.Points(10).DataLabel.Position, "total -7: abaixo"
+    lt.Points(10).HasDataLabel = False               ' o usuario apagou o rotulo do total negativo de A
+    Core_SafeRefresh cht
+    AssertFalse lt.Points(10).HasDataLabel, "o refresh nao recria"
+    ws.Range("B3").Value = -2                        ' total de A: 10 - 2 + 8 = 16 (positivo)
+    Core_SafeRefresh cht
+    AssertFalse lt.Points(10).HasDataLabel, "continua apagado com o total positivo"
+    AssertTrue lt.Points(11).HasDataLabel: AssertEqual xlLabelPositionAbove, lt.Points(11).DataLabel.Position, "o vizinho continua"
+    Teardown wb
 End Sub

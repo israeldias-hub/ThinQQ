@@ -73,6 +73,7 @@ Private Const WFP_NAME_MIN_W As Double = 14      ' largura (pt) de um texto vert
 Private Const WFP_ROOM_PASSES As Long = 3        ' teto de passadas da calibracao do valor por ponto (PtV)
 Private Const WFP_ROOM_TOL As Double = 0.02      ' so grava PtV quando muda mais de 2%
 Private Const WFP_LBL_MIN_H As Double = 10       ' degrau mais baixo que isto (pt) fica sem texto (texto de 9 pt; a caixa de 14 pt tem margem)
+Private Const WFP_LBL_BOX_H As Double = 14       ' altura (pt) da caixa de um rotulo de 9 pt (medida): totais vizinhos mais perto que isto na vertical se tocam
 Private Const WFP_ERR_FEW As String = "A cascata comparativa precisa de exatamente 2 colunas de valores (uma por série); a tabela tem só 1."
 Private Const WFP_ERR_MANY1 As String = "A cascata comparativa compara exatamente 2 séries; a tabela tem "
 Private Const WFP_ERR_MANY2 As String = " colunas de valores. Selecione a coluna das etapas e só as duas colunas a comparar."
@@ -278,7 +279,8 @@ Public Function Wfp_BuildBlock(wb As Workbook, id As String, data As clsChartDat
                 body.Cells(r, WFP_COL_LBLAVAL).Formula = "=IF(OR(" & bg & "," & lblOn & "=0),""""," & d & ")"
                 body.Cells(r, WFP_COL_LBLBPOS).Formula = "=NA()"
                 body.Cells(r, WFP_COL_LBLBVAL).Formula = "="""""
-                body.Cells(r, WFP_COL_TOTTXT).Formula = "=" & body.Cells(st, WFP_COL_TOTTXT_A).Address(False, False)
+                ' total: o texto completo; com LblOn = 0 (os rotulos de total do par se tocariam: Wfp_SyncLabels) so o valor, sem o percentual
+                body.Cells(r, WFP_COL_TOTTXT).Formula = "=IF(" & lblOn & "=0,IF(" & bg & ",FIXED(ROUND(" & en & "/" & dv & "," & dc & ")," & dc & ")&" & sf & ","""")," & body.Cells(st, WFP_COL_TOTTXT_A).Address(False, False) & ")"
             Else
                 body.Cells(r, WFP_COL_APOS).Formula = "=0"
                 body.Cells(r, WFP_COL_ANEG).Formula = "=0"
@@ -288,7 +290,8 @@ Public Function Wfp_BuildBlock(wb As Workbook, id As String, data As clsChartDat
                 body.Cells(r, WFP_COL_LBLAVAL).Formula = "="""""
                 body.Cells(r, WFP_COL_LBLBPOS).Formula = "=IF(" & bg & ",NA(),(" & lo & "+" & hi & ")/2)"
                 body.Cells(r, WFP_COL_LBLBVAL).Formula = "=IF(OR(" & bg & "," & lblOn & "=0),""""," & d & ")"
-                body.Cells(r, WFP_COL_TOTTXT).Formula = "=" & body.Cells(st, WFP_COL_TOTTXT_B).Address(False, False)
+                ' total: o texto completo; com LblOn = 0 (os rotulos de total do par se tocariam: Wfp_SyncLabels) so o valor, sem o percentual
+                body.Cells(r, WFP_COL_TOTTXT).Formula = "=IF(" & lblOn & "=0,IF(" & bg & ",FIXED(ROUND(" & en & "/" & dv & "," & dc & ")," & dc & ")&" & sf & ","""")," & body.Cells(st, WFP_COL_TOTTXT_B).Address(False, False) & ")"
             End If
             body.Cells(r, WFP_COL_TOTPOS).Formula = "=IF(" & bg & ",IF(" & en & ">=0," & hi & "," & lo & "),NA())"
             body.Cells(r, WFP_COL_LBLON).Value = 1
@@ -755,11 +758,15 @@ Public Sub Wfp_ApplyNumberFormat(cht As Chart)
 End Sub
 
 ' Rotulos de degrau finos demais (altura < 10 pt ou texto mais largo que a fatia) ficam com o texto vazio (coluna LblOn = 0) e voltam quando
-' cabem; o rotulo continua existindo, entao um rotulo apagado pelo usuario continua apagado (nada e recriado aqui). Barra grande com total
-' negativo: rotulo abaixo (TotPos < Top). So escreve o que muda; cada ponto e isolado. Chamada por ultimo em Wfp_RefreshAfterDataChange.
+' cabem; o rotulo continua existindo, entao um rotulo apagado pelo usuario continua apagado (nada e recriado aqui). Totais vizinhos (os dois
+' lados da etapa sao barras grandes): se os rotulos completos se tocariam (meia soma das larguras estimadas maior que a fatia E os dois a menos
+' de 14 pt na vertical, acima ou abaixo tanto faz), LblOn = 0 nas duas fatias e o texto fica so com o valor (sem o percentual); volta quando
+' cabe. Colisao so com os valores (5 digitos ou mais, grafico muito estreito) e limite documentado. Barra grande com total negativo: rotulo
+' abaixo (TotPos < Top). So escreve o que muda; cada ponto e isolado. Chamada por ultimo em Wfp_RefreshAfterDataChange.
 Private Sub Wfp_SyncLabels(cht As Chart)
     Dim blk As Range, body As Range, n As Long, ns As Long, i As Long, j As Long, k As Long, ax As Axis, ppu As Double, slotPt As Double
     Dim sec As String, d As Double, want As Long, arr As Variant, changed As Boolean, s As Series, tp As Variant, tt As Variant, pos As Long
+    Dim bigA As Boolean, bigB As Boolean, isBig As Boolean, collide As Boolean, wA As Double, wB As Double, hasLbl As Boolean
     If Registry_GetOption(cht, "labels", "1") <> "1" Then Exit Sub
     Set blk = Registry_Block(cht)
     If blk Is Nothing Then Exit Sub
@@ -774,10 +781,22 @@ Private Sub Wfp_SyncLabels(cht As Chart)
     sec = Split(Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int")), ";")(0)
     arr = body.Cells(2, WFP_COL_LBLON).Resize(ns, 1).Value
     For i = 1 To n
+        bigA = CBool(body.Cells(i + 1, Wfp_SideCol(1, "Big")).Value)
+        bigB = CBool(body.Cells(i + 1, Wfp_SideCol(2, "Big")).Value)
+        collide = False
+        If bigA And bigB Then
+            wA = Labels_EstimateWidth(CellText(body.Cells(i + 1, WFP_COL_TOTTXT_A)))
+            wB = Labels_EstimateWidth(CellText(body.Cells(i + 1, WFP_COL_TOTTXT_B)))
+            collide = ((wA + wB) / 2 > slotPt) And (Abs(Wfp_TotalAnchor(body, i, 1) - Wfp_TotalAnchor(body, i, 2)) * ppu < WFP_LBL_BOX_H)
+        End If
         For j = 1 To 2
-            If Not CBool(body.Cells(i + 1, Wfp_SideCol(j, "Big")).Value) Then
+            k = Wfp_SlotOf(i, j)
+            If j = 1 Then isBig = bigA Else isBig = bigB
+            If isBig Then
+                If collide Then want = 0 Else want = 1
+                If Util_ToDouble(arr(k, 1)) <> want Then arr(k, 1) = want: changed = True
+            Else
                 d = Util_ToDouble(body.Cells(i + 1, Wfp_SideCol(j, "D")).Value)
-                k = Wfp_SlotOf(i, j)
                 If d <> 0 Then                               ' degrau zero: o formato ja mostra vazio
                     want = 1
                     If Abs(d) * ppu < WFP_LBL_MIN_H Then want = 0
@@ -799,7 +818,9 @@ Private Sub Wfp_SyncLabels(cht As Chart)
         If Not IsError(tp(k, 1)) Then
             If Util_ToDouble(tp(k, 1)) < Util_ToDouble(tt(k, 1)) - 0.000000001 Then pos = xlLabelPositionBelow Else pos = xlLabelPositionAbove
             On Error Resume Next
-            If s.Points(k).HasDataLabel Then
+            hasLbl = False
+            hasLbl = s.Points(k).HasDataLabel                ' atribuicao antes do If: com Resume Next, um erro na condicao entraria no bloco
+            If hasLbl Then
                 If s.Points(k).DataLabel.Position <> pos Then s.Points(k).DataLabel.Position = pos
             End If
             If Err.Number <> 0 Then Errors_Log "Wfp_SyncLabels" & vbTab & "ponto " & k & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
@@ -807,6 +828,20 @@ Private Sub Wfp_SyncLabels(cht As Chart)
         End If
     Next
 End Sub
+
+' Texto de uma celula do bloco ("" se ela tem erro).
+Private Function CellText(c As Range) As String
+    If Not IsError(c.Value) Then CellText = CStr(c.Value)
+End Function
+
+' Valor onde o rotulo do total da etapa i, lado j, se apoia (o TotPos da fatia): o topo com fim >= 0, a base com fim negativo.
+Private Function Wfp_TotalAnchor(body As Range, i As Long, j As Long) As Double
+    If Util_ToDouble(body.Cells(i + 1, Wfp_SideCol(j, "End")).Value) >= 0 Then
+        Wfp_TotalAnchor = Util_ToDouble(body.Cells(i + 1, Wfp_SideCol(j, "Hi")).Value)
+    Else
+        Wfp_TotalAnchor = Util_ToDouble(body.Cells(i + 1, Wfp_SideCol(j, "Lo")).Value)
+    End If
+End Function
 
 Public Function Wfp_Insert(ws As Worksheet, data As clsChartData) As ChartObject
     Dim id As String, co As ChartObject, cht As Chart, anchor As Range, blk As Range, body As Range, n As Long, ns As Long, cats As String
