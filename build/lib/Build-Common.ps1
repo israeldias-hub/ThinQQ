@@ -42,22 +42,40 @@ function New-PptApp {
     $app.DisplayAlerts = 1          # ppAlertsNone
     return $app
 }
-# Fecha o PowerPoint criado por New-PptApp: Quit e, se o processo (PID registrado) nao terminar em $WaitSec s, encerra esse PID.
-function Close-PptApp($app, [int]$WaitSec = 15) {
+# Fecha o PowerPoint criado por New-PptApp. Fecha as apresentacoes que o script abriu ($Owned) e as que ficaram SEM janela (o PowerPoint do
+# script e invisivel: so codigo cria apresentacao sem janela). Se sobrar apresentacao COM janela ou janela do Modo de Exibicao Protegido (o
+# usuario abriu um arquivo nesta instancia: o PowerPoint e de instancia unica), nao da Quit nem encerra: avisa e so solta o objeto. Senao
+# Quit e, se o processo (PID registrado) nao terminar em $WaitSec s, encerra esse PID (tambem quando o PowerPoint ja nao responde).
+function Close-PptApp($app, [object[]]$Owned = @(), [int]$WaitSec = 15) {
+    $rcw = [System.Runtime.InteropServices.Marshal]
+    $foreign = 0
     if ($null -ne $app) {
-        # Fecha pelo indice, soltando cada objeto (enumerar a colecao com foreach deixa referencias que impedem o Quit: medido).
-        $rcw = [System.Runtime.InteropServices.Marshal]
-        $col = $null; $p = $null
+        foreach ($o in @($Owned)) {
+            if ($null -eq $o) { continue }
+            try { $o.Saved = -1; $o.Close() } catch { }
+            try { [void]$rcw::ReleaseComObject($o) } catch { }
+        }
+        $o = $null
+        # Pelo indice, soltando cada objeto (enumerar a colecao com foreach deixa referencias que impedem o Quit: medido).
+        $col = $null; $p = $null; $responds = $true
         try {
             $col = $app.Presentations
-            for ($i = 0; $i -lt 50 -and $col.Count -gt 0; $i++) {
-                $p = $col.Item(1)
-                try { $p.Saved = -1; $p.Close() } finally { [void]$rcw::ReleaseComObject($p); $p = $null }
+            for ($i = [int]$col.Count; $i -ge 1; $i--) {
+                $p = $col.Item($i)
+                try { if ([int]$p.Windows.Count -eq 0) { $p.Saved = -1; $p.Close() } else { $foreign++ } } finally { try { [void]$rcw::ReleaseComObject($p) } catch { }; $p = $null }
             }
-        } catch { } finally { if ($null -ne $col) { try { [void]$rcw::ReleaseComObject($col) } catch { } }; $col = $null }
+            $pv = $app.ProtectedViewWindows; $foreign += [int]$pv.Count; try { [void]$rcw::ReleaseComObject($pv) } catch { }; $pv = $null
+        } catch { $responds = $false } finally { if ($null -ne $col) { try { [void]$rcw::ReleaseComObject($col) } catch { } }; $col = $null }
         [GC]::Collect(); [GC]::WaitForPendingFinalizers()
-        try { $app.Quit() } catch { }
-        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($app) } catch { }
+        if ($foreign -gt 0) {
+            Write-Host "AVISO: o PowerPoint (PID $(@($script:PptPid) -join ',')) tem $foreign apresentação(ões)/janela(s) que não são deste script: não foi fechado nem encerrado." -ForegroundColor Yellow
+            try { [void]$rcw::ReleaseComObject($app) } catch { }
+            [GC]::Collect(); [GC]::WaitForPendingFinalizers()
+            $script:PptPid = @()
+            return
+        }
+        if ($responds) { try { $app.Quit() } catch { } }
+        try { [void]$rcw::ReleaseComObject($app) } catch { }
     }
     [GC]::Collect(); [GC]::WaitForPendingFinalizers(); [GC]::Collect()
     foreach ($id in @($script:PptPid)) {

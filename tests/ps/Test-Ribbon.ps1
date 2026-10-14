@@ -204,4 +204,24 @@ try {
     Check ((Read-PkgText $b '[Content_Types].xml') -eq $ctBare) 'carimbo: core.xml existente nao mexe no content type'
 } finally { Remove-Item -LiteralPath $tmpD -Recurse -Force -ErrorAction SilentlyContinue }
 Check (-not (Test-Path -LiteralPath $tmpD)) 'pasta tqq_pkgd_* do teste removida'
+# ---- Close-PptApp com duble (sem PowerPoint): fecha as do script e as sem janela; com apresentacao de janela ou Modo Protegido nao da Quit
+function New-FakePres([int]$w) { $o = [pscustomobject]@{ Closed = $false; Saved = 0; Windows = [pscustomobject]@{ Count = $w } }; $o | Add-Member -MemberType ScriptMethod -Name Close -Value { $this.Closed = $true }; return $o }
+function New-FakePpt([object[]]$pres, [int]$pv = 0) {
+    $col = [pscustomobject]@{ L = [System.Collections.ArrayList]::new(@($pres)) }
+    $col | Add-Member -MemberType ScriptProperty -Name Count -Value { $this.L.Count }
+    $col | Add-Member -MemberType ScriptMethod -Name Item -Value { param($i) $this.L[$i - 1] }
+    $a = [pscustomobject]@{ Presentations = $col; ProtectedViewWindows = [pscustomobject]@{ Count = $pv }; QuitCalled = $false }
+    $a | Add-Member -MemberType ScriptMethod -Name Quit -Value { $this.QuitCalled = $true }
+    return $a
+}
+$script:PptPid = @()
+$p1 = New-FakePres 0; $p2 = New-FakePres 1; $fa = New-FakePpt @($p1, $p2)
+Close-PptApp $fa -Owned @($p1) -WaitSec 1 6>$null
+Check ($p1.Closed -and -not $p2.Closed -and -not $fa.QuitCalled) 'Close-PptApp: apresentacao com janela (do usuario) fica aberta e o PowerPoint nao recebe Quit'
+$p3 = New-FakePres 0; $fb = New-FakePpt @($p3)
+Close-PptApp $fb -WaitSec 1
+Check ($p3.Closed -and $fb.QuitCalled) 'Close-PptApp: sobra sem janela (do codigo) e fechada e o PowerPoint recebe Quit'
+$fc = New-FakePpt @() 1
+Close-PptApp $fc -WaitSec 1 6>$null
+Check (-not $fc.QuitCalled) 'Close-PptApp: janela do Modo de Exibicao Protegido aberta: sem Quit'
 if ($script:fail -gt 0) { Write-Host "FALHAS ribbon-pacote: $script:fail"; exit 1 }

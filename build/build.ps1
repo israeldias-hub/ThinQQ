@@ -60,9 +60,11 @@ if ($Target -eq 'ppt') {
     } catch {
         if (Test-Path -LiteralPath $marker) { $timedOut = $true } else { throw }
     } finally {
+        $vbproj = $null   # referencias COM soltas antes do Quit (senao o PowerPoint nao fecha)
+        $owned = @($pres); $pres = $null
+        Close-PptApp $pp -Owned $owned   # watchdog ainda ativo: um PowerPoint travado no fechamento tambem e encerrado
+        $owned = $null
         if ($wd -and $wd.Proc -and -not $wd.Proc.HasExited) { Stop-Process -Id $wd.Proc.Id -Force -ErrorAction SilentlyContinue }
-        $vbproj = $null; $pres = $null   # referencias COM soltas antes do Quit (senao o PowerPoint nao fecha)
-        Close-PptApp $pp
         Remove-Item $buildInfo, $dispatch -Force -ErrorAction SilentlyContinue
     }
     if ($timedOut) {
