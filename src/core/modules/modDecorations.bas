@@ -23,14 +23,17 @@ Private Const VLINE_PREFIX As String = "Média "         ' texto antes do numero
 ' fixa tirar a legenda nao devolvia o espaco) e as folgas, que so encolhem, sao refeitas por cima (Chart_EnsureRoomAfterChange:
 ' legenda a direita, totais, setas, fim da linha). Mesma opcao duas vezes da o mesmo resultado.
 Public Sub Deco_SetLegend(cht As Chart, mode As String)
-    Dim kind As String
+    Dim kind As String, prevMode As String, en As Long, es As String, ed As String
     Select Case mode
-        Case "right", "none", "lineend"
+        Case "right", "none", "lineend", "inbar"
         Case Else: Err.Raise 5, "Deco_SetLegend", "Modo de legenda desconhecido: " & mode
     End Select
     kind = Registry_ChartType(cht)
     If mode = "lineend" Then
         If Not Kinds_Supports(kind, "lineend") Then Err.Raise vbObjectError + 7002, "Deco_SetLegend", "Rótulos no fim da linha só existem em gráficos de linha e combinação."
+    End If
+    If mode = "inbar" Then
+        If Not Kinds_Supports(kind, "inbar") Then Err.Raise vbObjectError + 7002, "Deco_SetLegend", Kinds_NotApplicableText("inbar")
     End If
     If Not Kinds_SupportsChart(cht, "legend") Then Err.Raise vbObjectError + 7002, "Deco_SetLegend", Kinds_NotApplicableText("legend")
     If Kinds_Family(kind) = "pie" Then
@@ -39,6 +42,21 @@ Public Sub Deco_SetLegend(cht As Chart, mode As String)
         ' (labels = 0), a legenda volta. "lineend" ja foi recusado acima (so linha e combinacao).
         Registry_SetOption cht, "legend", mode
         Pie_ApplyLegend cht
+        Exit Sub
+    End If
+    If Kinds_Family(kind) = "waterfallpair" Then
+        ' Cascata comparativa: Direita (legenda), Nenhuma, Nome dentro das barras (nomes verticais na 1a barra; a legenda se nao couberem).
+        ' A opcao e gravada antes (Wfp_SyncNames a le); se aplicar falhar, volta o valor anterior (o registro nunca fica diferente do grafico).
+        prevMode = Registry_GetOption(cht, "legend", "inbar")
+        Registry_SetOption cht, "legend", mode
+        On Error GoTo WfpFail
+        Wfp_SetLegend cht, mode
+        On Error GoTo 0
+        On Error Resume Next
+        cht.PlotArea.Position = xlChartElementPositionAutomatic
+        If Err.Number <> 0 Then Errors_Log "Deco_SetLegend/PlotArea.Position" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+        On Error GoTo 0
+        Chart_EnsureRoomAfterChange cht
         Exit Sub
     End If
     Select Case mode
@@ -61,6 +79,14 @@ Public Sub Deco_SetLegend(cht As Chart, mode As String)
     If Err.Number <> 0 Then Errors_Log "Deco_SetLegend/PlotArea.Position" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     On Error GoTo 0
     Chart_EnsureRoomAfterChange cht
+    Exit Sub
+WfpFail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1                                 ' encerra o tratamento do erro: sem isso o Resume Next abaixo nao protegeria a restauracao
+    On Error Resume Next
+    Registry_SetOption cht, "legend", prevMode
+    On Error GoTo 0
+    Err.Raise en, es, ed
 End Sub
 
 ' Reaplica o nome no fim da linha quando a opcao e lineend (chamada no fim de Stacked_SetLabels: ligar/desligar os rotulos
@@ -622,9 +648,10 @@ Fail:
 End Sub
 
 ' True quando o grafico tem escala fixa (Mesma escala) e os dados passaram do maximo gravado (vmax): as barras ficariam cortadas. O maior valor
-' plotado e o topo da pilha (Ann_GetCategoryData: empilhadas, area, cascata) ou, em agrupadas e linha, o maior valor de qualquer serie. False em
+' plotado e o topo da pilha (Ann_GetCategoryData: empilhadas, area, cascata) ou, em agrupadas e linha, o maior valor de qualquer serie; na cascata
+' comparativa, tambem a sala das setas de variacao (tqq_pdroom), a menos que barsOnly (so as barras: o aviso distingue barras de setas). False em
 ' qualquer duvida. Usada por Core_SafeRefresh para o aviso unico.
-Public Function Deco_ScaleClipped(cht As Chart) As Boolean
+Public Function Deco_ScaleClipped(cht As Chart, Optional barsOnly As Boolean = False) As Boolean
     Dim sMax As String, kind As String, values() As Double, tops() As Double, i As Long, s As Series, v As Variant, mx As Double
     On Error GoTo Fail
     sMax = Registry_GetOption(cht, "vmax", "")
@@ -644,6 +671,17 @@ Public Function Deco_ScaleClipped(cht As Chart) As Boolean
         For i = 1 To UBound(tops)
             If tops(i) > mx Then mx = tops(i)
         Next
+    End If
+    If kind = "waterfallpair" And Not barsOnly Then
+        ' cascata comparativa: a sala das setas de variacao (tqq_pdroom, acima de cada elipse) tambem precisa caber. Com um parceiro que estende o
+        ' minimo para baixo, a faixa comum cresce com o mesmo maximo, o valor por ponto cresce e as setas do topo passam do maximo fixo
+        Set s = Chart_FindSeries(cht, "tqq_pdroom")
+        If Not s Is Nothing Then
+            v = s.Values
+            For i = LBound(v) To UBound(v)
+                If Util_ToDouble(v(i)) > mx Then mx = Util_ToDouble(v(i))
+            Next
+        End If
     End If
     Deco_ScaleClipped = (mx > Val(sMax) + 0.000001)
 Fail:

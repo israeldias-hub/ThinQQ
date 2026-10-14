@@ -285,6 +285,7 @@ Public Sub Labels_RefreshPositions(cht As Chart)
     If Kinds_Family(kind) = "mekko" Then GoTo Done          ' Mekko: posicoes fixas (centro, acima do topo, abaixo do zero); a coluna 3 e a largura
     If Kinds_Family(kind) = "gantt" Then GoTo Done          ' Gantt: rotulos sempre a direita (barras) e acima (escala); a coluna 3 e o Fim
     If Kinds_Family(kind) = "scatter" Then GoTo Done        ' Dispersao/bolhas: rotulos ligados a celulas pela propria familia
+    If Kinds_Family(kind) = "waterfallpair" Then GoTo Done  ' Cascata comparativa: posicoes e rotulos finos pelo refresh da familia (Wfp_SyncLabels)
     horiz = Kinds_IsHorizontal(kind)
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
@@ -477,6 +478,7 @@ Public Sub Labels_ApplyCellFormat(cht As Chart, fmt As String)
     End If
     If Kinds_Family(kind) = "gantt" Then Exit Sub              ' Gantt: sem formato numerico; os rotulos mostram datas (dd/mm, mmm/yy) ou texto da tabela
     If Kinds_Family(kind) = "scatter" Then Exit Sub            ' Dispersao/bolhas: formato dos rotulos pela propria familia
+    If Kinds_Family(kind) = "waterfallpair" Then Wfp_ApplyCellFormat cht: Exit Sub    ' Cascata comparativa: celulas dos degraus e meta dos textos FIXED
     Set body = Block_Body(blk)
     n = body.Rows.Count - 1
     If n < 1 Then Exit Sub

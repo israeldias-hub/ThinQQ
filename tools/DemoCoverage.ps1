@@ -5,7 +5,8 @@
 # Recursos visiveis que a demonstracao tem de mostrar (alem dos tipos): o teste confere que cada um aparece em Features de algum item.
 function Get-TqqDemoFeatures {
     return @('totals', 'labels', 'legend-none', 'lineend', 'numfmt', 'gap', 'palette', 'cagr', 'diff', 'bracket', 'vline', 'ind100', 'samescale',
-             'secondary', 'pieout', 'gantt-weeks', 'gantt-months', 'roundsum', 'roundrange', 'break', 'trend', 'quad', 'connectors')
+             'secondary', 'pieout', 'gantt-weeks', 'gantt-months', 'roundsum', 'roundrange', 'break', 'trend', 'quad', 'connectors',
+             'pairdiff', 'pairabs', 'inbar')
 }
 
 # Nome do tipo como aparece no menu "Inserir gráfico" da faixa.
@@ -16,6 +17,7 @@ function Get-TqqDemoKindName([string]$Kind) {
         'barwaterfall' = 'Cascata (barras)'; 'area' = 'Área empilhada'; 'area100' = 'Área 100%'; 'combo' = 'Combinação (colunas + linha)'
         'mekko' = 'Mekko (%)'; 'mekkounits' = 'Mekko (unidades)'; 'gantt' = 'Gantt'; 'pie' = 'Pizza'; 'doughnut' = 'Rosca'
         'butterfly' = 'Borboleta'; 'scatter' = 'Dispersão'; 'bubble' = 'Bolhas'
+        'waterfallpair' = 'Cascata comparativa'
     }
     if ($names.ContainsKey($Kind)) { return $names[$Kind] }
     return $Kind
@@ -127,6 +129,14 @@ function Get-TqqDemoCoverage {
            Menu = 'Inserir gráfico > Linha e área > Linha; Legenda > Nenhuma'
            Title = 'Vendas mensais da loja Aurora Centro (sem legenda)'
            Desc = 'Com uma série só, a legenda é dispensável: o título da planilha já diz o que é.' }
+        @{ Num = 27; Kind = 'waterfallpair'; Features = @('pairdiff', 'inbar')
+           Menu = 'Inserir gráfico > Cascata > Cascata comparativa (Setas de variação e Nome dentro das barras já vêm ligados)'
+           Title = 'Da receita ao lucro, 2024 x 2025 (cascata comparativa)'
+           Desc = 'As duas pontes lado a lado, 2024 à esquerda e 2025 à direita, com os anos escritos dentro das barras da receita. A seta de cada etapa mostra quanto 2025 variou sobre 2024, (2025 - 2024) / 2024 (num custo, "+" quer dizer que o custo cresceu), e o lucro mostra o percentual da receita do próprio ano. Tudo acompanha os números, com ou sem o ThinQQ.' }
+        @{ Num = 28; Kind = 'waterfallpair'; Features = @('pairabs')
+           Menu = 'Inserir gráfico > Cascata > Cascata comparativa; Setas > Variação em valor; Legenda > Direita'
+           Title = 'As duas maiores lojas: da receita ao lucro em 2025 (variação em valor)'
+           Desc = 'A mesma ponte para as duas lojas que mais venderam em 2025; a seta de cada etapa mostra a diferença em R$ milhões entre a segunda loja e a primeira, e os nomes das lojas ficam na legenda.' }
     )
     foreach ($i in $items) { $i.Sheet = ('E{0:00}' -f $i.Num); $i.KindName = Get-TqqDemoKindName $i.Kind }
     return $items

@@ -3,7 +3,7 @@
            o tutorial é um arquivo único e autocontido (vai solto no ZIP e é baixado pelo atualizador), então nada de arquivo ou link externo.
 .EXAMPLE   pwsh tools\Export-DemoChartImages.ps1 -OutDir C:\temp\tqq-galeria-img
            pwsh tools\Build-TutorialGallery.ps1 -ImageDir C:\temp\tqq-galeria-img
-.NOTES     Entrada: os PNG de Export-DemoChartImages.ps1 (E01.png ... E26.png; E25 com E25a.png e E25b.png). Os títulos, tipos, menus e descrições
+.NOTES     Entrada: os PNG de Export-DemoChartImages.ps1 (E01.png ... E28.png; E25 com E25a.png e E25b.png). Os títulos, tipos, menus e descrições
            vêm de tools\DemoCoverage.ps1 (Get-TqqDemoCoverage), nunca copiados à mão: se a cobertura mudar, rode de novo (o Test-Docs falha se a
            legenda de alguma figura não citar o título atual).
            Saída (idempotente: duas execuções dão o mesmo arquivo): o bloco entre <!-- galeria:inicio --> e <!-- galeria:fim --> é substituído;

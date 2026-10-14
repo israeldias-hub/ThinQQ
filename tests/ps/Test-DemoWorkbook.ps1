@@ -54,6 +54,10 @@ try {
                 Check ($txt -notmatch '<Manager>[^<]+</Manager>') 'docProps/app.xml sem gerente'
             }
         }
+        # cascata comparativa: os conectores sao barras de erro X PERSONALIZADAS ligadas ao bloco (vivas sem o ThinQQ)
+        $connXml = @($zip.Entries | Where-Object { $_.FullName -like 'xl/charts/chart*.xml' } | ForEach-Object { $sr = New-Object IO.StreamReader($_.Open()); $x = $sr.ReadToEnd(); $sr.Dispose(); $x } | Where-Object { $_ -match 'tqq_conn_a' })
+        Check ($connXml.Count -ge 2) "cascata comparativa: graficos com conectores no pacote ($($connXml.Count))"
+        foreach ($x in $connXml) { Check ($x -match '(?s)<c:errBars>.*?<c:errValType val="cust"/>.*?<c:plus><c:numRef><c:f>[^<]*_ThinQQ') 'conectores: barra de erro personalizada ligada a _ThinQQ' }
     } finally { $zip.Dispose() }
     Check ($privHits.Count -eq 0) "partes XML sem id de maquina, caminho de perfil, e-mail, absPath, .xlam nem o nome antigo da rede ($($privHits -join ', '))"
     $xl = New-ExcelApp
@@ -170,6 +174,9 @@ try {
             'trend'        = { param($i, $co, $ws) $n = 0; foreach ($sr in $co.Chart.SeriesCollection()) { $n += $sr.Trendlines().Count }; $i.Opt['trend'] -eq '1' -and $n -ge 1 }
             'quad'         = { param($i, $co, $ws) $i.Opt['quad'] -eq '1' }
             'connectors'   = { param($i, $co, $ws) $i.Opt['connectors'] -eq '1' }
+            'pairdiff'     = { param($i, $co, $ws) $n = 0; foreach ($sr in $co.Chart.SeriesCollection()) { if ([string]$sr.Name -eq 'tqq_pd') { $n++ } }; $i.Opt['pairdiff'] -eq '1' -and $n -eq 1 }
+            'pairabs'      = { param($i, $co, $ws) $i.Opt['pairabs'] -eq '1' }
+            'inbar'        = { param($i, $co, $ws) $i.Opt['legend'] -eq 'inbar' }
         }
         foreach ($f in $feats) { Check ($featCheck.ContainsKey($f)) "o teste sabe conferir o recurso '$f'" }
         foreach ($it in $cov) {
@@ -209,6 +216,23 @@ try {
             $plotRight = [double]$c05.PlotArea.InsideLeft + [double]$c05.PlotArea.InsideWidth
             Check ([double]$albl.Left -ge $plotRight - 0.5 -and [double]$albl.Left + [double]$albl.Width -le [double]$c05.ChartArea.Width + 0.5) "E05: rotulo da seta fora da area de plotagem e dentro do grafico (L=$($albl.Left), plot ate $plotRight, grafico $($c05.ChartArea.Width))"
         } else { Check $false 'E05: rotulo da seta de diferenca (tqq_ann_diff_1_lbl) presente' }
+        # E27: a seta do Lucro (7.o par, ponto 39 de tqq_pd) mostra (2025 - 2024) / 2024 do lucro, arredondado como o ROUND do Excel; as linhas
+        # 'e' (EBITDA e Lucro) nao somam
+        $e27 = $wb.Worksheets.Item('E27'); $c27 = $e27.ChartObjects(1).Chart
+        $la = 0.0; $lb = 0.0; foreach ($rr in 7, 8, 9, 11, 12) { $la += [double]$e27.Cells.Item($rr, 2).Value2; $lb += [double]$e27.Cells.Item($rr, 3).Value2 }
+        $pd = $null; foreach ($sr in $c27.SeriesCollection()) { if ([string]$sr.Name -eq 'tqq_pd') { $pd = $sr } }
+        Check ($null -ne $pd) 'E27: setas de variacao (tqq_pd)'
+        $okE27 = ($la -ne 0 -and $la * $lb -gt 0)
+        Check $okE27 'E27: lucro com mesmo sinal'
+        if ($null -ne $pd -and $okE27) {
+            $r = [Math]::Round(100 * ($lb - $la) / $la, [MidpointRounding]::AwayFromZero)
+            $want = $(if ($r -gt 0) { '+' } else { '' }) + ([string][int]$r) + '%'
+            $got = [string]$pd.Points(39).DataLabel.Text
+            Check ($got -eq $want) "E27: seta do lucro [$got] esperado [$want]"
+        }
+        $lblA = $null; foreach ($sr in $c27.SeriesCollection()) { if ([string]$sr.Name -eq 'tqq_lbl_a') { $lblA = $sr } }
+        $nTxt = 0; if ($lblA) { for ($k = 1; $k -le $lblA.Points().Count; $k++) { try { if ([string]$lblA.Points($k).DataLabel.Text -ne '') { $nTxt++ } } catch { } } }
+        Check ($nTxt -ge 2) "E27: rotulos dos degraus de 2024 visiveis (custo e despesas; $nTxt)"
         # E02: a tabela tem 1 casa decimal; com o formato padrao (inteiro) dois valores diferentes viram o mesmo rotulo
         $e02 = Get-ChartBlockInfo ($wb.Worksheets.Item('E02').ChartObjects(1))
         Check ($e02.Opt['numfmt'] -eq 'dec1') "E02: rotulos com 1 casa como a tabela (numfmt=$($e02.Opt['numfmt']))"

@@ -124,6 +124,7 @@ Public Sub Test_Updater_FriendlyError()
     AssertTrue InStr(m, "resolved") = 0, "a descrição crua não deve vazar para o usuário"
     AssertTrue InStr(Updater_FriendlyError(vbObjectError + 1004, "x"), "demorou") > 0
     AssertTrue InStr(Updater_FriendlyError(vbObjectError + 1001, "HTTP 404"), "HTTP 404") > 0
+    AssertTrue InStr(Updater_FriendlyError(vbObjectError + 1005, "duas causas"), "duas causas") > 0
     AssertEqual "Manifesto sem coreVersion válida.", Updater_FriendlyError(vbObjectError + 2000, "Manifesto sem coreVersion válida.")
 End Sub
 

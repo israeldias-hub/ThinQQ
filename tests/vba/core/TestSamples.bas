@@ -20,7 +20,7 @@ Private Function ErrLogSize() As Long
     If Len(Dir(p)) > 0 Then ErrLogSize = FileLen(p)
 End Function
 
-' Uma unica pasta de exemplos para todas as verificacoes de conteudo (Samples_Create monta 27 graficos).
+' Uma unica pasta de exemplos para todas as verificacoes de conteudo (Samples_Create monta 28 graficos).
 Public Sub Test_Samples_AllSheets()
     Dim wb As Workbook, en As Long, es As String, ed As String, logBefore As Long, noticesBefore As Long
     logBefore = ErrLogSize()
@@ -278,20 +278,20 @@ Private Sub CheckSheet2Labels(wb As Workbook)
 End Sub
 
 Private Function TitleRows3() As Variant
-    Dim r(0 To 7) As Long, k As Long
-    For k = 0 To 7: r(k) = 1 + 21 * k: Next
+    Dim r(0 To 8) As Long, k As Long
+    For k = 0 To 8: r(k) = 1 + 21 * k: Next
     TitleRows3 = r
 End Function
 
 Private Function ExpectedKinds3() As Variant
-    ExpectedKinds3 = Array("butterfly", "scatter", "bubble", "stacked100", "stacked", "barstacked", "area", "scatter")
+    ExpectedKinds3 = Array("butterfly", "scatter", "bubble", "stacked100", "stacked", "barstacked", "area", "scatter", "waterfallpair")
 End Function
 
 Private Sub CheckSheet3KindsAndFeatures(wb As Workbook)
     Dim ws As Worksheet, co As ChartObject, ek As Variant, i As Long, c As Chart, blk As Range
     Set ws = wb.Worksheets("Exemplos 3")
     AssertEqual wb.Worksheets("Exemplos 2").Index + 1, ws.Index, "a terceira planilha vem logo depois da segunda"
-    AssertEqual 8, ws.ChartObjects.Count, "8 secoes, um grafico cada"
+    AssertEqual 9, ws.ChartObjects.Count, "9 secoes, um grafico cada"
     ek = ExpectedKinds3()
     For Each co In ws.ChartObjects
         AssertTrue Registry_IsThinQQChart(co.Chart), co.Name
@@ -322,16 +322,17 @@ Private Sub CheckSheet3Layout(wb As Workbook)
     For i = 1 To ws.ChartObjects.Count
         Set a = ws.ChartObjects(i)
         AssertTrue a.Top >= ws.Cells(tr(i - 1), 1).Top, "grafico " & i & " acima do titulo da secao " & (i + 18)
-        If i < 8 Then AssertTrue a.Top + a.Height <= ws.Cells(tr(i), 1).Top, "grafico " & i & " invade a secao seguinte"
+        If i < 9 Then AssertTrue a.Top + a.Height <= ws.Cells(tr(i), 1).Top, "grafico " & i & " invade a secao seguinte"
         For j = i + 1 To ws.ChartObjects.Count
             Set b = ws.ChartObjects(j)
             AssertFalse a.Left < b.Left + b.Width And b.Left < a.Left + a.Width And a.Top < b.Top + b.Height And b.Top < a.Top + a.Height, "graficos " & i & " e " & j & " sobrepostos"
         Next
     Next
-    For i = 0 To 7
+    For i = 0 To 8
         AssertTrue Len(CStr(ws.Cells(tr(i), 1).Value)) > 0, "titulo " & (i + 19)
     Next
     AssertEqual "19) ", Left$(CStr(ws.Cells(1, 1).Value), 4): AssertEqual "26) ", Left$(CStr(ws.Cells(148, 1).Value), 4)
+    AssertEqual "27) ", Left$(CStr(ws.Cells(169, 1).Value), 4)
 End Sub
 
 ' Textos realmente exibidos (expectativas das celulas e da localidade).
@@ -348,6 +349,12 @@ Private Sub CheckSheet3Labels(wb As Workbook)
     AssertEqual Format$(0.33, "0%"), cht.SeriesCollection(3).Points(1).DataLabel.Text
     AssertEqual Format$(140, "#,##0"), Chart_FindSeries(ws.ChartObjects(5).Chart, "tqq_total").Points(3).DataLabel.Text, "23: total real acima do corte"
     AssertTrue ws.ChartObjects(5).Chart.SeriesCollection(2).Points(3).HasDataLabel, "23: o segmento de cima da coluna cortada continua visivel e rotulado"
+    ' 27: a cascata comparativa da imagem do think-cell
+    Set cht = ws.ChartObjects(9).Chart
+    AssertEqual "waterfallpair", Registry_ChartType(cht)
+    AssertEqual "+7%", Chart_FindSeries(cht, "tqq_pd").Points(3).DataLabel.Text, "27: seta do Bruto"
+    AssertEqual "+75%", Chart_FindSeries(cht, "tqq_pd").Points(9).DataLabel.Text, "27: seta do Componente 1 (custo que cresce)"
+    AssertEqual Format$(11, "#,##0") & " (" & Format$(41, "0") & "%)", Chart_FindSeries(cht, "tqq_lbltot").Points(13).DataLabel.Text, "27: total da serie 1"
 End Sub
 
 ' Nenhuma celula das planilhas de exemplos (fora a _ThinQQ, onde NA() e intencional) tem valor de erro (#N/D, #DIV/0!...) e nenhum

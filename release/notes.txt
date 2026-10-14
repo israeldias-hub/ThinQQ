@@ -1,2 +1,3 @@
-• Exemplo de cascata com seta de diferença: no botão Exemplos (exemplo 2) e no Excel de demonstração (E05), com o passo a passo no tutorial.
-• Tutorial com uma galeria com a imagem dos 26 exemplos da demonstração, para ver cada gráfico antes de criar.
+• Novo: Cascata comparativa (menu Cascata): duas séries lado a lado, com conectores, setas de variação entre elas e o percentual do primeiro total.
+• Atualização pelo Excel volta a baixar os arquivos do GitHub (antes parava com 'HTTP 0').
+• Quem tem a 1.2.0, 1.2.1 ou 1.2.2 precisa reinstalar uma vez pelo ZIP desta versão (o carregador antigo não consegue baixar a atualização); daí em diante a atualização pelo Excel funciona.

@@ -147,7 +147,8 @@ Private Function Samples_CreateSheet2(wb As Workbook) As Worksheet
     Set Samples_CreateSheet2 = ws
 End Function
 
-' Terceira planilha ("Exemplos 3"): os tipos e recursos da Fase 3, 8 secoes (19 a 26) a cada 21 linhas, pelos mesmos caminhos do usuario.
+' Terceira planilha ("Exemplos 3"): os tipos e recursos da Fase 3 e a cascata comparativa (1.3.0), 9 secoes (19 a 27) a cada 21 linhas, pelos
+' mesmos caminhos do usuario.
 Private Function Samples_CreateSheet3(wb As Workbook) As Worksheet
     Dim ws As Worksheet, d As clsChartData, co As ChartObject
     Set ws = wb.Worksheets.Add(After:=wb.Worksheets("Exemplos 2"))
@@ -214,6 +215,13 @@ Private Function Samples_CreateSheet3(wb As Workbook) As Worksheet
     Set d = ChartData_FromRange(ws.Range("A149:C155"))
     Set co = Kinds_Insert(ws, d, "scatter")
     Scatter_SetQuad co.Chart, True
+    Settle co
+
+    WriteTitle ws, 169, "27) Cascata comparativa: duas pontes lado a lado e a variação entre elas"
+    WriteTable ws.Range("A170"), Array(Array("Etapa", "Segmento 1", "Segmento 2"), Array("Bruto", 27, 29), Array("Componente 1", -4, -7), Array("Componente 2", -6, -2), Array("Componente 3", -6, -10), Array("Líquido", "e", "e"))
+    Set d = ChartData_FromRange(ws.Range("A170:C175"))
+    Set co = Kinds_Insert(ws, d, "waterfallpair")
+    co.Width = 640: co.Height = 320                  ' largo: abaixo de ~600 pt (5 etapas) os totais mostram so o valor, sem o "(41%)"
     Settle co
     Set Samples_CreateSheet3 = ws
 End Function

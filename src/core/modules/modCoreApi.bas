@@ -14,7 +14,7 @@ Private mTestRoundDec As Variant    ' gancho de teste: respostas do Arredondar i
 Private mTestRoundDest As Range
 Private mTestBreakAnswer As Variant  ' gancho de teste: resposta do InputBox do Corte de eixo no build Test (Core_TestSetAxisBreakAnswer)
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
-Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,"
+Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,waterfallpair,"
 
 ' Última mensagem enviada ao usuário por Core_Notify ("" se nenhuma). Gancho de teste (inofensivo em Release).
 Public Function Core_LastNotice() As String
@@ -276,7 +276,7 @@ End Function
 Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
     Dim kind As String, fam As String
     Select Case key
-        Case "totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum"
+        Case "totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum", "pairdiff", "pairabs"
         Case Else: Exit Sub
     End Select
     kind = Registry_ChartType(c)
@@ -290,6 +290,7 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
                 Case "area": Area_SetTotals c, value
                 Case "mekko": Mekko_SetTotals c, value
                 Case "butterfly": Bfly_SetTotals c, value             ' borboleta: auxiliar XY tqq_total no fim da barra direita
+                Case "waterfallpair": Wfp_SetTotalPct c, value          ' cascata comparativa: o percentual do 1o total nas barras de total
                 Case "stacked", "combo": Stacked_SetTotals c, value     ' colunas, barras (empilhadas e 100%) e a combinacao (so os totais das colunas)
                 Case Else: RefuseUndispatched key, c, fam
             End Select
@@ -302,12 +303,14 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
                 Case "pie": Pie_SetLabels c, value
                 Case "butterfly": Bfly_SetLabels c, value             ' borboleta: rotulos nativos dos dois lados (esquerdo absoluto)
                 Case "scatter": Scatter_SetLabels c, value            ' dispersao e bolhas: o nome de cada ponto (ligado a coluna Nome do bloco)
+                Case "waterfallpair": Wfp_SetLabels c, value          ' cascata comparativa: degraus no centro, barras grandes acima
                 Case "stacked", "combo": Stacked_SetLabels c, value     ' colunas, barras, linha e a combinacao
                 Case Else: RefuseUndispatched key, c, fam
             End Select
         Case "connectors"
             Select Case fam
                 Case "waterfall": Ann_SetWaterfallConnectors c, value
+                Case "waterfallpair": Wfp_SetConnectors c, value     ' cascata comparativa: auxiliares XY com barra de erro, por serie
                 Case "stacked", "combo": Stacked_SetConnectors c, value
                 Case Else: RefuseUndispatched key, c, fam
             End Select
@@ -323,6 +326,10 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
             If fam = "scatter" Then Scatter_SetTrend c, value Else RefuseUndispatched key, c, fam     ' linha de tendencia linear por grupo
         Case "quad"
             If fam = "scatter" Then Scatter_SetQuad c, value Else RefuseUndispatched key, c, fam      ' quadrantes: eixos cruzando nas medias
+        Case "pairdiff"
+            If fam = "waterfallpair" Then Wfp_SetArrows c, value Else RefuseUndispatched key, c, fam      ' setas de variacao entre as barras do par
+        Case "pairabs"
+            If fam = "waterfallpair" Then Wfp_SetArrowMode c, value Else RefuseUndispatched key, c, fam   ' variacao em valor em vez de percentual
         Case "roundsum"
             Select Case fam
                 Case "stacked", "area": Round_SetLabels c, value     ' rotulos com soma consistente (maior resto nas colunas Rnd_j do bloco)
@@ -358,7 +365,7 @@ Private Function ValidateOption(key As String, value As String) As String
             End Select
         Case "legend"
             Select Case value
-                Case "right", "none", "lineend"
+                Case "right", "none", "lineend", "inbar"
                 Case Else: ValidateOption = "Opção de legenda desconhecida: " & value
             End Select
         Case "gap"
@@ -404,11 +411,13 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
                 Case "gantt": Gantt_ApplyColors c, value        ' barras pal(1) e marcos pal(0) (as series do Gantt sao todas tqq_*)
                 Case "butterfly": Bfly_ApplyColors c, value     ' as duas series de dados; vaos invisiveis; contraste dos rotulos
                 Case "scatter": Scatter_ApplyColors c, value    ' marcadores/bolhas por grupo, tendencias e contraste dos rotulos das bolhas
+                Case "waterfallpair": Wfp_ApplyColors c, value              ' cascata comparativa: serie 1 pal(0), serie 2 pal(2), contraste dos rotulos
                 Case "stacked", "combo": Style_ApplySeriesColors c, value
                 Case Else: RefuseUndispatched key, c, fam       ' (inalcancavel: PALETTE_FAMILIES ja recusou antes de gravar)
             End Select
         Case "gap"
             ApplyGapWidth c, CLng(Val(value))
+            If fam = "waterfallpair" Then Wfp_SyncGap c         ' cascata comparativa: meia-largura das barras (conectores) acompanha o espaco
     End Select
 End Sub
 
@@ -809,6 +818,7 @@ Public Function Core_ChartSourceMismatch(cht As Chart) As Boolean
         If Kinds_Family(Registry_ChartType(cht)) = "mekko" Then Core_ChartSourceMismatch = (Mekko_SourceRowsSpanned(cht) <> CLng(Val(nOpt)))
         ' dispersao/bolhas: o mesmo (as series apontam para o bloco; o tamanho da tabela so aparece nas referencias da coluna X do bloco)
         If Kinds_Family(Registry_ChartType(cht)) = "scatter" Then Core_ChartSourceMismatch = (Scatter_SourceRowsSpanned(cht) <> CLng(Val(nOpt)))
+        If Kinds_Family(Registry_ChartType(cht)) = "waterfallpair" Then Core_ChartSourceMismatch = (Wfp_SourceRowsSpanned(cht) <> CLng(Val(nOpt)))
     End If
     Exit Function
 Fail:
@@ -869,7 +879,12 @@ Private Sub NotifyScaleClippedOnce(cht As Chart)
     If Not Deco_ScaleClipped(cht) Then Exit Sub
     If mClipSeen Is Nothing Then Set mClipSeen = New Collection
     mClipSeen.Add id, id
-    Core_Notify "Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'.", vbExclamation
+    ' cascata comparativa com as barras dentro da escala: so a sala das setas passou do maximo (Mesma escala de novo daria a mesma uniao)
+    If Registry_ChartType(cht) = "waterfallpair" And Not Deco_ScaleClipped(cht, True) Then
+        Core_Notify "As setas de variação passam do máximo da escala fixa (Mesma escala) e ficam cortadas. Use 'Escala automática' ou desligue as setas de variação.", vbExclamation
+    Else
+        Core_Notify "Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'.", vbExclamation
+    End If
 End Sub
 
 ' Reposiciona rótulos e anotações. Chamado por eventos: nunca propaga erro (apenas registra).
@@ -881,7 +896,6 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Escala" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Break_RefreshAfterDataChange cht                 ' corte de eixo: maximo fixo, folga do total, rotulos dos segmentos e marcas
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Break" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
-    NotifyScaleClippedOnce cht
     Labels_RefreshPositions cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Labels" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     ' barras: a auxiliar XY usa o eixo X secundario (se o Excel o criou); mantem-no alinhado ao eixo de valores primario
@@ -893,6 +907,9 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Pie" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Bfly_RefreshAfterDataChange cht                  ' borboleta: o vao central acompanha o maior nome e o tamanho do grafico
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Bfly" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Wfp_RefreshAfterDataChange cht                   ' cascata comparativa: meia-largura das barras, valor por ponto das setas, rotulos finos, nomes ou legenda
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Wfp" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    NotifyScaleClippedOnce cht                       ' depois da recalibracao das setas da comparativa (a sala delas entra na conferencia)
     Scatter_RefreshAfterDataChange cht               ' dispersao/bolhas: quadrantes nas medias atuais e tendencias fora da legenda
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Scatter" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Gantt_RefreshScale cht                           ' Gantt: a escala calculada no bloco (unidade e intervalo) vai para o eixo; antes dos colchetes
@@ -1055,9 +1072,9 @@ Private Sub ReapplyOptions(nc As Chart)
     If Kinds_Supports(kind, "gap") And Len(Registry_GetOption(nc, "gap", "")) > 0 Then ApplyOption nc, "gap", Registry_GetOption(nc, "gap", "")
     ' soma consistente ligada: as colunas Rnd_j antes dos rotulos, para a passada dos rotulos ja ligar a elas (a de roundsum entao nao religa)
     If Kinds_Supports(kind, "roundsum") And Registry_GetOption(nc, "roundsum", "0") = "1" Then Round_EnsureColumns nc
-    For Each k In Array("totals", "labels", "connectors", "secondary", "ind100", "vline", "pieout", "trend", "quad", "roundsum")      ' roundsum depois de labels: com os rotulos desligados so grava a opcao
+    For Each k In Array("totals", "labels", "connectors", "secondary", "ind100", "vline", "pieout", "trend", "quad", "roundsum", "pairdiff", "pairabs")      ' roundsum depois de labels: com os rotulos desligados so grava a opcao
         If Kinds_Supports(kind, CStr(k)) Then
-            dflt = IIf(k = "labels" Or k = "ind100", "1", "0")
+            dflt = IIf(k = "labels" Or k = "ind100" Or k = "pairdiff", "1", "0")
             ApplyToggle nc, CStr(k), (Registry_GetOption(nc, CStr(k), dflt) = "1")      ' pizza: rotulos fora (pieout) tambem aplicados aqui
         End If
     Next

@@ -1158,6 +1158,11 @@ Private Function FixtureFor(ws As Worksheet, kind As String) As Range
                 ws.Range("D1").Value = "Volume": ws.Range("D2:D4").Value = Application.Transpose(Array(50, 120, 80))
             End If
             Set FixtureFor = ws.Range("A1").CurrentRegion
+        Case "waterfallpair"
+            ws.Range("A1:C1").Value = Array("Etapa", "Loja", "Online")
+            ws.Range("A2:C2").Value = Array("Inicio", 100, 50): ws.Range("A3:C3").Value = Array("Ajuste", -30, 10)
+            ws.Range("A4:C4").Value = Array("Fim", "e", "e")
+            Set FixtureFor = ws.Range("A1:C4")
         Case Else
             ws.Range("A1:D1").Value = Array("Ano", "Sul", "Sudeste", "Nordeste")
             ws.Range("A2:D2").Value = Array(2022, 10, 20, 5): ws.Range("A3:D3").Value = Array(2023, 12, 22, 6)
@@ -1178,7 +1183,7 @@ End Function
 ' mostra se alguma escolha foi sobrescrita pelo estado real do grafico novo (ex.: indicador 100% desligado voltando ligado).
 Private Function ChoicesSnapshot() As String
     Dim k As Variant
-    For Each k In Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum", "vbreak", "numfmt", "palette", "gap", "legend", "n")
+    For Each k In Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum", "pairdiff", "pairabs", "vbreak", "numfmt", "palette", "gap", "legend", "n")
         ChoicesSnapshot = ChoicesSnapshot & k & "=" & Core_GetOption(CStr(k)) & ";"
     Next
 End Function
@@ -1225,13 +1230,19 @@ Private Sub AssertRealState(c As Chart, kind As String, tag As String)
         For i = 1 To c.Shapes.Count
             If Left$(c.Shapes(i).Name, Len(ANN_PREFIX & "conn_")) = ANN_PREFIX & "conn_" Then conn = True
         Next
+    ElseIf Kinds_Family(kind) = "waterfallpair" Then
+        conn = Not Chart_FindSeries(c, "tqq_conn_a") Is Nothing          ' cascata comparativa: conectores sao auxiliares XY
     Else
         For Each g In c.ChartGroups
             If GroupHasSeriesLines(g) Then conn = True
         Next
     End If
-    ' (na cascata tqq_total sao as barras de total do proprio grafico, nao o alternador Totais)
-    If Kinds_Family(kind) <> "waterfall" Then AssertEqual Kinds_Supports(kind, "totals"), Not Chart_FindSeries(c, "tqq_total") Is Nothing, tag & ": totais (serie tqq_total)"
+    ' (na cascata tqq_total sao as barras de total do proprio grafico; na comparativa, Totais e o percentual nas barras de total)
+    If Kinds_Family(kind) = "waterfallpair" Then
+        AssertTrue Wfp_TotalPctOn(c), tag & ": percentual do 1o total ligado (Totais)"
+    ElseIf Kinds_Family(kind) <> "waterfall" Then
+        AssertEqual Kinds_Supports(kind, "totals"), Not Chart_FindSeries(c, "tqq_total") Is Nothing, tag & ": totais (serie tqq_total)"
+    End If
     AssertFalse labelsOn, tag & ": rotulos desligados pelo usuario continuam desligados (serie com rotulo ou tqq_lbl*)"
     AssertEqual Kinds_Supports(kind, "connectors"), conn, tag & ": conectores"
     AssertEqual Kinds_Supports(kind, "secondary"), sec, tag & ": eixo secundario"
@@ -1240,6 +1251,9 @@ Private Sub AssertRealState(c As Chart, kind As String, tag As String)
     ' dispersao/bolhas: tendencia e quadrantes ficaram ligados pelo teste (estado real: linha de tendencia na serie, eixo cruzando na media)
     If Kinds_Supports(kind, "trend") Then AssertEqual 1, c.SeriesCollection(1).Trendlines.Count, tag & ": tendencia ligada"
     If Kinds_Supports(kind, "quad") Then AssertEqual xlAxisCrossesCustom, c.Axes(xlValue).Crosses, tag & ": quadrantes ligados"
+    If Kinds_Supports(kind, "pairdiff") Then AssertTrue Not Chart_FindSeries(c, "tqq_pd") Is Nothing, tag & ": setas de variacao ligadas"
+    If Kinds_Supports(kind, "pairdiff") Then AssertTrue Not Chart_FindSeries(c, "tqq_pdroom") Is Nothing, tag & ": sala das setas (tqq_pdroom)"
+    If Kinds_Supports(kind, "pairabs") Then AssertEqual 1, Util_ToDouble(Registry_Block(c).Cells(1, WFP_META_ABS).Value), tag & ": variacao em valor ligada (meta Abs no bloco)"
 End Sub
 
 ' Todo tipo: insere pela API, exercita cada toggle/opcao conforme a matriz (suportado = funciona; nao suportado = aviso,
@@ -1248,8 +1262,8 @@ Public Sub Test_Core_AllKinds_InsertTogglesOptionsRebuild()
     Dim kinds As Variant, toggles As Variant, k As Long, t As Long, wb As Workbook, ws As Worksheet, rng As Range, c As Chart, kind As String, key As String
     Dim before As String, ch As Variant
     kinds = Array("stacked", "clustered", "stacked100", "line", "waterfall", "barstacked", "barclustered", "barstacked100", "barwaterfall", _
-                  "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut", "butterfly", "scatter", "bubble")
-    toggles = Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum")
+                  "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut", "butterfly", "scatter", "bubble", "waterfallpair")
+    toggles = Array("totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum", "pairdiff", "pairabs")
     For k = LBound(kinds) To UBound(kinds)
         kind = kinds(k)
         Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
@@ -1404,7 +1418,9 @@ Public Sub Test_Core_RebuildFromRange_ValidationRefusals_NoticeNotGenericError()
         Array("barwaterfall", "A cascata aceita no máximo 6 séries.", 8), _
         Array("combo", "A combinação precisa de pelo menos 2 colunas de valores: as primeiras viram colunas empilhadas e a última vira linha.", 2), _
         Array("mekkounits", "Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas.", 2), _
-        Array("gantt", "Gantt: a tabela precisa de 3 colunas: atividade, início e fim (datas). Deixe o fim vazio para um marco.", 2))
+        Array("gantt", "Gantt: a tabela precisa de 3 colunas: atividade, início e fim (datas). Deixe o fim vazio para um marco.", 2), _
+        Array("waterfallpair", "A cascata comparativa precisa de exatamente 2 colunas de valores (uma por série); a tabela tem só 1.", 2), _
+        Array("waterfallpair", "A cascata comparativa compara exatamente 2 séries; a tabela tem 3 colunas de valores. Selecione a coluna das etapas e só as duas colunas a comparar.", 4))
     For i = LBound(cases) To UBound(cases)
         kind = cases(i)(0): want = cases(i)(1)
         Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"

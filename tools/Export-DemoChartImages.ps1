@@ -1,5 +1,5 @@
 ﻿<#
-.SYNOPSIS  Exporta os gráficos da pasta de demonstração (exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx) para PNG, na ordem E01..E26
+.SYNOPSIS  Exporta os gráficos da pasta de demonstração (exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx) para PNG, na ordem E01..E28
            (E25 tem dois gráficos: E25a e E25b), e reduz cada PNG. As imagens alimentam a galeria do tutorial (tools\Build-TutorialGallery.ps1).
 .EXAMPLE   pwsh tools\Export-DemoChartImages.ps1 -OutDir C:\temp\tqq-galeria-img
            pwsh tools\Build-TutorialGallery.ps1 -ImageDir C:\temp\tqq-galeria-img

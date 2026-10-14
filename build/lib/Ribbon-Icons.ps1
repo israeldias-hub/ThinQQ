@@ -22,6 +22,7 @@ function Get-TqqIconSpecs {
         tqq_ppt       = @{ Mso = 'SlideNew';                     Rects = @((New-TqqRect 1 2 14 11 $n), (New-TqqRect 3 4 10 7 $l), (New-TqqRect 4 7 2 3 $b), (New-TqqRect 7 5 2 5 $b), (New-TqqRect 10 6 2 4 $b), (New-TqqRect 6 13 4 2 $g)) }
         tqq_round     = @{ Mso = 'DecimalsDecrease';             Rects = @((New-TqqRect 1 2 14 4 $l), (New-TqqRect 1 7 14 4 $b), (New-TqqRect 1 12 14 3 $n), (New-TqqRect 14 1 2 14 $g)) }
         tqq_break     = @{ Mso = 'ChartAxes';                    Rects = @((New-TqqRect 5 9 6 6 $b), (New-TqqRect 5 1 6 5 $b), (New-TqqRect 3 6 10 1 $g), (New-TqqRect 3 8 10 1 $g)) }
+        tqq_waterfallpair = @{ Mso = 'ChartTypeOtherInsertGallery'; Rects = @((New-TqqRect 0 3 2 12 $n), (New-TqqRect 2 2 2 13 $l), (New-TqqRect 6 3 2 4 $n), (New-TqqRect 8 2 2 3 $l), (New-TqqRect 12 7 2 8 $n), (New-TqqRect 14 5 2 10 $l)) }
     }
 }
 

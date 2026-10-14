@@ -111,6 +111,10 @@ if ($parsed) {
     foreach ($id in 'borboleta', 'dispersao') {
         Check ($null -ne $xml.SelectSingleNode("//*[@id='tipos']//a[@href='#$id']")) "a tabela de #tipos leva à seção #$id"
     }
+    # Cascata comparativa (1.3.0): seção própria, no índice, e a linha da tabela de #tipos leva a ela
+    Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='cascata-comparativa']")) 'tutorial tem a seção #cascata-comparativa'
+    Check ($null -ne $xml.SelectSingleNode("//nav//a[@href='#cascata-comparativa']")) 'o índice leva à seção #cascata-comparativa'
+    Check ($null -ne $xml.SelectSingleNode("//*[@id='tipos']//a[@href='#cascata-comparativa']")) 'a tabela de #tipos leva à seção #cascata-comparativa'
     # #demonstracao: uma linha por exemplo da lista de cobertura (a mesma que o gerador e o Test-DemoWorkbook usam): número, título e tipo
     . (Join-Path $RepoRoot 'tools\DemoCoverage.ps1')
     $demoCov = @(Get-TqqDemoCoverage)
@@ -193,8 +197,10 @@ if ($parsed) {
         else { $rep = [regex]::Match($v, '"(?<r>[^"]*)",').Groups['r'].Value; $list = ($allKinds -join ',').Replace($rep, '').Split(',') }
         $matrix[$m.Groups['f'].Value] = $list
     }
-    Check ($allKinds.Count -eq 20) "20 tipos de gráfico em modChartKinds.bas ($($allKinds.Count))"
-    Check ($matrix.Count -eq 20) "20 recursos na matriz de capacidades de modChartKinds.bas ($($matrix.Count))"
+    Check ($allKinds.Count -eq 21) "21 tipos de gráfico em modChartKinds.bas ($($allKinds.Count))"
+    Check ($matrix.Count -eq 23) "23 recursos na matriz de capacidades de modChartKinds.bas ($($matrix.Count))"
+    $nk = $allKinds.Count
+    Check ($html -match "\b$nk tipos" -and $html -notmatch "\b$($nk - 1) tipos") "tutorial cita os $nk tipos (e nenhum '$($nk - 1) tipos')"
     # Rótulo de cada recurso: Kinds_FeatureLabel (modChartKinds.bas) ou, nos que ela não cobre, o controle da faixa que o aciona
     $featureLabel = @{}
     foreach ($m in [regex]::Matches($kindsSrc, 'Case "(?<f>[a-z0-9]+)":\s*Kinds_FeatureLabel = "(?<l>[^"]*)"')) { $featureLabel[$m.Groups['f'].Value] = $m.Groups['l'].Value }
@@ -299,6 +305,10 @@ $demoRange = 'E01 a E' + ('{0:00}' -f $nDemo)
 Check ($nDemo -ge 26) "a cobertura da demonstração tem $nDemo exemplos"
 Check ($readme -match "$nDemo exemplos" -and $html -match "$nDemo exemplos") "README e tutorial citam os $nDemo exemplos da demonstração"
 Check ($readme -match [regex]::Escape($demoRange) -and $html -match [regex]::Escape($demoRange)) "README e tutorial citam '$demoRange'"
+Check ((Read-Utf8 $leiamePath) -match [regex]::Escape("$nDemo exemplos ($demoRange)")) "LEIA-ME cita '$nDemo exemplos ($demoRange)'"
+$leiameExPath = Join-Path $RepoRoot 'installer\LEIA-ME-exemplos.txt'
+Check ((Read-Utf8 $leiameExPath) -match [regex]::Escape("$nDemo exemplos, de $demoRange")) "LEIA-ME dos exemplos cita '$nDemo exemplos, de $demoRange'"
+Check ((Read-Utf8 $leiameExPath) -match [regex]::Escape("planilhas $demoRange")) "LEIA-ME dos exemplos cita 'planilhas $demoRange'"
 # Parâmetros do release citados existem no script
 $rel = Read-Utf8 (Join-Path $RepoRoot 'build\release.ps1')
 foreach ($p in 'Version', 'BaseUrl', 'PublishTo') { Check ($rel -match "\`$$p" -and $readme -match "-$p") "README e release.ps1 concordam no parâmetro -$p" }
@@ -390,7 +400,11 @@ $messages = @(
     ' já têm conteúdo. Substituir? Esta ação não pode ser desfeita.',
     'A planilha de destino está protegida sem a permissão de formatar células: desproteja-a ou escolha um destino em outra planilha.',
     'células; o Arredondar intervalo aceita no máximo ',
-    'O gráfico saiu do grupo de Mesma escala: corte de eixo e Mesma escala são excludentes.'
+    'O gráfico saiu do grupo de Mesma escala: corte de eixo e Mesma escala são excludentes.',
+    'As setas de variação passam do máximo da escala fixa (Mesma escala) e ficam cortadas. Use ''Escala automática'' ou desligue as setas de variação.',
+    'A cascata comparativa precisa de exatamente 2 colunas de valores (uma por série); a tabela tem só 1.',
+    'A cascata comparativa compara exatamente 2 séries; a tabela tem ',
+    ' colunas de valores. Selecione a coluna das etapas e só as duas colunas a comparar.'
 )
 foreach ($msg in $messages) {
     Check ($html -match [regex]::Escape($msg)) "tutorial cita a mensagem '$msg'"
@@ -446,6 +460,19 @@ $mustDocument = [ordered]@{
     'copiar a planilha: avisa uma vez e usa Alterar dados na cópia'  = @('both', 'Alterar dados')
     'assinatura: o ramo signtool + SIPs não rodou ponta a ponta'     = @('both', 'ponta a ponta')
     'assinatura: roteiro manual pelo VBE (Ferramentas > Assinatura Digital)' = @('both', 'Assinatura Digital')
+    'comparativa: percentual (B - A) / A'                            = @('both', '(B - A) / A')
+    'comparativa: n/d com zero ou sinais opostos'                    = @('both', 'sinais opostos')
+    'comparativa: conectores atravessam a barra da outra série'      = @('tutorial', 'atravessam a barra da outra série')
+    'comparativa: afastamento das setas só com o ThinQQ'             = @('both', 'afastamento das setas')
+    'comparativa: sem cálculo de trás para frente'                   = @('tutorial', 'não calcula para trás')
+    'comparativa: no máximo 2 séries'                                = @('both', 'mais de 2 séries')
+    'comparativa: elipses das setas se sobrepõem em gráfico estreito' = @('both', 'elipses das setas podem se sobrepor')
+    'comparativa: sem recalibração com menos de 92 pt'               = @('both', '92 pt')
+    'comparativa: Mesma escala pode cortar as setas do topo'         = @('both', 'cortar as setas do topo')
+    'comparativa: total negativo mostra o percentual com sinal'      = @('tutorial', '(-50%)')
+    'comparativa: o percentual dos totais volta ao alargar'          = @('tutorial', 'volta sozinho')
+    'comparativa: o percentual dos totais some sozinho se os rótulos se tocam' = @('both', 'some sozinho quando os dois rótulos de total')
+    'comparativa: rótulos de total vizinhos podem se sobrepor'       = @('both', 'ou alargue o gráfico')
 }
 foreach ($k in $mustDocument.Keys) {
     $scope = $mustDocument[$k][0]; $phrase = $mustDocument[$k][1]

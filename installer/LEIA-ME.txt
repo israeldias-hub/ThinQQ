@@ -9,7 +9,7 @@ INSTALAÇÃO AUTOMÁTICA
 2. Feche o Excel.
 3. Dê dois cliques em "Instalar-ThinQQ.cmd". Se o Windows perguntar, clique em "Executar" (ou, em "O Windows protegeu o computador", em "Mais informações" > "Executar assim mesmo").
 4. Abra o Excel: a aba "ThinQQ" aparece na faixa de opções.
-5. Para conhecer os recursos, abra exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx (vem neste ZIP, na pasta "exemplos"): a primeira planilha é um índice com links para 26 exemplos (E01 a E26). O instalador não instala nem abre esse arquivo.
+5. Para conhecer os recursos, abra exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx (vem neste ZIP, na pasta "exemplos"): a primeira planilha é um índice com links para 28 exemplos (E01 a E28). O instalador não instala nem abre esse arquivo.
 
 INSTALAÇÃO MANUAL (se o script for bloqueado)
 1. Crie a pasta %LOCALAPPDATA%\ThinQQ (cole esse caminho na barra de endereços do Explorador de Arquivos).
