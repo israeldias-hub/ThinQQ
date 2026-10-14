@@ -637,8 +637,8 @@ Fail:
 End Sub
 
 ' True quando o grafico tem escala fixa (Mesma escala) e os dados passaram do maximo gravado (vmax): as barras ficariam cortadas. O maior valor
-' plotado e o topo da pilha (Ann_GetCategoryData: empilhadas, area, cascata) ou, em agrupadas e linha, o maior valor de qualquer serie. False em
-' qualquer duvida. Usada por Core_SafeRefresh para o aviso unico.
+' plotado e o topo da pilha (Ann_GetCategoryData: empilhadas, area, cascata) ou, em agrupadas e linha, o maior valor de qualquer serie; na cascata
+' comparativa, tambem a sala das setas de variacao (tqq_pdroom). False em qualquer duvida. Usada por Core_SafeRefresh para o aviso unico.
 Public Function Deco_ScaleClipped(cht As Chart) As Boolean
     Dim sMax As String, kind As String, values() As Double, tops() As Double, i As Long, s As Series, v As Variant, mx As Double
     On Error GoTo Fail
@@ -659,6 +659,17 @@ Public Function Deco_ScaleClipped(cht As Chart) As Boolean
         For i = 1 To UBound(tops)
             If tops(i) > mx Then mx = tops(i)
         Next
+    End If
+    If kind = "waterfallpair" Then
+        ' cascata comparativa: a sala das setas de variacao (tqq_pdroom, acima de cada elipse) tambem precisa caber. Com um parceiro que estende o
+        ' minimo para baixo, a faixa comum cresce com o mesmo maximo, o valor por ponto cresce e as setas do topo passam do maximo fixo
+        Set s = Chart_FindSeries(cht, "tqq_pdroom")
+        If Not s Is Nothing Then
+            v = s.Values
+            For i = LBound(v) To UBound(v)
+                If Util_ToDouble(v(i)) > mx Then mx = Util_ToDouble(v(i))
+            Next
+        End If
     End If
     Deco_ScaleClipped = (mx > Val(sMax) + 0.000001)
 Fail:

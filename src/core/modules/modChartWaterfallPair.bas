@@ -595,7 +595,8 @@ End Sub
 ' formulas do bloco. Grava so quando muda mais de 2% (a escala automatica depende dos proprios pontos das setas; medido: converge numa gravacao);
 ' teto de 3 gravacoes (a 4a leitura so confere a ultima: o log de "sem convergencia" so quando ela nao bastou; medido: reduzir a altura pede
 ' 2 ou 3 gravacoes, o eixo sobe de 5 em 5 ou de 10 em 10); calculo manual recalcula o bloco. Le o eixo (automatico, ou fixo pela Mesma escala
-' ou a mao) e nunca o altera. Area interna abaixo de 2 x (22 + 12 + 12) = 92 pt: nao calibra (sem ponto fixo).
+' ou a mao) e nunca o altera. Area interna abaixo de 2 x (22 + 12 + 12) = 92 pt com o maximo automatico: nao calibra (sem ponto fixo); com
+' o maximo fixo calibra (sem realimentacao).
 ' Devolve True se gravou. So dentro de Wfp_RefreshAfterDataChange (guarda de reentrada).
 Private Function Wfp_RefreshRoom(cht As Chart) As Boolean
     Dim blk As Range, ax As Axis, pass As Long, h As Double, ptv As Double, cur As Double
@@ -605,9 +606,10 @@ Private Function Wfp_RefreshRoom(cht As Chart) As Boolean
     For pass = 1 To WFP_ROOM_PASSES + 1
         h = cht.PlotArea.InsideHeight
         If h <= 0 Or ax.MaximumScale <= ax.MinimumScale Then Exit For
-        If h < 2 * (WFP_PT_LBLROOM + WFP_PT_RISE + WFP_PT_ROOM) Then
+        If h < 2 * (WFP_PT_LBLROOM + WFP_PT_RISE + WFP_PT_ROOM) And ax.MaximumScaleIsAuto Then
             ' area interna baixa demais: a sala (ate 46 pt acima dos dados) nao tem ponto fixo (medido: 460 x 110, area de 48 pt, eixo de 40 a
             ' 400, 1500, 6000 em tres refresh). PtV e o eixo ficam como estao; os afastamentos so encolhem em pontos. Log so se calibraria.
+            ' Com o maximo FIXO (Mesma escala ou a mao) a sala nao mexe no eixo: calibra normalmente (acerta numa passada).
             If pass = 1 Then
                 ptv = (ax.MaximumScale - ax.MinimumScale) / h
                 cur = Util_ToDouble(blk.Cells(1, WFP_META_PTV).Value)

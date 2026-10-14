@@ -810,6 +810,7 @@ Public Sub Test_Wfp_Arrows_SameScale_FixedAxis()
     AssertAlmost (ax.MaximumScale - ax.MinimumScale) / c1.PlotArea.InsideHeight, PtvOf(c1), 0.02 * PtvOf(c1), "PtV pelo eixo fixo"
     Set s = Chart_FindSeries(c1, "tqq_pd")
     AssertAlmost YOf(c1, SideVal(c1, 2, 1, "Hi")) - WFP_PT_GAP, s.Points(WFP_ROWS_PER_PAIR + 1).Top, 1.5, "par 2: 3 pt acima do degrau com o eixo fixo"
+    AssertFalse Deco_ScaleClipped(c1), "parceiro so acima: a sala das setas cabe no maximo comum"
     AssertTrue Deco_ResetScale(c1)
     Core_SafeRefresh c1
     Set ax = c1.Axes(xlValue, xlPrimary)
@@ -904,6 +905,75 @@ Public Sub Test_Wfp_Arrows_TinyPlot_KeepsPtVAndAxis()
         AssertEqual mx, ax.MaximumScale, "refresh " & k & ": eixo"
         AssertAlmost ptv0, PtvOf(cht), 0.000001, "refresh " & k & ": PtV"
     Next
+    CloseTemp wb
+End Sub
+
+' Mesma escala em grafico baixo (area interna < 92 pt): com o eixo FIXO a sala das setas nao mexe na escala (sem realimentacao), entao a
+' calibracao age e acerta numa passada: PtV = faixa fixa / altura interna, a seta do degrau continua 3 pt acima dele e o eixo fica no fixo.
+' (Com o eixo automatico a saida antecipada continua: Test_Wfp_Arrows_TinyPlot_KeepsPtVAndAxis.) Geometria por regra de tres no eixo real.
+Public Sub Test_Wfp_Arrows_SameScale_TinyPlot_Calibrates()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, c1 As Chart, c2 As Chart, coll As Collection, skipped As Long, ax As Axis, s As Series
+    Dim mx As Double, mn As Double, ptv As Double
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set c1 = Wfp_Insert(ws, d).Chart
+    ws.Range("H1:I1").Value = Array("Ano", "Valor"): ws.Range("H2:I2").Value = Array(2024, 80): ws.Range("H3:I3").Value = Array(2025, 90)
+    Set c2 = Stacked_Insert(ws, ChartData_FromRange(ws.Range("H1:I3")), "stacked").Chart
+    Set coll = New Collection: coll.Add c1: coll.Add c2
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    c1.Parent.Height = 110
+    ForceLayout c1
+    Core_SafeRefresh c1
+    ForceLayout c1
+    Set ax = c1.Axes(xlValue, xlPrimary)
+    AssertTrue c1.PlotArea.InsideHeight < 2 * (WFP_PT_LBLROOM + WFP_PT_RISE + WFP_PT_ROOM), "premissa: area interna abaixo de 92 pt (" & c1.PlotArea.InsideHeight & ")"
+    AssertFalse ax.MaximumScaleIsAuto, "eixo fixo"
+    mx = ax.MaximumScale: mn = ax.MinimumScale
+    ptv = (mx - mn) / c1.PlotArea.InsideHeight
+    AssertAlmost ptv, PtvOf(c1), 0.02 * ptv, "PtV pelo eixo fixo e a altura pequena (" & PtvOf(c1) & ")"
+    Set s = Chart_FindSeries(c1, "tqq_pd")
+    AssertAlmost YOf(c1, SideVal(c1, 2, 1, "Hi")) - WFP_PT_GAP, s.Points(WFP_ROWS_PER_PAIR + 1).Top, 1.5, "par 2: 3 pt acima do degrau"
+    Core_SafeRefresh c1
+    AssertEqual mx, ax.MaximumScale, "o refresh seguinte nao mexe no eixo"
+    AssertAlmost ptv, PtvOf(c1), 0.02 * ptv, "estavel no refresh seguinte"
+    CloseTemp wb
+End Sub
+
+' Mesma escala com um parceiro que estende o MINIMO para baixo (cascata de 0 a ~40 e colunas de -40 e 20): a faixa comum quase dobra com o
+' mesmo maximo, o valor por ponto dobra e a sala das setas do topo passa do maximo fixo (as barras cabem). Limite conhecido: a escala fica a que
+' a Mesma escala calculou; Deco_ScaleClipped conta a sala das setas (tqq_pdroom) e o refresh avisa uma vez. Premissas pelo eixo real.
+Public Sub Test_Wfp_SameScale_PartnerExtendsMin_ArrowsClipDetected()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, c1 As Chart, c2 As Chart, coll As Collection, skipped As Long, ax As Axis
+    Dim v As Variant, i As Long, mxRoom As Double, values() As Double, tops() As Double, mxTop As Double, autoRange As Double
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set c1 = Wfp_Insert(ws, d).Chart
+    ForceLayout c1
+    Core_SafeRefresh c1
+    Set ax = c1.Axes(xlValue, xlPrimary)
+    autoRange = ax.MaximumScale - ax.MinimumScale
+    AssertFalse Deco_ScaleClipped(c1), "sem escala fixa nao ha corte"
+    ws.Range("H1:I1").Value = Array("Ano", "Valor"): ws.Range("H2:I2").Value = Array(2024, -40): ws.Range("H3:I3").Value = Array(2025, 20)
+    Set c2 = Stacked_Insert(ws, ChartData_FromRange(ws.Range("H1:I3")), "stacked").Chart
+    Set coll = New Collection: coll.Add c1: coll.Add c2
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    ForceLayout c1
+    AssertFalse ax.MaximumScaleIsAuto, "eixo fixo"
+    AssertTrue ax.MinimumScale < 0 And ax.MaximumScale - ax.MinimumScale >= 1.5 * autoRange, "premissa: o parceiro estendeu o minimo (" & ax.MinimumScale & " a " & ax.MaximumScale & ")"
+    v = Chart_FindSeries(c1, "tqq_pdroom").Values
+    For i = LBound(v) To UBound(v)
+        If Util_ToDouble(v(i)) > mxRoom Then mxRoom = Util_ToDouble(v(i))
+    Next
+    AssertTrue mxRoom > ax.MaximumScale, "premissa: a sala das setas passa do maximo fixo (" & mxRoom & " > " & ax.MaximumScale & ")"
+    Ann_GetCategoryData c1, values, tops
+    For i = 1 To UBound(tops)
+        If tops(i) > mxTop Then mxTop = tops(i)
+    Next
+    AssertTrue mxTop <= ax.MaximumScale, "as barras cabem (" & mxTop & ")"
+    AssertTrue Deco_ScaleClipped(c1), "as setas cortadas contam como corte"
+    Core_ClearLastNotice
+    Core_SafeRefresh c1
+    AssertEqual "Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'.", Core_LastNotice(), "o refresh avisa"
+    Wfp_SetArrows c1, False
+    AssertFalse Deco_ScaleClipped(c1), "sem as setas nao ha corte"
     CloseTemp wb
 End Sub
 
@@ -1160,6 +1230,13 @@ Fail:
     Err.Raise en, es, ed
 End Sub
 
+' Caixas REAIS (depois do ForceLayout) dos rotulos de total das fatias k (A) e k + 1 (B) da mesma etapa: a de B comeca depois do fim da de A.
+Private Sub AssertTotalBoxesApart(cht As Chart, k As Long, tag As String)
+    Dim lt As Series, a As DataLabel, b As DataLabel
+    Set lt = Chart_FindSeries(cht, "tqq_lbltot"): Set a = lt.Points(k).DataLabel: Set b = lt.Points(k + 1).DataLabel
+    AssertTrue b.Left >= a.Left + a.Width, tag & ": as caixas nao se sobrepoem (A termina em " & Format$(a.Left + a.Width, "0.0") & ", B comeca em " & Format$(b.Left, "0.0") & ")"
+End Sub
+
 ' Totais vizinhos (os dois lados sao barras grandes) que se tocariam: so o valor nas duas fatias (LblOn = 0), o percentual volta quando cabe.
 ' Medido (sonda): fixture a 300 x 220 e 380 x 240, caixas "11 (41%)" / "10 (34%)" sobrepostas 18,6 e 12,9 pt; 4 digitos a 460 x 280
 ' ("1.234 (62%)" / "1.230 (62%)"), 18,7 pt. O texto continua vivo sem o ThinQQ (so a coluna LblOn fica como esta).
@@ -1176,6 +1253,9 @@ Public Sub Test_Wfp_Labels_TotalsCollide_ValueOnly()
     AssertEqual Format$(11, "#,##0"), LblText(cht, "tqq_lbltot", 13), "300 x 220: total A sem o percentual"
     AssertEqual Format$(10, "#,##0"), LblText(cht, "tqq_lbltot", 14), "300 x 220: total B sem o percentual"
     AssertEqual Format$(27, "#,##0"), LblText(cht, "tqq_lbltot", 1), "inicio: cabe (16 pt)"
+    ForceLayout cht
+    AssertTotalBoxesApart cht, 1, "300 x 220 (so o valor), inicio"
+    AssertTotalBoxesApart cht, 13, "300 x 220 (so o valor), liquido"
     ws.Range("B2").Value = 30                        ' sem o ThinQQ (so o calculo): o texto acompanha
     cht.Refresh
     AssertEqual Format$(14, "#,##0"), LblText(cht, "tqq_lbltot", 13), "vivo sem o ThinQQ"
@@ -1198,6 +1278,9 @@ Public Sub Test_Wfp_Labels_TotalsCollide_ValueOnly()
     cht.Refresh
     AssertEqual Format$(1234, "#,##0"), LblText(cht, "tqq_lbltot", 13), "4 digitos a 460 x 280: totais 1.234 e 1.230 lado a lado, so o valor"
     AssertEqual Format$(1230, "#,##0"), LblText(cht, "tqq_lbltot", 14)
+    ForceLayout cht
+    AssertTotalBoxesApart cht, 1, "4 digitos a 460 x 280 (so o valor), inicio"
+    AssertTotalBoxesApart cht, 13, "4 digitos a 460 x 280 (so o valor), liquido"
     Teardown wb
 End Sub
 
