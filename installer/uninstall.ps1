@@ -21,6 +21,7 @@ if ($RegistryRoot -ne 'HKCU:\Software' -and $RegistryRoot -notmatch '^HKCU:\\Sof
 }
 if (-not $SkipExcelCheck) {
     if (Get-Process excel -ErrorAction SilentlyContinue) { throw 'Feche o Excel antes de desinstalar o ThinQQ.' }
+    if (Get-Process powerpnt -ErrorAction SilentlyContinue) { throw 'Feche o PowerPoint antes de desinstalar o ThinQQ.' }
 }
 
 # --- Suplemento (OPEN/OPENn): so mexe se houver entrada do ThinQQ ---
@@ -46,6 +47,9 @@ if (Test-Path -LiteralPath $opt) {
         foreach ($e in $entries) { if ($targetNames -notcontains $e.Name) { Remove-ItemProperty -LiteralPath $opt -Name $e.Name } }
     }
 }
+# PowerPoint (1.4.0): so as duas chaves que o instalador cria; as configuracoes do atualizador (PpamVersion) saem com 'VB and VBA Program Settings\ThinQQ'
+Remove-Item -LiteralPath (Join-Path $RegistryRoot 'Microsoft\Office\16.0\PowerPoint\AddIns\ThinQQ') -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $RegistryRoot 'Microsoft\Office\16.0\PowerPoint\Security\Trusted Locations\LocationThinQQ') -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $RegistryRoot 'Microsoft\Office\16.0\Excel\Security\Trusted Locations\LocationThinQQ') -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $RegistryRoot 'VB and VBA Program Settings\ThinQQ') -Recurse -Force -ErrorAction SilentlyContinue
 if (-not $KeepFiles -and (Test-Path -LiteralPath $Root)) { Remove-Item -LiteralPath $Root -Recurse -Force }

@@ -6,10 +6,13 @@ Excel do Office 16.0 (Excel 2016, 2019, 2021 ou Microsoft 365) no Windows; testa
 
 INSTALAÇÃO AUTOMÁTICA
 1. Descompacte o ZIP inteiro em uma pasta (não execute de dentro do ZIP).
-2. Feche o Excel.
+2. Feche o Excel e o PowerPoint.
 3. Dê dois cliques em "Instalar-ThinQQ.cmd". Se o Windows perguntar, clique em "Executar" (ou, em "O Windows protegeu o computador", em "Mais informações" > "Executar assim mesmo").
 4. Abra o Excel: a aba "ThinQQ" aparece na faixa de opções.
 5. Para conhecer os recursos, abra exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx (vem neste ZIP, na pasta "exemplos"): a primeira planilha é um índice com links para 28 exemplos (E01 a E28). O instalador não instala nem abre esse arquivo.
+
+POWERPOINT
+O instalador também instala o suplemento ThinQQ.ppam (aba ThinQQ no PowerPoint), que atualiza os gráficos do ThinQQ colados como gráfico vinculado ao abrir a apresentação. Instalação manual: PowerPoint > Arquivo > Opções > Suplementos > Gerenciar: Suplementos do PowerPoint > Ir... > Adicionar novo > %LOCALAPPDATA%\ThinQQ\ThinQQ.ppam.
 
 INSTALAÇÃO MANUAL (se o script for bloqueado)
 1. Crie a pasta %LOCALAPPDATA%\ThinQQ (cole esse caminho na barra de endereços do Explorador de Arquivos).
@@ -37,6 +40,8 @@ O QUE O INSTALADOR ALTERA
   HKCU\Software\Microsoft\Office\16.0\Excel\Options.
 - Local Confiável "LocationThinQQ" em HKCU\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations,
   apontando para %LOCALAPPDATA%\ThinQQ\ com "subpastas também são confiáveis": macros dessa pasta rodam sem aviso.
+- PowerPoint (só se o pacote trouxer o ThinQQ.ppam): ThinQQ.ppam na raiz de %LOCALAPPDATA%\ThinQQ, chave AddIns\ThinQQ (Path e AutoLoad) em
+  HKCU\Software\Microsoft\Office\16.0\PowerPoint e Local Confiável "LocationThinQQ" em PowerPoint\Security\Trusted Locations.
 - Configurações do atualizador em HKCU\Software\VB and VBA Program Settings\ThinQQ.
 - Nada em HKLM e nada fora do perfil do usuário. O uninstall.ps1 desfaz tudo.
 
@@ -67,7 +72,7 @@ PROBLEMAS COMUNS
 - A aba ThinQQ não aparece: feche TODAS as janelas do Excel (veja o Gerenciador de Tarefas), rode o instalador de novo e
   abra o Excel. Em Arquivo > Opções > Suplementos > Gerenciar: Suplementos do Excel > Ir..., o ThinQQ deve estar marcado.
   Com a aba visível, ThinQQ > Sobre mostra as versões do carregador e do núcleo.
-- "Feche o Excel antes de instalar": encerre todas as janelas do Excel (veja também o Gerenciador de
+- "Feche o Excel antes de instalar" (ou "Feche o PowerPoint..."): encerre todas as janelas do Excel e do PowerPoint (veja também o Gerenciador de
   Tarefas) e tente de novo.
 - A política da empresa pode bloquear macros em pastas do usuário; nesse caso, fale com a TI.
 
@@ -82,6 +87,6 @@ Ao reinstalar, o loader anterior é guardado em ThinQQ.xlam.bak (só o último).
 mais antigo que o instalado; para forçar: powershell -ExecutionPolicy Bypass -File install.ps1 -Force
 
 DESINSTALAÇÃO
-Feche o Excel e execute, a partir da pasta onde você descompactou o ZIP: powershell -ExecutionPolicy Bypass -File uninstall.ps1
+Feche o Excel e o PowerPoint e execute, a partir da pasta onde você descompactou o ZIP: powershell -ExecutionPolicy Bypass -File uninstall.ps1
 Isso remove o registro do suplemento, o Local Confiável, as configurações e a pasta
 %LOCALAPPDATA%\ThinQQ. Use -KeepFiles para manter os arquivos.
