@@ -14,18 +14,15 @@ try {
     Check ((Get-Item $path).Length -lt 3MB) "tamanho < 3 MB ($((Get-Item $path).Length) bytes)"
     $cov = @(Get-TqqDemoCoverage)
     $feats = @(Get-TqqDemoFeatures)
-    # TEMPORARIO (Tarefa 0 da cascata comparativa): tipo e recursos que ainda nao tem exemplo na demonstracao; a Tarefa 7 gera E27/E28 e remove
-    # esta lista (e o "if" das duas linhas seguintes)
-    $pendingDemo = @('waterfallpair', 'pairdiff', 'pairabs', 'inbar')
     $kindsSrc = [IO.File]::ReadAllText((Join-Path $RepoRoot 'src\core\modules\modChartKinds.bas'))
     $allKinds = @(([regex]::Match($kindsSrc, 'Private Const KINDS As String = "(?<k>[^"]+)"').Groups['k'].Value).Trim(',').Split(','))
     Check ($allKinds.Count -ge 20) "tipos lidos de modChartKinds.bas ($($allKinds.Count))"
-    foreach ($k in $allKinds) { if ($pendingDemo -contains $k) { Write-Host "ok - cobertura do tipo '$k' # SKIP pendente (Tarefa 7)"; continue }; Check (@($cov | Where-Object { $_.Kind -eq $k }).Count -ge 1) "cobertura tem o tipo '$k'" }
+    foreach ($k in $allKinds) { Check (@($cov | Where-Object { $_.Kind -eq $k }).Count -ge 1) "cobertura tem o tipo '$k'" }
     # recursos da MATRIZ (a mesma leitura do Test-Docs), nao so a lista fixa de DemoCoverage.ps1 (que viria do mesmo arquivo da cobertura):
     # um recurso conta coberto por um item com o mesmo nome ou com o prefixo "<recurso>-" (legend -> legend-none)
     $matrixFeatures = @([regex]::Matches($kindsSrc, 'Case "(?<f>[a-z0-9]+)":\s*list =') | ForEach-Object { $_.Groups['f'].Value })
     Check ($matrixFeatures.Count -ge 20) "recursos da matriz lidos de modChartKinds.bas ($($matrixFeatures.Count))"
-    foreach ($f in $matrixFeatures) { if ($pendingDemo -contains $f) { Write-Host "ok - cobertura do recurso '$f' # SKIP pendente (Tarefa 7)"; continue }; Check (@($cov | Where-Object { $_.Features -contains $f -or @($_.Features | Where-Object { $_ -like "$f-*" }).Count -gt 0 }).Count -ge 1) "cobertura tem o recurso da matriz '$f'" }
+    foreach ($f in $matrixFeatures) { Check (@($cov | Where-Object { $_.Features -contains $f -or @($_.Features | Where-Object { $_ -like "$f-*" }).Count -gt 0 }).Count -ge 1) "cobertura tem o recurso da matriz '$f'" }
     foreach ($f in $feats) { Check (@($cov | Where-Object { $_.Features -contains $f }).Count -ge 1) "cobertura tem o recurso '$f'" }
     Check (@($cov | ForEach-Object { $_.Sheet } | Sort-Object -Unique).Count -eq $cov.Count) 'planilhas da cobertura sem repeticao'
     # privacidade do binario (o Test-Privacy pula arquivo com byte NUL): docProps sem autor nem empresa e nenhuma parte XML com id, caminho de
@@ -57,6 +54,10 @@ try {
                 Check ($txt -notmatch '<Manager>[^<]+</Manager>') 'docProps/app.xml sem gerente'
             }
         }
+        # cascata comparativa: os conectores sao barras de erro X PERSONALIZADAS ligadas ao bloco (vivas sem o ThinQQ)
+        $connXml = @($zip.Entries | Where-Object { $_.FullName -like 'xl/charts/chart*.xml' } | ForEach-Object { $sr = New-Object IO.StreamReader($_.Open()); $x = $sr.ReadToEnd(); $sr.Dispose(); $x } | Where-Object { $_ -match 'tqq_conn_a' })
+        Check ($connXml.Count -ge 2) "cascata comparativa: graficos com conectores no pacote ($($connXml.Count))"
+        foreach ($x in $connXml) { Check ($x -match '(?s)<c:errBars>.*?<c:errValType val="cust"/>.*?<c:plus><c:numRef><c:f>[^<]*_ThinQQ') 'conectores: barra de erro personalizada ligada a _ThinQQ' }
     } finally { $zip.Dispose() }
     Check ($privHits.Count -eq 0) "partes XML sem id de maquina, caminho de perfil, e-mail, absPath, .xlam nem o nome antigo da rede ($($privHits -join ', '))"
     $xl = New-ExcelApp
@@ -173,6 +174,9 @@ try {
             'trend'        = { param($i, $co, $ws) $n = 0; foreach ($sr in $co.Chart.SeriesCollection()) { $n += $sr.Trendlines().Count }; $i.Opt['trend'] -eq '1' -and $n -ge 1 }
             'quad'         = { param($i, $co, $ws) $i.Opt['quad'] -eq '1' }
             'connectors'   = { param($i, $co, $ws) $i.Opt['connectors'] -eq '1' }
+            'pairdiff'     = { param($i, $co, $ws) $n = 0; foreach ($sr in $co.Chart.SeriesCollection()) { if ([string]$sr.Name -eq 'tqq_pd') { $n++ } }; $i.Opt['pairdiff'] -eq '1' -and $n -eq 1 }
+            'pairabs'      = { param($i, $co, $ws) $i.Opt['pairabs'] -eq '1' }
+            'inbar'        = { param($i, $co, $ws) $i.Opt['legend'] -eq 'inbar' }
         }
         foreach ($f in $feats) { Check ($featCheck.ContainsKey($f)) "o teste sabe conferir o recurso '$f'" }
         foreach ($it in $cov) {
@@ -212,6 +216,21 @@ try {
             $plotRight = [double]$c05.PlotArea.InsideLeft + [double]$c05.PlotArea.InsideWidth
             Check ([double]$albl.Left -ge $plotRight - 0.5 -and [double]$albl.Left + [double]$albl.Width -le [double]$c05.ChartArea.Width + 0.5) "E05: rotulo da seta fora da area de plotagem e dentro do grafico (L=$($albl.Left), plot ate $plotRight, grafico $($c05.ChartArea.Width))"
         } else { Check $false 'E05: rotulo da seta de diferenca (tqq_ann_diff_1_lbl) presente' }
+        # E27: a seta do Lucro (7.o par, ponto 39 de tqq_pd) mostra (2025 - 2024) / 2024 do lucro, arredondado como o ROUND do Excel; as linhas
+        # 'e' (EBITDA e Lucro) nao somam
+        $e27 = $wb.Worksheets.Item('E27'); $c27 = $e27.ChartObjects(1).Chart
+        $la = 0.0; $lb = 0.0; foreach ($rr in 7, 8, 9, 11, 12) { $la += [double]$e27.Cells.Item($rr, 2).Value2; $lb += [double]$e27.Cells.Item($rr, 3).Value2 }
+        $pd = $null; foreach ($sr in $c27.SeriesCollection()) { if ([string]$sr.Name -eq 'tqq_pd') { $pd = $sr } }
+        Check ($null -ne $pd) 'E27: setas de variacao (tqq_pd)'
+        if ($null -ne $pd -and $la -ne 0 -and $la * $lb -gt 0) {
+            $r = [Math]::Round(100 * ($lb - $la) / $la, [MidpointRounding]::AwayFromZero)
+            $want = $(if ($r -gt 0) { '+' } else { '' }) + ([string][int]$r) + '%'
+            $got = [string]$pd.Points(39).DataLabel.Text
+            Check ($got -eq $want) "E27: seta do lucro [$got] esperado [$want]"
+        }
+        $lblA = $null; foreach ($sr in $c27.SeriesCollection()) { if ([string]$sr.Name -eq 'tqq_lbl_a') { $lblA = $sr } }
+        $nTxt = 0; if ($lblA) { for ($k = 1; $k -le $lblA.Points().Count; $k++) { try { if ([string]$lblA.Points($k).DataLabel.Text -ne '') { $nTxt++ } } catch { } } }
+        Check ($nTxt -ge 2) "E27: rotulos dos degraus de 2024 visiveis (custo e despesas; $nTxt)"
         # E02: a tabela tem 1 casa decimal; com o formato padrao (inteiro) dois valores diferentes viram o mesmo rotulo
         $e02 = Get-ChartBlockInfo ($wb.Worksheets.Item('E02').ChartObjects(1))
         Check ($e02.Opt['numfmt'] -eq 'dec1') "E02: rotulos com 1 casa como a tabela (numfmt=$($e02.Opt['numfmt']))"

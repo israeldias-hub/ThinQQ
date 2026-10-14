@@ -297,6 +297,20 @@ try {
     }
     $roundTot = Get-DemoSum 'sales' @($roundStore) $allD $y25
     $roundBody = @($deptOrder | ForEach-Object { ,@($depts[$_].Name, ((Get-DemoSum 'sales' @($roundStore) @($_) $y25) / $roundTot)) })
+    # cascata comparativa (E27, E28): a ponte da receita ao lucro com as proporções do E05 (despesas 21%, depreciação e juros 2,5% da receita,
+    # impostos 34% do lucro antes deles), em R$ milhões com 1 casa (em R$ mil os rótulos dos degraus ficariam mais largos que a fatia); 'e' nas linhas de total
+    function Get-DemoPL([int[]]$sIdx, [int[]]$mIdx) {
+        $rcv = Get-DemoSum 'sales' $sIdx $allD $mIdx; $cmvY = Get-DemoSum 'cost' $sIdx $allD $mIdx
+        $desp = 0.21 * $rcv; $dep = 0.025 * $rcv; $imp = 0.34 * ($rcv - $cmvY - $desp - $dep)
+        return ,@(([Math]::Round($rcv / 1e6, 1)), (-([Math]::Round($cmvY / 1e6, 1))), (-([Math]::Round($desp / 1e6, 1))), (-([Math]::Round($dep / 1e6, 1))), (-([Math]::Round($imp / 1e6, 1))))
+    }
+    function Get-DemoPLBody($a, $b) {
+        return ,@(@('Receita bruta', $a[0], $b[0]), @('Custo das mercadorias', $a[1], $b[1]), @('Despesas operacionais', $a[2], $b[2]),
+                  @('EBITDA', 'e', 'e'), @('Depreciação e juros', $a[3], $b[3]), @('Impostos', $a[4], $b[4]), @('Lucro líquido', 'e', 'e'))
+    }
+    $plYearBody = Get-DemoPLBody (Get-DemoPL $allS $y24) (Get-DemoPL $allS $y25)
+    $s2 = $storeOrder[1]                                                                             # a segunda loja em vendas de 2025
+    $plStoreBody = Get-DemoPLBody (Get-DemoPL @($s1) $y25) (Get-DemoPL @($s2) $y25)
 
     # ---- um exemplo por item da cobertura
     $prev = $wsO
@@ -304,7 +318,8 @@ try {
     foreach ($item in $cov) {
         $unit = 'R$ mil'
         switch ($item.Num) { 2 { $unit = 'R$ milhões' } 7 { $unit = 'R$ na tabela, rótulos em R$ mil' } { $_ -in 15, 16 } { $unit = '' }
-                             20 { $unit = 'ticket em R$, margem bruta em %' } 21 { $unit = 'ticket em R$, margem bruta em %, vendas em R$ mil' } 23 { $unit = 'R$ mil e participações' } }
+                             20 { $unit = 'ticket em R$, margem bruta em %' } 21 { $unit = 'ticket em R$, margem bruta em %, vendas em R$ mil' } 23 { $unit = 'R$ mil e participações' }
+                             { $_ -in 27, 28 } { $unit = 'R$ milhões' } }
         $ws = New-ExampleSheet $prev $item $unit
         $prev = $ws
         switch ($item.Num) {
@@ -409,6 +424,14 @@ try {
                  foreach ($pair in @(@($co1, $big), @($co2, $small))) { $cell = $pair[0].TopLeftCell; $lbl = $ws.Cells.Item($cell.Row - 1, $cell.Column); $lbl.Value2 = "$($pair[1]) (R$ mil)"; $lbl.Font.Bold = $true } }
             26 { $rng = Write-Table $ws 'A6' @('Mês', 'Vendas') @($store1MonthBody | ForEach-Object { ,@($_[0], $_[1]) }); Set-MonthFormat $ws.Range('A7:A18')
                  $co = Add-Chart $ws $rng 'line'; Invoke-CoreQuiet 'E26' 'Core_SetOption' 'legend' 'none' | Out-Null }
+            27 { $rng = Write-Table $ws 'A6' @('Etapa', '2024', '2025') $plYearBody '#,##0.0'
+                 # 820 pt: com 7 etapas (20 fatias) o "(6%)" do lucro só cabe com a área de plotagem acima de ~775 pt (medido: some a 760)
+                 $co = Add-Chart $ws $rng 'waterfallpair'; Set-ChartBox $ws $co 820 340 }
+            28 { $rng = Write-Table $ws 'A6' @('Etapa', $stores[$s1].Name, $stores[$s2].Name) $plStoreBody '#,##0.0'
+                 $co = Add-Chart $ws $rng 'waterfallpair'
+                 Invoke-CoreQuiet 'E28' 'Core_SetToggle' 'pairabs' $true | Out-Null
+                 Invoke-CoreQuiet 'E28' 'Core_SetOption' 'legend' 'right' | Out-Null
+                 Set-ChartBox $ws $co 700 340 }
         }
         Invoke-Core 'Core_ClearLastNotice' | Out-Null
     }
@@ -431,7 +454,8 @@ try {
                     gap = 'Espaço (muito largo)'; palette = 'Paleta (tons de cinza)'; cagr = 'Seta CAGR'; diff = 'Seta diferença'; bracket = 'Colchete'
                     vline = 'Linha de valor (média)'; ind100 = 'Indicador 100%'; samescale = 'Mesma escala'; secondary = 'Eixo secundário'; pieout = 'Rótulos fora da pizza'
                     'gantt-weeks' = 'Escala em semanas'; 'gantt-months' = 'Escala em meses'; roundsum = 'Rótulos com soma consistente'; roundrange = 'Arredondar intervalo'
-                    break = 'Corte de eixo'; trend = 'Linha de tendência'; quad = 'Quadrantes (médias)'; connectors = 'Conectores' }
+                    break = 'Corte de eixo'; trend = 'Linha de tendência'; quad = 'Quadrantes (médias)'; connectors = 'Conectores'
+                    pairdiff = 'Setas de variação'; pairabs = 'Variação em valor'; inbar = 'Nome dentro das barras' }
     $r = $hdrRow + 1
     foreach ($item in $cov) {
         $idx.Cells.Item($r, 1).Value2 = $item.Num
