@@ -305,6 +305,7 @@ $demoRange = 'E01 a E' + ('{0:00}' -f $nDemo)
 Check ($nDemo -ge 26) "a cobertura da demonstração tem $nDemo exemplos"
 Check ($readme -match "$nDemo exemplos" -and $html -match "$nDemo exemplos") "README e tutorial citam os $nDemo exemplos da demonstração"
 Check ($readme -match [regex]::Escape($demoRange) -and $html -match [regex]::Escape($demoRange)) "README e tutorial citam '$demoRange'"
+Check ((Read-Utf8 $leiamePath) -match [regex]::Escape("$nDemo exemplos ($demoRange)")) "LEIA-ME cita '$nDemo exemplos ($demoRange)'"
 # Parâmetros do release citados existem no script
 $rel = Read-Utf8 (Join-Path $RepoRoot 'build\release.ps1')
 foreach ($p in 'Version', 'BaseUrl', 'PublishTo') { Check ($rel -match "\`$$p" -and $readme -match "-$p") "README e release.ps1 concordam no parâmetro -$p" }
