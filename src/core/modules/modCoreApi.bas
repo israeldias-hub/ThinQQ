@@ -14,7 +14,7 @@ Private mTestRoundDec As Variant    ' gancho de teste: respostas do Arredondar i
 Private mTestRoundDest As Range
 Private mTestBreakAnswer As Variant  ' gancho de teste: resposta do InputBox do Corte de eixo no build Test (Core_TestSetAxisBreakAnswer)
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
-Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,"
+Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,waterfallpair,"
 
 ' Última mensagem enviada ao usuário por Core_Notify ("" se nenhuma). Gancho de teste (inofensivo em Release).
 Public Function Core_LastNotice() As String
@@ -358,7 +358,7 @@ Private Function ValidateOption(key As String, value As String) As String
             End Select
         Case "legend"
             Select Case value
-                Case "right", "none", "lineend"
+                Case "right", "none", "lineend", "inbar"
                 Case Else: ValidateOption = "Opção de legenda desconhecida: " & value
             End Select
         Case "gap"
@@ -404,11 +404,13 @@ Private Sub ApplyOption(c As Chart, key As String, value As String)
                 Case "gantt": Gantt_ApplyColors c, value        ' barras pal(1) e marcos pal(0) (as series do Gantt sao todas tqq_*)
                 Case "butterfly": Bfly_ApplyColors c, value     ' as duas series de dados; vaos invisiveis; contraste dos rotulos
                 Case "scatter": Scatter_ApplyColors c, value    ' marcadores/bolhas por grupo, tendencias e contraste dos rotulos das bolhas
+                Case "waterfallpair": Wfp_ApplyColors c, value              ' cascata comparativa: serie 1 pal(0), serie 2 pal(2), contraste dos rotulos
                 Case "stacked", "combo": Style_ApplySeriesColors c, value
                 Case Else: RefuseUndispatched key, c, fam       ' (inalcancavel: PALETTE_FAMILIES ja recusou antes de gravar)
             End Select
         Case "gap"
             ApplyGapWidth c, CLng(Val(value))
+            If fam = "waterfallpair" Then Wfp_SyncGap c         ' cascata comparativa: meia-largura das barras (conectores) acompanha o espaco
     End Select
 End Sub
 
@@ -809,6 +811,7 @@ Public Function Core_ChartSourceMismatch(cht As Chart) As Boolean
         If Kinds_Family(Registry_ChartType(cht)) = "mekko" Then Core_ChartSourceMismatch = (Mekko_SourceRowsSpanned(cht) <> CLng(Val(nOpt)))
         ' dispersao/bolhas: o mesmo (as series apontam para o bloco; o tamanho da tabela so aparece nas referencias da coluna X do bloco)
         If Kinds_Family(Registry_ChartType(cht)) = "scatter" Then Core_ChartSourceMismatch = (Scatter_SourceRowsSpanned(cht) <> CLng(Val(nOpt)))
+        If Kinds_Family(Registry_ChartType(cht)) = "waterfallpair" Then Core_ChartSourceMismatch = (Wfp_SourceRowsSpanned(cht) <> CLng(Val(nOpt)))
     End If
     Exit Function
 Fail:
@@ -893,6 +896,8 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Pie" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Bfly_RefreshAfterDataChange cht                  ' borboleta: o vao central acompanha o maior nome e o tamanho do grafico
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Bfly" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Wfp_RefreshAfterDataChange cht                   ' cascata comparativa: meia-largura das barras, valor por ponto das setas, rotulos finos, nomes ou legenda
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Wfp" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Scatter_RefreshAfterDataChange cht               ' dispersao/bolhas: quadrantes nas medias atuais e tendencias fora da legenda
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Scatter" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Gantt_RefreshScale cht                           ' Gantt: a escala calculada no bloco (unidade e intervalo) vai para o eixo; antes dos colchetes

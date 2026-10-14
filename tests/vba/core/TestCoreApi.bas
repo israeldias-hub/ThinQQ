@@ -1738,17 +1738,3 @@ Private Function InsertedNumFmt(ws As Worksheet, kind As String) As String
     ws.ChartObjects(1).Delete
     CalcSheet_Cleanup ws.Parent
 End Function
-
-' Temporario (Tarefa 0 da cascata comparativa): a Tarefa 1 o remove ao implementar o tipo. Tipo valido ainda sem implementacao avisa e nao
-' deixa bloco.
-Public Sub Test_Core_Insert_PairWaterfallNotReady_NotifiesWithoutChart()
-    Dim wb As Workbook, ws As Worksheet
-    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
-    ws.Range("A1:C5").Select
-    Core_ClearLastNotice
-    Core_Insert "waterfallpair"
-    AssertEqual 0, ws.ChartObjects.Count
-    AssertEqual 0, TqqNameCount(wb)
-    AssertTrue InStr(Core_LastNotice(), "ainda não está disponível") > 0, Core_LastNotice()
-    Teardown wb
-End Sub

@@ -25,12 +25,15 @@ Private Const VLINE_PREFIX As String = "Média "         ' texto antes do numero
 Public Sub Deco_SetLegend(cht As Chart, mode As String)
     Dim kind As String
     Select Case mode
-        Case "right", "none", "lineend"
+        Case "right", "none", "lineend", "inbar"
         Case Else: Err.Raise 5, "Deco_SetLegend", "Modo de legenda desconhecido: " & mode
     End Select
     kind = Registry_ChartType(cht)
     If mode = "lineend" Then
         If Not Kinds_Supports(kind, "lineend") Then Err.Raise vbObjectError + 7002, "Deco_SetLegend", "Rótulos no fim da linha só existem em gráficos de linha e combinação."
+    End If
+    If mode = "inbar" Then
+        If Not Kinds_Supports(kind, "inbar") Then Err.Raise vbObjectError + 7002, "Deco_SetLegend", Kinds_NotApplicableText("inbar")
     End If
     If Not Kinds_SupportsChart(cht, "legend") Then Err.Raise vbObjectError + 7002, "Deco_SetLegend", Kinds_NotApplicableText("legend")
     If Kinds_Family(kind) = "pie" Then
@@ -39,6 +42,18 @@ Public Sub Deco_SetLegend(cht As Chart, mode As String)
         ' (labels = 0), a legenda volta. "lineend" ja foi recusado acima (so linha e combinacao).
         Registry_SetOption cht, "legend", mode
         Pie_ApplyLegend cht
+        Exit Sub
+    End If
+    If Kinds_Family(kind) = "waterfallpair" Then
+        ' Cascata comparativa: Direita (legenda), Nenhuma, Nome dentro das barras (nomes verticais na 1a barra; a legenda se nao couberem).
+        ' A opcao e gravada antes: Wfp_SyncNames a le.
+        Registry_SetOption cht, "legend", mode
+        Wfp_SetLegend cht, mode
+        On Error Resume Next
+        cht.PlotArea.Position = xlChartElementPositionAutomatic
+        If Err.Number <> 0 Then Errors_Log "Deco_SetLegend/PlotArea.Position" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+        On Error GoTo 0
+        Chart_EnsureRoomAfterChange cht
         Exit Sub
     End If
     Select Case mode

@@ -146,7 +146,7 @@ Public Function Kinds_ExpectedCategoryRefs(kind As String, n As Long) As Long
 End Function
 
 ' Despacho da insercao por familia. Cada Insert desfaz o que criou em caso de falha. Todas as familias validas tem
-' implementacao (as ultimas foram a borboleta e a dispersao/bolhas, na Fase 3); o ramo 7200 fica como protecao para um tipo valido sem
+' implementacao (a ultima foi a cascata comparativa, na 1.3.0); o ramo 7200 fica como protecao para um tipo valido sem
 ' Case (Core_Insert o trata como aviso ao usuario, sem registrar falha).
 Public Function Kinds_Insert(ws As Worksheet, data As clsChartData, kind As String) As ChartObject
     Select Case Kinds_Family(kind)
@@ -168,6 +168,8 @@ Public Function Kinds_Insert(ws As Worksheet, data As clsChartData, kind As Stri
             Set Kinds_Insert = Bfly_Insert(ws, data)
         Case "scatter"
             Set Kinds_Insert = Scatter_Insert(ws, data, kind)
+        Case "waterfallpair"
+            Set Kinds_Insert = Wfp_Insert(ws, data)
         Case Else
             Err.Raise vbObjectError + 7200, "Kinds_Insert", "Este tipo de gráfico ainda não está disponível nesta versão: " & kind
     End Select

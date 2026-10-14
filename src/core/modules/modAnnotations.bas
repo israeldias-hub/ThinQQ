@@ -90,6 +90,15 @@ Public Sub Ann_GetCategoryData(cht As Chart, ByRef values() As Double, ByRef top
                     tops(i) = Util_ToDouble(bb.Cells(i + 1, BF_COL_GAP).Value) + Application.WorksheetFunction.Max(Util_ToDouble(bb.Cells(i + 1, BF_COL_A).Value), Util_ToDouble(bb.Cells(i + 1, BF_COL_B).Value))
                 End If
             Next
+        Case "waterfallpair"
+            ' cascata comparativa: o topo (Hi) de cada fatia, lido do bloco (Deco_ScaleClipped compara com o maximo fixo da Mesma escala)
+            Set bb = Block_Body(Registry_Block(cht))
+            For i = 1 To n
+                If i <= bb.Rows.Count - 1 Then
+                    values(i) = Util_ToDouble(bb.Cells(i + 1, WFP_COL_TOP).Value)
+                    tops(i) = values(i)
+                End If
+            Next
         Case Else
             ' soma das series (stacked, stacked100, barstacked, barstacked100, area, area100, mekko, mekkounits); na combinacao a
             ' ultima serie nao auxiliar e a linha e fica de fora (so as colunas empilham). No Mekko n e o numero de PONTOS (5 por
