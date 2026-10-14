@@ -187,6 +187,7 @@ Public Sub Test_PptSync_FailureRestoresChartSize()
         AssertAlmost w0, c.Parent.Width, 0.01, "largura restaurada (" & pt & ")"
         AssertAlmost h0, c.Parent.Height, 0.01, "altura restaurada (" & pt & ")"
         AssertTrue wb.Saved, "pasta continua salva (" & pt & ")"
+        AssertTrue Application.EnableEvents, "eventos religados (" & pt & ")"
     Next
     Teardown wb
 End Sub
@@ -370,6 +371,7 @@ Public Sub Test_PptSync_ExcelChartGeometryUnchanged_WhenAvailable()
     PptSync_SyncShape shp, c.Parent
     PptSync_SyncShape shp, c.Parent
     AssertSameGeometry geo, c, "depois de mais duas sincronizacoes"
+    AssertTrue Application.EnableEvents, "eventos religados depois das sincronizacoes"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1

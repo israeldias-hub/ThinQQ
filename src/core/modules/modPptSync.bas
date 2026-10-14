@@ -254,11 +254,11 @@ End Sub
 ' volta a "salva" se estava. Levanta erro (quem chama registra e conta); o tamanho e restaurado em qualquer caminho. updateData = False pula o
 ' passo (1) (colagem: os dados acabaram de ser colados). O Update so roda com a pasta de origem alcancavel (PptSync_SourceReachable).
 Public Sub PptSync_SyncShape(shp As Object, co As ChartObject, Optional updateData As Boolean = True)
-    Dim cht As Chart, wb As Workbook, w0 As Double, h0 As Double, saved0 As Boolean, resized As Boolean, prevSU As Boolean
+    Dim cht As Chart, wb As Workbook, w0 As Double, h0 As Double, saved0 As Boolean, resized As Boolean, prevSU As Boolean, prevEv As Boolean
     Dim snaps As Collection, pc As Object, dx As Double, dy As Double, en As Long, ed As String, src As String
     Set cht = co.Chart: Set wb = Registry_Workbook(cht)
     saved0 = wb.Saved: w0 = co.Width: h0 = co.Height
-    prevSU = Application.ScreenUpdating
+    prevSU = Application.ScreenUpdating: prevEv = Application.EnableEvents
     On Error GoTo Fail
     If updateData Then
         If Ppt_LinkState(shp) = 1 Then
@@ -273,6 +273,7 @@ Public Sub PptSync_SyncShape(shp As Object, co As ChartObject, Optional updateDa
     End If
     PptSync_Hook "update"
     Application.ScreenUpdating = False
+    Application.EnableEvents = False                    ' a janela do redimensionamento nao dispara os vigias do grafico (cada Resize refazia o Core_SafeRefresh)
     resized = True
     co.Width = CDbl(shp.Width): co.Height = CDbl(shp.Height)
     PptSync_ForceLayout cht
@@ -289,14 +290,14 @@ Public Sub PptSync_SyncShape(shp As Object, co As ChartObject, Optional updateDa
     End If
     PptSync_Apply pc, snaps, cht, dx, dy
     PptSync_Restore co, w0, h0, wb, saved0
-    Application.ScreenUpdating = prevSU
+    Application.ScreenUpdating = prevSU: Application.EnableEvents = prevEv
     Exit Sub
 Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
     If resized Then PptSync_Restore co, w0, h0, wb, saved0
-    Application.ScreenUpdating = prevSU
+    Application.ScreenUpdating = prevSU: Application.EnableEvents = prevEv
     On Error GoTo 0
     Err.Raise en, "PptSync_SyncShape", ed
 End Sub
