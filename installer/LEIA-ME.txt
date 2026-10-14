@@ -14,7 +14,7 @@ INSTALAÇÃO AUTOMÁTICA
 INSTALAÇÃO MANUAL (se o script for bloqueado)
 1. Crie a pasta %LOCALAPPDATA%\ThinQQ (cole esse caminho na barra de endereços do Explorador de Arquivos).
 2. Copie ThinQQ.xlam para essa pasta e ThinQQ.core.xlam para %LOCALAPPDATA%\ThinQQ\versions\<versão>\
-   (a versão está no manifest.json, ex.: versions\1.2.2\). Copie tutorial.html para a mesma pasta da versão.
+   (a versão está no manifest.json, ex.: versions\1.3.0\). Copie tutorial.html para a mesma pasta da versão.
 3. Em cada arquivo .xlam: botão direito > Propriedades > marque "Desbloquear" > OK.
 4. Excel > Arquivo > Opções > Central de Confiabilidade > Configurações > Locais Confiáveis >
    Adicionar novo local: %LOCALAPPDATA%\ThinQQ, marcando "Subpastas também são confiáveis".
