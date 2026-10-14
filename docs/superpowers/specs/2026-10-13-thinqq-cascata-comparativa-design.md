@@ -78,7 +78,7 @@ e a escolha automática "nome dentro da barra ou legenda" são recalibrados pelo
 ### 3.2 Conectores e setas (sondas 2 e 3)
 | Medida | Resultado |
 |---|---|
-| Auxiliar XY sem marcador em (xA_i + HW, End_i) com `ErrorBar Direction:=xlX, Include:=xlErrorBarIncludePlusValues, Type:=xlErrorBarTypeCustom, Amount:=faixa` (3 − 2·HW) e `EndStyle = xlNoCap`, linha tracejada cinza escuro RGB(89,89,89) 0,75 pt | Um segmento horizontal por conector, do lado direito de Aᵢ ao lado esquerdo de Aᵢ₊₁, na altura do fim de Aᵢ; atravessa Bᵢ (desenhado por cima das colunas). Vivo (amount e posição em células). |
+| Auxiliar XY sem marcador em (xA_i + HW, End_i) com `ErrorBar Direction:=xlX, Include:=xlErrorBarIncludePlusValues, Type:=xlErrorBarTypeCustom, Amount:=faixa` (3 − 2·HW) e `EndStyle = xlNoCap`, linha tracejada cinza RGB(115,115,115) 0,75 pt | Um segmento horizontal por conector, do lado direito de Aᵢ ao lado esquerdo de Aᵢ₊₁, na altura do fim de Aᵢ; atravessa Bᵢ (desenhado por cima das colunas); o da série B atravessa Aᵢ₊₁ (a barra escura da série 1). Vivo (amount e posição em células). |
 | Série XY com linhas (`xlXYScatterLinesNoMarkers`) com 5 pontos por par e uma **linha vazia** entre pares, `DisplayBlanksAs = xlNotPlotted`, `Format.Line.EndArrowheadStyle = msoArrowheadTriangle` | Cada par vira um cotovelo separado **com a sua própria ponta de seta** (29 pontos para 5 pares). |
 | Rótulo do ponto do meio ligado a célula + `DataLabel.Format.AutoShapeType = 9` (oval), preenchimento branco, borda cinza, `Position = Center` | Aceito; elipse centrada na linha horizontal; H = 19,9 pt, W = 24 a 35 pt ("+7%" a "+200%"). Texto gravado como **constante** "+7%" vira o número 7% (o rótulo mostra "7%"): o texto vem de **fórmula** no bloco. |
 | Nomes das séries: auxiliar XY com 2 pontos no meio da 1.ª barra de cada série, rótulo ligado ao cabeçalho, `Orientation = xlUpward` | Vertical, dentro da barra; "Segmento 1" a 9 pt: W = 14,0, H = 49,6 pt. Numa barra baixa (valor 5 de 25) o nome transborda (PNG `p4_zero.png`): precisa da regra de caber (§4.6). |
@@ -168,7 +168,9 @@ subida até a linha horizontal 12; meia elipse + respiro 12.
 
 ### 4.4 Conectores (`Wfp_SetConnectors`, alternador Conectores)
 Duas auxiliares XY sem marcador (`tqq_conn_a`, `tqq_conn_b`), n − 1 pontos cada, com barra de erro X custom (`CLen`, faixa passada em texto R1C1: a forma que o Excel aceita para valores personalizados), sem ponta, cinza
-RGB(89,89,89) (cinza escuro: ~3,8:1 sobre a barra azul-clara; o 127 dava 2,2:1), tracejada, 0,75 pt. `HW` acompanha o **Espaço** (`Wfp_SyncGap`: em `ApplyOption "gap"` e em todo refresh, lendo o
+RGB(115,115,115), tracejada, 0,75 pt. O conector da série A atravessa Bᵢ (azul-claro) e o da série B atravessa Aᵢ₊₁ (a barra escura da
+série 1): 115 é o meio-termo (contraste WCAG 2,45:1 sobre o azul-marinho, 2,57:1 sobre o azul-claro, ~1,95:1 no pior caso, o cinza claro da
+paleta "cinza", e 4,7:1 sobre o branco; o 89 dava 3,8:1 no azul-claro mas só 1,66:1 no azul-marinho, o 127 dava 2,2:1 no azul-claro). `HW` acompanha o **Espaço** (`Wfp_SyncGap`: em `ApplyOption "gap"` e em todo refresh, lendo o
 `GapWidth` real, inclusive mudado à mão no Excel). Atravessam a barra da outra série (decisão: como o think-cell; quem não quiser desliga os
 Conectores). Tabela de uma etapa: sem conectores.
 

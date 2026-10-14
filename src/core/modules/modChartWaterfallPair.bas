@@ -430,8 +430,9 @@ End Sub
 
 ' Conectores: duas auxiliares XY sem marcador (tqq_conn_a, tqq_conn_b), um ponto por conector (n - 1) no lado direito da barra i, com barra de
 ' erro X custom (CLen do bloco) ate o lado esquerdo da barra i + 1 da MESMA serie, tracejada e sem ponta (medido; vivos sem o ThinQQ). Passam
-' sobre a barra da outra serie (como no think-cell). Uma etapa so: sem conectores (a opcao fica gravada). Cinza escuro RGB(89, 89, 89): sobre a
-' barra azul-clara o contraste e ~3,8:1 (o cinza 127 dava 2,2:1).
+' sobre a barra da outra serie (como no think-cell). Uma etapa so: sem conectores (a opcao fica gravada). Cinza RGB(115, 115, 115), meio-termo: o conector
+' da serie 1 atravessa B_i e o da serie 2 atravessa A_(i+1), a barra escura da serie 1; contraste 2,45:1 sobre o azul-marinho, 2,57:1 sobre o
+' azul-claro, 1,95:1 no pior caso (cinza claro da paleta "cinza") e 4,7:1 sobre o branco (o 89 dava 1,66:1 sobre o azul-marinho).
 ' Faixa da barra de erro em R1C1 (a forma que o Excel aceita para valores personalizados; em A1 pode recusar com 1004 ou virar constante).
 ' Transacional: a opcao so e gravada depois das series prontas (e da legenda); em qualquer falha as duas series somem, a opcao fica "0" (o estado
 ' real, mesmo que antes fosse "1") e o erro e repropagado.
@@ -454,7 +455,7 @@ Public Sub Wfp_SetConnectors(cht As Chart, turnOn As Boolean)
                 With s.ErrorBars
                     .EndStyle = xlNoCap
                     .Format.Line.Visible = msoTrue
-                    .Format.Line.ForeColor.RGB = RGB(89, 89, 89)
+                    .Format.Line.ForeColor.RGB = RGB(115, 115, 115)
                     .Format.Line.DashStyle = msoLineDash
                     .Format.Line.Weight = 0.75
                 End With

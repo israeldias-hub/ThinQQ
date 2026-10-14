@@ -364,12 +364,12 @@ Public Sub Test_Wfp_Palette_And_Orphan()
     Teardown wb
 End Sub
 
-' Estilo dos conectores: tracejado cinza escuro fino, sem ponta e sem marcador (o cinza 127 dava ~2,2:1 sobre a barra azul-clara; 89 da ~3,8:1).
+' Estilo dos conectores: tracejado cinza 115 fino, sem ponta e sem marcador (meio-termo entre a barra escura da serie 1 e a clara da serie 2).
 Private Sub AssertConnectorStyle(s As Series, label As String)
     AssertTrue s.HasErrorBars, label & ": barra de erro"
     AssertEqual xlNoCap, s.ErrorBars.EndStyle, label & ": sem ponta"
     AssertEqual msoTrue, s.ErrorBars.Format.Line.Visible, label & ": visivel"
-    AssertEqual RGB(89, 89, 89), s.ErrorBars.Format.Line.ForeColor.RGB, label & ": cinza escuro"
+    AssertEqual RGB(115, 115, 115), s.ErrorBars.Format.Line.ForeColor.RGB, label & ": cinza 115"
     AssertEqual msoLineDash, s.ErrorBars.Format.Line.DashStyle, label & ": tracejada"
     AssertAlmost 0.75, s.ErrorBars.Format.Line.Weight, 0.001, label & ": 0,75 pt"
     AssertEqual xlMarkerStyleNone, s.MarkerStyle, label & ": sem marcador"
