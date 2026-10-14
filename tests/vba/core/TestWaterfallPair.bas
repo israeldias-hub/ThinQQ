@@ -906,3 +906,32 @@ Public Sub Test_Wfp_Arrows_TinyPlot_KeepsPtVAndAxis()
     Next
     CloseTemp wb
 End Sub
+
+' Uma linha com total (marcador "e") de um lado e degrau do outro: comparar o fim acumulado com um degrau nao tem sentido, "n/d" nos dois modos.
+' Esperado pela tabela: Inicio 10 | 10 (0%, 0); Passo 2 | 3 ((3 - 2) / 2 = +50%, +1); Sub e | 4 (total x degrau: n/d); Fim e | e (totais 12 e 17:
+' (17 - 12) / 12 = 41,7% -> +42%, +5).
+Public Sub Test_Wfp_Arrows_TotalVersusStep_Nd()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Etapa", "S1", "S2")
+    ws.Range("A2:C2").Value = Array("Inicio", 10, 10)
+    ws.Range("A3:C3").Value = Array("Passo", 2, 3)
+    ws.Range("A4:C4").Value = Array("Sub", "e", 4)
+    ws.Range("A5:C5").Value = Array("Fim", "e", "e")
+    Set d = ChartData_FromRange(ws.Range("A1:C5"))
+    Set cht = Wfp_Insert(ws, d).Chart
+    cht.Refresh
+    AssertEqual "0%", ArrowLabel(cht, 1): AssertEqual "+50%", ArrowLabel(cht, 2)
+    AssertEqual "n/d", ArrowLabel(cht, 3), "total de um lado, degrau do outro"
+    AssertEqual "+42%", ArrowLabel(cht, 4)
+    Wfp_SetArrowMode cht, True
+    cht.Refresh
+    AssertEqual "0", ArrowLabel(cht, 1): AssertEqual "+1", ArrowLabel(cht, 2)
+    AssertEqual "n/d", ArrowLabel(cht, 3), "em valor tambem"
+    AssertEqual "+5", ArrowLabel(cht, 4)
+    ws.Range("B4").Value = 1                         ' os dois lados viram degrau: (4 - 1) / 1 = +300%
+    Wfp_SetArrowMode cht, False
+    cht.Refresh
+    AssertEqual "+300%", ArrowLabel(cht, 3)
+    CloseTemp wb
+End Sub

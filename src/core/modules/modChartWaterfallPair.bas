@@ -250,9 +250,10 @@ Public Function Wfp_BuildBlock(wb As Workbook, id As String, data As clsChartDat
             End If
             If j = 1 Then body.Cells(r, WFP_COL_TOTTXT_A).Formula = txt Else body.Cells(r, WFP_COL_TOTTXT_B).Formula = txt
         Next
-        ' texto da seta: (B - A) / A em % inteiro com sinal; "n/d" com A = 0 ou sinais opostos; com Abs = 1, B - A no formato do grafico
+        ' texto da seta: (B - A) / A em % inteiro com sinal; "n/d" com A = 0 ou sinais opostos
+        ' e, nos dois modos, quando um lado e barra grande (inicio ou total) e o outro degrau; com Abs = 1, B - A no formato do grafico
         a = SR(body, r, 1, "Val"): b = SR(body, r, 2, "Val")
-        body.Cells(r, WFP_COL_ARROWTXT).Formula = "=IF(" & ab & "=1,IF(ROUND((" & b & "-" & a & ")/" & dv & "," & dc & ")>0,""+"","""")&FIXED(ROUND((" & b & "-" & a & ")/" & dv & "," & dc & ")," & dc & ")&" & sfd & ",IF(OR(" & a & "=0," & a & "*" & b & "<0),""n/d"",IF(ROUND(100*(" & b & "-" & a & ")/" & a & ",0)>0,""+"","""")&FIXED(ROUND(100*(" & b & "-" & a & ")/" & a & ",0),0)&""%""))"
+        body.Cells(r, WFP_COL_ARROWTXT).Formula = "=IF(" & SR(body, r, 1, "Big") & "<>" & SR(body, r, 2, "Big") & ",""n/d"",IF(" & ab & "=1,IF(ROUND((" & b & "-" & a & ")/" & dv & "," & dc & ")>0,""+"","""")&FIXED(ROUND((" & b & "-" & a & ")/" & dv & "," & dc & ")," & dc & ")&" & sfd & ",IF(OR(" & a & "=0," & a & "*" & b & "<0),""n/d"",IF(ROUND(100*(" & b & "-" & a & ")/" & a & ",0)>0,""+"","""")&FIXED(ROUND(100*(" & b & "-" & a & ")/" & a & ",0),0)&""%"")))"
     Next
     ' fatias: o que o grafico plota
     For i = 1 To n

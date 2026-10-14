@@ -140,8 +140,8 @@ D     = IF(Tot,0,IF(ISNUMBER(s),s,0))       Start = 0 (i = 1) | End da linha ant
 End   = IF(Tot,Start,Start+D)               Lo = IF(Tot,MIN(0,End),MIN(Start,End))     Hi = IF(Tot,MAX(0,End),MAX(Start,End))
 Base  = MAX(0,Lo)+MIN(0,Hi)                 PP = MAX(0,Hi)-MAX(0,Lo)                    PN = MIN(0,Lo)-MIN(0,Hi)
 Big   = TRUE (i = 1) | Tot                  Val = IF(Big,End,D)
-ArrowTxt = IF(Abs=1, sinal & FIXED(ROUND((B-A)/Div,Dec),Dec) & SufD,
-              IF(OR(A=0,A*B<0),"n/d", sinal & FIXED(ROUND(100*(B-A)/A,0),0) & "%"))          (A = Val do lado A, B = Val do lado B)
+ArrowTxt = IF(Big_A<>Big_B,"n/d",IF(Abs=1, sinal & FIXED(ROUND((B-A)/Div,Dec),Dec) & SufD,
+              IF(OR(A=0,A*B<0),"n/d", sinal & FIXED(ROUND(100*(B-A)/A,0),0) & "%")))         (A = Val do lado A, B = Val do lado B)
 TotTxt_j = IF(Big, FIXED(ROUND(End/Div,Dec),Dec) & Suf & IF(AND(TotPct=1, i>1, End_1<>0)," (" & FIXED(ROUND(100*End/End_1,0),0) & "%)",""), "")
 Fatia A_i: Outer = Cat_i (formato da origem); Inner = " "; SBase = Base_A; APos = PP_A; ANeg = PN_A; BPos = BNeg = 0;
            LblAPos = IF(Big_A,NA(),(Lo_A+Hi_A)/2); LblAVal = IF(OR(Big_A,LblOn=0),"",D_A); LblBPos = NA(); LblBVal = "";
@@ -181,7 +181,8 @@ Conectores). Tabela de uma etapa: sem conectores.
   (gravar dispara o Calculate do gráfico, que volta ao refresh). Medido: converge em 1 gravação (§3.3). Teto: as 3 passadas; com o eixo fixo
   (Mesma escala) a primeira já é exata. Sem o ThinQQ, `PtV` fica: as setas continuam vivas, só o afastamento em pontos varia com o tamanho.
 - Texto: percentual `(B − A) / A` arredondado a inteiro com sinal ("+75%"), "n/d" se A = 0 ou A·B < 0; com **Variação em valor** (`pairabs=1`,
-  meta `Abs`): `B − A` com sinal no formato do gráfico (`Div`/`Dec`; nos formatos percentuais o sufixo é " p.p.").
+  meta `Abs`): `B − A` com sinal no formato do gráfico (`Div`/`Dec`; nos formatos percentuais o sufixo é " p.p."). Nos dois modos,
+  "n/d" quando um lado da etapa é barra grande (início ou total) e o outro é degrau (o fim acumulado não se compara com um degrau).
 - Desligar Setas de variação apaga `tqq_pd` e `tqq_pdroom` (as colunas do bloco ficam); religar recria.
 
 ### 4.6 Rótulos, totais e nomes
