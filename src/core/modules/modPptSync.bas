@@ -322,6 +322,7 @@ Public Function PptSync_Fingerprint(co As ChartObject, shp As Object) As String
         If IsArray(v) Then
             For r = LBound(v, 1) To UBound(v, 1)
                 For c = LBound(v, 2) To UBound(v, 2)
+                    ' CStr segue a localidade do Windows: trocar a localidade (ou abrir em outra maquina) muda a impressao e so forca uma atualizacao
                     If IsError(v(r, c)) Then s = s & "#" Else s = s & CStr(v(r, c))
                     s = s & Chr$(31)
                 Next

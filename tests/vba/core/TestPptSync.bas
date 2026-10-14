@@ -17,10 +17,6 @@ Private Function Fixture(wb As Workbook) As Range
     Set Fixture = ws.Range("A1:C3")
 End Function
 
-Private Function PowerPointProcessCount() As Long
-    PowerPointProcessCount = GetObject("winmgmts:" & Chr(92) & Chr(92) & "." & Chr(92) & "root" & Chr(92) & "cimv2").ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name = 'POWERPNT.EXE'").Count
-End Function
-
 Private Function ClipboardUsable(cht As Chart) As Boolean
     On Error Resume Next
     cht.CopyPicture xlScreen, xlPicture
@@ -36,13 +32,14 @@ Private Sub WaitSeconds(s As Single)
     Loop
 End Sub
 
-' So cria o PowerPoint se nenhum estiver aberto (ROT nem processo). Nothing (e o motivo no log) se pulou.
+' So cria o PowerPoint se nenhum processo POWERPNT existe, conferido ANTES de qualquer GetObject (nunca toca o PowerPoint do usuario);
+' contagem desconhecida (WMI falhou: -1) tambem pula. Nothing (e o motivo no log) se pulou.
 Private Function StartScratchPowerPoint() As Object
-    Dim app As Object
+    Dim app As Object, n As Long
     Ppt_ResetTestHooks
     PptSync_ResetTestHooks
-    If Ppt_IsRunning() Then Errors_Log "TestPptSync: pulado (ha um PowerPoint aberto)": Exit Function
-    If PowerPointProcessCount() > 0 Then Errors_Log "TestPptSync: pulado (processo POWERPNT existente)": Exit Function
+    n = Ppt_ProcessCount()
+    If n <> 0 Then Errors_Log "TestPptSync: pulado (processo POWERPNT existente ou contagem indisponivel: " & n & ")": Exit Function
     On Error Resume Next
     Set app = CreateObject("PowerPoint.Application")
     On Error GoTo 0
@@ -81,7 +78,7 @@ Private Sub StopScratchPowerPoint(app As Object, own As Collection)
         app.Quit
         Set app = Nothing
         t = Timer
-        Do While PowerPointProcessCount() > 0
+        Do While Ppt_ProcessCount() > 0
             If Timer < t Or Timer - t > 10 Then Exit Do
             WaitSeconds 0.25
         Loop
@@ -169,21 +166,22 @@ End Sub
 
 ' Falha no meio (gancho): o grafico do Excel volta ao tamanho original e a pasta continua "salva"; o erro sobe.
 Public Sub Test_PptSync_FailureRestoresChartSize()
-    Dim wb As Workbook, rng As Range, c As Chart, shp As TestPptFake, w0 As Double, h0 As Double, pt As Variant, en As Long
+    Dim wb As Workbook, rng As Range, c As Chart, shp As TestPptFake, w0 As Double, h0 As Double, pt As Variant, en As Long, ed As String
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
     rng.Select
     Core_Insert "stacked"
     Set c = Core_ActiveChart()
     w0 = c.Parent.Width: h0 = c.Parent.Height
     Set shp = New TestPptFake: shp.Width = 709.7: shp.Height = 432      ' sem Chart: Ppt_LinkState = -1 (sem Update)
-    For Each pt In Array("snapshot", "apply")
+    For Each pt In Array("update", "snapshot", "apply")
         wb.Saved = True
         PptSync_SetFailForTest CStr(pt)
         On Error Resume Next
         PptSync_SyncShape shp, c.Parent
-        en = Err.Number
+        en = Err.Number: ed = Err.Description
         On Error GoTo 0
-        AssertTrue en <> 0, "a falha injetada sobe (" & pt & ")"
+        AssertEqual vbObjectError + 9992, en, "a falha injetada sobe (" & pt & ")"      ' o numero do gancho, nao o 91 do duble sem Chart
+        AssertTrue InStr(ed, "falha injetada (" & pt & ")") > 0, "falha do ponto certo (" & pt & "): " & ed
         AssertAlmost w0, c.Parent.Width, 0.01, "largura restaurada (" & pt & ")"
         AssertAlmost h0, c.Parent.Height, 0.01, "altura restaurada (" & pt & ")"
         AssertTrue wb.Saved, "pasta continua salva (" & pt & ")"
@@ -233,6 +231,7 @@ Public Sub Test_PptSync_PastedChart_AnnotationsAlignedToSlide_WhenAvailable()
     AssertAlmost x1, CDbl(ln.Left), 1.5, "inicio da seta no centro da 1a coluna do slide"
     AssertAlmost x2, CDbl(ln.Left + ln.Width), 1.5, "fim da seta no centro da 2a coluna do slide"
     AssertEqual c.Shapes("tqq_ann_cagr_1_lbl").TextFrame2.TextRange.Text, CStr(pc.Shapes("tqq_ann_cagr_1_lbl").TextFrame2.TextRange.Text)
+    AssertAlmost CDbl(c.Shapes("tqq_ann_cagr_1_lbl").TextFrame2.TextRange.Font.Size), CDbl(pc.Shapes("tqq_ann_cagr_1_lbl").TextFrame2.TextRange.Font.Size), 0.01, "fonte do rotulo no slide nao esticada"
     AssertAlmost w0, c.Parent.Width, 0.01, "grafico do Excel volta ao tamanho original"
     AssertAlmost h0, c.Parent.Height, 0.01
 Cleanup:
