@@ -195,7 +195,7 @@ End Sub
 Public Sub Test_Ribbon_Tags_MatchCoreKeys()
     Dim d As Object, n As Object, t As String, k As Object, found As Boolean
     Set d = LoadRibbon()
-    AssertEqual 20, d.SelectNodes("//u:button[@onAction='Rx_OnInsert']").Length
+    AssertEqual 21, d.SelectNodes("//u:button[@onAction='Rx_OnInsert']").Length
     For Each n In d.SelectNodes("//u:button[@onAction='Rx_OnInsert']")
         t = n.Attributes.getNamedItem("tag").Text
         AssertTrue CBool(Loader_RunCore("Kinds_IsValid", t)), "tipo desconhecido do core: " & t
@@ -225,7 +225,7 @@ Public Sub Test_Ribbon_Tags_MatchCoreKeys()
     Next
 End Sub
 
-' Menus (customUI14): 5 menus de insercao com os 20 botoes + "Mais opcoes", "Setas" e "PowerPoint". Um atributo invalido em filho de menu
+' Menus (customUI14): 5 menus de insercao com os 21 botoes + "Mais opcoes", "Setas" e "PowerPoint". Um atributo invalido em filho de menu
 ' faz o Excel descartar a aba inteira, sem aviso: nenhum filho de menu leva 'size'.
 Public Sub Test_Ribbon_Menus_Structure()
     Dim d As Object, m As Object, kids As Object, n As Object, t As String
@@ -239,10 +239,10 @@ Public Sub Test_Ribbon_Menus_Structure()
         For Each n In kids
             AssertEqual "Rx_OnInsert", n.Attributes.getNamedItem("onAction").Text
             t = n.Attributes.getNamedItem("tag").Text
-            AssertTrue InStr(",stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,gantt,pie,doughnut,butterfly,scatter,bubble,", "," & t & ",") > 0, "kind invalido: " & t
+            AssertTrue InStr(",stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,gantt,pie,doughnut,butterfly,scatter,bubble,waterfallpair,", "," & t & ",") > 0, "kind invalido: " & t
         Next
     Next
-    AssertEqual 20, d.SelectNodes("//u:button[@onAction='Rx_OnInsert']").Length
+    AssertEqual 21, d.SelectNodes("//u:button[@onAction='Rx_OnInsert']").Length
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuMore']/@getEnabled") Is Nothing, "Mais opcoes contem botoes sempre ativos"
     AssertEqual 7, d.SelectNodes("//u:menu[@id='mnuMore']/u:toggleButton").Length
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnSameScale'][@onAction='Rx_OnSameScale']") Is Nothing
@@ -265,6 +265,30 @@ Public Sub Test_Ribbon_Menus_Structure()
         AttrText(d.SelectSingleNode("//u:button[@id='btnDoughnut']/following-sibling::*[1]"), "id") & "," & _
         AttrText(d.SelectSingleNode("//u:button[@id='btnDoughnut']/following-sibling::*[2]"), "id") & "," & _
         AttrText(d.SelectSingleNode("//u:button[@id='btnDoughnut']/following-sibling::*[3]"), "id")
+    ' Cascata comparativa: terceiro item do menu Cascata; as setas de variacao (2 alternadores) no menu Setas, antes do separador
+    AssertEqual "btnWaterfall,btnBarWaterfall,btnWaterfallPair", AttrText(d.SelectSingleNode("//u:menu[@id='mnuWaterfall']/u:button[1]"), "id") & "," & AttrText(d.SelectSingleNode("//u:menu[@id='mnuWaterfall']/u:button[2]"), "id") & "," & AttrText(d.SelectSingleNode("//u:menu[@id='mnuWaterfall']/u:button[3]"), "id")
+    AssertEqual 2, d.SelectNodes("//u:menu[@id='mnuArrows']/u:toggleButton").Length
+    AssertEqual "msepArrows", AttrText(d.SelectSingleNode("//u:toggleButton[@id='tglPairAbs']/following-sibling::*[1]"), "id"), "as setas de variacao antes do separador"
+End Sub
+
+' Rotulos, tags, icones e textos de ajuda exatos dos controles da cascata comparativa (o tutorial e o Test-Docs dependem dos rotulos).
+Public Sub Test_Ribbon_PairWaterfall_LabelsAndTips()
+    Dim d As Object, spec As Variant, i As Long, p() As String, n As Object
+    Set d = LoadRibbon()
+    spec = Array("btnWaterfallPair|Cascata comparativa|waterfallpair|tqq_waterfallpair16", "tglPairDiff|Setas de variação|pairdiff|tqq_arrows16", "tglPairAbs|Variação em valor|pairabs|tqq_waterfallpair16")
+    For i = LBound(spec) To UBound(spec)
+        p = Split(spec(i), "|")
+        Set n = d.SelectSingleNode("//*[@id='" & p(0) & "']")
+        AssertTrue Not n Is Nothing, "controle ausente: " & p(0)
+        AssertEqual p(1), AttrText(n, "label"), "rotulo de " & p(0)
+        AssertEqual p(2), AttrText(n, "tag"), "tag de " & p(0)
+        AssertEqual p(3), AttrText(n, "image"), "icone de " & p(0)
+        AssertTrue Len(AttrText(n, "supertip")) > 20, "sem supertip: " & p(0)
+    Next
+    AssertEqual "Nome dentro das barras", AttrText(d.SelectSingleNode("//u:dropDown[@tag='legend']/u:item[@id='inbar']"), "label")
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='tglTotals']"), "supertip"), "cascata comparativa") > 0, "Totais explica o percentual da comparativa"
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='tglPairDiff']"), "supertip"), "n/d") > 0
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='btnWaterfallPair']"), "supertip"), "exatamente 2 colunas de valores") > 0
 End Sub
 
 ' Rotulos, tags e textos de ajuda exatos dos controles da Fase 3 (o tutorial e o Test-Docs dependem dos rotulos).
@@ -291,16 +315,16 @@ End Sub
 Public Sub Test_Ribbon_Toggles_And_Dropdowns_Phase2()
     Dim d As Object, n As Object, t As String
     Set d = LoadRibbon()
-    AssertEqual 10, d.SelectNodes("//u:toggleButton").Length
+    AssertEqual 12, d.SelectNodes("//u:toggleButton").Length
     For Each n In d.SelectNodes("//u:toggleButton")
         t = n.Attributes.getNamedItem("tag").Text
-        AssertTrue InStr(",totals,labels,connectors,ind100,vline,secondary,pieout,roundsum,trend,quad,", "," & t & ",") > 0, "toggle invalido: " & t
+        AssertTrue InStr(",totals,labels,connectors,ind100,vline,secondary,pieout,roundsum,trend,quad,pairdiff,pairabs,", "," & t & ",") > 0, "toggle invalido: " & t
         AssertEqual "Rx_OnToggle", AttrText(n, "onAction"), "toggle sem Rx_OnToggle: " & t
         AssertEqual "Rx_GetEnabled", n.Attributes.getNamedItem("getEnabled").Text, "toggle sem getEnabled: " & t
         AssertEqual "Rx_GetPressed", n.Attributes.getNamedItem("getPressed").Text
     Next
     AssertEqual 4, d.SelectNodes("//u:dropDown").Length
-    AssertEqual "right,none,lineend", ItemIds(d.SelectSingleNode("//u:dropDown[@tag='legend']"))
+    AssertEqual "right,none,lineend,inbar", ItemIds(d.SelectSingleNode("//u:dropDown[@tag='legend']"))
     ' T11: so cagr, diff e bracket chegam ao core (Core_AddAnnotation ignora em silencio qualquer outra tag)
     AssertEqual 3, d.SelectNodes("//u:button[@onAction='Rx_OnAnnotation']").Length
     For Each n In d.SelectNodes("//u:button[@onAction='Rx_OnAnnotation']")
@@ -530,6 +554,14 @@ Public Sub Test_Ribbon_Enabled_FollowsCapabilityOfSelectedChart()
     InsertAndSelect ws, "A40:C43", "waterfall"
     AssertTrue Rx_IsEnabledFor("legend"), "cascata com duas series tem legenda"
     AssertFalse Rx_IsEnabledFor("pieout")
+    AssertFalse Rx_IsEnabledFor("pairdiff"), "cascata comum: sem setas de variacao"
+    InsertAndSelect ws, "A40:C43", "waterfallpair"
+    For Each t In Array("pairdiff", "pairabs", "inbar", "totals", "connectors", "labels", "gap", "legend", "numfmt", "")
+        AssertTrue Rx_IsEnabledFor(CStr(t)), "cascata comparativa: '" & t & "' deveria estar habilitado"
+    Next
+    For Each t In Array("cagr", "diff", "bracket", "vline", "roundsum", "break", "pieout")
+        AssertFalse Rx_IsEnabledFor(CStr(t)), "cascata comparativa: '" & t & "' deveria estar desabilitado"
+    Next
     InsertAndSelect ws, "A1:B5", "clustered"
     AssertTrue Rx_IsEnabledFor("break"), "colunas agrupadas aceitam corte de eixo"
     AssertFalse Rx_IsEnabledFor("roundsum"), "colunas agrupadas nao tem rotulos de segmento com soma"
@@ -742,7 +774,7 @@ Public Sub Test_Ribbon_IconFallbackMso_AreValid()
         AssertTrue Not pic Is Nothing, "imageMso de reserva invalido: " & m.SubMatches(0)
         checked = checked + 1
     Next
-    AssertEqual 13, checked, "uma reserva por icone da tabela"
+    AssertEqual 14, checked, "uma reserva por icone da tabela"
 End Sub
 
 ' Onda B (B3.10): loader novo com core anterior (sem os procedimentos novos): Loader_RunCore marca o procedimento inexistente e os botoes
