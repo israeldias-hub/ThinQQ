@@ -468,6 +468,7 @@ $mustDocument = [ordered]@{
     'comparativa: Mesma escala pode cortar as setas do topo'         = @('both', 'cortar as setas do topo')
     'comparativa: total negativo mostra o percentual com sinal'      = @('tutorial', '(-50%)')
     'comparativa: o percentual dos totais volta ao alargar'          = @('tutorial', 'volta sozinho')
+    'comparativa: o percentual dos totais some sozinho se os rótulos se tocam' = @('both', 'some sozinho quando os dois rótulos de total')
     'comparativa: rótulos de total vizinhos podem se sobrepor'       = @('both', 'ou alargue o gráfico')
 }
 foreach ($k in $mustDocument.Keys) {
