@@ -193,8 +193,8 @@ if ($parsed) {
         else { $rep = [regex]::Match($v, '"(?<r>[^"]*)",').Groups['r'].Value; $list = ($allKinds -join ',').Replace($rep, '').Split(',') }
         $matrix[$m.Groups['f'].Value] = $list
     }
-    Check ($allKinds.Count -eq 20) "20 tipos de gráfico em modChartKinds.bas ($($allKinds.Count))"
-    Check ($matrix.Count -eq 20) "20 recursos na matriz de capacidades de modChartKinds.bas ($($matrix.Count))"
+    Check ($allKinds.Count -eq 21) "21 tipos de gráfico em modChartKinds.bas ($($allKinds.Count))"
+    Check ($matrix.Count -eq 23) "23 recursos na matriz de capacidades de modChartKinds.bas ($($matrix.Count))"
     # Rótulo de cada recurso: Kinds_FeatureLabel (modChartKinds.bas) ou, nos que ela não cobre, o controle da faixa que o aciona
     $featureLabel = @{}
     foreach ($m in [regex]::Matches($kindsSrc, 'Case "(?<f>[a-z0-9]+)":\s*Kinds_FeatureLabel = "(?<l>[^"]*)"')) { $featureLabel[$m.Groups['f'].Value] = $m.Groups['l'].Value }

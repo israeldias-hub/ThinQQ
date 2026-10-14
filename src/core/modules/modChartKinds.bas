@@ -2,7 +2,7 @@ Attribute VB_Name = "modChartKinds"
 Option Explicit
 ' Fonte unica dos tipos de grafico e do que cada um suporta (faixa, Core_SetToggle/SetOption, Rebuild).
 ' A matriz e dado, nao logica: listas separadas por virgula consultadas com InStr (como WF_MARKERS).
-Private Const KINDS As String = ",stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,gantt,pie,doughnut,butterfly,scatter,bubble,"
+Private Const KINDS As String = ",stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,gantt,pie,doughnut,butterfly,scatter,bubble,waterfallpair,"
 
 ' Os nomes sao procurados dentro de listas separadas por virgula: um nome com virgula ("stacked,clustered") casaria
 ' com dois tipos vizinhos da lista e seria aceito como se fosse um tipo. Por isso uma virgula recusa o nome.
@@ -48,6 +48,8 @@ Public Function Kinds_Family(kind As String) As String
         Kinds_Family = "butterfly"
     ElseIf InList("scatter,bubble", kind) Then
         Kinds_Family = "scatter"
+    ElseIf kind = "waterfallpair" Then
+        Kinds_Family = "waterfallpair"
     End If
 End Function
 
@@ -59,12 +61,12 @@ Public Function Kinds_Supports(kind As String, feature As String, Optional serie
     If Not Kinds_IsValid(kind) Then Exit Function
     allKinds = Mid$(KINDS, 2, Len(KINDS) - 2)
     Select Case feature
-        Case "totals":     list = "stacked,stacked100,barstacked,barstacked100,area,area100,combo,mekko,mekkounits,butterfly"
+        Case "totals":     list = "stacked,stacked100,barstacked,barstacked100,area,area100,combo,mekko,mekkounits,butterfly,waterfallpair"
         Case "labels":     list = allKinds
-        Case "connectors": list = "stacked,stacked100,barstacked,barstacked100,waterfall,barwaterfall,combo"
-        Case "numfmt":     list = "stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,pie,doughnut,butterfly"
+        Case "connectors": list = "stacked,stacked100,barstacked,barstacked100,waterfall,barwaterfall,combo,waterfallpair"
+        Case "numfmt":     list = "stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,pie,doughnut,butterfly,waterfallpair"
         Case "palette":    list = allKinds
-        Case "gap":        list = "stacked,clustered,stacked100,barstacked,barclustered,barstacked100,waterfall,barwaterfall,combo,gantt,butterfly"
+        Case "gap":        list = "stacked,clustered,stacked100,barstacked,barclustered,barstacked100,waterfall,barwaterfall,combo,gantt,butterfly,waterfallpair"
         Case "legend":     list = Replace(allKinds, ",gantt", "")      ' waterfall/barwaterfall: so com varias series (abaixo)
         Case "lineend":    list = "line,combo"                         ' legenda "nome no fim da linha" (Deco_SetLegend)
         Case "ind100":     list = "stacked100,barstacked100,area100,mekko"
@@ -74,11 +76,14 @@ Public Function Kinds_Supports(kind As String, feature As String, Optional serie
         Case "cagr":       list = "stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo"
         Case "diff":       list = "stacked,clustered,line,waterfall,barstacked,barclustered,barwaterfall,area,combo"
         Case "bracket":    list = "gantt"
-        Case "samescale":  list = "stacked,clustered,line,waterfall,barstacked,barclustered,barwaterfall,area,combo,mekkounits,butterfly"
+        Case "samescale":  list = "stacked,clustered,line,waterfall,barstacked,barclustered,barwaterfall,area,combo,mekkounits,butterfly,waterfallpair"
         Case "roundsum":   list = "stacked,stacked100,barstacked,barstacked100,area,area100"
         Case "break":      list = "stacked,clustered,barstacked,barclustered"
         Case "trend":      list = "scatter,bubble"
         Case "quad":       list = "scatter,bubble"
+        Case "pairdiff":   list = "waterfallpair"
+        Case "pairabs":    list = "waterfallpair"
+        Case "inbar":      list = "waterfallpair"
         Case Else: Exit Function
     End Select
     Kinds_Supports = InList(list, kind)
@@ -104,6 +109,9 @@ Public Function Kinds_FeatureLabel(feature As String) As String
         Case "break":      Kinds_FeatureLabel = "Corte de eixo"
         Case "trend":      Kinds_FeatureLabel = "Linha de tendência"
         Case "quad":       Kinds_FeatureLabel = "Quadrantes (médias)"
+        Case "pairdiff":   Kinds_FeatureLabel = "Setas de variação"
+        Case "pairabs":    Kinds_FeatureLabel = "Variação em valor"
+        Case "inbar":      Kinds_FeatureLabel = "Nome dentro das barras"
     End Select
 End Function
 
@@ -127,10 +135,14 @@ Public Function Kinds_SupportsChart(cht As Chart, feature As String) As Boolean
     Kinds_SupportsChart = Kinds_Supports(kind, feature, nSeries)
 End Function
 
-' Numero de referencias de categoria que a primeira serie do grafico deve ter (Core_ChartSourceMismatch):
-' o Mekko usa 5 pontos por categoria, os demais um.
+' Numero de referencias de categoria que a primeira serie do grafico deve ter (Core_ChartSourceMismatch): o Mekko usa 5 pontos por categoria;
+' a cascata comparativa tem 3n - 1 fatias com categorias de 2 colunas (eixo de 2 niveis); os demais, uma por categoria.
 Public Function Kinds_ExpectedCategoryRefs(kind As String, n As Long) As Long
-    If Kinds_Family(kind) = "mekko" Then Kinds_ExpectedCategoryRefs = 5 * n Else Kinds_ExpectedCategoryRefs = n
+    Select Case Kinds_Family(kind)
+        Case "mekko": Kinds_ExpectedCategoryRefs = 5 * n
+        Case "waterfallpair": Kinds_ExpectedCategoryRefs = 2 * (3 * n - 1)
+        Case Else: Kinds_ExpectedCategoryRefs = n
+    End Select
 End Function
 
 ' Despacho da insercao por familia. Cada Insert desfaz o que criou em caso de falha. Todas as familias validas tem

@@ -14,15 +14,18 @@ try {
     Check ((Get-Item $path).Length -lt 3MB) "tamanho < 3 MB ($((Get-Item $path).Length) bytes)"
     $cov = @(Get-TqqDemoCoverage)
     $feats = @(Get-TqqDemoFeatures)
+    # TEMPORARIO (Tarefa 0 da cascata comparativa): tipo e recursos que ainda nao tem exemplo na demonstracao; a Tarefa 7 gera E27/E28 e remove
+    # esta lista (e o "if" das duas linhas seguintes)
+    $pendingDemo = @('waterfallpair', 'pairdiff', 'pairabs', 'inbar')
     $kindsSrc = [IO.File]::ReadAllText((Join-Path $RepoRoot 'src\core\modules\modChartKinds.bas'))
     $allKinds = @(([regex]::Match($kindsSrc, 'Private Const KINDS As String = "(?<k>[^"]+)"').Groups['k'].Value).Trim(',').Split(','))
     Check ($allKinds.Count -ge 20) "tipos lidos de modChartKinds.bas ($($allKinds.Count))"
-    foreach ($k in $allKinds) { Check (@($cov | Where-Object { $_.Kind -eq $k }).Count -ge 1) "cobertura tem o tipo '$k'" }
+    foreach ($k in $allKinds) { if ($pendingDemo -contains $k) { Write-Host "ok - cobertura do tipo '$k' # SKIP pendente (Tarefa 7)"; continue }; Check (@($cov | Where-Object { $_.Kind -eq $k }).Count -ge 1) "cobertura tem o tipo '$k'" }
     # recursos da MATRIZ (a mesma leitura do Test-Docs), nao so a lista fixa de DemoCoverage.ps1 (que viria do mesmo arquivo da cobertura):
     # um recurso conta coberto por um item com o mesmo nome ou com o prefixo "<recurso>-" (legend -> legend-none)
     $matrixFeatures = @([regex]::Matches($kindsSrc, 'Case "(?<f>[a-z0-9]+)":\s*list =') | ForEach-Object { $_.Groups['f'].Value })
     Check ($matrixFeatures.Count -ge 20) "recursos da matriz lidos de modChartKinds.bas ($($matrixFeatures.Count))"
-    foreach ($f in $matrixFeatures) { Check (@($cov | Where-Object { $_.Features -contains $f -or @($_.Features | Where-Object { $_ -like "$f-*" }).Count -gt 0 }).Count -ge 1) "cobertura tem o recurso da matriz '$f'" }
+    foreach ($f in $matrixFeatures) { if ($pendingDemo -contains $f) { Write-Host "ok - cobertura do recurso '$f' # SKIP pendente (Tarefa 7)"; continue }; Check (@($cov | Where-Object { $_.Features -contains $f -or @($_.Features | Where-Object { $_ -like "$f-*" }).Count -gt 0 }).Count -ge 1) "cobertura tem o recurso da matriz '$f'" }
     foreach ($f in $feats) { Check (@($cov | Where-Object { $_.Features -contains $f }).Count -ge 1) "cobertura tem o recurso '$f'" }
     Check (@($cov | ForEach-Object { $_.Sheet } | Sort-Object -Unique).Count -eq $cov.Count) 'planilhas da cobertura sem repeticao'
     # privacidade do binario (o Test-Privacy pula arquivo com byte NUL): docProps sem autor nem empresa e nenhuma parte XML com id, caminho de

@@ -358,19 +358,25 @@ Public Sub Test_Style_PaletteRGB()
     CloseTemp wb
 End Sub
 
-' Texto da secao 6 do spec da Fase 3 (a tabela "| feature | tipos |"), lido do arquivo (bytes; so ASCII importa: nomes de recursos e tipos).
-Private Function SpecSection6() As String
+' Texto de uma secao de um spec de docs\superpowers\specs (bytes; so ASCII importa: nomes de recursos e tipos), de startHdr ate endHdr.
+Private Function SpecSectionOf(fileName As String, startHdr As String, endHdr As String) As String
     Dim f As Integer, s As String, p As String, a As Long, b As Long
-    p = RepoPath() & "\docs\superpowers\specs\2026-10-11-thinqq-fase3-design.md"
+    p = RepoPath() & "\docs\superpowers\specs\" & fileName
     f = FreeFile
     Open p For Binary Access Read As #f
     s = Space$(LOF(f))
     Get #f, , s
     Close #f
-    a = InStr(s, "## 6. ")
-    b = InStr(a + 1, s, "## 7. ")
-    If a = 0 Or b = 0 Then Err.Raise vbObjectError + 1, "TestKinds", "secao 6 do spec nao encontrada em " & p
-    SpecSection6 = Mid$(s, a, b - a)
+    a = InStr(s, startHdr)
+    If a = 0 Then Err.Raise vbObjectError + 1, "TestKinds", "secao '" & startHdr & "' nao encontrada em " & p
+    b = InStr(a + 1, s, endHdr)
+    If b = 0 Then Err.Raise vbObjectError + 1, "TestKinds", "secao '" & endHdr & "' nao encontrada em " & p
+    SpecSectionOf = Mid$(s, a, b - a)
+End Function
+
+' Texto da secao 6 do spec da Fase 3 (a tabela "| feature | tipos |").
+Private Function SpecSection6() As String
+    SpecSection6 = SpecSectionOf("2026-10-11-thinqq-fase3-design.md", "## 6. ", "## 7. ")
 End Function
 
 ' Tipos esperados para uma celula "tipos" do spec: lista explicita, "todos" ou "todos exceto a, b"; texto entre parenteses e negrito saem.
@@ -426,4 +432,48 @@ Public Sub Test_Kinds_Phase3_Matrix_ExhaustiveFromSpec()
     AssertEqual 400, nPairs
     AssertFalse Kinds_Supports("waterfall", "legend", 1), "cascata de uma serie: sem legenda"
     AssertFalse Kinds_Supports("barwaterfall", "legend"), "numero de series desconhecido: sem legenda"
+End Sub
+
+Public Sub Test_Kinds_PairWaterfall_TypeFamilyAndLabels()
+    AssertTrue Kinds_IsValid("waterfallpair")
+    AssertEqual "waterfallpair", Kinds_Family("waterfallpair")
+    AssertEqual "waterfall", Kinds_Family("waterfall"), "a cascata atual continua na familia dela"
+    AssertFalse Kinds_IsHorizontal("waterfallpair"): AssertFalse Kinds_Is100("waterfallpair")
+    AssertEqual 28, Kinds_ExpectedCategoryRefs("waterfallpair", 5), "categorias de 2 colunas x (3n - 1) fatias"
+    AssertEqual 4, Kinds_ExpectedCategoryRefs("waterfallpair", 1)
+    AssertEqual 5, Kinds_ExpectedCategoryRefs("waterfall", 5), "os demais tipos: uma referencia por categoria"
+    AssertEqual "Setas de variação", Kinds_FeatureLabel("pairdiff")
+    AssertEqual "Variação em valor", Kinds_FeatureLabel("pairabs")
+    AssertEqual "Nome dentro das barras", Kinds_FeatureLabel("inbar")
+    AssertEqual "'Nome dentro das barras' não se aplica a este tipo de gráfico.", Kinds_NotApplicableText("inbar")
+    AssertTrue Kinds_Supports("waterfallpair", "legend"), "a legenda da comparativa nao depende do numero de series"
+    AssertFalse Kinds_Supports("waterfall", "pairdiff"): AssertFalse Kinds_Supports("butterfly", "inbar"): AssertFalse Kinds_Supports("stacked", "pairabs")
+End Sub
+
+' Cascata comparativa (1.3.0): a matriz inteira (21 tipos x 23 recursos) conferida contra o TEXTO da tabela da secao 6 do spec da cascata
+' comparativa (nao contra a propria matriz). O teste da Fase 3 (20 x 20, spec da Fase 3) continua valendo para os tipos e recursos antigos.
+Public Sub Test_Kinds_PairWaterfall_Matrix_ExhaustiveFromSpec()
+    Dim sec As String, lines() As String, i As Long, cells() As String, feat As String, expect As String, k As Variant, allKinds As Variant
+    Dim nFeat As Long, nPairs As Long, want As Boolean
+    allKinds = Array("stacked", "clustered", "stacked100", "line", "waterfall", "barstacked", "barclustered", "barstacked100", "barwaterfall", "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut", "butterfly", "scatter", "bubble", "waterfallpair")
+    AssertEqual 21, UBound(allKinds) + 1
+    sec = SpecSectionOf("2026-10-13-thinqq-cascata-comparativa-design.md", "## 6. ", "## 7. ")
+    lines = Split(Replace(sec, vbCr, ""), vbLf)
+    For i = LBound(lines) To UBound(lines)
+        If Left$(lines(i), 2) = "| " Then
+            cells = Split(lines(i), "|")
+            feat = Trim$(Replace(cells(1), "**", ""))
+            If feat <> "feature" And Left$(feat, 3) <> "---" Then
+                nFeat = nFeat + 1
+                expect = SpecKinds(cells(2), allKinds)
+                For Each k In allKinds
+                    want = (InStr(expect, "," & k & ",") > 0)
+                    AssertEqual want, Kinds_Supports(CStr(k), feat, 2), feat & " x " & k & " (spec: " & Trim$(cells(2)) & ")"
+                    nPairs = nPairs + 1
+                Next
+            End If
+        End If
+    Next
+    AssertEqual 23, nFeat, "23 recursos na tabela do spec"
+    AssertEqual 483, nPairs
 End Sub
