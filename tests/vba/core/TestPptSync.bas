@@ -429,3 +429,26 @@ Public Sub Test_PptSync_UpdateGuard_Fake()
     AssertEqual 0, lf.UpdateCount, "updateData = False: sem Update"
     Teardown wb
 End Sub
+
+' PptSync_ForceLayout nao usa Dir$ (zeraria o laco Dir$ de quem chama) e apaga o PNG temporario (nome unico).
+Public Sub Test_PptSync_ForceLayout_KeepsCallerDirLoopAndCleansUp()
+    Dim wb As Workbook, rng As Range, c As Chart, d As String, a As String, b As String, f As Integer, nm As Variant, left_ As String
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    d = TempDir()
+    For Each nm In Array("a.txt", "b.txt")
+        f = FreeFile
+        Open d & "\" & nm For Output As #f
+        Print #f, "x"
+        Close #f
+    Next
+    a = Dir$(d & "\*.txt")
+    PptSync_ForceLayout c
+    b = Dir$()
+    AssertTrue Len(a) > 0 And Len(b) > 0 And a <> b, "o laco Dir$ do chamador continua (" & a & ", " & b & ")"
+    left_ = Dir$(Environ$("TEMP") & "\thinqq_pptsync*.png")
+    AssertEqual "", left_, "sem PNG temporario sobrando"
+    Teardown wb
+End Sub

@@ -234,13 +234,17 @@ Private Sub PptSync_CopyFillAndBorder(s As Shape, t As Object)
 End Sub
 
 ' Forca o Excel a refazer a geometria do grafico (pontos, rotulos, area interna): exportar e o unico jeito no Excel invisivel (o ForceLayout
-' dos testes faz o mesmo). Arquivo temporario apagado; nunca propaga erro.
+' dos testes faz o mesmo). PNG com nome unico na pasta temporaria do Windows, apagado mesmo se a exportacao falhar; sem Dir$ (zeraria um
+' laco Dir$ de quem chama). Nunca propaga erro.
 Public Sub PptSync_ForceLayout(cht As Chart)
-    Dim p As String
+    Dim fso As Object, p As String
     On Error Resume Next
-    p = Environ$("TEMP") & "\thinqq_pptsync_layout.png"
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso Is Nothing Then cht.Refresh: Err.Clear: Exit Sub
+    p = fso.BuildPath(fso.GetSpecialFolder(2), "thinqq_pptsync_" & fso.GetBaseName(fso.GetTempName()) & ".png")     ' 2 = TemporaryFolder
     cht.Export p
-    If Len(Dir$(p)) > 0 Then Kill p
+    Err.Clear
+    If fso.FileExists(p) Then fso.DeleteFile p, True
     Err.Clear
 End Sub
 
