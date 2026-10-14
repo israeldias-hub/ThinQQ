@@ -402,7 +402,7 @@ Cascata comparativa (1.3.0): decisões e medições em Excel real em
 Os testes automáticos usam um Excel invisível; estas verificações precisam de uma sessão de Excel real (depois de `Instalar-ThinQQ.cmd` ou de `build.ps1 -Install`), com uma tabela 4x3 com cabeçalho para os itens 1 a 11 e as tabelas de exemplo de cada tipo (planilhas "Exemplos 2" e "Exemplos 3") para os demais:
 
 1. A aba ThinQQ aparece na faixa de opções, ao lado de Inserir, com os cinco menus de inserção (Colunas, Barras, Cascata, Linha e área, Mais tipos). Esta é a primeira conferência: sem a aba, nenhum outro item vale.
-2. Com células selecionadas, só os cinco menus, Mais opções (com Mesma escala, Escala automática e Arredondar intervalo...), Atualizar e o grupo ThinQQ ficam ativos; o resto do grupo "Gráfico selecionado" (inclusive os menus Setas e PowerPoint) fica cinza.
+2. Com células selecionadas, só os cinco menus, Mais opções (com Mesma escala, Escala automática e Arredondar intervalo...), Atualizar e o grupo ThinQQ ficam ativos; o resto do grupo "Gráfico selecionado" (inclusive o menu Setas; no menu PowerPoint só Atualizar gráficos no PowerPoint fica ativo) fica cinza.
 3. ThinQQ > Colunas > Colunas empilhadas insere o gráfico à direita, selecionado; Totais e Rótulos pressionados; Totais e Conectores ligam e desligam.
 4. Formato, Paleta e Espaço (que fica cinza em gráfico de linha); Colunas 100% mostra participações nos segmentos e nasce com "100%" à esquerda.
 5. Setas > Seta CAGR abre o formulário e desenha o texto; mudar um valor atualiza; Seta diferença; Remover setas; redimensionar reposiciona.

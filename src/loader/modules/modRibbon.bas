@@ -30,7 +30,7 @@ Public Sub Rx_TestSetSupportsProc(procName As String)
     ResetRibbonCaches
 End Sub
 
-' Gancho de teste: sufixo acrescentado ao nome dos procedimentos dos recursos sempre ativos (Arredondar intervalo, PowerPoint) para simular
+' Gancho de teste: sufixo acrescentado ao nome dos procedimentos dos recursos sempre ativos (Arredondar intervalo, PowerPoint, Core_PptSyncOpen) para simular
 ' um core anterior que nao os tem ("" desarma). So existe no build de Teste.
 Public Sub Rx_TestSetFeatureProcSuffix(suffix As String)
     If BUILD_CONFIG <> "Test" Then Exit Sub
@@ -233,6 +233,12 @@ End Sub
 Public Sub Rx_OnPptChart(control As IRibbonControl)
     On Error Resume Next
     If CoreOrWarn() Then RunCoreFeature "Core_CopyToPowerPoint", "chart"
+End Sub
+
+' Atualizar graficos no PowerPoint (Parte A): nao exige grafico selecionado; core anterior: aviso de atualizar.
+Public Sub Rx_OnPptSync(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_PptSyncOpen"
 End Sub
 
 Public Sub Rx_OnSamples(control As IRibbonControl)

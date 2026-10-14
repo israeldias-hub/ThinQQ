@@ -175,13 +175,16 @@
             <button id="btnRemoveAnn" label="Remover setas" imageMso="Delete" onAction="Rx_OnRemoveAnnotations"
                     getEnabled="Rx_GetEnabled" screentip="Remove todas as setas e colchetes do gráfico selecionado"/>
           </menu>
-          <!-- PowerPoint: o menu e os itens so exigem um grafico (sem tag); copiar nao muda o grafico. -->
-          <menu id="mnuPpt" label="PowerPoint" image="tqq_ppt16" getEnabled="Rx_GetEnabled"
-                screentip="Copiar para o PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint, como imagem ou como gráfico vinculado a esta pasta de trabalho.">
+          <!-- PowerPoint: o menu fica sempre ativo (Atualizar graficos no PowerPoint nao exige grafico); copiar exige um grafico (getEnabled). -->
+          <menu id="mnuPpt" label="PowerPoint" image="tqq_ppt16"
+                screentip="PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint (como imagem ou gráfico vinculado) e atualiza os gráficos vinculados das apresentações abertas.">
             <button id="btnPptImage" label="Copiar como imagem" onAction="Rx_OnPptImage" getEnabled="Rx_GetEnabled"
                     screentip="Copiar como imagem" supertip="Cola uma imagem do gráfico no slide ativo (abre o PowerPoint se preciso)."/>
             <button id="btnPptChart" label="Copiar como gráfico vinculado" onAction="Rx_OnPptChart" getEnabled="Rx_GetEnabled"
-                    screentip="Copiar como gráfico vinculado" supertip="Cola um gráfico do PowerPoint vinculado a esta pasta de trabalho salva. No PowerPoint: Arquivo &gt; Informações &gt; Editar Links para Arquivos (Quebrar Vínculo incorpora os dados) e, com o gráfico selecionado, Design do Gráfico &gt; Atualizar Dados."/>
+                    screentip="Copiar como gráfico vinculado" supertip="Cola um gráfico do PowerPoint vinculado a esta pasta de trabalho salva, com as setas no tamanho do slide. Com o suplemento do PowerPoint, dados e setas são atualizados ao abrir a apresentação."/>
+            <menuSeparator id="msepPpt"/>
+            <button id="btnPptSync" label="Atualizar gráficos no PowerPoint" imageMso="Refresh" onAction="Rx_OnPptSync"
+                    screentip="Atualizar gráficos no PowerPoint" supertip="Atualiza dados e setas dos gráficos do ThinQQ vinculados nas apresentações abertas no PowerPoint (também acontece ao abrir a apresentação, com o suplemento do PowerPoint)."/>
           </menu>
           <separator id="sep3"/>
           <button id="btnRefresh" label="Atualizar" imageMso="Refresh" onAction="Rx_OnRefresh"
