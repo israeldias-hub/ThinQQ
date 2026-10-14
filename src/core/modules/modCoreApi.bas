@@ -879,7 +879,12 @@ Private Sub NotifyScaleClippedOnce(cht As Chart)
     If Not Deco_ScaleClipped(cht) Then Exit Sub
     If mClipSeen Is Nothing Then Set mClipSeen = New Collection
     mClipSeen.Add id, id
-    Core_Notify "Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'.", vbExclamation
+    ' cascata comparativa com as barras dentro da escala: so a sala das setas passou do maximo (Mesma escala de novo daria a mesma uniao)
+    If Registry_ChartType(cht) = "waterfallpair" And Not Deco_ScaleClipped(cht, True) Then
+        Core_Notify "As setas de variação passam do máximo da escala fixa (Mesma escala) e ficam cortadas. Use 'Escala automática' ou desligue as setas de variação.", vbExclamation
+    Else
+        Core_Notify "Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'.", vbExclamation
+    End If
 End Sub
 
 ' Reposiciona rótulos e anotações. Chamado por eventos: nunca propaga erro (apenas registra).
@@ -891,7 +896,6 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Escala" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Break_RefreshAfterDataChange cht                 ' corte de eixo: maximo fixo, folga do total, rotulos dos segmentos e marcas
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Break" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
-    NotifyScaleClippedOnce cht
     Labels_RefreshPositions cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Labels" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     ' barras: a auxiliar XY usa o eixo X secundario (se o Excel o criou); mantem-no alinhado ao eixo de valores primario
@@ -905,6 +909,7 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Bfly" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Wfp_RefreshAfterDataChange cht                   ' cascata comparativa: meia-largura das barras, valor por ponto das setas, rotulos finos, nomes ou legenda
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Wfp" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    NotifyScaleClippedOnce cht                       ' depois da recalibracao das setas da comparativa (a sala delas entra na conferencia)
     Scatter_RefreshAfterDataChange cht               ' dispersao/bolhas: quadrantes nas medias atuais e tendencias fora da legenda
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Scatter" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Gantt_RefreshScale cht                           ' Gantt: a escala calculada no bloco (unidade e intervalo) vai para o eixo; antes dos colchetes

@@ -938,6 +938,38 @@ Public Sub Test_Wfp_Arrows_SameScale_TinyPlot_Calibrates()
     CloseTemp wb
 End Sub
 
+' Aviso de corte com Mesma escala na comparativa: o grafico encolhido sob a escala fixa recalibra as setas e o aviso das SETAS chega no mesmo
+' refresh (a conferencia vem depois da recalibracao); barras que passam do maximo (outro grafico, outro id: o aviso e unico por grafico) dao o
+' aviso das barras.
+Public Sub Test_Wfp_SameScale_ClipNotice_ArrowsThenBars()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, c1 As Chart, c2 As Chart, c3 As Chart, coll As Collection, skipped As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set c1 = Wfp_Insert(ws, d).Chart
+    ws.Range("H1:I1").Value = Array("Ano", "Valor"): ws.Range("H2:I2").Value = Array(2024, 80): ws.Range("H3:I3").Value = Array(2025, 90)
+    Set c2 = Kinds_Insert(ws, ChartData_FromRange(ws.Range("H1:I3")), "stacked").Chart
+    Set coll = New Collection: coll.Add c1: coll.Add c2
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    ForceLayout c1
+    Core_ClearLastNotice
+    Core_SafeRefresh c1
+    AssertEqual 0, Core_NoticeCount(), "tamanho padrao: sem corte, sem aviso"
+    c1.Parent.Height = 110
+    ForceLayout c1
+    Core_ClearLastNotice
+    Core_SafeRefresh c1
+    AssertEqual "As setas de variação passam do máximo da escala fixa (Mesma escala) e ficam cortadas. Use 'Escala automática' ou desligue as setas de variação.", Core_LastNotice(), "encolhido: o aviso das setas no mesmo refresh"
+    AssertFalse Deco_ScaleClipped(c1, True), "as barras cabem"
+    Set c3 = Wfp_Insert(ws, d).Chart
+    Set coll = New Collection: coll.Add c3: coll.Add c2
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    ws.Range("B2").Value = 150
+    Core_ClearLastNotice
+    Core_SafeRefresh c3
+    AssertTrue Deco_ScaleClipped(c3, True), "premissa: a barra do Bruto (150) passa do maximo fixo"
+    AssertEqual "Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'.", Core_LastNotice(), "barras cortadas: o aviso das barras"
+    CloseTemp wb
+End Sub
+
 ' Mesma escala com um parceiro que estende o MINIMO para baixo (cascata de 0 a ~40 e colunas de -40 e 20): a faixa comum quase dobra com o
 ' mesmo maximo, o valor por ponto dobra e a sala das setas do topo passa do maximo fixo (as barras cabem). Limite conhecido: a escala fica a que
 ' a Mesma escala calculou; Deco_ScaleClipped conta a sala das setas (tqq_pdroom) e o refresh avisa uma vez. Premissas pelo eixo real.
@@ -969,9 +1001,10 @@ Public Sub Test_Wfp_SameScale_PartnerExtendsMin_ArrowsClipDetected()
     Next
     AssertTrue mxTop <= ax.MaximumScale, "as barras cabem (" & mxTop & ")"
     AssertTrue Deco_ScaleClipped(c1), "as setas cortadas contam como corte"
+    AssertFalse Deco_ScaleClipped(c1, True), "so as barras: cabem"
     Core_ClearLastNotice
     Core_SafeRefresh c1
-    AssertEqual "Os dados deste gráfico passaram do máximo da escala fixa (Mesma escala) e as barras ficam cortadas. Use 'Mesma escala' de novo ou 'Escala automática'.", Core_LastNotice(), "o refresh avisa"
+    AssertEqual "As setas de variação passam do máximo da escala fixa (Mesma escala) e ficam cortadas. Use 'Escala automática' ou desligue as setas de variação.", Core_LastNotice(), "o refresh avisa: as setas (nao as barras)"
     Wfp_SetArrows c1, False
     AssertFalse Deco_ScaleClipped(c1), "sem as setas nao ha corte"
     CloseTemp wb

@@ -1252,6 +1252,8 @@ Private Sub AssertRealState(c As Chart, kind As String, tag As String)
     If Kinds_Supports(kind, "trend") Then AssertEqual 1, c.SeriesCollection(1).Trendlines.Count, tag & ": tendencia ligada"
     If Kinds_Supports(kind, "quad") Then AssertEqual xlAxisCrossesCustom, c.Axes(xlValue).Crosses, tag & ": quadrantes ligados"
     If Kinds_Supports(kind, "pairdiff") Then AssertTrue Not Chart_FindSeries(c, "tqq_pd") Is Nothing, tag & ": setas de variacao ligadas"
+    If Kinds_Supports(kind, "pairdiff") Then AssertTrue Not Chart_FindSeries(c, "tqq_pdroom") Is Nothing, tag & ": sala das setas (tqq_pdroom)"
+    If Kinds_Supports(kind, "pairabs") Then AssertEqual 1, Util_ToDouble(Registry_Block(c).Cells(1, WFP_META_ABS).Value), tag & ": variacao em valor ligada (meta Abs no bloco)"
 End Sub
 
 ' Todo tipo: insere pela API, exercita cada toggle/opcao conforme a matriz (suportado = funciona; nao suportado = aviso,
@@ -1417,6 +1419,7 @@ Public Sub Test_Core_RebuildFromRange_ValidationRefusals_NoticeNotGenericError()
         Array("combo", "A combinação precisa de pelo menos 2 colunas de valores: as primeiras viram colunas empilhadas e a última vira linha.", 2), _
         Array("mekkounits", "Mekko (unidades): a segunda coluna da tabela é a largura; são necessárias pelo menos 3 colunas.", 2), _
         Array("gantt", "Gantt: a tabela precisa de 3 colunas: atividade, início e fim (datas). Deixe o fim vazio para um marco.", 2), _
+        Array("waterfallpair", "A cascata comparativa precisa de exatamente 2 colunas de valores (uma por série); a tabela tem só 1.", 2), _
         Array("waterfallpair", "A cascata comparativa compara exatamente 2 séries; a tabela tem 3 colunas de valores. Selecione a coluna das etapas e só as duas colunas a comparar.", 4))
     For i = LBound(cases) To UBound(cases)
         kind = cases(i)(0): want = cases(i)(1)
