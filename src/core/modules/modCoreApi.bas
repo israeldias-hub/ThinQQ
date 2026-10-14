@@ -276,7 +276,7 @@ End Function
 Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
     Dim kind As String, fam As String
     Select Case key
-        Case "totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum"
+        Case "totals", "labels", "connectors", "ind100", "vline", "secondary", "pieout", "trend", "quad", "roundsum", "pairdiff", "pairabs"
         Case Else: Exit Sub
     End Select
     kind = Registry_ChartType(c)
@@ -324,6 +324,10 @@ Private Sub ApplyToggle(c As Chart, key As String, value As Boolean)
             If fam = "scatter" Then Scatter_SetTrend c, value Else RefuseUndispatched key, c, fam     ' linha de tendencia linear por grupo
         Case "quad"
             If fam = "scatter" Then Scatter_SetQuad c, value Else RefuseUndispatched key, c, fam      ' quadrantes: eixos cruzando nas medias
+        Case "pairdiff"
+            If fam = "waterfallpair" Then Wfp_SetArrows c, value Else RefuseUndispatched key, c, fam      ' setas de variacao entre as barras do par
+        Case "pairabs"
+            If fam = "waterfallpair" Then Wfp_SetArrowMode c, value Else RefuseUndispatched key, c, fam   ' variacao em valor em vez de percentual
         Case "roundsum"
             Select Case fam
                 Case "stacked", "area": Round_SetLabels c, value     ' rotulos com soma consistente (maior resto nas colunas Rnd_j do bloco)
@@ -1061,9 +1065,9 @@ Private Sub ReapplyOptions(nc As Chart)
     If Kinds_Supports(kind, "gap") And Len(Registry_GetOption(nc, "gap", "")) > 0 Then ApplyOption nc, "gap", Registry_GetOption(nc, "gap", "")
     ' soma consistente ligada: as colunas Rnd_j antes dos rotulos, para a passada dos rotulos ja ligar a elas (a de roundsum entao nao religa)
     If Kinds_Supports(kind, "roundsum") And Registry_GetOption(nc, "roundsum", "0") = "1" Then Round_EnsureColumns nc
-    For Each k In Array("totals", "labels", "connectors", "secondary", "ind100", "vline", "pieout", "trend", "quad", "roundsum")      ' roundsum depois de labels: com os rotulos desligados so grava a opcao
+    For Each k In Array("totals", "labels", "connectors", "secondary", "ind100", "vline", "pieout", "trend", "quad", "roundsum", "pairdiff", "pairabs")      ' roundsum depois de labels: com os rotulos desligados so grava a opcao
         If Kinds_Supports(kind, CStr(k)) Then
-            dflt = IIf(k = "labels" Or k = "ind100", "1", "0")
+            dflt = IIf(k = "labels" Or k = "ind100" Or k = "pairdiff", "1", "0")
             ApplyToggle nc, CStr(k), (Registry_GetOption(nc, CStr(k), dflt) = "1")      ' pizza: rotulos fora (pieout) tambem aplicados aqui
         End If
     Next

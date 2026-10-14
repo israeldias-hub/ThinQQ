@@ -443,3 +443,229 @@ Public Sub Test_Wfp_CopiedChart_KeepsBlockAlive()
     AssertEqual 1, TqqNameCount(wb)
     CloseTemp wb
 End Sub
+
+' ROUND do Excel (metade para longe do zero), nao o Round do VBA (banqueiro).
+Private Function XlRound(x As Double) As Double
+    XlRound = Sgn(x) * Int(Abs(x) + 0.5)
+End Function
+
+' Texto esperado da seta: (B - A) / A em % inteiro com sinal; "n/d" com A = 0 ou sinais opostos.
+Private Function PctText(a As Double, b As Double) As String
+    Dim r As Double
+    If a = 0 Or a * b < 0 Then PctText = "n/d": Exit Function
+    r = XlRound(100 * (b - a) / a)
+    PctText = IIf(r > 0, "+", "") & Format$(r, "0") & "%"
+End Function
+
+Private Function ArrowLabel(cht As Chart, i As Long) As String
+    ArrowLabel = Chart_FindSeries(cht, "tqq_pd").Points(WFP_ROWS_PER_PAIR * (i - 1) + 3).DataLabel.Text
+End Function
+
+Private Function PtvOf(cht As Chart) As Double
+    PtvOf = Util_ToDouble(Registry_Block(cht).Cells(1, WFP_META_PTV).Value)
+End Function
+
+' Review Focus 2: os percentuais da imagem do think-cell (custo de -4 para -7 = +75%).
+Public Sub Test_Wfp_Arrows_TextsLikeTheImage()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, s As Series, i As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    cht.Refresh
+    AssertEqual "+7%", ArrowLabel(cht, 1): AssertEqual "+75%", ArrowLabel(cht, 2): AssertEqual "-67%", ArrowLabel(cht, 3)
+    AssertEqual "+67%", ArrowLabel(cht, 4): AssertEqual "-9%", ArrowLabel(cht, 5)
+    For i = 1 To 5
+        AssertEqual PctText(SideVal(cht, i, 1, "Val"), SideVal(cht, i, 2, "Val")), ArrowLabel(cht, i), "seta " & i & " pelos valores das barras"
+    Next
+    AssertEqual "1", Registry_GetOption(cht, "pairdiff"): AssertEqual "0", Registry_GetOption(cht, "pairabs")
+    Set s = Chart_FindSeries(cht, "tqq_pd")
+    AssertEqual 29, s.Points.Count, "5 pontos por par e uma linha vazia entre pares"
+    AssertEqual msoArrowheadTriangle, s.Format.Line.EndArrowheadStyle
+    AssertEqual msoShapeOval, s.Points(3).DataLabel.Format.AutoShapeType, "rotulo em elipse"
+    AssertEqual xlPrimary, s.AxisGroup
+    AssertTrue Not Chart_FindSeries(cht, "tqq_pdroom") Is Nothing
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Wfp_Arrows_NdAndAbs()
+    Dim wb As Workbook, ws As Worksheet, d As clsChartData, cht As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Etapa", "S1", "S2")
+    ws.Range("A2:C2").Value = Array("Inicio", 10, 10)
+    ws.Range("A3:C3").Value = Array("Zero", 0, 3)
+    ws.Range("A4:C4").Value = Array("Troca", -2, 4)
+    ws.Range("A5:C5").Value = Array("Fim", "e", "e")
+    Set d = ChartData_FromRange(ws.Range("A1:C5"))
+    Set cht = Wfp_Insert(ws, d).Chart
+    cht.Refresh
+    AssertEqual "0%", ArrowLabel(cht, 1), "iguais"
+    AssertEqual "n/d", ArrowLabel(cht, 2), "a serie 1 vale zero"
+    AssertEqual "n/d", ArrowLabel(cht, 3), "sinais opostos"
+    AssertEqual "+113%", ArrowLabel(cht, 4), "totais 8 e 17: (17 - 8) / 8 = 112,5% -> 113%"
+    Wfp_SetArrowMode cht, True
+    cht.Refresh
+    AssertEqual "0", ArrowLabel(cht, 1): AssertEqual "+3", ArrowLabel(cht, 2): AssertEqual "+6", ArrowLabel(cht, 3): AssertEqual "+9", ArrowLabel(cht, 4)
+    AssertEqual "1", Registry_GetOption(cht, "pairabs")
+    CloseTemp wb
+End Sub
+
+' Review Focus 3: a seta sai 3 pt acima do degrau e 22 pt acima da barra grande com rotulo (regra de tres no eixo real), sobe 12 pt, a elipse
+' fica centrada na linha horizontal, entre as duas barras, dentro do grafico.
+Public Sub Test_Wfp_Arrows_Geometry()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, s As Series, i As Long, r0 As Long, p1 As Point, p2 As Point, p3 As Point, p4 As Point, p5 As Point
+    Dim gA As Double, gB As Double, lbl As DataLabel, body As Range
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    ForceLayout cht                                  ' layout desenhado, calibracao nele, e o desenho final
+    Core_SafeRefresh cht
+    ForceLayout cht
+    Set s = Chart_FindSeries(cht, "tqq_pd"): Set body = BodyOf(cht)
+    For i = 1 To 5
+        r0 = WFP_ROWS_PER_PAIR * (i - 1)
+        Set p1 = s.Points(r0 + 1): Set p2 = s.Points(r0 + 2): Set p3 = s.Points(r0 + 3): Set p4 = s.Points(r0 + 4): Set p5 = s.Points(r0 + 5)
+        If CBool(body.Cells(i + 1, Wfp_SideCol(1, "Big")).Value) Then gA = WFP_PT_LBLROOM Else gA = WFP_PT_GAP      ' (rotulos ligados e totais positivos na fixture)
+        If CBool(body.Cells(i + 1, Wfp_SideCol(2, "Big")).Value) Then gB = WFP_PT_LBLROOM Else gB = WFP_PT_GAP
+        AssertAlmost XOfX(cht, 3 * i - 2), p1.Left, 1, "par " & i & ": sai do centro da barra A"
+        AssertAlmost XOfX(cht, 3 * i - 1), p5.Left, 1, "par " & i & ": chega ao centro da barra B"
+        AssertAlmost YOf(cht, SideVal(cht, i, 1, "Hi")) - gA, p1.Top, 1.5, "par " & i & ": inicio acima da barra A"
+        AssertAlmost YOf(cht, SideVal(cht, i, 2, "Hi")) - gB, p5.Top, 1.5, "par " & i & ": ponta acima da barra B"
+        AssertAlmost p2.Top, p4.Top, 0.5, "par " & i & ": trecho horizontal"
+        AssertAlmost IIf(p1.Top < p5.Top, p1.Top, p5.Top) - 12, p2.Top, 1.5, "par " & i & ": 12 pt acima do inicio mais alto"
+        Set lbl = p3.DataLabel
+        AssertAlmost XOfX(cht, 3 * i - 1.5), lbl.Left + lbl.Width / 2, 1.5, "par " & i & ": elipse entre as barras"
+        AssertAlmost p3.Top, lbl.Top + lbl.Height / 2, 1.5, "par " & i & ": elipse centrada na linha"
+        AssertTrue lbl.Top >= 0, "par " & i & ": elipse dentro do grafico"
+    Next
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Wfp_Arrows_RoomCalibrated_Stable_SmallChart()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ax As Axis, ptv As Double, r As Series, i As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    ForceLayout cht
+    Core_SafeRefresh cht
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    ptv = PtvOf(cht)
+    AssertAlmost (ax.MaximumScale - ax.MinimumScale) / cht.PlotArea.InsideHeight, ptv, 0.02 * ptv, "PtV = faixa do eixo / altura interna"
+    Core_SafeRefresh cht
+    Core_SafeRefresh cht
+    AssertAlmost ptv, PtvOf(cht), 0.02 * ptv, "estavel em dois refresh"
+    ForceLayout cht
+    Set r = Chart_FindSeries(cht, "tqq_pdroom")
+    For i = 1 To 5
+        AssertTrue r.Points(i).Top >= cht.PlotArea.InsideTop - 0.5, "a sala da elipse " & i & " cabe na escala"
+    Next
+    cht.Parent.Width = 220: cht.Parent.Height = 140
+    Core_SafeRefresh cht
+    AssertTrue PtvOf(cht) > 0, "grafico pequeno: a calibracao termina com valor positivo"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Wfp_Arrows_ResizeRecalibrates()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ax As Axis, ptv0 As Double, s As Series
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    ptv0 = PtvOf(cht)
+    cht.Parent.Height = 200
+    ForceLayout cht
+    Core_SafeRefresh cht
+    ForceLayout cht
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    AssertAlmost (ax.MaximumScale - ax.MinimumScale) / cht.PlotArea.InsideHeight, PtvOf(cht), 0.02 * PtvOf(cht), "recalibrado no tamanho novo"
+    AssertTrue PtvOf(cht) > ptv0 * 1.1, "grafico mais baixo: mais valor por ponto (" & ptv0 & " -> " & PtvOf(cht) & ")"
+    Set s = Chart_FindSeries(cht, "tqq_pd")
+    AssertAlmost YOf(cht, SideVal(cht, 5, 1, "Hi")) - WFP_PT_LBLROOM, s.Points(WFP_ROWS_PER_PAIR * 4 + 1).Top, 1.5, "o afastamento continua 22 pt no total"
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Wfp_Arrows_ToggleModeAndRefusal()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    d.Source.Select
+    Core_Insert "waterfallpair"
+    Set cht = Core_ActiveChart()
+    Core_SetToggle "pairdiff", False
+    AssertTrue Chart_FindSeries(cht, "tqq_pd") Is Nothing: AssertTrue Chart_FindSeries(cht, "tqq_pdroom") Is Nothing
+    AssertEqual "0", Registry_GetOption(cht, "pairdiff"): AssertFalse Core_GetToggle("pairdiff")
+    Core_SetToggle "pairdiff", True
+    cht.Refresh
+    AssertEqual "+7%", ArrowLabel(cht, 1)
+    Core_SetToggle "pairabs", True
+    cht.Refresh
+    AssertEqual "+2", ArrowLabel(cht, 1): AssertTrue Core_GetToggle("pairabs")
+    Core_SetToggle "pairabs", False
+    cht.Refresh
+    AssertEqual "+7%", ArrowLabel(cht, 1)
+    Core_SetOption "legend", "right"
+    AssertEqual 2, cht.Legend.LegendEntries.Count, "as auxiliares das setas ficam fora da legenda"
+    ws.Range("H1:J1").Value = Array("Ano", "A", "B"): ws.Range("H2:J2").Value = Array(2024, 1, 2): ws.Range("H3:J3").Value = Array(2025, 2, 3)
+    ws.Range("H1:J3").Select
+    Core_Insert "stacked"
+    Core_ClearLastNotice
+    Core_SetToggle "pairdiff", True
+    AssertEqual "'Setas de variação' não se aplica a este tipo de gráfico.", Core_LastNotice()
+    Core_ClearLastNotice
+    Core_SetToggle "pairabs", True
+    AssertEqual "'Variação em valor' não se aplica a este tipo de gráfico.", Core_LastNotice()
+    Teardown wb
+End Sub
+
+' Review Focus 5 (setas): sem o ThinQQ, mudar a origem muda o texto da elipse e a posicao da seta (formulas do bloco).
+Public Sub Test_Wfp_Arrows_LiveWithoutThinQQ()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, cht As Chart, ptv As Double
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set cht = Wfp_Insert(ws, d).Chart
+    ws.Range("C3").Value = -12
+    cht.Refresh
+    ptv = PtvOf(cht)
+    AssertEqual "+200%", ArrowLabel(cht, 2)
+    AssertEqual PctText(11, 5), ArrowLabel(cht, 5), "liquido B = 5"
+    AssertEqual 17, SideVal(cht, 3, 2, "Hi"), "B3 agora vai de 17 a 15 (antes 22 a 20)": AssertAlmost SideVal(cht, 3, 2, "Hi") + 3 * ptv, Util_ToDouble(BodyOf(cht).Cells(2 * WFP_ROWS_PER_PAIR + 6, WFP_COL_PY).Value), 0.000001, "ponta do par 3 acompanha o topo novo de B"
+    CloseTemp wb
+End Sub
+
+' Review Focus 3 (Mesma escala): com o eixo fixado por Deco_SameScale, PtV = (max - min fixos) / altura interna e a seta continua 3 pt acima do
+' degrau; Escala automatica volta a calibrar pelo eixo automatico.
+Public Sub Test_Wfp_Arrows_SameScale_FixedAxis()
+    Dim wb As Workbook, d As clsChartData, ws As Worksheet, c1 As Chart, c2 As Chart, coll As Collection, skipped As Long, ax As Axis, s As Series
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb): Set ws = d.Source.Worksheet
+    Set c1 = Wfp_Insert(ws, d).Chart
+    ForceLayout c1
+    ws.Range("H1:I1").Value = Array("Ano", "Valor"): ws.Range("H2:I2").Value = Array(2024, 80): ws.Range("H3:I3").Value = Array(2025, 90)
+    Set c2 = Stacked_Insert(ws, ChartData_FromRange(ws.Range("H1:I3")), "stacked").Chart
+    Set coll = New Collection: coll.Add c1: coll.Add c2
+    AssertEqual 2, Deco_SameScale(coll, skipped), "as duas entram (escala livre)"
+    Core_SafeRefresh c1
+    ForceLayout c1
+    Set ax = c1.Axes(xlValue, xlPrimary)
+    AssertFalse ax.MaximumScaleIsAuto, "eixo fixo"
+    AssertAlmost (ax.MaximumScale - ax.MinimumScale) / c1.PlotArea.InsideHeight, PtvOf(c1), 0.02 * PtvOf(c1), "PtV pelo eixo fixo"
+    Set s = Chart_FindSeries(c1, "tqq_pd")
+    AssertAlmost YOf(c1, SideVal(c1, 2, 1, "Hi")) - WFP_PT_GAP, s.Points(WFP_ROWS_PER_PAIR + 1).Top, 1.5, "par 2: 3 pt acima do degrau com o eixo fixo"
+    AssertTrue Deco_ResetScale(c1)
+    Core_SafeRefresh c1
+    Set ax = c1.Axes(xlValue, xlPrimary)
+    AssertAlmost (ax.MaximumScale - ax.MinimumScale) / c1.PlotArea.InsideHeight, PtvOf(c1), 0.02 * PtvOf(c1), "Escala automatica: recalibrado"
+    CloseTemp wb
+End Sub
+
+' Um unico refresh deixa nomes e sala coerentes: a sala recalibrada muda a escala e os nomes conferem de novo (medido: em 460 x 160 e 460 x 170
+' os nomes ficavam dentro de barras onde nao cabiam ate o refresh seguinte trocar para a legenda). Altura da barra por regra de tres no eixo real.
+Public Sub Test_Wfp_Arrows_ResizeKeepsNamesConsistent()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, h As Variant, leg As Boolean, barH As Double
+    For Each h In Array(160, 170, 200)
+        Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+        Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+        cht.Parent.Height = CDbl(h)
+        ForceLayout cht
+        Chart_EnsureRoomAfterChange cht
+        leg = cht.HasLegend
+        If Not leg Then
+            barH = YOf(cht, SideVal(cht, 1, 1, "Lo")) - YOf(cht, SideVal(cht, 1, 1, "Hi"))
+            AssertTrue barH >= Labels_EstimateWidth("Segmento 1"), "altura " & h & ": nome dentro de uma barra de " & Format$(barH, "0.0") & " pt"
+        End If
+        Core_SafeRefresh cht
+        AssertEqual leg, cht.HasLegend, "altura " & h & ": o refresh seguinte nao muda a legenda"
+        CloseTemp wb
+    Next
+End Sub

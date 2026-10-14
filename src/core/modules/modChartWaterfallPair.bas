@@ -70,6 +70,8 @@ Public Const WFP_PT_RISE As Long = 12            ' pt do inicio mais alto da set
 Public Const WFP_PT_ROOM As Long = 12            ' pt da linha horizontal ate o ponto de sala (meia elipse de 19,9 pt medida + respiro)
 Private Const WFP_NAME_MARGIN As Double = 8      ' pt alem da largura estimada do nome (texto vertical)
 Private Const WFP_NAME_MIN_W As Double = 14      ' largura (pt) de um texto vertical de 9 pt (medido: 14,0)
+Private Const WFP_ROOM_PASSES As Long = 3        ' teto de passadas da calibracao do valor por ponto (PtV)
+Private Const WFP_ROOM_TOL As Double = 0.02      ' so grava PtV quando muda mais de 2%
 Private Const WFP_ERR_FEW As String = "A cascata comparativa precisa de exatamente 2 colunas de valores (uma por série); a tabela tem só 1."
 Private Const WFP_ERR_MANY1 As String = "A cascata comparativa compara exatamente 2 séries; a tabela tem "
 Private Const WFP_ERR_MANY2 As String = " colunas de valores. Selecione a coluna das etapas e só as duas colunas a comparar."
@@ -478,6 +480,107 @@ Private Sub DropConnectors(cht As Chart)
     Next
 End Sub
 
+' Setas de variacao: tqq_pd (XY com linhas; 5 pontos por par e uma linha vazia entre pares; com DisplayBlanksAs = xlNotPlotted cada par vira um
+' cotovelo com a sua propria ponta, medido), cinza de 1 pt, ponta triangular curta; rotulo so no ponto do meio de cada par (P3), ligado a PLbl,
+' numa elipse branca de borda cinza (DataLabel.Format.AutoShapeType, medido). tqq_pdroom: um ponto invisivel 12 pt acima de cada elipse (a escala
+' automatica deixa a sala). Desligar apaga as duas series (as colunas do bloco ficam). Transacional (como os conectores): a opcao pairdiff so e
+' gravada depois das series prontas; em falha as duas somem, a opcao fica "0" (o estado real) e o erro e repropagado. Termina recalibrando o
+' valor por ponto (Wfp_RefreshAfterDataChange, que nunca propaga erro).
+Public Sub Wfp_SetArrows(cht As Chart, turnOn As Boolean)
+    Dim body As Range, n As Long, i As Long, s As Series, rows As Long, en As Long, es As String, ed As String
+    DropArrows cht
+    If turnOn Then
+        n = Wfp_StepCount(cht)
+        If n >= 1 Then
+            On Error GoTo Fail
+            Set body = Block_Body(Registry_Block(cht))
+            rows = WFP_ROWS_PER_PAIR * n - 1             ' sem a linha vazia depois do ultimo par
+            Set s = AddXY(cht, "tqq_pd", body.Cells(2, WFP_COL_PX).Resize(rows, 1), body.Cells(2, WFP_COL_PY).Resize(rows, 1), True)
+            With s.Format.Line
+                .Visible = msoTrue
+                .ForeColor.RGB = RGB(89, 89, 89)
+                .Weight = 1
+                .EndArrowheadStyle = msoArrowheadTriangle
+                .EndArrowheadLength = msoArrowheadShort
+                .EndArrowheadWidth = msoArrowheadNarrow
+            End With
+            For i = 1 To n
+                With s.Points(WFP_ROWS_PER_PAIR * (i - 1) + 3)
+                    .HasDataLabel = True
+                    .DataLabel.Formula = Block_Ref(body.Cells(WFP_ROWS_PER_PAIR * (i - 1) + 4, WFP_COL_PLBL))
+                    .DataLabel.Position = xlLabelPositionCenter
+                    .DataLabel.Font.Size = 9
+                    .DataLabel.Font.Bold = False
+                    .DataLabel.Font.Color = RGB(64, 64, 64)
+                    .DataLabel.Format.AutoShapeType = msoShapeOval
+                    .DataLabel.Format.Fill.Visible = msoTrue
+                    .DataLabel.Format.Fill.ForeColor.RGB = RGB(255, 255, 255)
+                    .DataLabel.Format.Line.Visible = msoTrue
+                    .DataLabel.Format.Line.ForeColor.RGB = RGB(166, 166, 166)
+                    .DataLabel.Format.Line.Weight = 0.75
+                End With
+            Next
+            AddXY cht, "tqq_pdroom", body.Cells(2, WFP_COL_RX).Resize(n, 1), body.Cells(2, WFP_COL_RY).Resize(n, 1), False
+            On Error GoTo 0
+            If cht.HasLegend Then Chart_HideHelperLegendEntries cht
+        End If
+    End If
+    Registry_SetOption cht, "pairdiff", IIf(turnOn, "1", "0")
+    Wfp_RefreshAfterDataChange cht                   ' calibra o valor por ponto com (ou sem) as setas no grafico
+    Exit Sub
+Fail:
+    en = Err.Number: es = Err.Source: ed = Err.Description
+    On Error GoTo -1                                 ' encerra o tratamento do erro: sem isso o Resume Next abaixo nao protegeria a limpeza
+    On Error Resume Next
+    DropArrows cht
+    Registry_SetOption cht, "pairdiff", "0"
+    On Error GoTo 0
+    Err.Raise en, es, ed
+End Sub
+
+Private Sub DropArrows(cht As Chart)
+    Dim nm As Variant, s As Series
+    For Each nm In Array("tqq_pd", "tqq_pdroom")
+        Set s = Chart_FindSeries(cht, CStr(nm))
+        If Not s Is Nothing Then s.Delete
+    Next
+End Sub
+
+' Variacao em valor (B - A no formato do grafico, com sinal) em vez do percentual: meta Abs (o texto das setas e formula no bloco).
+Public Sub Wfp_SetArrowMode(cht As Chart, absMode As Boolean)
+    Dim blk As Range
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Sub
+    SetMeta blk, WFP_META_ABS, IIf(absMode, 1, 0)
+    Registry_SetOption cht, "pairabs", IIf(absMode, "1", "0")
+End Sub
+
+' Valor por ponto (meta PtV) = (maximo - minimo do eixo de valores) / altura interna: os afastamentos em pontos das setas viram valor nas
+' formulas do bloco. Grava so quando muda mais de 2% (a escala automatica depende dos proprios pontos das setas; medido: converge numa gravacao);
+' teto de 3 gravacoes (a 4a leitura so confere a ultima: o log de "sem convergencia" so quando ela nao bastou; medido: reduzir a altura pede
+' 2 ou 3 gravacoes, o eixo sobe de 5 em 5 ou de 10 em 10); calculo manual recalcula o bloco. Le o eixo (automatico, ou fixo pela Mesma escala
+' ou a mao) e nunca o altera. Devolve True se gravou. So dentro de Wfp_RefreshAfterDataChange (guarda de reentrada).
+Private Function Wfp_RefreshRoom(cht As Chart) As Boolean
+    Dim blk As Range, ax As Axis, pass As Long, h As Double, ptv As Double, cur As Double
+    Set blk = Registry_Block(cht)
+    If blk Is Nothing Then Exit Function
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    For pass = 1 To WFP_ROOM_PASSES + 1
+        h = cht.PlotArea.InsideHeight
+        If h <= 0 Or ax.MaximumScale <= ax.MinimumScale Then Exit For
+        ptv = (ax.MaximumScale - ax.MinimumScale) / h
+        cur = Util_ToDouble(blk.Cells(1, WFP_META_PTV).Value)
+        If Abs(ptv - cur) <= WFP_ROOM_TOL * ptv Then Exit For
+        If pass > WFP_ROOM_PASSES Then
+            Errors_Log "Wfp_RefreshRoom" & vbTab & "sem convergencia em " & WFP_ROOM_PASSES & " passadas" & vbTab & cur & vbTab & ptv   ' o teto agiu: fica no log
+            Exit For
+        End If
+        blk.Cells(1, WFP_META_PTV).Value = ptv
+        Wfp_CalcIfManual blk
+        Wfp_RefreshRoom = True
+    Next
+End Function
+
 Public Function Wfp_Insert(ws As Worksheet, data As clsChartData) As ChartObject
     Dim id As String, co As ChartObject, cht As Chart, anchor As Range, blk As Range, body As Range, n As Long, ns As Long, cats As String
     Dim en As Long, es As String, ed As String
@@ -520,6 +623,8 @@ Public Function Wfp_Insert(ws As Worksheet, data As clsChartData) As ChartObject
     Wfp_AddZeroLine cht
     Wfp_SetNames cht
     Wfp_SetConnectors cht, True
+    Wfp_SetArrowMode cht, False
+    Wfp_SetArrows cht, True
     Wfp_SetLegend cht, "inbar"
     Wfp_RefreshAfterDataChange cht
     Set Wfp_Insert = co
@@ -650,10 +755,13 @@ Public Sub Wfp_SyncGap(cht As Chart)
     SetMeta blk, WFP_META_HW, Wfp_HalfWidth(CDbl(cht.ChartGroups(1).GapWidth))
 End Sub
 
-' O que depende dos DADOS, do tamanho ou do espaco e muda depois de inserir (Core_SafeRefresh): meia-largura, nomes/legenda. Guarda de
-' reentrada (as gravacoes disparam o Calculate do grafico). Cada passo e isolado (a falha de um e registrada e nao pula os seguintes). Nunca
-' propaga erro.
+' O que depende dos DADOS, do tamanho ou do espaco e muda depois de inserir (Core_SafeRefresh, Chart_EnsureRoomAfterChange): meia-largura,
+' nomes/legenda, valor por ponto das setas (depois dos nomes: a legenda muda a altura interna). Se a sala mudou a escala, os nomes conferem de
+' novo e a sala tambem (uma rodada a mais, nunca mais que isso; medido: em 460 x 160 o nome ficava numa barra onde nao cabia ate o refresh
+' seguinte). Guarda de reentrada (as gravacoes disparam o Calculate do grafico). Cada passo e isolado (a falha de um e registrada e nao pula os
+' seguintes). Nunca propaga erro.
 Public Sub Wfp_RefreshAfterDataChange(cht As Chart)
+    Dim moved As Boolean
     On Error GoTo Done
     If mBusy Then Exit Sub
     If Kinds_Family(Registry_ChartType(cht)) <> "waterfallpair" Then Exit Sub
@@ -663,6 +771,14 @@ Public Sub Wfp_RefreshAfterDataChange(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Wfp_RefreshAfterDataChange/gap" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Wfp_SyncNames cht
     If Err.Number <> 0 Then Errors_Log "Wfp_RefreshAfterDataChange/nomes" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    moved = Wfp_RefreshRoom(cht)                     ' depois dos nomes: a legenda que aparece ou some muda a altura interna
+    If Err.Number <> 0 Then Errors_Log "Wfp_RefreshAfterDataChange/sala" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    If moved Then                                    ' (atribuicao antes do If: com Resume Next, um erro na condicao entraria no bloco)
+        Wfp_SyncNames cht                            ' a escala nova muda a altura das barras
+        If Err.Number <> 0 Then Errors_Log "Wfp_RefreshAfterDataChange/nomes2" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+        Wfp_RefreshRoom cht                          ' e a legenda que mudou, a altura interna
+        If Err.Number <> 0 Then Errors_Log "Wfp_RefreshAfterDataChange/sala2" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    End If
 Done:
     If Err.Number <> 0 Then Errors_Log "Wfp_RefreshAfterDataChange" & vbTab & Err.Number & vbTab & Err.Description
     mBusy = False
