@@ -723,6 +723,9 @@ Public Sub Test_Wfp_Arrows_RoomCalibrated_Stable_SmallChart()
     cht.Parent.Width = 220: cht.Parent.Height = 140
     Core_SafeRefresh cht
     AssertTrue PtvOf(cht) > 0, "grafico pequeno: a calibracao termina com valor positivo"
+    ptv = PtvOf(cht)
+    Core_SafeRefresh cht
+    AssertAlmost ptv, PtvOf(cht), 0.02 * ptv, "grafico pequeno: estavel no refresh seguinte"
     CloseTemp wb
 End Sub
 
@@ -879,4 +882,27 @@ Fail:
     Util_FailThinSyncForTest = ""
     CloseTemp wb
     Err.Raise en, es, ed
+End Sub
+
+' Area interna baixa demais para a sala das setas (h < 2 * (22 + 12 + 12) = 92 pt): a calibracao nao age (medido: em 460 x 130 o eixo subia
+' de 40 a 120 em um refresh e continuava subindo); PtV e o eixo ficam como estavam em tres refresh seguidos (os afastamentos so encolhem em pontos).
+Public Sub Test_Wfp_Arrows_TinyPlot_KeepsPtVAndAxis()
+    Dim wb As Workbook, d As clsChartData, cht As Chart, ax As Axis, ptv0 As Double, mx As Double, k As Long
+    Set wb = NewTempWorkbook(): Set d = Fixture(wb)
+    Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
+    ptv0 = PtvOf(cht)
+    cht.Parent.Height = 110
+    ForceLayout cht
+    Core_SafeRefresh cht
+    ForceLayout cht
+    Set ax = cht.Axes(xlValue, xlPrimary)
+    AssertTrue cht.PlotArea.InsideHeight < 2 * (WFP_PT_LBLROOM + WFP_PT_RISE + WFP_PT_ROOM), "area interna abaixo do limite (" & cht.PlotArea.InsideHeight & ")"
+    AssertAlmost ptv0, PtvOf(cht), 0.000001, "PtV de antes"
+    mx = ax.MaximumScale
+    For k = 1 To 3
+        Core_SafeRefresh cht
+        AssertEqual mx, ax.MaximumScale, "refresh " & k & ": eixo"
+        AssertAlmost ptv0, PtvOf(cht), 0.000001, "refresh " & k & ": PtV"
+    Next
+    CloseTemp wb
 End Sub
