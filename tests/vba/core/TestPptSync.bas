@@ -40,6 +40,7 @@ End Sub
 Private Function StartScratchPowerPoint() As Object
     Dim app As Object
     Ppt_ResetTestHooks
+    PptSync_ResetTestHooks
     If Ppt_IsRunning() Then Errors_Log "TestPptSync: pulado (ha um PowerPoint aberto)": Exit Function
     If PowerPointProcessCount() > 0 Then Errors_Log "TestPptSync: pulado (processo POWERPNT existente)": Exit Function
     On Error Resume Next
@@ -266,6 +267,7 @@ Public Sub Test_PptSync_DataChangeNewArrowAndAnimation_WhenAvailable()
     Ppt_SetAppForTest app
     If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "chart"
+    AssertEqual 0, PptSync_UpdateCountForTest(), "a colagem nao chama LinkFormat.Update (os dados acabaram de ser colados)"
     Set shp = slide.Shapes(1)
     Set seq = slide.TimeLine.MainSequence
     seq.AddEffect shp, 10                                       ' msoAnimEffectFade
@@ -274,6 +276,7 @@ Public Sub Test_PptSync_DataChangeNewArrowAndAnimation_WhenAvailable()
     Ann_RemoveAll c
     Ann_AddDifference c, 1, 2
     PptSync_SyncShape shp, c.Parent
+    AssertEqual 1, PptSync_UpdateCountForTest(), "a sincronizacao chama LinkFormat.Update (pasta aberta)"
     Set pc = shp.Chart
     AssertAlmost 40, PptSeriesValue(pc, "Sul", 2), 0.0001, "valor nao salvo lido pelo vinculo (pasta aberta)"
     AssertFalse PptHasShape(pc, "tqq_ann_cagr_1"), "seta apagada no Excel some do slide"
@@ -376,4 +379,53 @@ Cleanup:
     If Not wb Is Nothing Then Teardown wb
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+Public Sub Test_PptSync_SourceReachable()
+    Dim wb As Workbook, p As String
+    Set wb = NewTempWorkbook()
+    p = TempDir() & "\pptsync-reach.xlsx"
+    wb.SaveAs p, xlOpenXMLWorkbook
+    AssertTrue PptSync_SourceReachable(wb.FullName), "pasta aberta (e no disco)"
+    AssertFalse PptSync_SourceReachable(TempDir() & "\pptsync-nao-existe.xlsx"), "arquivo inexistente"
+    AssertFalse PptSync_SourceReachable("https://contoso.sharepoint.com/sites/x/Documentos/nao-aberta.xlsx"), "https: so conta pasta aberta"
+    AssertFalse PptSync_SourceReachable(""), "vazio"
+    AssertFalse PptSync_SourceReachable("   "), "so espacos"
+    Teardown wb
+End Sub
+
+' LinkFormat.Update so com a pasta de origem no disco ou aberta (Update com a origem inexistente TRAVA o PowerPoint, spec 3.1) e so quando
+' pedido (updateData). Duble: forma com grafico vinculado e LinkFormat que conta as chamadas; o gancho "update" para logo depois do passo.
+Public Sub Test_PptSync_UpdateGuard_Fake()
+    Dim wb As Workbook, rng As Range, c As Chart, shp As TestPptFake, ch As TestPptFake, cd As TestPptFake, lf As TestPptFake, src As Variant
+    Dim expected As Variant, k As Long, en As Long
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    wb.SaveAs TempDir() & "\pptsync-guard.xlsx", xlOpenXMLWorkbook
+    rng.Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    Set cd = New TestPptFake: cd.IsLinked = True
+    Set ch = New TestPptFake: Set ch.ChartData = cd
+    Set lf = New TestPptFake
+    Set shp = New TestPptFake: shp.Width = 709.7: shp.Height = 432: Set shp.Chart = ch: Set shp.LinkFormat = lf
+    AssertEqual 1, Ppt_LinkState(shp), "duble vinculado"
+    src = Array(TempDir() & "\pptsync-nao-existe.xlsx", "https://contoso.sharepoint.com/x/nao-aberta.xlsx", wb.FullName)
+    expected = Array(0, 0, 1)
+    For k = 0 To 2
+        lf.SourceFullName = CStr(src(k)): lf.UpdateCount = 0
+        PptSync_SetFailForTest "update"
+        On Error Resume Next
+        PptSync_SyncShape shp, c.Parent
+        en = Err.Number
+        On Error GoTo 0
+        AssertEqual vbObjectError + 9992, en, "parou no gancho update (" & src(k) & ")"
+        AssertEqual CLng(expected(k)), lf.UpdateCount, "Update chamado? " & src(k)
+    Next
+    lf.SourceFullName = wb.FullName: lf.UpdateCount = 0
+    PptSync_SetFailForTest "update"
+    On Error Resume Next
+    PptSync_SyncShape shp, c.Parent, False
+    On Error GoTo 0
+    AssertEqual 0, lf.UpdateCount, "updateData = False: sem Update"
+    Teardown wb
 End Sub

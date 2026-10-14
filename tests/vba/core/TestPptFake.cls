@@ -29,6 +29,9 @@ Public ProtectedViewWindows As Collection       ' janelas do Modo de Exibicao Pr
 Public QuitCalled As Boolean                    ' Quit foi chamado (aplicativo encerrado pelo teste)
 Public Width As Double                          ' forma do slide (PptSync_SyncShape le Width/Height antes de tocar no grafico)
 Public Height As Double
+Public LinkFormat As Object                     ' forma do slide: o vinculo (outro TestPptFake com SourceFullName e Update)
+Public SourceFullName As String
+Public UpdateCount As Long                      ' quantas vezes Update foi chamado (LinkFormat.Update)
 
 Public Property Get SlideIndex() As Long
     If SlideIndexValue <= 0 Then Err.Raise 438, "TestPptFake", "nao e um slide"
@@ -46,4 +49,8 @@ End Sub
 
 Public Sub Quit()
     QuitCalled = True
+End Sub
+
+Public Sub Update()
+    UpdateCount = UpdateCount + 1
 End Sub

@@ -1358,7 +1358,7 @@ Private Sub PptSyncAfterPaste(shp As Object, co As ChartObject)
     On Error Resume Next
     PptSync_TagShape shp, co
     If Err.Number <> 0 Then Errors_Log "CopyToPowerPoint/etiquetas" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
-    PptSync_SyncShape shp, co
+    PptSync_SyncShape shp, co, False                 ' sem LinkFormat.Update: os dados acabaram de ser colados (o 1.3.0 tambem nao chamava)
     ok = (Err.Number = 0)
     If Not ok Then Errors_Log "CopyToPowerPoint/sincronizar" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     If ok Then shp.Tags.Add PPTSYNC_TAG_FP, PptSync_Fingerprint(co, shp)

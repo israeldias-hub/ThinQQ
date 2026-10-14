@@ -27,6 +27,7 @@ Private Const SN_TEXT As Long = 8
 Private Const SN_HASTEXT As Long = 9
 Private Const PPTSYNC_LAYOUT_TOL As Double = 2              ' pt: area interna do slide diferente da do Excel alem disso = log
 Private mTestFail As String                                 ' gancho de teste: ponto de falha injetada (so no build Test)
+Private mUpdateCount As Long                                ' chamadas de LinkFormat.Update feitas por PptSync_SyncShape (lido so no build Test)
 
 ' Gancho de teste: o proximo ponto nomeado ("update", "snapshot", "apply") levanta erro (uso unico). Inerte fora do build Test.
 Public Sub PptSync_SetFailForTest(point As String)
@@ -36,7 +37,14 @@ End Sub
 
 Public Sub PptSync_ResetTestHooks()
     mTestFail = ""
+    mUpdateCount = 0
 End Sub
+
+' Gancho de teste: quantas vezes PptSync_SyncShape chamou LinkFormat.Update desde o ultimo PptSync_ResetTestHooks (0 fora do build Test).
+Public Function PptSync_UpdateCountForTest() As Long
+    If BUILD_CONFIG <> "Test" Then Exit Function
+    PptSync_UpdateCountForTest = mUpdateCount
+End Function
 
 Private Sub PptSync_Hook(point As String)
     If BUILD_CONFIG <> "Test" Then Exit Sub
@@ -69,6 +77,29 @@ Public Function PptSync_SourcePath(linkFull As String, tagBook As String) As Str
     If p > 0 Then s = Left$(s, p - 1)
     If Len(s) = 0 Then s = Trim$(tagBook)
     PptSync_SourcePath = s
+End Function
+
+' A pasta de origem pode ser lida pelo vinculo sem travar o PowerPoint (Update com a origem inexistente trava, spec 3.1): aberta neste Excel
+' (FullName igual) ou, se for caminho local/de rede, existente no disco. Endereco http(s) (OneDrive/SharePoint) so conta aberta. Nunca
+' propaga erro.
+Public Function PptSync_SourceReachable(path As String) As Boolean
+    Dim wb As Workbook, p As String
+    On Error GoTo Done
+    p = Trim$(path)
+    If Len(p) = 0 Then Exit Function
+    For Each wb In Application.Workbooks
+        If StrComp(wb.FullName, p, vbTextCompare) = 0 Then PptSync_SourceReachable = True: Exit Function
+    Next
+    If LCase$(Left$(p, 7)) = "http://" Or LCase$(Left$(p, 8)) = "https://" Then Exit Function
+    PptSync_SourceReachable = CBool(CreateObject("Scripting.FileSystemObject").FileExists(p))
+Done:
+End Function
+
+' LinkFormat.SourceFullName da forma ("" se nao ha vinculo legivel). Nunca propaga erro.
+Private Function PptSync_LinkSource(shp As Object) As String
+    On Error Resume Next
+    PptSync_LinkSource = CStr(shp.LinkFormat.SourceFullName)
+    Err.Clear
 End Function
 
 ' Foto das formas das anotacoes (prefixo tqq_ann_) do grafico do Excel: nome, caixa, visivel, giros e texto. Chave da colecao = nome.
@@ -216,15 +247,26 @@ End Sub
 ' Sincroniza UM grafico do slide (shp: forma do PowerPoint com o grafico vinculado) com o grafico ThinQQ co: (1) dados pelo vinculo nativo
 ' (so com o vinculo ativo); (2) o ChartObject vai para o tamanho da forma do slide, o ThinQQ recalcula as anotacoes (Core_SafeRefresh) e a foto
 ' delas e aplicada no grafico do slide com o deslocamento das areas internas (medido 0); (3) o ChartObject volta ao tamanho original e a pasta
-' volta a "salva" se estava. Levanta erro (quem chama registra e conta); o tamanho e restaurado em qualquer caminho.
-Public Sub PptSync_SyncShape(shp As Object, co As ChartObject)
+' volta a "salva" se estava. Levanta erro (quem chama registra e conta); o tamanho e restaurado em qualquer caminho. updateData = False pula o
+' passo (1) (colagem: os dados acabaram de ser colados). O Update so roda com a pasta de origem alcancavel (PptSync_SourceReachable).
+Public Sub PptSync_SyncShape(shp As Object, co As ChartObject, Optional updateData As Boolean = True)
     Dim cht As Chart, wb As Workbook, w0 As Double, h0 As Double, saved0 As Boolean, resized As Boolean, prevSU As Boolean
-    Dim snaps As Collection, pc As Object, dx As Double, dy As Double, en As Long, ed As String
+    Dim snaps As Collection, pc As Object, dx As Double, dy As Double, en As Long, ed As String, src As String
     Set cht = co.Chart: Set wb = Registry_Workbook(cht)
     saved0 = wb.Saved: w0 = co.Width: h0 = co.Height
     prevSU = Application.ScreenUpdating
     On Error GoTo Fail
-    If Ppt_LinkState(shp) = 1 Then shp.LinkFormat.Update
+    If updateData Then
+        If Ppt_LinkState(shp) = 1 Then
+            src = PptSync_SourcePath(PptSync_LinkSource(shp), PptSync_Tag(shp, PPTSYNC_TAG_BOOK))
+            If PptSync_SourceReachable(src) Then
+                shp.LinkFormat.Update
+                mUpdateCount = mUpdateCount + 1
+            Else
+                Errors_Log "PptSync: pasta de origem nao encontrada; dados do slide nao atualizados" & vbTab & src & vbTab & co.Name
+            End If
+        End If
+    End If
     PptSync_Hook "update"
     Application.ScreenUpdating = False
     resized = True
