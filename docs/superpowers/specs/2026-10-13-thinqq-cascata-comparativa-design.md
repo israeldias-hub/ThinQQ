@@ -145,7 +145,7 @@ ArrowTxt = IF(Big_A<>Big_B,"n/d",IF(Abs=1, sinal & FIXED(ROUND((B-A)/Div,Dec),De
 TotTxt_j = IF(Big, FIXED(ROUND(End/Div,Dec),Dec) & Suf & IF(AND(TotPct=1, i>1, End_1<>0)," (" & FIXED(ROUND(100*End/End_1,0),0) & "%)",""), "")
 Fatia A_i: Outer = Cat_i (formato da origem); Inner = " "; SBase = Base_A; APos = PP_A; ANeg = PN_A; BPos = BNeg = 0;
            LblAPos = IF(Big_A,NA(),(Lo_A+Hi_A)/2); LblAVal = IF(OR(Big_A,LblOn=0),"",D_A); LblBPos = NA(); LblBVal = "";
-           TotPos = IF(Big_A,IF(End_A>=0,Hi_A,Lo_A),NA()); TotTxt = TotTxtA_i; LblOn = 1; Top = Hi_A        (B_i idem com o lado B)
+           TotPos = IF(Big_A,IF(End_A>=0,Hi_A,Lo_A),NA()); TotTxt = IF(LblOn=0, IF(Big_A, FIXED(ROUND(End_A/Div,Dec),Dec) & Suf, ""), TotTxtA_i); LblOn = 1 (0 pelo Wfp_SyncLabels, ver 4.6); Top = Hi_A        (B_i idem com o lado B)
 Vão_i:     Outer = Inner = " "; SBase..BNeg = 0; posições NA(); textos ""; Top = 0
 Conector i (i < n): CxA = (3i-2)+HW; CyA = End_A,i; CLen = 3-2*HW; CxB = (3i-1)+HW; CyB = End_B,i
 Seta i:    sA = Hi_A + PtV*IF(AND(Big_A,Lbl=1,End_A>=0),22,3); sB idem; yH = MAX(sA,sB) + 12*PtV
@@ -201,7 +201,7 @@ Conectores). Tabela de uma etapa: sem conectores.
 - **Totais** (alternador existente, matriz `totals`): neste tipo liga/desliga o "(41%)" das barras de total (meta `TotPct`), não uma série.
 - **Rótulos finos** (`Wfp_SyncLabels`): degrau com altura < 10 pt (texto de 9 pt; a caixa de 14 pt tem margem) ou texto (estimado por `Labels_EstimateWidth`) mais largo que a fatia fica
   com `LblOn = 0` (texto vazio); volta quando cabe. Como o rótulo continua existindo (só o texto muda), um rótulo apagado pelo usuário continua
-  apagado: o ThinQQ nunca recria rótulo no refresh (contabilidade transacional sem lista).
+  apagado: o ThinQQ nunca recria rótulo no refresh (contabilidade transacional sem lista). Nas fatias de total (barras grandes) `LblOn` vale 0 nas duas fatias de uma etapa quando os dois lados são barras grandes, a largura média dos dois textos de total é maior que a fatia e as duas âncoras ficam a menos de 14 pt na vertical (`WFP_LBL_BOX_H`): o rótulo mostra então só o valor, sem o percentual (decisão T4, `.superpowers/sdd/2026-10-13-cascata-comparativa/progress.md`); volta a 1 quando cabe.
 - **Formato**: `Wfp_ApplyNumberFormat` grava `NumberFormatLocal` nas células e rótulos dos degraus e `Div/Dec/Suf/SufD` na meta (int 1/0, dec1
   1/1, dec2 1/2, pct0 0,01/0/"%"/" p.p.", pct1 0,01/1/"%"/" p.p.", mil 1000/0, mi 1000000/1).
 - **Nomes dentro das barras** (`tqq_names`, item novo da Legenda "Nome dentro das barras", padrão do tipo): texto ligado a `NTxt`, vertical,
