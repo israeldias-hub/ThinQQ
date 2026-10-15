@@ -462,7 +462,7 @@ Public Sub Test_PptSync_SummaryText()
 End Sub
 
 Public Sub Test_Core_PptApiVersion()
-    AssertEqual 1, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9)"
+    AssertEqual 2, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9; 2 = 1.6.0)"
 End Sub
 
 Public Sub Test_Core_PptSyncPresentation_NeverRaises()
@@ -979,6 +979,132 @@ Cleanup:
     On Error GoTo -1
     On Error Resume Next
     Set shp = Nothing: Set shp2 = Nothing: Set pres = Nothing: Set pres2 = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' ---- Parte C (1.6.0): indice das formas automaticas, PptSync_Items, API 2 ----
+
+' Contrato com o .ppam (TestPptAddin.Test_PptIdx_Literal tem as MESMAS cadeias): entradas por Chr(30), campos por Chr(31).
+Public Sub Test_PptIdx_Literal()
+    Dim s As String, a As String, b As String
+    a = "256" & Chr$(31) & "tqq_abc" & Chr$(31) & "C:\a\b.xlsx"
+    b = "257" & Chr$(31) & "tqq_def" & Chr$(31) & "C:\a\c.xlsx"
+    s = PptIdx_Set("", 256, "tqq_abc", "C:\a\b.xlsx", True)
+    AssertEqual a, s
+    s = PptIdx_Set(s, 257, "tqq_def", "C:\a\c.xlsx", True)
+    AssertEqual a & Chr$(30) & b, s
+    AssertEqual a & Chr$(30) & b, PptIdx_Set(s, 257, "tqq_def", "C:\a\c.xlsx", True), "sem repeticao"
+    AssertEqual b, PptIdx_Set(s, 256, "tqq_abc", "", False), "desligar tira a entrada"
+    AssertEqual "", PptIdx_Set(a, 256, "tqq_abc", "", False)
+    AssertEqual 2, PptIdx_Parse(s & Chr$(30) & "x" & Chr$(31) & "y" & Chr$(31) & "z" & Chr$(30) & Chr$(30)).Count, "entrada invalida e vazia ignoradas"
+    AssertEqual a, PptIdx_Entry(256, "tqq_abc", "C:\a\b.xlsx")
+End Sub
+
+Public Sub Test_PptSync_ItemKind_ByTags()
+    Dim f As TestPptFake
+    Set f = New TestPptFake
+    AssertEqual "", PptSync_ItemKind(f), "duble sem Tags: nenhum tipo (sem erro)"
+End Sub
+
+Public Sub Test_PptAuto_Flags_TestBuildInMemory()
+    PptAuto_ResetTestHooks
+    AssertTrue PptAuto_Enabled(), "padrao: ligado"
+    AssertFalse PptAuto_NewLinksAuto(), "padrao: vinculo nasce manual (como o think-cell)"
+    Core_PptSetFlag "autonew", True
+    AssertTrue Core_PptGetFlag("autonew")
+    Core_PptSetFlag "autoon", False
+    AssertFalse Core_PptGetFlag("autoon")
+    AssertFalse Core_PptGetFlag("outra"), "chave desconhecida: False"
+    PptAuto_ResetTestHooks
+    AssertTrue PptAuto_Enabled()
+End Sub
+
+Public Sub Test_PptSync_SetAuto_IndexAndRebuild_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, shp As Object, own As New Collection, en As Long, ed As String, idx As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    PptAuto_ResetTestHooks
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set shp = PasteLinked(app, pres, wb, rng, TempDir() & "\pptauto-idx.xlsx")
+    AssertEqual "", PptSync_Tag(shp, PPTSYNC_TAG_AUTO), "nasce manual"
+    PptSync_SetAuto shp, True
+    AssertEqual "1", PptSync_Tag(shp, PPTSYNC_TAG_AUTO)
+    idx = PptSync_Tag(pres, PPTSYNC_TAG_INDEX)
+    AssertEqual PptIdx_Entry(CLng(shp.Parent.SlideID), CStr(shp.Name), PptSync_ItemBook(shp)), idx
+    PptSync_TagDelete pres, PPTSYNC_TAG_INDEX
+    PptSync_Presentation pres, True
+    AssertEqual idx, PptSync_Tag(pres, PPTSYNC_TAG_INDEX), "sincronizacao completa reconstroi o indice"
+    PptSync_SetAuto shp, False
+    AssertEqual "", PptSync_Tag(shp, PPTSYNC_TAG_AUTO)
+    AssertEqual "", PptSync_Tag(pres, PPTSYNC_TAG_INDEX), "desligar tira do indice"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptAuto_ResetTestHooks
+    Set shp = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' "Atualizar uma vez" so nos selecionados: duas colagens da mesma pasta, dado novo, so a primeira entrada sincronizada.
+Public Sub Test_PptSync_SyncShapes_OnlyListed_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, s1 As Object, s2 As Object, own As New Collection, en As Long, ed As String
+    Dim v2 As Double, msg As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set s1 = PasteLinked(app, pres, wb, rng, TempDir() & "\pptauto-sel.xlsx")
+    Set s2 = PasteAgain(app, pres)
+    v2 = PptSeriesValue(s2.Chart, "Sul", 1)
+    rng.Worksheet.Range("B2").Value = 42
+    Application.Calculate
+    msg = Core_PptSyncShapes(pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), True)
+    AssertTrue InStr(msg, "Gráficos do ThinQQ atualizados: 1.") = 1, msg
+    AssertAlmost 42, PptSeriesValue(s1.Chart, "Sul", 1), 0.0001, "selecionado atualizado"
+    AssertAlmost v2, PptSeriesValue(s2.Chart, "Sul", 1), 0.0001, "o outro ficou como estava"
+    AssertEqual PPTSYNC_NONE, Core_PptSyncShapes(pres, PptIdx_Entry(999999, "nada", ""), True), "entrada que nao existe"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set s1 = Nothing: Set s2 = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' AutoNew ligado: a colagem ja nasce automatica e no indice.
+Public Sub Test_PptSync_PasteWithAutoNew_TagsAndIndexes_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, shp As Object, own As New Collection, en As Long, ed As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    PptAuto_SetFlagsForTest Empty, True
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set shp = PasteLinked(app, pres, wb, rng, TempDir() & "\pptauto-new.xlsx")
+    AssertEqual "1", PptSync_Tag(shp, PPTSYNC_TAG_AUTO)
+    AssertTrue InStr(PptSync_Tag(pres, PPTSYNC_TAG_INDEX), CStr(shp.Name)) > 0
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptAuto_ResetTestHooks
+    Set shp = Nothing: Set pres = Nothing
     StopScratchPowerPoint app, own
     If Not wb Is Nothing Then Teardown wb
     On Error GoTo 0

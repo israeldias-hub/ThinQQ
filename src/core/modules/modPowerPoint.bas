@@ -239,6 +239,11 @@ Public Function Ppt_IsKnownFailure(errNum As Long) As Boolean
     Ppt_IsKnownFailure = (errNum = 429 Or errNum = PPT_CLIPBRD_E_CANT_OPEN Or errNum = PPT_RPC_E_CALL_REJECTED Or errNum = PPT_RPC_E_RETRYLATER)
 End Function
 
+' PowerPoint ocupado (caixa de dialogo aberta, texto em edicao): a chamada pode ser repetida mais tarde.
+Public Function Ppt_IsBusyError(errNum As Long) As Boolean
+    Ppt_IsBusyError = (errNum = PPT_RPC_E_CALL_REJECTED Or errNum = PPT_RPC_E_RETRYLATER)
+End Function
+
 Public Function Ppt_ErrorText(errNum As Long, errDesc As String) As String
     If errNum = 429 Then
         Ppt_ErrorText = PPT_ERR_NOT_INSTALLED
