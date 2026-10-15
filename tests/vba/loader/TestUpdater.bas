@@ -15,6 +15,7 @@ Private Sub ResetPpamHooks()
     Updater_TestSetPpamAuto Empty
     Updater_CancelPpamRetry
     Updater_PpamRetryScheduleCount = 0
+    Updater_PpamReadyAtCoreSwap = -1
 End Sub
 
 ' Guarda as configuracoes do usuario e zera os ganchos do updater.
@@ -948,6 +949,7 @@ Public Sub Test_Updater_Apply_CoreOk_PpamFails_IsReported()
     json = Replace(json, "/release/ThinQQ.ppam", "/release/nao-existe.ppam")
     ok = Updater_Apply(json, "core", True)
     AssertTrue ok, "o core e atualizado"
+    AssertEqual 0, Updater_PpamReadyAtCoreSwap, "troca do core comecou sem suplemento conferido (o download falhou antes)"
     AssertTrue Len(Dir(root & "\versions\9.9.9\" & Loader_CoreFileName())) > 0
     AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "suplemento intocado"
     AssertEqual "1.0.0", Settings_Get(KEY_PPAM_VERSION)
@@ -968,6 +970,7 @@ Public Sub Test_Updater_Apply_CoreAndPpam_FromHttp()
     json = Transport_FetchText(HttpBase() & "release/manifest.json")
     ok = Updater_Apply(json, "core", False)
     AssertTrue ok
+    AssertEqual 1, Updater_PpamReadyAtCoreSwap, "o suplemento ja estava baixado e conferido quando a troca do core comecou"
     AssertTrue Len(Dir(root & "\versions\9.9.9\" & Loader_CoreFileName())) > 0
     AssertEqual "fake-ppam-9.9.9", Transport_ReadTextFile(root & "\ThinQQ.ppam")
     AssertEqual "9.9.9", Settings_Get(KEY_PPAM_VERSION)

@@ -11,7 +11,8 @@ Private Const FAILURE_RETRY_HOURS As Double = 1
 Private Const MIN_CORE_FOR_PENDING As String = "1.0.0"   ' primeira versao do core que exporta Core_ApplyPendingLoader
 ' Suplemento do PowerPoint (ThinQQ.ppam; spec 2026-10-14 secao 4.9)
 Public Updater_PpamRetryScheduleCount As Long          ' gancho de teste: novas tentativas que seriam agendadas (Test nao agenda OnTime)
-Private mTestPptRunning As Variant                     ' gancho de teste: Empty = consulta real
+Public Updater_PpamReadyAtCoreSwap As Long            ' marcador de teste (so o build Test grava): 1 = o .ppam conferido ja existia quando a troca do core comecou
+Private mTestPptRunning As Variant                    ' gancho de teste: Empty = consulta real
 Private mTestPpamAuto As Variant                       ' gancho de teste: Empty = configuracao real
 Private mLastPpamNote As String                        ' ultima frase sobre o suplemento (acrescentada ao aviso do atualizador)
 Private mPpamRetryAt As Date                           ' horario da nova tentativa agendada (0 = nenhuma): nunca empilha OnTime
@@ -555,6 +556,12 @@ Public Function Updater_Apply(json As String, what As String, Optional quiet As 
         Set wb = Loader_CoreWorkbook()
         If Not wb Is Nothing Then prevPath = wb.FullName
         If Len(Dir(destDir, vbDirectory)) = 0 Then MkDir destDir
+        If BUILD_CONFIG = "Test" Then
+            Updater_PpamReadyAtCoreSwap = 0
+            If wantPpam And ppamOk Then
+                If Len(Dir(ppamTmp)) > 0 Then Updater_PpamReadyAtCoreSwap = 1
+            End If
+        End If
         swapStarted = True
         If Len(Dir(stage)) > 0 Then Kill stage
         FileCopy tmp, stage
