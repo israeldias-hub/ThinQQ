@@ -293,6 +293,13 @@ Public Sub Rx_OnSettings(control As IRibbonControl)
     Else
         Settings_Set KEY_UPDATE_SOURCE, Trim$(CStr(nv))
     End If
+    If Updater_PpamInstalled() Then                      ' so para quem tem o suplemento do PowerPoint instalado
+        If Loader_Msg("Atualizar também o suplemento do PowerPoint automaticamente?", vbYesNo + vbQuestion) = vbYes Then
+            Settings_Set KEY_PPAM_AUTO, "1"
+        Else
+            Settings_Set KEY_PPAM_AUTO, "0"
+        End If
+    End If
     RxMsg "Fonte de atualização: " & Settings_UpdateSource(), vbInformation
     Exit Sub
 Fail:

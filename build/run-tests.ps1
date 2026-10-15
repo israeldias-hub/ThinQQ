@@ -36,8 +36,12 @@ $relDir = Join-Path $RepoRoot 'tests\fixtures\release'
 New-Item -ItemType Directory -Force $relDir | Out-Null
 Copy-Item (Join-Path $DistDir 'ThinQQ.core.test.xlam') $relDir -Force
 $sha = (Get-FileHash (Join-Path $relDir 'ThinQQ.core.test.xlam') -Algorithm SHA256).Hash.ToLower()
+# Suplemento do PowerPoint falso (o atualizador nunca abre o .ppam: so baixa, confere o SHA-256 e troca o arquivo)
+[IO.File]::WriteAllBytes((Join-Path $relDir 'ThinQQ.ppam'), [Text.Encoding]::ASCII.GetBytes('fake-ppam-9.9.9'))
+$ppSha = (Get-FileHash (Join-Path $relDir 'ThinQQ.ppam') -Algorithm SHA256).Hash.ToLower()
 @{ schemaVersion = 1; coreVersion = '9.9.9'; coreUrl = "http://127.0.0.1:$httpPort/release/ThinQQ.core.test.xlam"
    coreSha256 = $sha; loaderVersion = '0.0.1'; loaderUrl = ''; loaderSha256 = ''; tutorialUrl = ''
+   pptAddinVersion = '9.9.9'; pptAddinUrl = "http://127.0.0.1:$httpPort/release/ThinQQ.ppam"; pptAddinSha256 = $ppSha
    publishedAt = '2099-01-01'; notes = "• fixture de teste" } | ConvertTo-Json | Set-Content (Join-Path $relDir 'manifest.json') -Encoding utf8
 
 $server = $null

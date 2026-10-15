@@ -1,12 +1,21 @@
 Attribute VB_Name = "TestUpdater"
 Option Explicit
 
-Private mSaved(0 To 9) As String
+Private mSaved(0 To 14) As String
 Private mStdCore As String          ' core de teste padrao (dist), restaurado no Cleanup
 
 Private Function SettingKeys() As Variant
-    SettingKeys = Array(KEY_UPDATE_SOURCE, KEY_SKIPPED, KEY_LAST_CHECK, KEY_PENDING_LOADER, KEY_INTERVAL, KEY_LAST_NOTIFIED_CORE, KEY_PENDING_LOADER_SHA, KEY_LAST_FAILURE, KEY_ALLOW_UNVERIFIED, KEY_SWAP_IN_PROGRESS)
+    SettingKeys = Array(KEY_UPDATE_SOURCE, KEY_SKIPPED, KEY_LAST_CHECK, KEY_PENDING_LOADER, KEY_INTERVAL, KEY_LAST_NOTIFIED_CORE, KEY_PENDING_LOADER_SHA, KEY_LAST_FAILURE, KEY_ALLOW_UNVERIFIED, KEY_SWAP_IN_PROGRESS, _
+        KEY_PPAM_VERSION, KEY_PPAM_AUTO, KEY_PENDING_PPAM, KEY_PENDING_PPAM_SHA, KEY_PENDING_PPAM_VER)
 End Function
+
+' Zera os ganchos do suplemento do PowerPoint (Setup e Cleanup: nenhum teste herda estado de outro).
+Private Sub ResetPpamHooks()
+    Updater_TestSetPptRunning Empty
+    Updater_TestSetPpamAuto Empty
+    Updater_CancelPpamRetry
+    Updater_PpamRetryScheduleCount = 0
+End Sub
 
 ' Guarda as configuracoes do usuario e zera os ganchos do updater.
 Private Sub Setup()
@@ -19,6 +28,9 @@ Private Sub Setup()
     Settings_Delete KEY_LAST_FAILURE
     Settings_Delete KEY_ALLOW_UNVERIFIED
     Settings_Delete KEY_SWAP_IN_PROGRESS
+    Settings_Delete KEY_PPAM_AUTO
+    Settings_Delete KEY_PENDING_PPAM: Settings_Delete KEY_PENDING_PPAM_SHA: Settings_Delete KEY_PENDING_PPAM_VER
+    ResetPpamHooks
     Updater_TestFormResult = ""
     Updater_FormShownCount = 0
     Updater_PendingScheduleCount = 0
@@ -34,6 +46,7 @@ Private Sub Cleanup()
     Loader_SetRootOverride ""
     Updater_TestFormResult = ""
     Updater_TestSetBusy False
+    ResetPpamHooks
     Loader_LastMsg = ""
     i = 0
     For Each k In SettingKeys()
@@ -733,6 +746,285 @@ Public Sub Test_Updater_SchedulePendingLoader_SkippedWhileSwapInProgress()
     Settings_Delete KEY_SWAP_IN_PROGRESS
     Updater_SchedulePendingLoader 1
     AssertEqual 1, Updater_PendingScheduleCount
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' ---------- Suplemento do PowerPoint (ThinQQ.ppam; spec 2026-10-14 secao 4.9) ----------
+
+' Raiz temporaria com um suplemento "instalado" (conteudo antigo) e a versao instalada 1.0.0.
+Private Function PpamRoot(Optional withPpam As Boolean = True) As String
+    Dim root As String
+    root = TempDir()
+    If withPpam Then Transport_WriteTextFile root & "\ThinQQ.ppam", "ppam-antigo"
+    Loader_SetRootOverride root
+    Settings_Set KEY_PPAM_VERSION, "1.0.0"
+    PpamRoot = root
+End Function
+
+Private Function PpamJson(url As String, sha As String, ver As String) As String
+    PpamJson = "{""schemaVersion"":1,""coreVersion"":""0.0.1"",""loaderVersion"":""0.0.1"",""pptAddinVersion"":""" & ver & """,""pptAddinUrl"":""" & Replace(url, "\", "\\") & """,""pptAddinSha256"":""" & sha & """}"
+End Function
+
+Private Function FixturePpam() As String
+    FixturePpam = RepoPath() & "\tests\fixtures\release\ThinQQ.ppam"
+End Function
+
+' (5) Nunca instala o suplemento para quem nao o tem: sem <raiz>\ThinQQ.ppam nada e baixado nem criado.
+Public Sub Test_Updater_Ppam_NotInstalled_NeverInstalls()
+    Dim root As String, json As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot(False)
+    json = PpamJson(FixturePpam(), Transport_Sha256File(FixturePpam()), "9.9.9")
+    AssertFalse Updater_PpamInstalled(), "sem o arquivo: nao instalado"
+    AssertFalse Updater_PpamNeeded(json)
+    AssertEqual "", Updater_PpamUpdateNow(json), "nada a fazer"
+    AssertEqual 0, Len(Dir(root & "\ThinQQ.ppam")), "nada criado"
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' Build de Teste sem raiz de teste: a raiz real (%LOCALAPPDATA%\ThinQQ) nunca conta como instalada nem recebe pendencia aplicada.
+Public Sub Test_Updater_Ppam_TestBuild_NeverTouchesRealRoot()
+    On Error GoTo Fail
+    Setup
+    Loader_SetRootOverride ""
+    AssertFalse Updater_PpamInstalled(), "sem raiz de teste: nunca instalado"
+    Settings_Set KEY_PENDING_PPAM, "1": Settings_Set KEY_PENDING_PPAM_SHA, String$(64, "a"): Settings_Set KEY_PENDING_PPAM_VER, "9.9.9"
+    Updater_ApplyPendingPpam
+    AssertEqual "1", Settings_Get(KEY_PENDING_PPAM), "a pendencia da instalacao real nao e tocada pelos testes"
+    AssertEqual 0, Updater_PpamRetryScheduleCount
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' (1)(2)(7) Instalado e mais antigo, PowerPoint fechado: baixa pelo servidor HTTP de teste, confere o SHA-256 e troca atomicamente; grava a
+' versao; nao sobra .old, .new nem temporario.
+Public Sub Test_Updater_Ppam_ReplacesWhenUnlocked_FromHttp()
+    Dim root As String, json As String, st As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Updater_TestSetPptRunning False
+    json = Transport_FetchText(HttpBase() & "release/manifest.json")
+    AssertEqual "9.9.9", JsonGetString(json, "pptAddinVersion")
+    AssertTrue Updater_PpamNeeded(json)
+    st = Updater_PpamUpdateNow(json)
+    AssertEqual "replaced", st
+    AssertEqual "fake-ppam-9.9.9", Transport_ReadTextFile(root & "\ThinQQ.ppam")
+    AssertEqual "9.9.9", Settings_Get(KEY_PPAM_VERSION)
+    AssertEqual 0, Len(Dir(root & "\ThinQQ.ppam.old")) + Len(Dir(root & "\ThinQQ.ppam.new")) + Len(Dir(Loader_TmpDir() & "\ThinQQ.ppam"))
+    AssertFalse Updater_PpamNeeded(json), "ja atualizado"
+    AssertEqual 0, Updater_PpamRetryScheduleCount, "trocado: nada agendado"
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' (2) Arquivo em uso (aberto com trava exclusiva, como o PowerPoint faz com um arquivo aberto para edicao: medido): fica .new pendente,
+' agenda nova tentativa (uma so: nunca empilha); liberado o arquivo, a aplicacao pendente reconfere o SHA-256 e troca.
+Public Sub Test_Updater_Ppam_Locked_StagesThenAppliesPending()
+    Dim root As String, json As String, f As Integer, st As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Updater_TestSetPptRunning True
+    json = PpamJson(FixturePpam(), Transport_Sha256File(FixturePpam()), "9.9.9")
+    f = FreeFile
+    Open root & "\ThinQQ.ppam" For Binary Access Read Lock Read Write As #f
+    st = Updater_PpamUpdateNow(json)
+    AssertEqual "staged", st
+    AssertTrue Len(Dir(root & "\ThinQQ.ppam.new")) > 0
+    AssertEqual "1", Settings_Get(KEY_PENDING_PPAM)
+    AssertEqual "9.9.9", Settings_Get(KEY_PENDING_PPAM_VER)
+    AssertEqual 1, Updater_PpamRetryScheduleCount, "nova tentativa agendada"
+    AssertTrue InStr(Updater_PpamStatusText(st), "quando o PowerPoint for fechado") > 0
+    AssertFalse Updater_PpamNeeded(json), "a mesma versao ja pendente nao e baixada de novo"
+    Updater_ApplyPendingPpam
+    AssertEqual "1", Settings_Get(KEY_PENDING_PPAM), "ainda em uso: continua pendente"
+    AssertEqual 1, Updater_PpamRetryScheduleCount, "tentativa ja agendada: nao empilha outra"
+    Updater_PpamRetryTick
+    AssertEqual 2, Updater_PpamRetryScheduleCount, "a tentativa disparada e ainda em uso reagenda uma"
+    Close #f
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "o arquivo em uso nao foi tocado"
+    Updater_ApplyPendingPpam
+    AssertEqual "fake-ppam-9.9.9", Transport_ReadTextFile(root & "\ThinQQ.ppam")
+    AssertEqual "", Settings_Get(KEY_PENDING_PPAM): AssertEqual "9.9.9", Settings_Get(KEY_PPAM_VERSION)
+    AssertEqual 0, Len(Dir(root & "\ThinQQ.ppam.new")) + Len(Dir(root & "\ThinQQ.ppam.old"))
+    Updater_PpamRetryTick
+    AssertEqual 2, Updater_PpamRetryScheduleCount, "sem pendencia: nao reagenda"
+    Cleanup
+    Exit Sub
+Fail:
+    On Error Resume Next
+    Close #f
+    On Error GoTo 0
+    FailCleanup
+End Sub
+
+' (7) SHA-256 divergente: nada trocado, temporario apagado. .new adulterado depois de pendente: recusado e apagado.
+Public Sub Test_Updater_Ppam_HashMismatch_AndTamperedPending()
+    Dim root As String, json As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Updater_TestSetPptRunning False
+    json = PpamJson(FixturePpam(), String$(64, "0"), "9.9.9")
+    AssertEqual "", Updater_PpamUpdateNow(json), "SHA errado: nada"
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam")
+    AssertEqual 0, Len(Dir(Loader_TmpDir() & "\ThinQQ.ppam")), "temporario apagado"
+    AssertEqual 0, Len(Dir(root & "\ThinQQ.ppam.new")), "nada pendente"
+    Transport_WriteTextFile root & "\ThinQQ.ppam.new", "adulterado"
+    Settings_Set KEY_PENDING_PPAM, "1": Settings_Set KEY_PENDING_PPAM_SHA, Transport_Sha256File(FixturePpam()): Settings_Set KEY_PENDING_PPAM_VER, "9.9.9"
+    Updater_ApplyPendingPpam
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "pendente adulterado nao entra"
+    AssertEqual 0, Len(Dir(root & "\ThinQQ.ppam.new")), "e apagado"
+    AssertEqual "", Settings_Get(KEY_PENDING_PPAM)
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' Pendencia que nao e mais nova que a instalada (ex.: o usuario reinstalou pelo ZIP): descartada, nunca rebaixa o suplemento.
+Public Sub Test_Updater_Ppam_PendingNotNewer_IsDiscarded()
+    Dim root As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Settings_Set KEY_PPAM_VERSION, "9.9.9"
+    FileCopy FixturePpam(), root & "\ThinQQ.ppam.new"
+    Settings_Set KEY_PENDING_PPAM, "1": Settings_Set KEY_PENDING_PPAM_SHA, Transport_Sha256File(FixturePpam()): Settings_Set KEY_PENDING_PPAM_VER, "9.9.9"
+    Updater_ApplyPendingPpam
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "nao rebaixa"
+    AssertEqual 0, Len(Dir(root & "\ThinQQ.ppam.new"))
+    AssertEqual "", Settings_Get(KEY_PENDING_PPAM)
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' (4) Opcao desligada: nada; (2) PowerPoint aberto mas arquivo livre (suplemento carregado sem trava): troca e pede reinicio.
+Public Sub Test_Updater_Ppam_AutoOff_And_RestartNotice()
+    Dim root As String, json As String, st As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    json = PpamJson(FixturePpam(), Transport_Sha256File(FixturePpam()), "9.9.9")
+    Updater_TestSetPpamAuto "0"
+    AssertFalse Updater_PpamNeeded(json), "opcao desligada"
+    Updater_TestSetPpamAuto Empty
+    Settings_Set KEY_PPAM_AUTO, "0"
+    AssertFalse Updater_PpamNeeded(json), "opcao desligada no registro"
+    Settings_Delete KEY_PPAM_AUTO
+    AssertTrue Updater_PpamNeeded(json), "padrao: ligada"
+    Updater_TestSetPptRunning True
+    st = Updater_PpamUpdateNow(json)
+    AssertEqual "replaced-restart", st
+    AssertTrue InStr(Updater_PpamStatusText(st), "feche e abra o PowerPoint") > 0
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' (3) Ordem: com core + suplemento, o .ppam e baixado e conferido ANTES da troca do core; .ppam indisponivel nao derruba o core, mas o
+' resultado diz que o suplemento fica para a proxima verificacao (nunca em silencio).
+Public Sub Test_Updater_Apply_CoreOk_PpamFails_IsReported()
+    Dim root As String, json As String, ok As Boolean
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    json = Transport_FetchText(HttpBase() & "release/manifest.json")
+    json = Replace(json, "/release/ThinQQ.ppam", "/release/nao-existe.ppam")
+    ok = Updater_Apply(json, "core", True)
+    AssertTrue ok, "o core e atualizado"
+    AssertTrue Len(Dir(root & "\versions\9.9.9\" & Loader_CoreFileName())) > 0
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "suplemento intocado"
+    AssertEqual "1.0.0", Settings_Get(KEY_PPAM_VERSION)
+    AssertTrue InStr(Updater_LastPpamNote(), "próxima verificação") > 0, Updater_LastPpamNote()
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' (3) Core + suplemento pelo servidor HTTP: os dois trocados e o aviso de sucesso cita o suplemento.
+Public Sub Test_Updater_Apply_CoreAndPpam_FromHttp()
+    Dim root As String, json As String, ok As Boolean
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Updater_TestSetPptRunning False
+    json = Transport_FetchText(HttpBase() & "release/manifest.json")
+    ok = Updater_Apply(json, "core", False)
+    AssertTrue ok
+    AssertTrue Len(Dir(root & "\versions\9.9.9\" & Loader_CoreFileName())) > 0
+    AssertEqual "fake-ppam-9.9.9", Transport_ReadTextFile(root & "\ThinQQ.ppam")
+    AssertEqual "9.9.9", Settings_Get(KEY_PPAM_VERSION)
+    AssertTrue InStr(Loader_LastMsg, "atualizado com sucesso") > 0, Loader_LastMsg
+    AssertTrue InStr(Loader_LastMsg, "Suplemento do PowerPoint atualizado.") > 0, Loader_LastMsg
+    AssertEqual 0, Len(Dir(Loader_TmpDir() & "\ThinQQ.ppam"))
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' (3) Falha do core: o .ppam ja baixado e apagado e o suplemento nao e trocado (nunca "suplemento novo + core velho").
+Public Sub Test_Updater_Apply_CoreFails_PpamUntouched()
+    Dim root As String, json As String, ok As Boolean, bad As String, f As Integer
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Updater_TestSetPptRunning False
+    bad = TempDir() & "\core-corrompido.xlam"
+    f = FreeFile: Open bad For Output As #f: Print #f, "isto nao e um xlam": Close #f
+    json = Manifest("9.9.9", bad, Transport_Sha256File(bad))
+    json = Left$(json, Len(json) - 1) & ",""pptAddinVersion"":""9.9.9"",""pptAddinUrl"":""" & Replace(FixturePpam(), "\", "\\") & """,""pptAddinSha256"":""" & Transport_Sha256File(FixturePpam()) & """}"
+    AssertTrue Updater_PpamNeeded(json)
+    ok = Updater_Apply(json, "core", True)
+    AssertFalse ok
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "suplemento intocado"
+    AssertEqual "1.0.0", Settings_Get(KEY_PPAM_VERSION)
+    AssertEqual 0, Len(Dir(Loader_TmpDir() & "\ThinQQ.ppam")) + Len(Dir(root & "\ThinQQ.ppam.new")), "baixado apagado"
+    AssertEqual "", Settings_Get(KEY_PENDING_PPAM)
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' (1)(4) So o suplemento atrasado (core em dia): a verificacao silenciosa o atualiza sem abrir o formulario; a linha de versao do formulario
+' cita o suplemento quando ele entra junto.
+Public Sub Test_Updater_Check_PpamOnly_Silent_And_VersionLine()
+    Dim root As String, json As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Updater_TestSetPptRunning False
+    json = PpamJson(FixturePpam(), Transport_Sha256File(FixturePpam()), "9.9.9")
+    json = Replace(json, """coreVersion"":""0.0.1""", """coreVersion"":""" & Loader_CurrentCoreVersion() & """")
+    UseManifestFile json
+    Updater_FormShownCount = 0
+    Updater_Check True
+    AssertEqual 0, Updater_FormShownCount, "so o suplemento: sem formulario"
+    AssertEqual "", Loader_LastMsg, "verificacao silenciosa nao fala"
+    AssertEqual "fake-ppam-9.9.9", Transport_ReadTextFile(root & "\ThinQQ.ppam")
+    Settings_Set KEY_PPAM_VERSION, "1.0.0"
+    AssertTrue InStr(Updater_VersionLine("core", "1.0.0", Replace(json, """coreVersion"":""" & Loader_CurrentCoreVersion() & """", """coreVersion"":""9.9.9""")), "Suplemento do PowerPoint: 1.0.0 > 9.9.9") > 0
+    Updater_Check False
+    AssertEqual 0, Updater_FormShownCount
+    AssertTrue InStr(Loader_LastMsg, "Suplemento do PowerPoint atualizado.") > 0, "verificacao manual mostra o resultado: " & Loader_LastMsg
     Cleanup
     Exit Sub
 Fail:

@@ -9,6 +9,13 @@ Public Updater_PendingScheduleCount As Long  ' vezes que a troca do loader seria
 Private Const NO_SHA_MSG As String = "O manifesto não informa o hash de verificação (SHA-256) do arquivo; por segurança nada foi instalado."
 Private Const FAILURE_RETRY_HOURS As Double = 1
 Private Const MIN_CORE_FOR_PENDING As String = "1.0.0"   ' primeira versao do core que exporta Core_ApplyPendingLoader
+' Suplemento do PowerPoint (ThinQQ.ppam; spec 2026-10-14 secao 4.9)
+Public Updater_PpamRetryScheduleCount As Long          ' gancho de teste: novas tentativas que seriam agendadas (Test nao agenda OnTime)
+Private mTestPptRunning As Variant                     ' gancho de teste: Empty = consulta real
+Private mTestPpamAuto As Variant                       ' gancho de teste: Empty = configuracao real
+Private mLastPpamNote As String                        ' ultima frase sobre o suplemento (acrescentada ao aviso do atualizador)
+Private mPpamRetryAt As Date                           ' horario da nova tentativa agendada (0 = nenhuma): nunca empilha OnTime
+Private Const PPAM_RETRY_MINUTES As Long = 10
 
 Public Function Updater_ShouldCheckNow(lastCheckText As String, nowValue As Date, intervalHours As Double, Optional lastFailureText As String = "") As Boolean
     Dim diff As Double
@@ -97,7 +104,7 @@ Private Function ShowUpdateForm(title As String, versionLine As String, notes As
     End If
     On Error GoTo Fail
     Set frm = New frmUpdate
-    frm.Prepare title, versionLine, notes, showSkip
+    frm.Prepare title, versionLine, notes, showSkip, showPpam:=Updater_PpamInstalled()
     frm.Show
     ShowUpdateForm = frm.Result
     Unload frm
@@ -122,6 +129,9 @@ Public Function Updater_VersionLine(what As String, installedCore As String, jso
         Case Else
             Updater_VersionLine = "Instalada: " & installedCore & "   -   Nova: " & JsonGetString(json, "coreVersion") & pub
     End Select
+    If what <> "loader" Then
+        If Updater_PpamNeeded(json) Then Updater_VersionLine = Updater_VersionLine & "   |   Suplemento do PowerPoint: " & Settings_Get(KEY_PPAM_VERSION, "0.0.0") & " > " & JsonGetString(json, "pptAddinVersion")
+    End If
 End Function
 
 ' Chave de "ignorar esta versao": combina core e loader do manifesto.
@@ -150,6 +160,238 @@ Fail:
     Loader_Log "Updater_SchedulePendingLoader: " & Err.Number & " " & Err.Description
 End Sub
 
+' ---------- Suplemento do PowerPoint (ThinQQ.ppam; spec 2026-10-14 secao 4.9) ----------
+' O atualizador so baixa, confere o SHA-256 e renomeia o arquivo: nunca abre nem executa o .ppam.
+
+Public Sub Updater_TestSetPptRunning(v As Variant)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestPptRunning = v
+End Sub
+
+Public Sub Updater_TestSetPpamAuto(v As Variant)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestPpamAuto = v
+End Sub
+
+Public Function Updater_LastPpamNote() As String
+    Updater_LastPpamNote = mLastPpamNote
+End Function
+
+Private Function PpamPath() As String
+    PpamPath = Loader_Root() & "\ThinQQ.ppam"
+End Function
+
+' Build de Teste sem raiz de teste: a raiz e a instalacao REAL do usuario; os testes nunca a tratam como instalada nem mexem nela.
+Private Function PpamRootIsRealInTest() As Boolean
+    If BUILD_CONFIG <> "Test" Then Exit Function
+    PpamRootIsRealInTest = (StrComp(Loader_Root(), Environ$("LOCALAPPDATA") & "\ThinQQ", vbTextCompare) = 0)
+End Function
+
+' PowerPoint em execucao (WMI; nunca GetObject no PowerPoint). Na duvida (WMI indisponivel): em execucao. So decide a frase do aviso.
+Private Function Updater_PptRunning() As Boolean
+    If BUILD_CONFIG = "Test" And Not IsEmpty(mTestPptRunning) Then Updater_PptRunning = CBool(mTestPptRunning): Exit Function
+    On Error Resume Next
+    Updater_PptRunning = True
+    Updater_PptRunning = (GetObject("winmgmts:" & Chr(92) & Chr(92) & "." & Chr(92) & "root" & Chr(92) & "cimv2").ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name = 'POWERPNT.EXE'").Count > 0)
+End Function
+
+Private Function Updater_PpamAutoOn() As Boolean
+    If BUILD_CONFIG = "Test" And Not IsEmpty(mTestPpamAuto) Then Updater_PpamAutoOn = (CStr(mTestPpamAuto) <> "0"): Exit Function
+    Updater_PpamAutoOn = (Settings_Get(KEY_PPAM_AUTO, "1") <> "0")
+End Function
+
+' (5) Instalado = o instalador deixou <raiz>\ThinQQ.ppam. O atualizador NUNCA instala o suplemento para quem nao o tem.
+Public Function Updater_PpamInstalled() As Boolean
+    On Error Resume Next
+    If PpamRootIsRealInTest() Then Exit Function
+    Updater_PpamInstalled = (Len(Dir(PpamPath())) > 0)
+End Function
+
+' (1) Ha suplemento mais novo para este usuario: opcao ligada, instalado, manifesto com versao/url/SHA validos, versao maior que a
+' instalada (PpamVersion; ausente = 0.0.0) e diferente da que ja esta pendente.
+Public Function Updater_PpamNeeded(json As String) As Boolean
+    Dim v As String
+    On Error GoTo Fail
+    If Not Updater_PpamAutoOn() Then Exit Function
+    If Not Updater_PpamInstalled() Then Exit Function
+    v = JsonGetString(json, "pptAddinVersion")
+    If Not IsValidVersion(v) Then Exit Function
+    If Len(JsonGetString(json, "pptAddinUrl")) = 0 Or Len(Trim$(JsonGetString(json, "pptAddinSha256"))) <> 64 Then Exit Function
+    If Settings_Get(KEY_PENDING_PPAM) = "1" And Settings_Get(KEY_PENDING_PPAM_VER) = v Then Exit Function
+    Updater_PpamNeeded = (CompareVersions(v, Settings_Get(KEY_PPAM_VERSION, "0.0.0")) > 0)
+    Exit Function
+Fail:
+    Loader_Log "Updater_PpamNeeded: " & Err.Number & " " & Err.Description
+    Updater_PpamNeeded = False
+End Function
+
+' (7) Baixa para tmp e confere o SHA-256 do manifesto (obrigatorio: AllowUnverified nao vale para o suplemento). False = nada fica em tmp.
+Private Function Updater_PpamDownload(json As String, tmp As String) As Boolean
+    On Error GoTo Fail
+    If Len(Dir(tmp)) > 0 Then Kill tmp
+    Transport_DownloadFile JsonGetString(json, "pptAddinUrl"), tmp
+    If LCase$(Transport_Sha256File(tmp)) <> LCase$(Trim$(JsonGetString(json, "pptAddinSha256"))) Then
+        Kill tmp
+        Loader_Log "Updater_PpamDownload: SHA-256 nao confere; suplemento nao atualizado"
+        Exit Function
+    End If
+    Updater_PpamDownload = True
+    Exit Function
+Fail:
+    Loader_Log "Updater_PpamDownload: " & Err.Number & " " & Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If Len(Dir(tmp)) > 0 Then Kill tmp
+End Function
+
+Private Sub ClearPendingPpam()
+    Settings_Delete KEY_PENDING_PPAM: Settings_Delete KEY_PENDING_PPAM_SHA: Settings_Delete KEY_PENDING_PPAM_VER
+    Updater_CancelPpamRetry
+End Sub
+
+' (2) Troca atomica (mesma pasta: renomeacoes): ThinQQ.ppam -> .old, src -> ThinQQ.ppam, apaga .old. Arquivo em uso (a renomeacao
+' falha: medido com o PowerPoint) -> False sem mudar nada. Falha no 2o passo -> o .old volta.
+Private Function Updater_PpamSwap(src As String) As Boolean
+    Dim dest As String, old As String
+    dest = PpamPath(): old = dest & ".old"
+    On Error Resume Next
+    If Len(Dir(old)) > 0 Then Kill old
+    Err.Clear
+    Name dest As old
+    If Err.Number <> 0 Then Err.Clear: Exit Function            ' em uso
+    Name src As dest
+    If Err.Number <> 0 Then
+        Err.Clear
+        Name old As dest
+        Exit Function
+    End If
+    Kill old
+    Err.Clear
+    Updater_PpamSwap = True
+End Function
+
+' (2) Depois do download conferido: o baixado vai para ThinQQ.ppam.new (mesma pasta do suplemento, para a troca ser uma renomeacao
+' atomica) e troca agora, ou fica pendente (.new + chaves) com nova tentativa agendada. Devolve "replaced", "replaced-restart" (trocado com
+' o PowerPoint aberto: vale ao reabrir) ou "staged". Erro = propaga (quem chama trata; o temporario e apagado).
+Private Function Updater_PpamCommit(tmp As String, sha As String, ver As String) As String
+    Dim nw As String, en As Long, ed As String
+    On Error GoTo Fail
+    nw = PpamPath() & ".new"
+    ClearPendingPpam                                     ' o .new vai ser substituido: uma pendencia antiga deixa de valer
+    If Len(Dir(nw)) > 0 Then Kill nw
+    Name tmp As nw
+    If Updater_PpamSwap(nw) Then
+        Settings_Set KEY_PPAM_VERSION, ver
+        ClearPendingPpam
+        If Updater_PptRunning() Then Updater_PpamCommit = "replaced-restart" Else Updater_PpamCommit = "replaced"
+        Loader_Log "Suplemento do PowerPoint atualizado para " & ver
+        Exit Function
+    End If
+    Settings_Set KEY_PENDING_PPAM_SHA, LCase$(Trim$(sha)): Settings_Set KEY_PENDING_PPAM_VER, ver: Settings_Set KEY_PENDING_PPAM, "1"
+    Updater_SchedulePpamRetry
+    Loader_Log "Suplemento do PowerPoint " & ver & " pendente (arquivo em uso)"
+    Updater_PpamCommit = "staged"
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If Len(Dir(tmp)) > 0 Then Kill tmp
+    If Settings_Get(KEY_PENDING_PPAM) <> "1" Then
+        If Len(Dir(nw)) > 0 Then Kill nw
+    End If
+    On Error GoTo 0
+    Err.Raise en, "Updater", ed
+End Function
+
+' So o suplemento (core em dia): baixa, confere e aplica. "" = nada feito (nao precisava ou falhou: registrado). Nunca propaga.
+Public Function Updater_PpamUpdateNow(json As String) As String
+    Dim tmp As String
+    On Error GoTo Fail
+    If Not Updater_PpamNeeded(json) Then Exit Function
+    Loader_EnsureFolders
+    tmp = Loader_TmpDir() & "\ThinQQ.ppam"
+    If Not Updater_PpamDownload(json, tmp) Then Exit Function
+    Updater_PpamUpdateNow = Updater_PpamCommit(tmp, JsonGetString(json, "pptAddinSha256"), JsonGetString(json, "pptAddinVersion"))
+    Exit Function
+Fail:
+    Loader_Log "Updater_PpamUpdateNow: " & Err.Number & " " & Err.Description
+    Updater_PpamUpdateNow = ""
+End Function
+
+' (4) Frase para o usuario (acrescentada ao aviso de atualizacao).
+Public Function Updater_PpamStatusText(state As String) As String
+    Select Case state
+        Case "replaced": Updater_PpamStatusText = "Suplemento do PowerPoint atualizado."
+        Case "replaced-restart": Updater_PpamStatusText = "Suplemento do PowerPoint atualizado: feche e abra o PowerPoint para usar a versão nova."
+        Case "staged": Updater_PpamStatusText = "O suplemento do PowerPoint será atualizado automaticamente quando o PowerPoint for fechado (o Excel tenta de novo a cada 10 minutos e na próxima abertura)."
+        Case "failed": Updater_PpamStatusText = "O suplemento do PowerPoint não foi atualizado agora; nova tentativa na próxima verificação."
+    End Select
+End Function
+
+' (2) Aplicacao da pendencia: na abertura do Excel (Loader_Startup) e pela nova tentativa agendada. Reconfere o SHA-256 do .new (arquivo em
+' pasta do usuario: nunca confia no que esta la); adulterado, ausente ou nao mais novo que o instalado = descarta. Ainda em uso = continua
+' pendente (e agenda nova tentativa, sem empilhar). Nunca propaga.
+Public Sub Updater_ApplyPendingPpam()
+    Dim nw As String, ver As String, ok As Boolean
+    On Error GoTo Fail
+    If Settings_Get(KEY_PENDING_PPAM) <> "1" Then Exit Sub
+    If PpamRootIsRealInTest() Then Exit Sub
+    nw = PpamPath() & ".new"
+    ver = Settings_Get(KEY_PENDING_PPAM_VER)
+    ok = (Len(Dir(nw)) > 0)
+    If ok Then ok = IsValidVersion(ver)
+    If ok Then ok = (CompareVersions(ver, Settings_Get(KEY_PPAM_VERSION, "0.0.0")) > 0)
+    If ok Then ok = (LCase$(Transport_Sha256File(nw)) = LCase$(Trim$(Settings_Get(KEY_PENDING_PPAM_SHA))))
+    If Not ok Then
+        Loader_Log "Updater_ApplyPendingPpam: .new ausente, com SHA-256 diferente ou nao mais novo que o instalado; descartado"
+        If Len(Dir(nw)) > 0 Then Kill nw
+        ClearPendingPpam
+        Exit Sub
+    End If
+    If Updater_PpamSwap(nw) Then
+        Settings_Set KEY_PPAM_VERSION, ver
+        ClearPendingPpam
+        Loader_Log "Suplemento do PowerPoint pendente aplicado: " & ver
+    Else
+        Updater_SchedulePpamRetry
+    End If
+    Exit Sub
+Fail:
+    Loader_Log "Updater_ApplyPendingPpam: " & Err.Number & " " & Err.Description
+End Sub
+
+' Alvo do Application.OnTime: a tentativa agendada disparou (nao esta mais agendada). Durante uma atualizacao em andamento, so reagenda.
+Public Sub Updater_PpamRetryTick()
+    On Error Resume Next
+    mPpamRetryAt = 0
+    If mBusy Then Updater_SchedulePpamRetry: Exit Sub
+    Updater_ApplyPendingPpam
+End Sub
+
+' Nova tentativa em 10 min (so enquanto houver pendencia; o Excel fechado leva a tentativa para a proxima abertura). Uma so por vez.
+Private Sub Updater_SchedulePpamRetry()
+    On Error Resume Next
+    If Settings_Get(KEY_PENDING_PPAM) <> "1" Then Exit Sub
+    If mPpamRetryAt <> 0 Then Exit Sub                   ' ja agendada: nunca empilha
+    mPpamRetryAt = Now + TimeSerial(0, PPAM_RETRY_MINUTES, 0)
+    If BUILD_CONFIG = "Test" Then Updater_PpamRetryScheduleCount = Updater_PpamRetryScheduleCount + 1: Exit Sub
+    Err.Clear
+    Application.OnTime mPpamRetryAt, "'" & ThisWorkbook.Name & "'!Updater_PpamRetryTick"
+    If Err.Number <> 0 Then
+        Loader_Log "Updater_SchedulePpamRetry: " & Err.Number & " " & Err.Description
+        mPpamRetryAt = 0
+    End If
+End Sub
+
+' Cancela a nova tentativa agendada (Loader_Shutdown: um OnTime para o loader fechado o reabriria). Nunca propaga.
+Public Sub Updater_CancelPpamRetry()
+    On Error Resume Next
+    If mPpamRetryAt = 0 Then Exit Sub
+    If BUILD_CONFIG <> "Test" Then Application.OnTime mPpamRetryAt, "'" & ThisWorkbook.Name & "'!Updater_PpamRetryTick", , False
+    mPpamRetryAt = 0
+End Sub
+
 Public Sub Updater_Check(silent As Boolean)
     If mBusy Then Exit Sub
     mBusy = True
@@ -162,7 +404,16 @@ Public Sub Updater_Check(silent As Boolean)
     what = Updater_Evaluate(json, installedCore, APP_VERSION)
     coreVer = JsonGetString(json, "coreVersion")
     If what = "none" Then
-        If Not silent Then Loader_Msg "O ThinQQ já está na versão mais recente (" & installedCore & ").", vbInformation
+        If Updater_PpamNeeded(json) Then
+            ' So o suplemento atrasado (a mesma versao do core ja foi aceita): aplica sem formulario e registra.
+            mLastPpamNote = Updater_PpamUpdateNow(json)
+            If Len(mLastPpamNote) = 0 Then mLastPpamNote = "failed"
+            mLastPpamNote = Updater_PpamStatusText(mLastPpamNote)
+            Loader_Log mLastPpamNote
+            If Not silent Then Loader_Msg mLastPpamNote, vbInformation
+        ElseIf Not silent Then
+            Loader_Msg "O ThinQQ já está na versão mais recente (" & installedCore & ").", vbInformation
+        End If
         mBusy = False
         Exit Sub
     End If
@@ -201,7 +452,8 @@ Public Function Updater_Apply(json As String, what As String, Optional quiet As 
     On Error GoTo Fail
     Dim coreVer As String, tmp As String, dest As String, destDir As String, stage As String, sha As String, actual As String
     Dim url As String, prevPath As String, wb As Workbook, allow As Boolean, swapStarted As Boolean, committed As Boolean
-    Dim doCore As Boolean, doLoader As Boolean
+    Dim doCore As Boolean, doLoader As Boolean, ppamTmp As String, ppamOk As Boolean, ppamState As String, wantPpam As Boolean
+    mLastPpamNote = ""
     doCore = (what = "core" Or what = "both")
     doLoader = (what = "loader" Or what = "both")
     allow = (Settings_Get(KEY_ALLOW_UNVERIFIED) = "1")
@@ -223,6 +475,10 @@ Public Function Updater_Apply(json As String, what As String, Optional quiet As 
     End If
     Loader_EnsureFolders
     Application.StatusBar = "ThinQQ: baixando atualização..."
+    ' Suplemento do PowerPoint: baixado e conferido ANTES da troca do core; so e trocado depois do core trocado e carregado (o par nunca
+    ' fica "suplemento novo + core velho"). Falha dele nunca desfaz o core: o aviso diz que fica para a proxima verificacao.
+    wantPpam = doCore And Updater_PpamNeeded(json)
+    If wantPpam Then ppamTmp = Loader_TmpDir() & "\ThinQQ.ppam": ppamOk = Updater_PpamDownload(json, ppamTmp)
     If doCore Then
         url = JsonGetString(json, "coreUrl")
         tmp = Loader_TmpDir() & "\" & Loader_CoreFileName()
@@ -264,6 +520,21 @@ Public Function Updater_Apply(json As String, what As String, Optional quiet As 
         Settings_Set KEY_LAST_NOTIFIED_CORE, coreVer
         Settings_Delete KEY_SKIPPED
         Loader_InvalidateRibbon
+        If wantPpam Then
+            ppamState = "failed"
+            If ppamOk Then
+                On Error Resume Next
+                ppamState = Updater_PpamCommit(ppamTmp, JsonGetString(json, "pptAddinSha256"), JsonGetString(json, "pptAddinVersion"))
+                If Err.Number <> 0 Then
+                    Loader_Log "Updater_Apply: suplemento do PowerPoint nao trocado: " & Err.Number & " " & Err.Description
+                    ppamState = "failed"
+                End If
+                On Error GoTo -1
+                On Error GoTo Fail
+            End If
+            mLastPpamNote = Updater_PpamStatusText(ppamState)
+            Loader_Log mLastPpamNote
+        End If
     End If
     If doLoader Then
         url = JsonGetString(json, "loaderUrl")
@@ -288,7 +559,7 @@ Public Function Updater_Apply(json As String, what As String, Optional quiet As 
         Updater_SchedulePendingLoader 1
     End If
     Application.StatusBar = False
-    If Not quiet Then Loader_Msg "ThinQQ atualizado com sucesso." & IIf(Len(coreVer) > 0, " Versão " & coreVer & ".", ""), vbInformation
+    If Not quiet Then Loader_Msg "ThinQQ atualizado com sucesso." & IIf(Len(coreVer) > 0, " Versão " & coreVer & ".", "") & IIf(Len(mLastPpamNote) > 0, vbLf & mLastPpamNote, ""), vbInformation
     Updater_Apply = True
     Exit Function
 Fail:
@@ -297,6 +568,9 @@ Fail:
     On Error Resume Next
     Application.StatusBar = False
     If swapStarted And Not committed Then RollbackCore dest, destDir, stage, tmp, prevPath
+    If Len(ppamTmp) > 0 Then
+        If Len(Dir(ppamTmp)) > 0 Then Kill ppamTmp          ' core nao trocado: o suplemento baixado nunca entra sozinho
+    End If
     Loader_Log "Updater_Apply: " & en & " " & ed
     If Not quiet Then Loader_Msg "Falha ao atualizar: " & Updater_FriendlyError(en, ed), vbExclamation
     Updater_Apply = False

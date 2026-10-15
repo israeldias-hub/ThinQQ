@@ -14,6 +14,11 @@ Public Const KEY_LAST_FAILURE As String = "LastFailure"
 Public Const KEY_ALLOW_UNVERIFIED As String = "AllowUnverified"   ' "1" = aceita manifesto sem SHA-256 (decisao do usuario)
 Public Const KEY_SWAP_IN_PROGRESS As String = "SwapInProgress"       ' timestamp gravado pelo core durante a troca do loader
 Public Const KEY_PENDING_FAIL_NOTIFIED As String = "PendingLoaderFailNotified"
+Public Const KEY_PPAM_VERSION As String = "PpamVersion"             ' versao do ThinQQ.ppam instalado (instalador e atualizador gravam)
+Public Const KEY_PPAM_AUTO As String = "PpamAutoUpdate"             ' "0" = nao atualizar o suplemento do PowerPoint (padrao "1")
+Public Const KEY_PENDING_PPAM As String = "PendingPpam"             ' "1" = ThinQQ.ppam.new aguardando o PowerPoint liberar o arquivo
+Public Const KEY_PENDING_PPAM_SHA As String = "PendingPpamSha256"
+Public Const KEY_PENDING_PPAM_VER As String = "PendingPpamVersion"
 Public Const DEFAULT_UPDATE_SOURCE As String = "https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json"
 
 Public Function Settings_Get(key As String, Optional defaultValue As String = "") As String
