@@ -424,7 +424,23 @@ $messages = @(
     'As setas de variação passam do máximo da escala fixa (Mesma escala) e ficam cortadas. Use ''Escala automática'' ou desligue as setas de variação.',
     'A cascata comparativa precisa de exatamente 2 colunas de valores (uma por série); a tabela tem só 1.',
     'A cascata comparativa compara exatamente 2 séries; a tabela tem ',
-    ' colunas de valores. Selecione a coluna das etapas e só as duas colunas a comparar.'
+    ' colunas de valores. Selecione a coluna das etapas e só as duas colunas a comparar.',
+    # delta entre barras (Parte B, 1.5.0): avisos (ANN_DELTA_REFUSAL, DELTA_BAD_PICK, DELTA_NONE, DELTAPICK_MSG_PROTECTED/ARMFAIL e o aviso sem gráfico)
+    # e as mensagens da barra de status do modo de dois cliques (DELTAPICK_MSG_*)
+    'O delta entre barras não está disponível para este tipo de gráfico.',
+    'Escolha duas barras diferentes do gráfico.',
+    'Este gráfico não tem delta entre barras. Use Setas > Delta clicando nas barras.',
+    'A planilha está protegida. Desproteja a planilha para inserir o delta.',
+    'Selecione um gráfico do ThinQQ antes de inserir o delta.',
+    'Não foi possível ativar o delta clicando nas barras neste gráfico. Selecione o gráfico e tente de novo.',
+    'ThinQQ - Delta: clique na barra de ORIGEM (Esc ou um clique numa célula cancela).',
+    'ThinQQ - Delta: agora clique na barra de DESTINO.',
+    'ThinQQ - Delta: escolha uma barra diferente da origem.',
+    'ThinQQ - Delta: clique numa barra (não em rótulos, setas ou linhas auxiliares).',
+    'ThinQQ - Delta: clique de novo na mesma barra para escolher só ela.',
+    'ThinQQ - Delta cancelado.',
+    'ThinQQ - Delta cancelado (outro gráfico).',
+    'ThinQQ - Delta cancelado (60 s sem clique).'
 )
 # a nota da colagem e o tutorial nao podem voltar a dizer que o vinculo so le o arquivo salvo (a sonda mediu: com a pasta ABERTA no Excel,
 # LinkFormat.Update le os valores nao salvos)
@@ -551,10 +567,26 @@ Check $mvSeq "README: a lista de verificações manuais é numerada de 1 a $($mv
 # os itens novos (a partir do 43, depois do último de antes da Parte A) cobrem o roteiro manual da especificação (§4.7): sem o corte pelo
 # número, os itens antigos do PowerPoint (32 a 36, que também citam "PowerPoint fechado") fariam o teste passar sem os itens novos
 $mvNew = (($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 43 }) -join "`n"
-Check ($mvNums.Count -ge 54) "README: a lista de verificações manuais tem os itens novos do PowerPoint (a partir do 43; total $($mvNums.Count))"
+Check ($mvNums.Count -ge 61) "README: a lista de verificações manuais tem os itens novos do PowerPoint e do delta (a partir do 43; total $($mvNums.Count))"
 foreach ($t in 'Perguntar.*Atualizar sempre.*Não atualizar', 'Habilitar Edição', 'pasta movida|Alterar Origem', 'pasta em rede', '30 gráficos', 'Excel aberto', 'sem o ThinQQ no Excel', 'aba ThinQQ no PowerPoint', 'PowerPoint fechado', 'somente leitura', 'Desfazer', 'protegida por senha', 'não verificado em PowerPoint real', 'Assinatura do suplemento do PowerPoint[^\r\n]*ThinQQ\.ppam', 'Instalação manual do suplemento do PowerPoint[^\r\n]*Adicionar novo') {
     Check ($mvNew -match $t) "README (verificações manuais 43 em diante): cobre '$t'"
 }
+
+# delta entre barras (1.5.0): os itens 55 em diante cobrem a lista manual da B3 (cliques reais nos 9 tipos, 1.o clique num gráfico não ativado,
+# Esc com o gráfico ativo, zoom/DPI, cancelamentos reais, casos de borda, PowerPoint) e cada um se declara não verificado com mouse real
+$mvDelta = (($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 55 }) -join "`n"
+Check (@($mvNums | Where-Object { $_ -ge 55 }).Count -ge 7) "README: itens 55 em diante (delta): $(@($mvNums | Where-Object { $_ -ge 55 }).Count)"
+foreach ($t in 'cliques reais nos 9 tipos', 'primeiro clique num gráfico que não estava ativado', 'Esc com o gráfico ativo', 'zoom 75% e 150%', '125% e 150%', '60 s', 'outro gráfico', 'grupo de formas', 'planilha protegida', 'Delta no PowerPoint', 'Ctrl\+Z') {
+    Check ($mvDelta -match $t) "README (verificações manuais 55 em diante): cobre '$t'"
+}
+Check (@(($mvDelta -split "`n") | Where-Object { $_ -notmatch 'não verificado com mouse real' }).Count -eq 0) 'README (verificações manuais 55 em diante): todo item do delta marca "não verificado com mouse real"'
+
+# delta: a especificação (as duas copias que o repositorio guarda: so a de docs/superpowers e rastreada) cita o manipulador certo do OnTime e a regra do lado de baixo
+$specDeltaPath = Join-Path $RepoRoot 'docs\superpowers\specs\2026-10-14-thinqq-ppt-delta-design.md'
+$specDelta = Read-Utf8 $specDeltaPath
+Check ($specDelta.Contains('DeltaPick_TimeoutFired') -and -not $specDelta.Contains('DeltaPick_Timeout, DeltaPick_IsArmedFor')) 'especificação do delta: o manipulador do OnTime é DeltaPick_TimeoutFired'
+Check ($specDelta.Contains('Emenda (revisão da B4), lado de baixo') -and $specDelta.Contains('Delta_IsStackBottomNeg') -and $specDelta.Contains('NÃO deslocam')) 'especificação do delta (5.3): regra do lado de baixo'
+Check ($specDelta.Contains('Emenda (revisão da B3)') -and $specDelta.Contains('DELTAPICK_MSG_ARMFAIL')) 'especificação do delta (5.1): cancelamentos e mensagens da B3'
 
 # ---- o limite do Arredondar intervalo vem do código (ROUND_MAX_CELLS) e a documentação cita o mesmo número
 $rndSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modRounding.bas')
@@ -631,6 +663,23 @@ $mustDocument = [ordered]@{
     'powerpoint: formatacao feita no PowerPoint fica; legenda desalinha as setas' = @('tutorial', 'desalinhar as setas')
     'powerpoint: pasta do OneDrive/SharePoint so com a pasta aberta no Excel' = @('tutorial', 'aberta no Excel')
     'powerpoint: o instalador cria o local confiavel do PowerPoint'  = @('both', 'PowerPoint\Security\Trusted Locations\LocationThinQQ')
+    # delta entre barras (Parte B, 1.5.0)
+    'delta: seta nao arrastavel'                                     = @('tutorial', 'não é arrastável')
+    'delta: grafico em grupo de formas'                              = @('tutorial', 'grupo de formas')
+    'delta: percentual diferente da seta de variacao'                = @('tutorial', '-75%')
+    'delta: formato percentual sem p.p.'                             = @('both', 'p.p.')
+    'delta: a sala so encolhe a area de plotagem'                    = @('both', 'só encolhe a área de plotagem')
+    'delta: a sala so e reavaliada em alguns eventos'                = @('tutorial', 'até o próximo desses eventos')
+    'delta: larguras de rotulo estimam fonte 9 pt negrito'           = @('both', 'fonte de 9 pt em negrito')
+    'delta: 50 ou mais categorias em barras horizontais'             = @('both', '50 ou mais categorias')
+    'delta: muitos deltas e o piso de 30%'                           = @('both', 'abaixo de 30% do gráfico')
+    'delta: comparativa, perna compartilha o x da seta de variacao'  = @('both', 'mesmo x da perna da seta de variação')
+    'delta: empilhadas, perna de baixo cruza o rotulo de cima'       = @('both', 'cruza o rótulo do segmento de cima')
+    'delta: Esc devolve o padrao do Excel (OnKey de outro suplemento se perde)' = @('both', 'outro suplemento ou macro se perde')
+    'delta: cancela ao trocar de planilha ou de pasta'               = @('tutorial', 'planilha ou de pasta de trabalho')
+    'delta: planilha protegida so com o grafico desbloqueado'        = @('tutorial', 'nem pode ser selecionado')
+    'delta: Alterar dados nao preserva os deltas'                    = @('both', 'não preserva os deltas')
+    'delta: cliques reais nao verificados com mouse real'            = @('both', 'não verificado com mouse real')
 }
 foreach ($k in $mustDocument.Keys) {
     $scope = $mustDocument[$k][0]; $phrase = $mustDocument[$k][1]

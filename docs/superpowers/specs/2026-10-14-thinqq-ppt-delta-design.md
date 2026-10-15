@@ -362,6 +362,16 @@ reabertura do Excel; "Sobre" do PowerPoint mostra a versão nova.
   enquanto armado).
 - **Sem interferência quando desarmado:** os manipuladores saem na primeira linha (`If Not mArmed Then Exit Sub`); custo medido ~3 ms por
   evento já com registro.
+- **Emenda (revisão da B3):** além dos cancelamentos acima, o modo desarma ao ativar outra planilha ou outra pasta (os observadores de cliques
+  mudam de planilha) e ao fechar a pasta do gráfico armado. O prazo de 60 s conta de quando o modo é armado (o `OnTime` é agendado uma vez em
+  `DeltaPick_Arm`; um clique não o renova) e o aviso "ThinQQ - Delta cancelado (60 s sem clique)." fica 4 s na barra de status. O Esc devolve
+  a tecla ao padrão do Excel (`Application.OnKey "{ESC}"`) sem restaurar um `OnKey` de outro suplemento (não há como lê-lo), e a barra de
+  status volta ao padrão do Excel (não ao texto anterior). Clicar num rótulo de dados, linha de tendência, barra de erro, forma (inclusive as
+  setas) ou linha de série, de máximo/mínimo, de projeção ou de chamada mostra "ThinQQ - Delta: clique numa barra (não em rótulos, setas ou
+  linhas auxiliares)." e continua armado; área, eixo, legenda e título: continua armado em silêncio. Mensagens: `DELTAPICK_MSG_OTHERCHART`
+  ("ThinQQ - Delta cancelado (outro gráfico)."), `DELTAPICK_MSG_TIMEOUT`, `DELTAPICK_MSG_PROTECTED` (só o gráfico desbloqueado chega a ela: um
+  gráfico bloqueado em planilha protegida nem pode ser ativado) e `DELTAPICK_MSG_ARMFAIL` ("Não foi possível ativar o delta clicando nas
+  barras neste gráfico. Selecione o gráfico e tente de novo."; nada fica armado).
 - Gráfico em **folha de gráfico** não é do ThinQQ (só ChartObjects `tqq_*`); planilha protegida (`ProtectDrawingObjects`): aviso "A planilha
   está protegida. Desproteja a planilha para inserir o delta."; gráfico em grupo de formas: os eventos do ChartObject agrupado não chegam ao
   observador (Watchers liga só os `ChartObjects` soltos) ⇒ o modo arma mas nada acontece: limite documentado.
@@ -398,6 +408,20 @@ reabertura do Excel; "Sobre" do PowerPoint mostra a versão nova.
   ponta: barras grandes e, na cascata de uma série, os degraus): 3 + 18 pt nas colunas, 3 + máx(18, largura estimada do rótulo +
   6) nas barras (a mesma folga entra na altura base das barras); rótulos de dentro (segmentos das empilhadas, degraus da comparativa),
   âncora no zero e Rótulos desligados ficam nos 3 pt.
+- **Emenda (revisão da B4), lado de baixo:** a emenda acima cobre só a seta para CIMA. Com a seta para baixo (as duas barras inteiramente ≤ 0)
+  a regra é a espelhada: a perna começa depois do rótulo de fora que fica ABAIXO da barra (à esquerda nas barras), isto é, nas agrupadas
+  negativas com Rótulos, no segmento de baixo de uma coluna empilhada toda negativa com Totais (o rótulo do total fica abaixo dela:
+  `Delta_IsStackBottomNeg`) e nas barras grandes negativas da cascata comparativa (nas cascatas, quando o bloco põe o rótulo na ponta `Lo`);
+  a linha e a linha da combinação com a seta para baixo NÃO deslocam (o rótulo do ponto fica acima dele, do lado oposto ao da seta);
+  âncora no zero e rótulos de dentro ficam nos 3 pt, como em cima.
+- **Emenda (documentação, B5):** a sala (`Ann_EnsureDeltaRoom`) só é reavaliada ao inserir, ao alternar o texto e em `Ann_EnsureRoomAfterChange`
+  (legenda, formato, redimensionar), e só encolhe a área de plotagem: dados que crescem e mudam a escala podem cortar a linha até o próximo
+  desses eventos, e alternar de "valor e %" para "%" não devolve o espaço. As larguras dos rótulos de fora nas barras são estimadas
+  (Calibri 9 negrito, `Labels_EstimateWidth`): fonte maior pode encostar na perna; com 50 ou mais categorias em barras horizontais a folga
+  varre todas as barras do trecho (desempenho não medido). Na comparativa, a perna do delta que sai da barra A compartilha o x com a perna da
+  seta de variação; numa coluna empilhada, a perna de um segmento de baixo cruza o rótulo do segmento de cima; com muitos deltas, o piso de 30%
+  da área de plotagem deixa os rótulos de fora se sobreporem. Percentual: com formato percentual (`pct0`/`pct1`) o valor mostra `+5%` ao lado
+  de `(+50%)`, sem "p.p." (a especificação não pede pontos percentuais).
 - **Altura base**: a borda mais externa de **todas** as barras entre origem e destino (inclusive; nas agrupadas, o maior valor positivo de
   qualquer série; nas empilhadas, a soma dos positivos; nas cascatas, `Hi`; na comparativa, a coluna `Top` das fatias) + 8 pt + meia altura do
   rótulo + 18 pt quando Rótulos ou Totais estão ligados.
@@ -418,7 +442,7 @@ reabertura do Excel; "Sobre" do PowerPoint mostra a versão nova.
 - `modAnnotations.bas`: `Ann_AddDelta`, `Ann_LayoutDeltas` (chamado no fim de `Ann_Refresh`), `Ann_EnsureDeltaRoom`, `Ann_CycleDeltaFormat`,
   `Ann_SelectedDeltaName`, `Ann_RefusalText` ("delta"), limpeza de órfãs e da moldura.
 - `modDeltaPick.bas` (estado do modo): `DeltaPick_Arm`, `DeltaPick_Disarm`, `DeltaPick_OnSelect`, `DeltaPick_OnMouseUp`, `DeltaPick_OnSheetClick`,
-  `DeltaPick_EscKey`, `DeltaPick_Timeout`, `DeltaPick_IsArmedFor`, `DeltaPick_FromRef`.
+  `DeltaPick_EscKey`, `DeltaPick_TimeoutFired` (manipulador do `OnTime`; `DeltaPick_Timeout` é só a verificação pelo relógio do gancho de teste), `DeltaPick_IsArmedFor`, `DeltaPick_FromRef`.
 - `clsChartWatcher.cls`: `Cht_Select`, `Cht_MouseUp` (chamam o modo); `clsAppEvents.App_SheetSelectionChange` chama `DeltaPick_OnSheetClick`.
 - `modCoreApi.bas`: `Core_DeltaPick` (arma/cancela), `Core_AddDelta(fromRef, toRef, Optional fmt, Optional cht)` (API e gerador da
   demonstração; avisos 7001/7003), `Core_DeltaCycleFormat`.
