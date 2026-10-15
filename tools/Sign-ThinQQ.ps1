@@ -1,5 +1,5 @@
 <#
-.SYNOPSIS  Assina os projetos VBA dos .xlam por linha de comando (SignTool do Windows SDK + Office Subject Interface Packages) ou so diagnostica (-WhatIf).
+.SYNOPSIS  Assina os projetos VBA dos .xlam e do .ppam por linha de comando (SignTool do Windows SDK + Office Subject Interface Packages) ou so diagnostica (-WhatIf).
 .EXAMPLE   pwsh tools/Sign-ThinQQ.ps1 -Thumbprint <thumbprint do certificado em Cert:\CurrentUser\My> -TimestampUrl http://timestamp.digicert.com
 .EXAMPLE   pwsh tools/Sign-ThinQQ.ps1 -PfxPath .\dist\cert\ThinQQ-signing.pfx -PfxPassword ... -SkipVerify
 .NOTES     Pre-requisitos (uma vez, com administrador): Windows SDK (signtool.exe) e o pacote "Office Subject Interface Packages for Digitally
@@ -16,7 +16,7 @@
            certificado de uma CA corporativa. -SkipVerify pula a verificacao.
 #>
 param(
-    [string[]]$Files = @((Join-Path $PSScriptRoot '..\dist\ThinQQ.xlam'), (Join-Path $PSScriptRoot '..\dist\ThinQQ.core.xlam')),
+    [string[]]$Files = @((Join-Path $PSScriptRoot '..\dist\ThinQQ.xlam'), (Join-Path $PSScriptRoot '..\dist\ThinQQ.core.xlam'), (Join-Path $PSScriptRoot '..\dist\ThinQQ.ppam')),
     [string]$PfxPath = '',
     [string]$PfxPassword = '',
     [string]$Thumbprint = '',

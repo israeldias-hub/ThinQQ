@@ -194,14 +194,14 @@ Critérios das fases anteriores: (1) gráfico nativo e correto sem o ThinQQ; (2)
 - **Impressão digital (`PptSync_Fingerprint`).** SHA-256 (o `Sha256_Bytes` do core) do bloco inteiro do gráfico na `_ThinQQ` (valores, inclusive
   a linha de metadados com as opções), dos nomes e textos alternativos das formas `tqq_ann_*` e do tamanho da forma do slide.
 - **API pública (nunca propaga erro).** `Core_PptSyncPresentation(pres As Object, Optional force As Boolean = False) As String` (o `.ppam` chama por
-  `Application.Run` com o objeto da apresentação) e `Core_PptSyncOpen()` (botão do Excel: todas as apresentações abertas que não são somente
-  leitura, `force = True`, aviso por `Core_Notify` com o resumo de cada uma; sem PowerPoint aberto: "Abra a apresentação no PowerPoint e use
+  `Application.Run` com o objeto da apresentação) e `Core_PptSyncOpen()` (botão do Excel: todas as apresentações abertas, inclusive as somente
+  leitura (atualizadas só na memória; o PowerPoint pergunta se quer salvar ao fechar; só a atualização automática ao abrir pula as somente leitura), `force = True`, aviso por `Core_Notify` com o resumo de cada uma; sem PowerPoint aberto: "Abra a apresentação no PowerPoint e use
   de novo 'Atualizar gráficos no PowerPoint'.").
 
 ### 4.3 Suplemento do PowerPoint (`ThinQQ.ppam`, fonte em `src/ppt/`, prefixo `PptTqq_`)
 - `Auto_Open` liga `clsPptEvents` (`WithEvents App As Application`: o projeto do PowerPoint já referencia a biblioteca do PowerPoint; nenhuma
   referência extra). Eventos: `AfterPresentationOpen` e `WindowActivate` (este cobre a apresentação que sai do **Modo de Exibição Protegido**
-  ao clicar "Habilitar Edição", que não dispara a abertura de novo; cada apresentação é tratada **uma vez por sessão**, pelo caminho).
+  ao clicar "Habilitar Edição", que não dispara a abertura de novo; cada apresentação é tratada **uma vez enquanto a apresentação está aberta; esquecida ao fechar** (`PresentationCloseFinal`), pelo caminho: reabrir pergunta de novo, e "Salvar como" com outro nome ou pasta pode perguntar mais uma vez).
 - **Decisão ao abrir (`PptTqq_OnOpenAction`, pura):** nada sem gráficos marcados, já vista, somente leitura ou modo "nunca"; "sync" no modo
   "sempre"; "ask" no modo "perguntar" (padrão): "Esta apresentação tem N gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os
   dados atuais?" (Sim/Não). O modo fica em `HKCU\Software\VB and VBA Program Settings\ThinQQ\PowerPoint\OpenMode` (`ask|always|never`),

@@ -1471,37 +1471,127 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
 
 <section id="powerpoint" aria-labelledby="h-powerpoint">
   <h2 id="h-powerpoint">Copiar para o PowerPoint</h2>
-  <p>O menu <span class="ui">PowerPoint</span> (grupo <span class="ui">Gráfico selecionado</span>) cola o gráfico selecionado num slide, sem copiar e colar à mão. Os dois itens de copiar só ficam ativos com um gráfico do ThinQQ selecionado.</p>
-  <div class="tw" tabindex="0" role="region" aria-label="As duas formas de copiar para o PowerPoint">
+  <p>O menu <span class="ui">PowerPoint</span> (grupo <span class="ui">Gráfico selecionado</span>) cola o gráfico selecionado num slide, sem copiar e colar à mão, e atualiza os gráficos que já estão nos slides. O menu fica sempre ativo; os dois itens de copiar só ficam ativos com um gráfico do ThinQQ selecionado.</p>
+  <div class="tw" tabindex="0" role="region" aria-label="Os três itens do menu PowerPoint">
   <table>
-    <thead><tr><th scope="col">Item</th><th scope="col">O que cola</th></tr></thead>
+    <thead><tr><th scope="col">Item</th><th scope="col">O que faz</th></tr></thead>
     <tbody>
-      <tr><td><span class="ui">Copiar como imagem</span></td><td>Uma imagem do gráfico, com as setas e os colchetes, centralizada, com até 80% da largura (limitado pela altura do slide). Não depende do arquivo do Excel.</td></tr>
-      <tr><td><span class="ui">Copiar como gráfico vinculado</span></td><td>Um gráfico do próprio PowerPoint (editável e formatável lá) <strong>vinculado a esta pasta de trabalho</strong>: os dados vêm do arquivo do Excel. As setas e os colchetes do ThinQQ, que são formas dentro do gráfico, vêm junto.</td></tr>
+      <tr><td><span class="ui">Copiar como imagem</span></td><td>Cola uma imagem do gráfico, com as setas e os colchetes, centralizada, com até 80% da largura (limitado pela altura do slide). Não depende do arquivo do Excel e nunca é atualizada depois: é só uma imagem.</td></tr>
+      <tr><td><span class="ui">Copiar como gráfico vinculado</span></td><td>Cola um gráfico do próprio PowerPoint (editável e formatável lá) <strong>vinculado a esta pasta de trabalho</strong>: os dados vêm do arquivo do Excel. As setas e os colchetes do ThinQQ, que são formas dentro do gráfico, vêm junto, já no tamanho do slide.</td></tr>
+      <tr><td><span class="ui">Atualizar gráficos no PowerPoint</span></td><td>Atualiza os dados e as setas dos gráficos do ThinQQ colados como gráfico vinculado, em todas as apresentações abertas no PowerPoint. Funciona mesmo sem o suplemento do PowerPoint, mas o PowerPoint precisa estar aberto com a apresentação: o ThinQQ nunca abre o PowerPoint para isso. Veja <a href="#ppt-botao">O botão do Excel</a>.</td></tr>
     </tbody>
   </table>
   </div>
-  <p><span class="ui">PowerPoint</span> › <span class="ui">Atualizar gráficos no PowerPoint</span> atualiza dados e setas de todos os gráficos do ThinQQ colados como gráfico vinculado nas apresentações abertas no PowerPoint. Apresentações somente leitura são atualizadas só na memória (o PowerPoint vai perguntar se quer salvar ao fechar).</p>
+  <p>Para os gráficos vinculados se atualizarem sozinhos quando a apresentação é aberta, instale também o <strong>suplemento do PowerPoint</strong> (<code>ThinQQ.ppam</code>, que vem no ZIP): veja <a href="#ppt-suplemento">O suplemento do PowerPoint</a>.</p>
+
   <h3>Onde o gráfico é colado</h3>
   <ul>
     <li><strong>Com o PowerPoint aberto:</strong> no slide em exibição na <strong>janela ativa</strong> (a apresentação dessa janela). No Classificador de Slides e na Estrutura de Tópicos, o slide selecionado; nos modos de mestre e de anotações, o último slide da apresentação. Uma apresentação aberta ainda sem slides recebe um slide em branco.</li>
     <li><strong>Com o PowerPoint fechado (ou sem apresentação):</strong> o ThinQQ abre o PowerPoint e cria uma apresentação nova com um slide em branco.</li>
     <li>O ThinQQ nunca fecha o PowerPoint nem as apresentações que você já tinha abertos. No sucesso, o PowerPoint vem para o primeiro plano e o aviso diz o slide: "Gráfico copiado para o slide N de 'apresentação' como imagem." (ou "como gráfico vinculado.").</li>
   </ul>
+
   <h3>Gráfico vinculado</h3>
   <ul>
     <li><strong>A pasta de trabalho precisa estar salva</strong>: o vínculo aponta para o arquivo salvo. Pasta nova: "Salve a pasta de trabalho antes de copiar o gráfico vinculado: o vínculo aponta para o arquivo salvo."</li>
     <li>Com alterações não salvas, o gráfico é colado mas o aviso acrescenta "A pasta tem alterações não salvas: o PowerPoint lê o arquivo salvo nas atualizações do vínculo."</li>
-    <li>No PowerPoint, use <strong>Arquivo &gt; Informações &gt; Editar Links para Arquivos</strong> (em versões mais antigas, Editar Vínculos com Arquivos) para atualizar ou trocar a origem e <strong>Quebrar Vínculo</strong> para incorporar os dados (o gráfico deixa de acompanhar o Excel); com o gráfico selecionado, <strong>Design do Gráfico &gt; Atualizar Dados</strong> relê o arquivo salvo. <strong>Renomear ou mover o arquivo do Excel quebra o vínculo.</strong></li>
+    <li><strong>As setas no tamanho do slide.</strong> O PowerPoint ajusta o gráfico colado ao slide e, nas versões anteriores do ThinQQ, as setas, os colchetes e os rótulos de seta (formas dentro do gráfico) ficavam esticados e fora do lugar. Agora o ThinQQ recalcula essas formas para o tamanho que o gráfico tem no slide e as copia para dentro do gráfico do PowerPoint, no lugar. Se esse ajuste falhar na colagem, o gráfico fica colado mesmo assim e <span class="ui">Atualizar gráficos no PowerPoint</span> o refaz.</li>
+    <li>O gráfico colado leva uma marca invisível (etiquetas na forma do slide) com o gráfico, a pasta e a planilha de origem: é por ela que o ThinQQ o reconhece depois. A imagem não tem marca nem vínculo e nunca é atualizada.</li>
+    <li>No PowerPoint, use <strong>Arquivo &gt; Informações &gt; Editar Links para Arquivos</strong> (em versões mais antigas, Editar Vínculos com Arquivos) para atualizar ou trocar a origem e <strong>Quebrar Vínculo</strong> para incorporar os dados (o gráfico deixa de acompanhar o Excel e o ThinQQ passa a contá-lo como sem vínculo); com o gráfico selecionado, <strong>Design do Gráfico &gt; Atualizar Dados</strong> relê o arquivo salvo. <strong>Renomear ou mover o arquivo do Excel quebra o vínculo.</strong></li>
     <li>Se o PowerPoint colar o gráfico mas não manter o vínculo, o aviso diz: "Gráfico copiado para o slide N de 'apresentação' como gráfico do PowerPoint, mas sem vínculo com a pasta (o PowerPoint não manteve o vínculo): ele não acompanha as alterações dos dados." Uma pasta de trabalho aberta de um endereço da web (SharePoint ou OneDrive) pode não manter o vínculo: salve uma cópia no disco local.</li>
+    <li>Formatação feita no PowerPoint (cores, fontes, legenda movida) fica: a atualização é feita no lugar. Mas mudar a legenda ou o tamanho da área do gráfico no PowerPoint pode desalinhar as setas; se acontecer, refaça <span class="ui">Copiar como gráfico vinculado</span>.</li>
   </ul>
-  <h3>Mensagens e limites</h3>
+
+  <h3 id="ppt-botao">O botão do Excel: Atualizar gráficos no PowerPoint</h3>
+  <ul>
+    <li>Atualiza, em <strong>todas as apresentações abertas</strong> no PowerPoint (inclusive as somente leitura), os dados pelo vínculo do PowerPoint e as setas pelo ThinQQ, e mostra um aviso com o resumo de cada apresentação. Os gráficos que o ThinQQ não reconhece (imagens, gráficos comuns) são ignorados.</li>
+    <li>Usa o próprio Excel em que você clicou: as pastas abertas são lidas <strong>com as alterações não salvas</strong> (o vínculo do PowerPoint lê assim também), e uma pasta que estava salva continua salva. Uma pasta que não está aberta é aberta só para leitura e fechada no fim, sem salvar.</li>
+    <li>A barra de status do Excel mostra "ThinQQ: atualizando gráfico i de N do PowerPoint..." (com muitos gráficos, dezenas de segundos; estimativa, não medida num PowerPoint real).</li>
+    <li>Uma apresentação <strong>somente leitura</strong> é atualizada somente na memória: nada é gravado no arquivo, e o PowerPoint pergunta se quer salvar ao fechar (responda Não para descartar a atualização; Salvar como grava uma cópia).</li>
+    <li>Sem o PowerPoint aberto o botão só avisa; ele nunca abre o PowerPoint. Com um núcleo do ThinQQ antigo, o aviso é "Atualize o ThinQQ para usar este recurso.".</li>
+  </ul>
+
+  <h3 id="ppt-suplemento">O suplemento do PowerPoint: atualizar ao abrir</h3>
+  <p>O instalador do ZIP instala o suplemento <code>ThinQQ.ppam</code>. No PowerPoint (Office 16.0) aparece a aba <span class="ui">ThinQQ</span>, grupo <span class="ui">Gráficos do Excel</span>:</p>
+  <div class="tw" tabindex="0" role="region" aria-label="Controles do suplemento do PowerPoint">
+  <table>
+    <thead><tr><th scope="col">Controle</th><th scope="col">O que faz</th></tr></thead>
+    <tbody>
+      <tr><td><span class="ui">Atualizar gráficos</span></td><td>Atualiza agora, na apresentação ativa, os dados e as setas de todos os gráficos do ThinQQ vinculados, mesmo os que não mudaram, e mostra o resumo. Atualiza também uma apresentação somente leitura (só na memória).</td></tr>
+      <tr><td><span class="ui">Ao abrir</span></td><td>O que fazer quando você abre uma apresentação com gráficos do ThinQQ vinculados. A escolha vale para todas as suas apresentações e na hora.</td></tr>
+      <tr><td><span class="ui">Perguntar</span></td><td>O padrão: o suplemento pergunta "Atualizar agora com os dados atuais?" (Sim atualiza; Não deixa como está).</td></tr>
+      <tr><td><span class="ui">Atualizar sempre</span></td><td>Atualiza sem perguntar.</td></tr>
+      <tr><td><span class="ui">Não atualizar</span></td><td>Não pergunta nem atualiza ao abrir (o botão <span class="ui">Atualizar gráficos</span> continua valendo).</td></tr>
+      <tr><td><span class="ui">Sobre</span></td><td>Mostra a versão do suplemento.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <ul>
+    <li><strong>Quando acontece:</strong> ao abrir a apresentação, uma vez enquanto ela fica aberta; o suplemento a esquece ao fechar, e reabrir (com os dados possivelmente mudados) pergunta de novo. <strong>Salvar como</strong> com outro nome ou pasta pode perguntar mais uma vez. Só conta a apresentação que tem janela num PowerPoint visível: uma apresentação aberta por outro programa, sem janela, nunca pergunta nem atualiza. Ao iniciar o PowerPoint com a apresentação (por exemplo, com dois cliques no arquivo), o suplemento trata as apresentações que já estão abertas quando ele carrega (não verificado em PowerPoint real).</li>
+    <li><strong>Somente leitura:</strong> a atualização automática ao abrir <strong>pula</strong> as apresentações somente leitura (o usuário não poderia salvá-las); o botão <span class="ui">Atualizar gráficos</span> e o botão do Excel as atualizam somente na memória.</li>
+    <li><strong>A atualização altera a apresentação:</strong> o PowerPoint marca a apresentação como modificada e pergunta se quer salvar ao fechar, inclusive uma apresentação somente leitura. Responda Não para descartar.</li>
+    <li><strong>Modo de Exibição Protegido</strong> (anexo de e-mail ou arquivo baixado da internet): enquanto estiver protegida, nada acontece. Clique em <strong>Habilitar Edição</strong> e a pergunta aparece (não verificado em PowerPoint real).</li>
+    <li><strong>O que a atualização faz:</strong> (1) atualiza os dados pelo vínculo nativo do PowerPoint, sem mexer na animação nem na ordem das formas; (2) o ThinQQ recalcula as setas, os colchetes e os rótulos de seta para o tamanho do gráfico no slide e os aplica no lugar, criando a seta que você inseriu depois da colagem e apagando a que não existe mais no Excel; (3) a formatação feita no PowerPoint fica. Na atualização ao abrir, os gráficos que não mudaram (dados, setas e tamanho iguais aos da última atualização) são pulados e contados em "Sem mudança"; o botão <span class="ui">Atualizar gráficos</span> atualiza todos.</li>
+    <li><strong>O Desfazer do Excel é limpo</strong> ao colar um gráfico no PowerPoint e ao atualizar, porque o ThinQQ altera o gráfico do Excel por macro (o histórico do Desfazer do Excel não volta). No PowerPoint, trate a atualização como definitiva: para voltar, feche sem salvar.</li>
+    <li><strong>A atualização de um gráfico não é transacional:</strong> se falhar no meio, o gráfico do slide pode ficar parcialmente atualizado, com os dados novos e as setas antigas. O resumo conta a falha: use <span class="ui">Atualizar gráficos</span> de novo, que força a atualização de todos.</li>
+  </ul>
+
+  <h3>Qual Excel é usado</h3>
+  <p>O suplemento pede a atualização ao ThinQQ do Excel:</p>
+  <ol class="steps" role="list">
+    <li><strong>O Excel que você já tem aberto, se ele tem o ThinQQ.</strong> As pastas abertas são lidas com as alterações não salvas, como o vínculo do PowerPoint também lê; uma pasta que estava salva continua salva. Um Excel ocupado (célula em edição ou caixa de diálogo aberta) não é substituído por outro: o aviso pede para terminar o que está fazendo.</li>
+    <li><strong>Senão, um Excel novo e invisível</strong>, criado só para isso: ele carrega o ThinQQ instalado em <code>%LOCALAPPDATA%\ThinQQ\versions</code> (a versão mais nova que carregar), somente leitura, e é fechado no fim. O ThinQQ nunca carrega o núcleo no Excel que você já tem aberto sem ele e nunca fecha o seu Excel.</li>
+    <li><strong>A pasta de origem:</strong> a que já está aberta no Excel é usada como está; a que está fechada é aberta somente leitura (sem atualizar vínculos, sem entrar nos arquivos recentes) e fechada sem salvar. Uma pasta <strong>protegida por senha</strong> não é aberta: o ThinQQ não pergunta a senha e a pasta entra na lista "sem acesso" do resumo (o gráfico fica como estava).</li>
+  </ol>
+  <p>O PowerPoint espera a resposta do Excel <strong>sem tempo limite</strong>: se o Excel travar de vez (não apenas ocupado), o PowerPoint fica esperando; encerre o Excel que travou pelo Gerenciador de Tarefas para liberá-lo.</p>
+
+  <h3 id="ppt-mensagens">Mensagens da atualização</h3>
+  <div class="tw" tabindex="0" role="region" aria-label="Mensagens da atualização dos gráficos do PowerPoint">
+  <table>
+    <thead><tr><th scope="col">Mensagem</th><th scope="col">Quando aparece e o que fazer</th></tr></thead>
+    <tbody>
+      <tr><td>Esta apresentação tem N gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?<br />Para não perguntar mais: aba ThinQQ &gt; Ao abrir.</td><td>A pergunta ao abrir, com <span class="ui">Perguntar</span>. Para não ver mais, escolha <span class="ui">Atualizar sempre</span> ou <span class="ui">Não atualizar</span>.</td></tr>
+      <tr><td>Gráficos do ThinQQ atualizados: N. Sem mudança: M.</td><td>O resumo. "Sem mudança" são os gráficos que já estavam iguais (só na atualização ao abrir).</td></tr>
+      <tr><td>Pasta de origem não encontrada ou sem acesso (o gráfico ficou como estava): arquivos. Se ela foi movida ou renomeada, use no PowerPoint Arquivo &gt; Informações &gt; Editar Links para Arquivos &gt; Alterar Origem.</td><td>O arquivo do Excel foi movido, renomeado ou apagado, a rede não responde, a pasta é protegida por senha ou está corrompida. O gráfico ficou como estava. Aponte o vínculo para o arquivo novo com <strong>Alterar Origem</strong> e atualize de novo.</td></tr>
+      <tr><td>Gráfico não encontrado na pasta de origem (apagado ou recriado): K.</td><td>A pasta abriu, mas o gráfico do ThinQQ que ela tinha não existe mais (ou foi recriado com outro identificador). Cole o gráfico de novo com <span class="ui">Copiar como gráfico vinculado</span>.</td></tr>
+      <tr><td>Sem vínculo com o Excel (Quebrar Vínculo no PowerPoint): U.</td><td>O vínculo foi quebrado no PowerPoint: o gráfico não é tocado. Cole de novo se quiser que volte a acompanhar o Excel.</td></tr>
+      <tr><td>Falha ao atualizar: F (veja o log do ThinQQ).</td><td>Um gráfico falhou (a atualização dele pode ter ficado parcial). Os detalhes ficam em <code>%LOCALAPPDATA%\ThinQQ\logs\thinqq.log</code>; use <span class="ui">Atualizar gráficos</span> de novo.</td></tr>
+      <tr><td>Esta apresentação não tem gráficos do ThinQQ vinculados.</td><td>No PowerPoint: nenhum gráfico solto no slide tem a marca do ThinQQ. Imagens e gráficos <strong>dentro de um grupo</strong> não contam.</td></tr>
+      <tr><td>Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado').</td><td>O mesmo aviso, vindo do botão do Excel (uma linha por apresentação aberta).</td></tr>
+      <tr><td>Abra uma apresentação primeiro.</td><td>O botão <span class="ui">Atualizar gráficos</span> do PowerPoint sem nenhuma apresentação aberta.</td></tr>
+      <tr><td>Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'.</td><td>O botão do Excel sem PowerPoint aberto (ou sem apresentação).</td></tr>
+      <tr><td>O Excel não está instalado (ou não pôde ser iniciado): os gráficos do ThinQQ não foram atualizados.</td><td>O suplemento não conseguiu iniciar o Excel. Nada foi atualizado.</td></tr>
+      <tr><td>O ThinQQ não está instalado no Excel deste computador: só os dados foram atualizados; setas e outras anotações do ThinQQ ficaram como estavam.</td><td>Não há o ThinQQ (núcleo) para carregar: só os dados pelo vínculo do PowerPoint. Instale o ThinQQ no Excel e atualize de novo.</td></tr>
+      <tr><td>Dados atualizados em N gráfico(s); M sem a pasta de origem (ficaram como estavam).</td><td>O resumo do modo só dos dados (sem o ThinQQ no Excel, ou com o ThinQQ antigo).</td></tr>
+      <tr><td>Atualize o ThinQQ no Excel para atualizar também as setas.</td><td>O ThinQQ do Excel é anterior à 1.4.0 e não conhece o pedido do suplemento: só os dados foram atualizados. Use <span class="ui">Verificar atualizações</span>.</td></tr>
+      <tr><td>O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e use ThinQQ &gt; Atualizar gráficos.</td><td>O Excel recusou o pedido porque está ocupado. Termine a edição, feche a caixa de diálogo e use <span class="ui">Atualizar gráficos</span> na aba do PowerPoint.</td></tr>
+      <tr><td>Não foi possível atualizar os gráficos do ThinQQ: motivo (código).</td><td>Falha inesperada. O motivo e o código ajudam a diagnosticar; tente de novo e, se persistir, veja o log.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Limites e o que fazer</h3>
+  <ul>
+    <li><strong>Sem o suplemento ou sem o ThinQQ no Excel só os dados atualizam.</strong> Quem abre a apresentação sem o suplemento do PowerPoint (um colega sem o ThinQQ, ou você antes de instalar) vê um gráfico vinculado comum: <strong>Design do Gráfico &gt; Atualizar Dados</strong> ou <strong>Editar Links para Arquivos</strong> atualiza as séries e os rótulos ligados, mas as setas e os textos de seta ficam como estavam (o "+20" de uma seta continua "+20"). Com o suplemento mas sem o ThinQQ no Excel, o resultado é o mesmo, com o aviso da tabela acima.</li>
+    <li><strong>Modo de Exibição Protegido:</strong> clique em <strong>Habilitar Edição</strong> para a pergunta aparecer.</li>
+    <li><strong>Pasta movida ou renomeada:</strong> o gráfico fica como estava e o aviso lista o arquivo; no PowerPoint, <strong>Arquivo &gt; Informações &gt; Editar Links para Arquivos &gt; Alterar Origem</strong> aponta o vínculo para o arquivo novo. O ThinQQ nunca tenta atualizar uma origem que não existe, porque o PowerPoint trava nesse caso.</li>
+    <li><strong>Pasta em rede:</strong> se o compartilhamento estiver fora do ar, a verificação do arquivo pode demorar alguns segundos antes de a pasta entrar na lista "sem acesso".</li>
+    <li><strong>Pasta no SharePoint ou OneDrive (endereço da web):</strong> só é atualizada pelo ThinQQ se estiver aberta no Excel; fechada, ela entra na lista "sem acesso".</li>
+    <li><strong>Gráfico dentro de um grupo</strong> no slide fica de fora (só formas soltas são reconhecidas); desagrupe-o se quiser que o ThinQQ o atualize.</li>
+    <li>A atualização muda a apresentação, limpa o Desfazer do Excel e não é transacional (veja acima). A colagem usa a <strong>área de transferência do Windows</strong>: o que você tinha copiado antes é substituído.</li>
+  </ul>
+  <h3>Mensagens da colagem</h3>
   <ul>
     <li>"O PowerPoint não está instalado neste computador (ou não pôde ser iniciado)."</li>
     <li>"A área de transferência do Windows não está disponível (outro programa a mantém aberta). Tente novamente em instantes." (o ThinQQ já tenta 3 vezes antes de avisar).</li>
     <li>"O PowerPoint está ocupado (uma caixa de diálogo aberta ou um texto em edição). Termine o que está fazendo nele e tente de novo."</li>
-    <li>A colagem usa a <strong>área de transferência do Windows</strong>: o que você tinha copiado antes é substituído.</li>
   </ul>
+
+  <h3>Instalação manual do suplemento</h3>
+  <p>O <code>ThinQQ.ppam</code> fica na raiz de <code>%LOCALAPPDATA%\ThinQQ</code>, ao lado do <code>ThinQQ.xlam</code>, e precisa do PowerPoint do Office 16.0 (2016, 2019, 2021 ou Microsoft 365). Se o script do instalador for bloqueado, siga a <strong>INSTALAÇÃO MANUAL</strong> do <code>LEIA-ME.txt</code>: copie o <code>ThinQQ.ppam</code> para essa pasta, desbloqueie-o (Propriedades &gt; Desbloquear), adicione <code>%LOCALAPPDATA%\ThinQQ</code>, com as subpastas, como Local Confiável <strong>do PowerPoint</strong> e, no PowerPoint, em Arquivo &gt; Opções &gt; Suplementos &gt; Gerenciar: Suplementos do PowerPoint &gt; Ir... &gt; Adicionar novo..., escolha o arquivo. O instalador faz isso por você e, para quem o instalou, o Excel atualiza o suplemento junto com o ThinQQ (veja <a href="#atualizar">Atualizações</a>).</p>
+  <div class="warn">
+    <p><strong>Ainda não verificado num PowerPoint real:</strong> o carregamento do <code>ThinQQ.ppam</code> pelo PowerPoint e a aba <span class="ui">ThinQQ</span>, a abertura pela interface (pergunta, atualização sempre e sem atualização), o Modo de Exibição Protegido com <strong>Habilitar Edição</strong>, a abertura por duplo clique no arquivo e o tempo com dezenas de gráficos. O que está testado automaticamente é o motor de atualização, o suplemento (com um PowerPoint e um Excel próprios, sem a faixa) e o instalador. O roteiro manual está no README, em "Verificações manuais".</p>
+  </div>
 </section>
 
 <section id="opcoes" aria-labelledby="h-opcoes">
@@ -1580,6 +1670,23 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
     <li><span class="ui">Configurações</span> mostra a fonte de atualização e permite trocá-la: o endereço (<code>https://...</code>) do <code>manifest.json</code>, ou o caminho de uma pasta ou arquivo, inclusive de rede ou de uma pasta do OneDrive/Teams sincronizada. Variáveis como <code>%USERPROFILE%</code> funcionam. Deixe em branco para voltar à fonte padrão (o repositório do ThinQQ no GitHub).</li>
     <li><span class="ui">Sobre</span> mostra as versões do carregador e do núcleo e a pasta de instalação.</li>
   </ul>
+  <h3 id="atualizar-ppam">O suplemento do PowerPoint</h3>
+  <p>O suplemento do PowerPoint é atualizado automaticamente pelo Excel, junto com o ThinQQ (arquivo <code>ThinQQ.ppam</code>), mas <strong>só para quem o instalou pelo ZIP</strong>: o atualizador nunca instala o suplemento para quem não o tem. O arquivo novo é baixado e conferido pelo SHA-256 do manifesto (que é obrigatório para ele) antes de o núcleo ser trocado, e o núcleo e o suplemento saem sempre na mesma versão. Um núcleo mais antigo que o suplemento faz o suplemento atualizar só os dados (veja <a href="#powerpoint">Copiar para o PowerPoint</a>).</p>
+  <ul>
+    <li><strong>Para desligar:</strong> a janela de atualização tem a caixa <span class="ui">Atualizar também o suplemento do PowerPoint (feche o PowerPoint para aplicar na hora)</span>, ligada por padrão e visível só para quem tem o suplemento; <span class="ui">Configurações</span> também pergunta "Atualizar também o suplemento do PowerPoint automaticamente?". Desligada, nada do suplemento é baixado.</li>
+    <li><strong>Com o PowerPoint fechado</strong> a troca é imediata. <strong>Com o PowerPoint aberto</strong>, o arquivo pode estar em uso: então a troca fica para quando o PowerPoint fechar, e o Excel a aplica sozinho na próxima abertura e, enquanto estiver aberto, tentando de novo a cada 10 minutos. Se o arquivo estava livre, a troca é imediata e basta fechar e abrir o PowerPoint para usar a versão nova.</li>
+  </ul>
+  <div class="tw" tabindex="0" role="region" aria-label="Avisos da atualização do suplemento do PowerPoint">
+  <table>
+    <thead><tr><th scope="col">Aviso</th><th scope="col">O que significa</th></tr></thead>
+    <tbody>
+      <tr><td>Suplemento do PowerPoint atualizado.</td><td>Trocado agora, com o PowerPoint fechado.</td></tr>
+      <tr><td>Suplemento do PowerPoint atualizado: feche e abra o PowerPoint para usar a versão nova.</td><td>Trocado com o PowerPoint aberto (o arquivo estava livre). O PowerPoint continua com a versão antiga até você fechá-lo e abri-lo.</td></tr>
+      <tr><td>O suplemento do PowerPoint será atualizado automaticamente quando o PowerPoint for fechado (o Excel tenta de novo a cada 10 minutos e na próxima abertura).</td><td>O arquivo estava em uso. O novo já foi baixado e conferido e espera; feche o PowerPoint.</td></tr>
+      <tr><td>O suplemento do PowerPoint não foi atualizado agora; nova tentativa na próxima verificação.</td><td>O download ou a conferência do suplemento falhou. O núcleo foi atualizado normalmente e a próxima verificação tenta o suplemento de novo.</td></tr>
+    </tbody>
+  </table>
+  </div>
   <div class="warn">
     <p><strong>Visibilidade do repositório:</strong> a fonte padrão é o <code>release/manifest.json</code> do repositório do ThinQQ no GitHub, que hoje é público: qualquer pessoa baixa as releases e recebe as atualizações. Se o repositório voltar a ser privado, quem não tem acesso a ele não alcança o manifesto: a consulta falha em silêncio (sem aviso de versão nova) e as releases não podem ser baixadas. Quem mantém o ThinQQ pode dar acesso às pessoas, abrir o repositório ou publicar o ZIP e o manifesto numa pasta compartilhada (e cada pessoa aponta <span class="ui">Configurações</span> para o <code>manifest.json</code> dela). O tutorial online (GitHub Pages) também não abre sem acesso a um repositório privado; o tutorial do ZIP, aberto por <span class="ui">Tutorial</span>, funciona sempre.</p>
   </div>
@@ -1608,35 +1715,38 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
 
 <section id="instalar" aria-labelledby="h-instalar">
   <h2 id="h-instalar">Instalar e desinstalar</h2>
-  <p>Feito para o Excel do Office 16.0 (2016, 2019, 2021 e Microsoft 365) para Windows, sem precisar ser administrador; os testes automáticos rodaram no Excel 2019 de 32 bits e as demais versões são esperadas, não testadas. O passo a passo completo, incluindo a instalação manual, está no arquivo <code>LEIA-ME.txt</code> que vem no ZIP.</p>
+  <p>Feito para o Excel e o PowerPoint do Office 16.0 (2016, 2019, 2021 e Microsoft 365) para Windows, sem precisar ser administrador; os testes automáticos rodaram no Excel 2019 de 32 bits e as demais versões são esperadas, não testadas. O passo a passo completo, incluindo a instalação manual, está no arquivo <code>LEIA-ME.txt</code> que vem no ZIP.</p>
+  <p>A instalação tem <strong>três arquivos</strong>: <code>ThinQQ.xlam</code> (o carregador, com a faixa do Excel e as atualizações), <code>ThinQQ.core.xlam</code> (o núcleo, que desenha os gráficos) e <code>ThinQQ.ppam</code> (o suplemento do PowerPoint, que atualiza os gráficos colados nos slides). O <code>ThinQQ.ppam</code> é opcional: um ZIP anterior à versão 1.4.0 não o traz e instala só o Excel.</p>
   <ol class="steps" role="list">
-    <li>Descompacte o ZIP inteiro em uma pasta (não execute de dentro do ZIP) e feche o Excel.</li>
+    <li>Descompacte o ZIP inteiro em uma pasta (não execute de dentro do ZIP) e feche o Excel e o PowerPoint.</li>
     <li>Dê dois cliques em <code>Instalar-ThinQQ.cmd</code>. Se o Windows perguntar, clique em Executar.</li>
-    <li>Abra o Excel: a aba <span class="ui">ThinQQ</span> aparece na faixa de opções.</li>
+    <li>Abra o Excel: a aba <span class="ui">ThinQQ</span> aparece na faixa de opções. No PowerPoint, a aba <span class="ui">ThinQQ</span> traz o grupo <span class="ui">Gráficos do Excel</span> (veja <a href="#powerpoint">Copiar para o PowerPoint</a>).</li>
   </ol>
-  <p>Para <strong>desinstalar</strong>, feche o Excel e, na pasta onde descompactou o ZIP, execute <code>powershell -ExecutionPolicy Bypass -File uninstall.ps1</code>. Isso remove o suplemento, o local confiável, as configurações e a pasta <code>%LOCALAPPDATA%\ThinQQ</code>.</p>
+  <p>Para <strong>desinstalar</strong>, feche o Excel e o PowerPoint e, na pasta onde descompactou o ZIP, execute <code>powershell -ExecutionPolicy Bypass -File uninstall.ps1</code>. Isso remove o suplemento do Excel e o do PowerPoint (<code>AddIns\ThinQQ</code>), os locais confiáveis dos dois, as configurações e a pasta <code>%LOCALAPPDATA%\ThinQQ</code>.</p>
   <p>Se o script for bloqueado pela política da empresa, use a instalação manual do <code>LEIA-ME.txt</code>; para assinatura digital e políticas de macros, veja <a href="#instalacao-ti">Instalação em empresas (TI)</a>. O ZIP também traz a pasta <code>exemplos</code> com o Excel de demonstração (veja <a href="#demonstracao">Pasta de demonstração</a>); o instalador não o instala nem o abre.</p>
   <h3>O que o instalador altera</h3>
   <ul>
     <li>Copia os arquivos para <code>%LOCALAPPDATA%\ThinQQ</code> (o carregador na raiz, o núcleo e o tutorial em <code>versions\&lt;versão&gt;</code>), sem precisar de administrador.</li>
     <li>Registra o suplemento: um valor <code>OPEN</code> (ou <code>OPEN1</code>, <code>OPEN2</code>...) em <code>HKCU\Software\Microsoft\Office\16.0\Excel\Options</code>.</li>
     <li>Cria o Local Confiável <code>LocationThinQQ</code> em <code>HKCU\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations</code> para <code>%LOCALAPPDATA%\ThinQQ\</code>, <strong>incluindo as subpastas</strong>: macros dessa pasta rodam sem aviso.</li>
-    <li>Grava as configurações do atualizador em <code>HKCU\Software\VB and VBA Program Settings\ThinQQ</code>.</li>
+    <li>Copia também o <code>ThinQQ.ppam</code> para a raiz de <code>%LOCALAPPDATA%\ThinQQ</code> e registra o suplemento do PowerPoint em <code>HKCU\Software\Microsoft\Office\16.0\PowerPoint\AddIns\ThinQQ</code> (valores <code>Path</code> e <code>AutoLoad</code>).</li>
+    <li>Cria o Local Confiável do PowerPoint <code>HKCU\Software\Microsoft\Office\16.0\PowerPoint\Security\Trusted Locations\LocationThinQQ</code>, também para <code>%LOCALAPPDATA%\ThinQQ\</code> com subpastas: macros dessa pasta rodam sem aviso.</li>
+    <li>Grava as configurações do atualizador em <code>HKCU\Software\VB and VBA Program Settings\ThinQQ</code> (ali ficam também a versão instalada do suplemento do PowerPoint e, em <code>PowerPoint\OpenMode</code>, a opção "Ao abrir").</li>
     <li>Nada é gravado em <code>HKLM</code> nem fora do perfil do usuário. O desinstalador desfaz tudo isso.</li>
   </ul>
 </section>
 
 <section id="instalacao-ti" aria-labelledby="h-instalacao-ti">
   <h2 id="h-instalacao-ti">Instalação em empresas (TI)</h2>
-  <p>Esta seção é para quem administra os computadores. O ThinQQ chega sem assinatura digital de fábrica: a integridade das atualizações vem da conferência SHA-256 contra o manifesto, e o instalador cria um Local Confiável <strong>por usuário</strong>, que uma política da empresa pode ignorar ou proibir. Em ambientes que bloqueiam macros não assinadas, o roteiro é assinar os dois arquivos com um certificado da própria empresa.</p>
+  <p>Esta seção é para quem administra os computadores. O ThinQQ chega sem assinatura digital de fábrica: a integridade das atualizações vem da conferência SHA-256 contra o manifesto, e o instalador cria um Local Confiável <strong>por usuário</strong>, que uma política da empresa pode ignorar ou proibir. Em ambientes que bloqueiam macros não assinadas, o roteiro é assinar os arquivos (os dois <code>.xlam</code> e o <code>.ppam</code>) com um certificado da própria empresa.</p>
   <h3>O que a TI pode fazer</h3>
   <ol class="steps" role="list">
     <li><strong>Certificado interno.</strong> Peça (à autoridade certificadora da empresa) um certificado de assinatura de código.</li>
-    <li><strong>Assinar os dois <code>.xlam</code></strong> (<code>ThinQQ.xlam</code> e <code>ThinQQ.core.xlam</code>). Caminho manual, sempre disponível: abra o arquivo no Excel, no Editor do VBA (Alt+F11) use <strong>Ferramentas &gt; Assinatura Digital</strong>, escolha o certificado e salve (assinatura V3 do projeto VBA). Caminho automático, num servidor de build: <code>signtool</code> do Windows SDK mais os <em>Office Subject Interface Packages</em> (as DLLs de assinatura de projetos VBA, registradas com administrador), com <code>tools/Sign-ThinQQ.ps1</code> ou <code>build/release.ps1 -SignPfx</code> (que assina antes de calcular os SHA-256 do manifesto).</li>
+    <li><strong>Assinar os dois <code>.xlam</code> e o <code>.ppam</code></strong> (<code>ThinQQ.xlam</code>, <code>ThinQQ.core.xlam</code> e <code>ThinQQ.ppam</code>). Caminho manual, sempre disponível: abra o arquivo no Excel (o <code>.ppam</code>, no PowerPoint; não verificado em PowerPoint real), no Editor do VBA (Alt+F11) use <strong>Ferramentas &gt; Assinatura Digital</strong>, escolha o certificado e salve (assinatura V3 do projeto VBA). Caminho automático, num servidor de build: <code>signtool</code> do Windows SDK mais os <em>Office Subject Interface Packages</em> (as DLLs de assinatura de projetos VBA, registradas com administrador), com <code>tools/Sign-ThinQQ.ps1</code> ou <code>build/release.ps1 -SignPfx</code> (que assina antes de calcular os SHA-256 do manifesto).</li>
     <li><strong>Distribuir o certificado em Editores Confiáveis</strong> (Trusted Publishers) por política de grupo (GPO): Configuração do Computador &gt; Políticas &gt; Configurações do Windows &gt; Configurações de Segurança &gt; Políticas de Chave Pública &gt; Editores Confiáveis. Para um único usuário, <code>tools/Trust-ThinQQPublisher.ps1 -CerPath arquivo.cer</code> (com <code>-Scope LocalMachine</code>, exige administrador).</li>
     <li><strong>Ou um local confiável corporativo.</strong> O instalador já registra <code>%LOCALAPPDATA%\ThinQQ</code> (com subpastas) como Local Confiável do usuário; a empresa também pode distribuir um local confiável por GPO.</li>
     <li><strong>Política do Office:</strong> com "Only trust VBA macros that use V3 signatures" os projetos precisam ter a assinatura V3 que o Editor do VBA grava.</li>
-    <li><strong>Reassine a cada release</strong> (os arquivos do build são novos a cada versão) e publique os SHA-256 dos arquivos assinados. <strong>Atualizações:</strong> pela fonte padrão, a atualização automática instalaria o próximo <code>.xlam</code> sem assinatura e, com política de só macros assinadas, o ThinQQ deixaria de carregar; aponte a fonte (<span class="ui">Configurações</span> ou <code>install.ps1 -UpdateSource</code>) para um <code>manifest.json</code> interno com os arquivos assinados (<code>release.ps1 -SignPfx</code> ou SHA-256 recalculado depois de assinar).</li>
+    <li><strong>Reassine a cada release</strong> (os arquivos do build são novos a cada versão) e publique os SHA-256 dos arquivos assinados. <strong>Atualizações:</strong> pela fonte padrão, a atualização automática instalaria o próximo <code>.xlam</code> (e o <code>.ppam</code>) sem assinatura e, com política de só macros assinadas, o ThinQQ deixaria de carregar; aponte a fonte (<span class="ui">Configurações</span> ou <code>install.ps1 -UpdateSource</code>) para um <code>manifest.json</code> interno com os arquivos assinados (<code>release.ps1 -SignPfx</code> ou SHA-256 recalculado depois de assinar).</li>
   </ol>
   <h3>O que o repositório entrega</h3>
   <ul>
@@ -1654,6 +1764,8 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
     <thead><tr><th scope="col">O que você vê</th><th scope="col">O que fazer</th></tr></thead>
     <tbody>
       <tr><td>&quot;As macros foram desabilitadas&quot; ou a aba <span class="ui">ThinQQ</span> não aparece</td><td>Feche o Excel e rode o <code>Instalar-ThinQQ.cmd</code> de novo: ele desbloqueia os arquivos e cria o local confiável. Na instalação manual, desbloqueie cada <code>.xlam</code> (Propriedades, Desbloquear) e adicione <code>%LOCALAPPDATA%\ThinQQ</code> como Local Confiável. Se a política da empresa bloquear macros em pastas do usuário, fale com a TI.</td></tr>
+      <tr><td>A aba <span class="ui">ThinQQ</span> não aparece no PowerPoint</td><td>Feche o PowerPoint e o Excel e rode o <code>Instalar-ThinQQ.cmd</code> de novo (o ZIP precisa trazer o <code>ThinQQ.ppam</code>; um ZIP anterior à 1.4.0 não o traz). O suplemento precisa do PowerPoint do Office 16.0. Na instalação manual, desbloqueie o <code>ThinQQ.ppam</code>, adicione <code>%LOCALAPPDATA%\ThinQQ</code> (com subpastas) como Local Confiável <strong>do PowerPoint</strong> e confira em Arquivo &gt; Opções &gt; Suplementos que ele está ativo (não verificado em PowerPoint real).</td></tr>
+      <tr><td>O PowerPoint não pergunta nem atualiza ao abrir a apresentação</td><td>Confira, na aba <span class="ui">ThinQQ</span> do PowerPoint, se <span class="ui">Ao abrir</span> está em <span class="ui">Não atualizar</span>. Apresentações somente leitura, apresentações sem gráfico colado como gráfico vinculado (uma imagem não conta), gráficos dentro de um grupo e apresentações em Modo de Exibição Protegido (antes de <strong>Habilitar Edição</strong>) não perguntam; a apresentação já tratada também não pergunta de novo enquanto está aberta. Use o botão <span class="ui">Atualizar gráficos</span>.</td></tr>
       <tr><td>O antivírus ou o proxy bloqueou o download, ou o <code>ThinQQ.xlam</code> sumiu</td><td>Confira a quarentena do antivírus e restaure o arquivo (ou peça à TI para liberar <code>%LOCALAPPDATA%\ThinQQ</code>). Se o download pelo atualizador falhar atrás de um proxy, baixe o ZIP pelo navegador e reinstale.</td></tr>
       <tr><td>A aba existe, mas os botões não fazem nada</td><td>O núcleo do ThinQQ não carregou. Use <span class="ui">Verificar atualizações</span> ou reinstale; confira a pasta <code>%LOCALAPPDATA%\ThinQQ\versions</code>.</td></tr>
       <tr><td>Botões do grupo <span class="ui">Gráfico selecionado</span> em cinza</td><td>Eles só funcionam com um gráfico criado pelo ThinQQ selecionado. Clique no gráfico, não em uma célula. Com um gráfico selecionado, o que o tipo dele não aceita também fica cinza: veja <a href="#matriz">O que cada tipo aceita</a>.</td></tr>
@@ -1711,7 +1823,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
   </details>
   <details>
     <summary>Posso colar o gráfico no PowerPoint?</summary>
-    <div><p>Sim, de duas formas. Pelo ThinQQ: o menu <span class="ui">PowerPoint</span> cola o gráfico como imagem ou como gráfico vinculado (veja <a href="#powerpoint">Copiar para o PowerPoint</a>). À mão: copie o gráfico no Excel e cole no PowerPoint como imagem ou mantendo o vínculo com o Excel, como faria com qualquer gráfico.</p></div>
+    <div><p>Sim, de duas formas. Pelo ThinQQ: o menu <span class="ui">PowerPoint</span> cola o gráfico como imagem ou como gráfico vinculado e, com o suplemento do PowerPoint, os gráficos vinculados se atualizam (dados e setas) quando você abre a apresentação (veja <a href="#powerpoint">Copiar para o PowerPoint</a>). À mão: copie o gráfico no Excel e cole no PowerPoint como imagem ou mantendo o vínculo com o Excel, como faria com qualquer gráfico.</p></div>
   </details>
   <details>
     <summary>O que é a planilha <code>_ThinQQ</code>?</summary>
@@ -1735,7 +1847,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
   </details>
   <details>
     <summary>O ThinQQ tem assinatura digital? Posso confiar nas atualizações?</summary>
-    <div><p>Os arquivos do ThinQQ <strong>não vêm assinados</strong>; a TI pode assinar os dois <code>.xlam</code> com um certificado da empresa (veja <a href="#instalacao-ti">Instalação em empresas (TI)</a>). Sem assinatura, a proteção das atualizações é a conferência SHA-256 dos arquivos baixados contra o manifesto. Isso significa que <strong>quem controla a branch <code>main</code> do repositório e os arquivos de uma release controla o código que roda no Excel dos colegas</strong>. Proteja a conta do GitHub com autenticação em dois fatores e limite quem pode publicar. Em ambientes corporativos, prefira uma fonte de atualização interna (pasta de rede) sob controle da TI.</p></div>
+    <div><p>Os arquivos do ThinQQ <strong>não vêm assinados</strong>; a TI pode assinar os dois <code>.xlam</code> e o <code>.ppam</code> com um certificado da empresa (veja <a href="#instalacao-ti">Instalação em empresas (TI)</a>). Sem assinatura, a proteção das atualizações é a conferência SHA-256 dos arquivos baixados contra o manifesto. Isso significa que <strong>quem controla a branch <code>main</code> do repositório e os arquivos de uma release controla o código que roda no Excel dos colegas</strong>. Proteja a conta do GitHub com autenticação em dois fatores e limite quem pode publicar. Em ambientes corporativos, prefira uma fonte de atualização interna (pasta de rede) sob controle da TI.</p></div>
   </details>
   <details>
     <summary>O ThinQQ envia meus dados para algum lugar?</summary>
@@ -1745,7 +1857,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
 
 <section id="limites" aria-labelledby="h-limites">
   <h2 id="h-limites">Limitações</h2>
-  <p>O que o ThinQQ 1.3.0 não faz, ou faz com ressalvas. Os limites de cada tipo também aparecem na seção dele.</p>
+  <p>O que o ThinQQ não faz, ou faz com ressalvas. Os limites de cada tipo também aparecem na seção dele.</p>
 
   <h3>Em geral</h3>
   <ul>
@@ -1757,6 +1869,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
     <li>Ao copiar uma planilha inteira com um gráfico do ThinQQ (<em>Mover ou copiar &gt; Criar uma cópia</em>), o aviso aparece uma vez e você usa <span class="ui">Alterar dados</span> no gráfico da cópia, para separá-lo do original.</li>
     <li>O <strong>texto</strong> das setas de CAGR e de diferença e dos colchetes é calculado e gravado pelo ThinQQ: sem ele, o texto <strong>não se recalcula</strong> quando os números mudam (e a posição só é refeita por ele).</li>
     <li>O menu <span class="ui">PowerPoint</span> usa a área de transferência do Windows e substitui o que estava nela; uma pasta de trabalho aberta de um endereço da web (SharePoint ou OneDrive) pode não manter o vínculo do gráfico vinculado.</li>
+    <li>A atualização dos gráficos no PowerPoint (suplemento ou botão do Excel) só atualiza dados e setas quando o ThinQQ está instalado no Excel; sem o suplemento do PowerPoint ou sem o ThinQQ no Excel só os dados atualizam. Ela marca a apresentação como modificada, limpa o Desfazer do Excel e não é transacional: se falhar no meio, o gráfico pode ficar parcialmente atualizado.</li>
   </ul>
 
   <h3>Escalas, espaço e layout</h3>
@@ -1780,7 +1893,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
     <li><strong>Dispersão e bolhas:</strong> inserir 300 linhas com 4 grupos leva cerca de 28 s; uma linha acrescentada depois da última linha da tabela não é detectada; o ThinQQ regrava a posição e a cor de um rótulo de bolha mudado à mão; um grupo novo exige <span class="ui">Alterar dados</span>; colunas extras depois da coluna de grupo são ignoradas.</li>
     <li><strong>Arredondamento:</strong> o <span class="ui">Arredondar intervalo...</span> aceita até 1.000 células; texto na origem dá <code>#VALOR!</code>; a sobrescrita do destino não pode ser desfeita; origem em percentual mantém o percentual; planilha protegida precisa permitir Formatar células; nos rótulos com soma consistente, série só reordenada à mão é ligada por posição e, depois de apagar uma série à mão, os segmentos voltam aos rótulos simples sem aviso.</li>
     <li><strong>Corte de eixo:</strong> só em colunas e barras empilhadas e agrupadas; não é compressão de escala; a linha de valor (média) acima do corte some; não convive com <span class="ui">Mesma escala</span>.</li>
-    <li><strong>Copiar para o PowerPoint:</strong> usa e substitui a área de transferência do Windows; o gráfico vinculado exige a pasta salva e perde o vínculo se o arquivo do Excel for renomeado ou movido.</li>
+    <li><strong>Copiar para o PowerPoint:</strong> usa e substitui a área de transferência do Windows; o gráfico vinculado exige a pasta salva e perde o vínculo se o arquivo do Excel for renomeado ou movido (o aviso ensina <strong>Alterar Origem</strong>); gráfico dentro de um grupo no slide fica de fora da atualização; pasta protegida por senha ou em endereço da web fechado entra na lista "sem acesso"; formatação do gráfico feita no PowerPoint fica, mas mudar a legenda ou a área do gráfico lá pode desalinhar as setas (refaça <span class="ui">Copiar como gráfico vinculado</span>); o Excel travado deixa o PowerPoint esperando, sem tempo limite. O carregamento do suplemento, o Modo de Exibição Protegido e a abertura por duplo clique não foram verificados num PowerPoint real.</li>
     <li><strong>Mekko:</strong> sem setas; colunas estreitas e muitas categorias sobrepõem rótulos e nomes; no Mekko (%) os valores negativos entram como zero; nas unidades, texto, vazio, zero ou negativo na largura apagam a coluna; o eixo de valores fica oculto.</li>
     <li><strong>Gantt:</strong> sem sombreamento de fins de semana, colunas de responsável e observação separadas, âncoras, setas de processo nem escala de dias; os separadores ficam sobre as barras; o intervalo do eixo só é recalculado pelo ThinQQ; fim antes do início dá barra de largura zero, texto no fim vira marco e linhas só com fim estendem o eixo; acima de uns 39 anos de intervalo a escala de anos passa de 40 marcas, e a de trimestres vai só até 3.500 dias.</li>
     <li><strong>Pizza e rosca:</strong> só a primeira coluna de valores; valores negativos, zero, texto e erros viram fatias vazias; com mais de 10 fatias as cores se repetem; a rosca não tem rótulos fora; as linhas de chamada da pizza só aparecem depois que você arrasta um rótulo (limite do Excel); rótulos de fatias pequenas podem transbordar.</li>
@@ -1789,7 +1902,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
 
 <section id="como" aria-labelledby="h-como">
   <h2 id="h-como">Como funciona</h2>
-  <p>O ThinQQ tem dois arquivos: o <em>carregador</em> (<code>ThinQQ.xlam</code>), que cuida da faixa de opções e das atualizações, e o <em>núcleo</em> (<code>ThinQQ.core.xlam</code>), que desenha os gráficos. O núcleo vive em <code>%LOCALAPPDATA%\ThinQQ\versions\&lt;versão&gt;\</code> e é trocado a quente quando você atualiza. Cada gráfico tem um bloco de fórmulas na planilha oculta <code>_ThinQQ</code>; as setas, o indicador 100% e os colchetes são formas dentro do gráfico.</p>
+  <p>O ThinQQ tem três arquivos: o <em>carregador</em> (<code>ThinQQ.xlam</code>), que cuida da faixa de opções e das atualizações, o <em>núcleo</em> (<code>ThinQQ.core.xlam</code>), que desenha os gráficos, e o <em>suplemento do PowerPoint</em> (<code>ThinQQ.ppam</code>), que ao abrir uma apresentação pede ao núcleo, num Excel, para atualizar os gráficos colados nos slides. O núcleo vive em <code>%LOCALAPPDATA%\ThinQQ\versions\&lt;versão&gt;\</code> e é trocado a quente quando você atualiza. Cada gráfico tem um bloco de fórmulas na planilha oculta <code>_ThinQQ</code>; as setas, o indicador 100% e os colchetes são formas dentro do gráfico.</p>
   <ul>
     <li><strong>Gráficos nativos:</strong> colunas, barras, linha, área, pizza e rosca são os tipos comuns do Excel. A combinação é uma série de linha sobre colunas empilhadas, e o Mekko é uma área empilhada sobre um eixo de datas, o que dá a largura variável. O Gantt é uma barra empilhada com uma série de início invisível, mais séries de dispersão (XY) para os marcos, a escala e os rótulos.</li>
     <li><strong>Séries auxiliares:</strong> totais, rótulos, linhas de valor e a escala do Gantt são séries cujo nome começa com <code>tqq_</code>, escondidas da legenda. Nos gráficos horizontais (barras, cascata horizontal e Gantt), onde o Excel não combina barras com linhas, elas são séries XY no grupo secundário de eixos.</li>

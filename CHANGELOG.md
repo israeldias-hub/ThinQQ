@@ -4,6 +4,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+### Adicionado
+- Suplemento do PowerPoint (ThinQQ.ppam): ao abrir uma apresentação, atualiza dados e setas dos gráficos do ThinQQ colados como gráfico vinculado (perguntar, sempre ou nunca). Aba ThinQQ no PowerPoint, grupo Gráficos do Excel: Atualizar gráficos, Ao abrir (Perguntar, Atualizar sempre, Não atualizar) e Sobre. Usa o Excel aberto com o ThinQQ ou, senão, um Excel invisível só para isso; sem o ThinQQ no Excel atualiza só os dados. Apresentações somente leitura não são atualizadas ao abrir (só pelos botões, na memória); Modo de Exibição Protegido: a pergunta aparece depois de Habilitar Edição.
+- Excel: PowerPoint > Atualizar gráficos no PowerPoint (atualiza dados e setas dos gráficos vinculados das apresentações abertas; funciona sem o suplemento do PowerPoint).
+- Atualização: o Excel também atualiza o suplemento do PowerPoint (com o PowerPoint aberto, quando ele fechar), só para quem o instalou pelo ZIP; opção "Atualizar também o suplemento do PowerPoint" na janela de atualização e em ThinQQ > Configurações.
+- Instalação: o instalador do ZIP instala o `ThinQQ.ppam` (registro `PowerPoint\AddIns\ThinQQ` e Local Confiável `LocationThinQQ` do PowerPoint; o desinstalador os remove); um ZIP anterior à 1.4.0, sem o `.ppam`, continua instalando só o Excel. O release passa a publicar 6 assets (inclui `ThinQQ.ppam`) e a assinar o `.ppam` com os `.xlam`.
+
+### Alterado
+- Faixa do Excel: o menu PowerPoint fica sempre ativo (só os dois itens de copiar exigem um gráfico selecionado).
+- Documentação: tutorial (seção Copiar para o PowerPoint reescrita, atualizações, instalação, problemas e limitações), README (instalação, verificações manuais 43 a 52, limitações) e `installer/LEIA-ME.txt` (instalação manual do suplemento e requisito do PowerPoint 16.0); `Test-Docs` confere os rótulos da faixa do PowerPoint, as mensagens e os arquivos da release.
+
+### Corrigido
+- Copiar como gráfico vinculado: as setas e rótulos de seta não ficam mais esticados e fora do lugar quando o PowerPoint ajusta o gráfico ao slide.
+
 ## [1.3.0] - 2026-10-14
 
 ### Adicionado
