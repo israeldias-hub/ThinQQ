@@ -16,6 +16,7 @@ Public Const PPT_MSG_NO_EXCEL As String = "O Excel não está instalado (ou não
 Public Const PPT_MSG_DATA_ONLY As String = "O ThinQQ não está instalado no Excel deste computador: só os dados foram atualizados; setas e outras anotações do ThinQQ ficaram como estavam."
 Public Const PPT_MSG_OLD_CORE As String = "Atualize o ThinQQ no Excel para atualizar também as setas."
 Public Const PPT_MSG_BUSY As String = "O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e use ThinQQ > Atualizar gráficos."
+Public Const PPT_MAX_SOURCES_SHOWN As Long = 5                ' pastas de origem listadas na pergunta ao abrir (depois, "...")
 Public Const PPT_REQUIRED_API As Long = 1                   ' Core_PptApiVersion minima (spec 4.9); core sem ela ou menor = so os dados
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
 Private Const RPC_E_RETRYLATER As Long = -2147417846
@@ -144,14 +145,93 @@ Public Sub PptTqq_SetOpenMode(m As String)
     SaveSetting PPT_APP_NAME, PPT_SECTION, PPT_KEY_OPENMODE, PptTqq_NormalizeMode(m)
 End Sub
 
-' O que fazer ao abrir: "" (nada), "ask" ou "sync". Pura.
-Public Function PptTqq_OnOpenAction(mode As String, isReadOnly As Boolean, nTagged As Long, alreadySeen As Boolean) As String
+' O que fazer ao abrir: "" (nada), "ask" ou "sync". hasRemoteSource: alguma pasta de origem e de rede (\\servidor\...) ou de endereco
+' http(s) e ainda nao esta aberta no Excel: "Atualizar sempre" volta a perguntar (a apresentacao escolhe quais pastas a atualizacao abre;
+' uma origem remota nao e aberta sem o usuario ver o caminho). Pura.
+Public Function PptTqq_OnOpenAction(mode As String, isReadOnly As Boolean, nTagged As Long, alreadySeen As Boolean, hasRemoteSource As Boolean) As String
     If nTagged = 0 Or alreadySeen Or isReadOnly Or mode = "never" Then Exit Function
-    If mode = "always" Then PptTqq_OnOpenAction = "sync" Else PptTqq_OnOpenAction = "ask"
+    If mode = "always" And Not hasRemoteSource Then PptTqq_OnOpenAction = "sync" Else PptTqq_OnOpenAction = "ask"
 End Function
 
-Public Function PptTqq_AskText(n As Long) As String
-    PptTqq_AskText = "Esta apresentação tem " & n & " gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?" & vbLf & vbLf & "Para não perguntar mais: aba ThinQQ > Ao abrir."
+' Pergunta ao abrir. sources (opcional): as pastas de origem distintas (caminho completo), listadas antes da dica: no maximo
+' PPT_MAX_SOURCES_SHOWN e "..." se houver mais.
+Public Function PptTqq_AskText(n As Long, Optional sources As Collection) As String
+    PptTqq_AskText = "Esta apresentação tem " & n & " gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?" & PptTqq_SourcesText(sources) & vbLf & vbLf & "Para não perguntar mais: aba ThinQQ > Ao abrir."
+End Function
+
+' Bloco "Pastas de origem:" da pergunta (vazio sem pastas). Pura.
+Private Function PptTqq_SourcesText(sources As Collection) As String
+    Dim i As Long, s As String
+    If sources Is Nothing Then Exit Function
+    If sources.Count = 0 Then Exit Function
+    s = vbLf & vbLf & "Pastas de origem:"
+    For i = 1 To sources.Count
+        If i > PPT_MAX_SOURCES_SHOWN Then s = s & vbLf & "...": Exit For
+        s = s & vbLf & CStr(sources(i))
+    Next
+    PptTqq_SourcesText = s
+End Function
+
+' Caminho de rede (\\servidor\...) ou endereco http(s). Pura.
+Public Function PptTqq_IsRemotePath(p As String) As Boolean
+    Dim t As String
+    t = LCase$(Trim$(p))
+    PptTqq_IsRemotePath = (Left$(t, 2) = "\\" Or Left$(t, 7) = "http://" Or Left$(t, 8) = "https://")
+End Function
+
+' Alguma pasta de origem remota que nao esta entre as abertas no Excel (names: FullName das pastas abertas). Pura.
+Public Function PptTqq_HasRemoteSource(sources As Collection, names As Collection) As Boolean
+    Dim v As Variant
+    If sources Is Nothing Then Exit Function
+    For Each v In sources
+        If PptTqq_IsRemotePath(CStr(v)) Then
+            If Not PptTqq_InNames(CStr(v), names) Then PptTqq_HasRemoteSource = True: Exit Function
+        End If
+    Next
+End Function
+
+Private Function PptTqq_InNames(p As String, names As Collection) As Boolean
+    Dim n As Variant
+    If names Is Nothing Then Exit Function
+    For Each n In names
+        If StrComp(CStr(n), Trim$(p), vbTextCompare) = 0 Then PptTqq_InNames = True: Exit Function
+    Next
+End Function
+
+' Mesma regra do core (PptSync_ReachableAmong): aberta no Excel (FullName igual; vale para o endereco https) ou, se nao for http(s),
+' arquivo existente no disco. Nunca propaga erro.
+Public Function PptTqq_ReachableAmong(path As String, names As Collection) As Boolean
+    Dim p As String
+    On Error GoTo Done
+    p = Trim$(path)
+    If Len(p) = 0 Then Exit Function
+    If PptTqq_InNames(p, names) Then PptTqq_ReachableAmong = True: Exit Function
+    If LCase$(Left$(p, 7)) = "http://" Or LCase$(Left$(p, 8)) = "https://" Then Exit Function
+    PptTqq_ReachableAmong = PptTqq_FileExists(p)
+Done:
+End Function
+
+' FullName das pastas abertas num Excel (vazio se xl e Nothing ou nao responde). Nunca propaga erro.
+Private Function PptTqq_WorkbookNames(xl As Object) As Collection
+    Dim out As New Collection, wb As Object
+    Set PptTqq_WorkbookNames = out
+    If xl Is Nothing Then Exit Function
+    On Error Resume Next
+    For Each wb In xl.Workbooks
+        out.Add CStr(wb.FullName)
+    Next
+    Err.Clear
+End Function
+
+' Pastas abertas no Excel em execucao, sem nunca criar um (build Test: so o Excel injetado). Ocupado ou ausente: vazio.
+Private Function PptTqq_ExcelOpenNames() As Collection
+    Dim xl As Object
+    If BUILD_CONFIG = "Test" Then Set PptTqq_ExcelOpenNames = PptTqq_WorkbookNames(mTestXl): Exit Function
+    On Error Resume Next
+    Set xl = GetObject(, "Excel.Application")
+    Err.Clear
+    On Error GoTo 0
+    Set PptTqq_ExcelOpenNames = PptTqq_WorkbookNames(xl)
 End Function
 
 Private Function PptTqq_Tag(shp As Object, key As String) As String
@@ -160,14 +240,33 @@ Private Function PptTqq_Tag(shp As Object, key As String) As String
     Err.Clear
 End Function
 
-' Formas soltas marcadas pelo ThinQQ na apresentacao.
-Public Function PptTqq_CountTagged(pres As Object) As Long
-    Dim sl As Object, shp As Object
+' Formas soltas marcadas pelo ThinQQ na apresentacao. sources (opcional): recebe as pastas de origem distintas (sem diferenciar maiusculas),
+' na ordem em que aparecem: PptTqq_SourcePath(LinkFormat.SourceFullName, TQQ_BOOK); so le o vinculo e as etiquetas (nunca o arquivo).
+Public Function PptTqq_CountTagged(pres As Object, Optional sources As Collection) As Long
+    Dim sl As Object, shp As Object, p As String
     For Each sl In pres.Slides
         For Each shp In sl.Shapes
-            If Len(PptTqq_Tag(shp, PPT_TAG_CHART)) > 0 Then PptTqq_CountTagged = PptTqq_CountTagged + 1
+            If Len(PptTqq_Tag(shp, PPT_TAG_CHART)) > 0 Then
+                PptTqq_CountTagged = PptTqq_CountTagged + 1
+                If Not sources Is Nothing Then
+                    p = PptTqq_SourcePath(PptTqq_LinkSource(shp), PptTqq_Tag(shp, PPT_TAG_BOOK))
+                    If Len(p) > 0 Then
+                        On Error Resume Next
+                        sources.Add p, LCase$(p)                ' repetida: chave ja existe, ignorada
+                        Err.Clear
+                        On Error GoTo 0
+                    End If
+                End If
+            End If
         Next
     Next
+End Function
+
+' LinkFormat.SourceFullName da forma ("" se nao ha vinculo legivel). Nunca propaga erro.
+Private Function PptTqq_LinkSource(shp As Object) As String
+    On Error Resume Next
+    PptTqq_LinkSource = CStr(shp.LinkFormat.SourceFullName)
+    Err.Clear
 End Function
 
 ' Mesma regra do core (PptSync_SourcePath). Pura.
@@ -380,8 +479,9 @@ Public Function PptTqq_ErrorText(en As Long, ed As String) As String
     End If
 End Function
 
-' Modo degradado (sem o core): so os dados pelo vinculo nativo, e so dos graficos cuja pasta existe.
-Public Function PptTqq_DataOnly(pres As Object) As String
+' Modo degradado (sem o core): so os dados pelo vinculo nativo, e so dos graficos cuja pasta e alcancavel pela regra do core
+' (PptTqq_ReachableAmong: endereco https so se estiver aberto no Excel; names = pastas abertas no Excel usado).
+Public Function PptTqq_DataOnly(pres As Object, Optional names As Collection) As String
     Dim sl As Object, shp As Object, n As Long, nMiss As Long, p As String, lf As String
     For Each sl In pres.Slides
         For Each shp In sl.Shapes
@@ -392,7 +492,7 @@ Public Function PptTqq_DataOnly(pres As Object) As String
                 Err.Clear
                 On Error GoTo 0
                 p = PptTqq_SourcePath(lf, PptTqq_Tag(shp, PPT_TAG_BOOK))
-                If PptTqq_FileExists(p) Then
+                If PptTqq_ReachableAmong(p, names) Then
                     On Error Resume Next
                     shp.LinkFormat.Update
                     If Err.Number = 0 Then n = n + 1
@@ -435,7 +535,7 @@ End Function
 ' API que falha na chamada: o texto do erro (nao o de core antigo).
 Private Function PptTqq_RunCoreSync(xl As Object, core As String, pres As Object, force As Boolean) As String
     Dim v As Variant, en As Long, ed As String
-    If Not PptTqq_ApiCompatible(PptTqq_CoreApi(xl, core)) Then PptTqq_RunCoreSync = PptTqq_DataOnly(pres) & vbLf & PPT_MSG_OLD_CORE: Exit Function
+    If Not PptTqq_ApiCompatible(PptTqq_CoreApi(xl, core)) Then PptTqq_RunCoreSync = PptTqq_DataOnly(pres, PptTqq_WorkbookNames(xl)) & vbLf & PPT_MSG_OLD_CORE: Exit Function
     On Error Resume Next
     v = xl.Run("'" & core & "'!Core_PptSyncPresentation", pres, force)
     en = Err.Number: ed = Err.Description
@@ -466,7 +566,7 @@ Private Sub PptTqq_DoSync(pres As Object, force As Boolean)
     If Len(core) > 0 Then
         msg = PptTqq_RunCoreSync(xl, core, pres, force)
     Else
-        msg = PptTqq_DataOnly(pres) & vbLf & PPT_MSG_DATA_ONLY
+        msg = PptTqq_DataOnly(pres, PptTqq_WorkbookNames(xl)) & vbLf & PPT_MSG_DATA_ONLY
     End If
     PptTqq_Release xl, created
     PptTqq_Msg msg, vbInformation
@@ -526,7 +626,7 @@ End Sub
 ' Decisao ao abrir: a apresentacao e marcada como vista na primeira vez (com ou sem graficos marcados: colar depois nao pergunta) e
 ' esquecida ao fechar. Pergunta/atualiza conforme PptTqq_OnOpenAction. Reentrada ignorada. Nunca propaga erro.
 Public Sub PptTqq_HandleOpen(pres As Object)
-    Dim n As Long, act As String, key As String, seen As Boolean
+    Dim n As Long, act As String, key As String, seen As Boolean, md As String, srcs As Collection, remote As Boolean
     If mBusy Then Exit Sub
     mBusy = True
     On Error GoTo Fail
@@ -534,12 +634,15 @@ Public Sub PptTqq_HandleOpen(pres As Object)
     seen = PptTqq_Seen(key)
     PptTqq_MarkSeen key
     If Not seen Then
-        n = PptTqq_CountTagged(pres)
-        act = PptTqq_OnOpenAction(PptTqq_OpenMode(), (CLng(pres.ReadOnly) <> 0), n, False)
+        Set srcs = New Collection
+        n = PptTqq_CountTagged(pres, srcs)
+        md = PptTqq_OpenMode()
+        If md = "always" And n > 0 Then remote = PptTqq_HasRemoteSource(srcs, PptTqq_ExcelOpenNames())
+        act = PptTqq_OnOpenAction(md, (CLng(pres.ReadOnly) <> 0), n, False, remote)
         If act = "sync" Then
             PptTqq_DoSync pres, False
         ElseIf act = "ask" Then
-            If PptTqq_Ask(PptTqq_AskText(n)) = vbYes Then PptTqq_DoSync pres, False
+            If PptTqq_Ask(PptTqq_AskText(n, srcs)) = vbYes Then PptTqq_DoSync pres, False
         End If
     End If
     mBusy = False

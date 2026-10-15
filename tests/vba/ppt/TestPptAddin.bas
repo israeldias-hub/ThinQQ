@@ -14,12 +14,12 @@ Private Sub ClosePres(p As Object)
 End Sub
 
 Public Sub Test_PptTqq_OnOpenAction()
-    AssertEqual "ask", PptTqq_OnOpenAction("ask", False, 2, False)
-    AssertEqual "sync", PptTqq_OnOpenAction("always", False, 2, False)
-    AssertEqual "", PptTqq_OnOpenAction("never", False, 2, False)
-    AssertEqual "", PptTqq_OnOpenAction("ask", False, 0, False), "sem graficos marcados"
-    AssertEqual "", PptTqq_OnOpenAction("always", True, 2, False), "somente leitura"
-    AssertEqual "", PptTqq_OnOpenAction("always", False, 2, True), "ja tratada nesta sessao"
+    AssertEqual "ask", PptTqq_OnOpenAction("ask", False, 2, False, False)
+    AssertEqual "sync", PptTqq_OnOpenAction("always", False, 2, False, False)
+    AssertEqual "", PptTqq_OnOpenAction("never", False, 2, False, False)
+    AssertEqual "", PptTqq_OnOpenAction("ask", False, 0, False, False), "sem graficos marcados"
+    AssertEqual "", PptTqq_OnOpenAction("always", True, 2, False, False), "somente leitura"
+    AssertEqual "", PptTqq_OnOpenAction("always", False, 2, True, False), "ja tratada nesta sessao"
 End Sub
 
 Public Sub Test_PptTqq_NormalizeModeAndVersions()
@@ -216,6 +216,97 @@ Public Sub Test_PptTqq_SyncWithoutTaggedAndDataOnlyMissing()
     AssertEqual "Dados atualizados em 0 gráfico(s); 1 sem a pasta de origem (ficaram como estavam).", PptTqq_DataOnly(p)
 Cleanup:
     en = Err.Number: ed = Err.Description
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Revisao final (I1): a pergunta ao abrir mostra as pastas de origem (caminho completo, no maximo 5 e "..."), mantendo as duas frases fixas.
+Public Sub Test_PptTqq_AskText_ListsSources()
+    Dim c As New Collection, i As Long, s As String
+    s = PptTqq_AskText(2)
+    AssertEqual 0, InStr(s, "Pastas de origem"), "sem pastas conhecidas: sem a lista"
+    For i = 1 To 7
+        c.Add "\\srv" & i & "\dados\pasta" & i & ".xlsx"
+    Next
+    s = PptTqq_AskText(7, c)
+    AssertTrue InStr(s, " gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?") > 0, "frase fixa 1"
+    AssertTrue InStr(s, "Para não perguntar mais: aba ThinQQ > Ao abrir.") > 0, "frase fixa 2"
+    AssertTrue InStr(s, "Pastas de origem:") > 0, "lista"
+    AssertTrue InStr(s, "\\srv1\dados\pasta1.xlsx") > 0 And InStr(s, "\\srv5\dados\pasta5.xlsx") > 0, "as 5 primeiras, caminho completo"
+    AssertEqual 0, InStr(s, "pasta6.xlsx"), "no maximo 5"
+    AssertTrue InStr(s, vbLf & "...") > 0, "mais de 5: reticencias"
+    AssertTrue InStr(s, "Pastas de origem:") < InStr(s, "Para não perguntar mais"), "a lista vem antes da dica"
+End Sub
+
+' Pastas de origem distintas (sem diferenciar maiusculas) dos graficos marcados: SourceFullName do vinculo ou a etiqueta TQQ_BOOK.
+Public Sub Test_PptTqq_CountTagged_CollectsDistinctSources()
+    Dim p As Object, s As Object, srcs As New Collection, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set s = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): s.Tags.Add PPT_TAG_CHART, "a1": s.Tags.Add PPT_TAG_BOOK, "C:\Dados\A.xlsx"
+    Set s = p.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50): s.Tags.Add PPT_TAG_CHART, "a2": s.Tags.Add PPT_TAG_BOOK, "c:\dados\a.xlsx"
+    Set s = p.Slides(1).Shapes.AddShape(1, 130, 10, 50, 50): s.Tags.Add PPT_TAG_CHART, "a3": s.Tags.Add PPT_TAG_BOOK, "\\srv\x\B.xlsx"
+    Set s = p.Slides(1).Shapes.AddShape(1, 190, 10, 50, 50): s.Tags.Add PPT_TAG_BOOK, "C:\nao-marcado.xlsx"
+    AssertEqual 3, PptTqq_CountTagged(p, srcs)
+    AssertEqual 2, srcs.Count, "pastas distintas"
+    AssertEqual "C:\Dados\A.xlsx", CStr(srcs(1))
+    AssertEqual "\\srv\x\B.xlsx", CStr(srcs(2))
+    AssertEqual 3, PptTqq_CountTagged(p), "sem a colecao: so conta"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Origem remota (rede \\ ou endereco http/https) ainda nao aberta no Excel: "Atualizar sempre" volta a perguntar. Pura.
+Public Sub Test_PptTqq_RemoteSource_AlwaysFallsBackToAsk()
+    Dim srcs As New Collection, names As New Collection
+    AssertTrue PptTqq_IsRemotePath("\\srv\dados\a.xlsx")
+    AssertTrue PptTqq_IsRemotePath("https://contoso.sharepoint.com/x/a.xlsx")
+    AssertTrue PptTqq_IsRemotePath("HTTP://intranet/a.xlsx")
+    AssertFalse PptTqq_IsRemotePath("C:\Dados\a.xlsx")
+    AssertFalse PptTqq_IsRemotePath("")
+    srcs.Add "C:\Dados\a.xlsx"
+    AssertFalse PptTqq_HasRemoteSource(srcs, names), "so local"
+    srcs.Add "https://contoso.sharepoint.com/x/b.xlsx"
+    AssertTrue PptTqq_HasRemoteSource(srcs, names), "https nao aberta"
+    names.Add "HTTPS://contoso.sharepoint.com/x/B.xlsx"
+    AssertFalse PptTqq_HasRemoteSource(srcs, names), "https ja aberta no Excel"
+    AssertFalse PptTqq_HasRemoteSource(Nothing, names), "sem lista"
+    AssertEqual "ask", PptTqq_OnOpenAction("always", False, 2, False, True), "sempre + origem remota: pergunta"
+    AssertEqual "ask", PptTqq_OnOpenAction("ask", False, 2, False, True)
+    AssertEqual "", PptTqq_OnOpenAction("never", False, 2, False, True)
+    AssertEqual "", PptTqq_OnOpenAction("always", True, 2, False, True), "somente leitura continua sem nada"
+End Sub
+
+' Modo so dados (sem o core): mesma regra do core (PptSync_ReachableAmong): aberta no Excel ou, se nao for http(s), arquivo no disco.
+Public Sub Test_PptTqq_ReachableAmong()
+    Dim names As New Collection, f As String, h As Integer
+    AssertFalse PptTqq_ReachableAmong("https://contoso.sharepoint.com/x/a.xlsx", names), "https nao aberta"
+    names.Add "https://contoso.sharepoint.com/x/A.xlsx"
+    AssertTrue PptTqq_ReachableAmong("https://contoso.sharepoint.com/x/a.xlsx", names), "https aberta no Excel"
+    AssertFalse PptTqq_ReachableAmong("C:\nao\existe\a.xlsx", names), "local inexistente"
+    AssertFalse PptTqq_ReachableAmong("", names), "vazio"
+    f = Environ$("TEMP") & "\thinqq_test_ppt_reach_" & Format$(Now, "hhnnss") & "_" & CLng(Rnd() * 100000) & ".xlsx"
+    h = FreeFile: Open f For Output As #h: Close #h
+    AssertTrue PptTqq_ReachableAmong(f, New Collection), "local existente"
+    Kill f
+End Sub
+
+' A pergunta ao abrir cita a pasta de origem do grafico marcado.
+Public Sub Test_PptTqq_HandleOpen_AskShowsSource()
+    Dim p As Object, s As Object, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptTqq_ClearLastMsg
+    Set s = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50)
+    s.Tags.Add PPT_TAG_CHART, "abc123": s.Tags.Add PPT_TAG_BOOK, "\\srv\dados\vendas.xlsx"
+    PptTqq_HandleOpen p
+    AssertTrue InStr(PptTqq_LastMsg(), "Pastas de origem:" & vbLf & "\\srv\dados\vendas.xlsx") > 0, PptTqq_LastMsg()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    PptTqq_ResetTestHooks
     ClosePres p
     If en <> 0 Then Err.Raise en, "TestPptAddin", ed
 End Sub

@@ -1519,8 +1519,8 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
     <tbody>
       <tr><td><span class="ui">Atualizar gráficos</span></td><td>Atualiza agora, na apresentação ativa, os dados e as setas de todos os gráficos do ThinQQ vinculados, mesmo os que não mudaram, e mostra o resumo. Atualiza também uma apresentação somente leitura (só na memória).</td></tr>
       <tr><td><span class="ui">Ao abrir</span></td><td>O que fazer quando você abre uma apresentação com gráficos do ThinQQ vinculados. A escolha vale para todas as suas apresentações e na hora.</td></tr>
-      <tr><td><span class="ui">Perguntar</span></td><td>O padrão: o suplemento pergunta "Atualizar agora com os dados atuais?" (Sim atualiza; Não deixa como está).</td></tr>
-      <tr><td><span class="ui">Atualizar sempre</span></td><td>Atualiza sem perguntar.</td></tr>
+      <tr><td><span class="ui">Perguntar</span></td><td>O padrão: o suplemento pergunta "Atualizar agora com os dados atuais?", com a lista das pastas de origem (até 5) (Sim atualiza; Não deixa como está).</td></tr>
+      <tr><td><span class="ui">Atualizar sempre</span></td><td>Atualiza sem perguntar. Se alguma pasta de origem estiver numa pasta de rede (<code>\\servidor\...</code>) ou num endereço da web e ainda não estiver aberta no Excel, pergunta assim mesmo, mostrando o caminho. Use só com apresentações de fontes confiáveis.</td></tr>
       <tr><td><span class="ui">Não atualizar</span></td><td>Não pergunta nem atualiza ao abrir (o botão <span class="ui">Atualizar gráficos</span> continua valendo).</td></tr>
       <tr><td><span class="ui">Sobre</span></td><td>Mostra a versão do suplemento.</td></tr>
     </tbody>
@@ -1550,7 +1550,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
   <table>
     <thead><tr><th scope="col">Mensagem</th><th scope="col">Quando aparece e o que fazer</th></tr></thead>
     <tbody>
-      <tr><td>Esta apresentação tem N gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?<br />Para não perguntar mais: aba ThinQQ &gt; Ao abrir.</td><td>A pergunta ao abrir, com <span class="ui">Perguntar</span>. Para não ver mais, escolha <span class="ui">Atualizar sempre</span> ou <span class="ui">Não atualizar</span>.</td></tr>
+      <tr><td>Esta apresentação tem N gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?<br />Pastas de origem: (o caminho completo de cada pasta, no máximo 5, e "..." se houver mais)<br />Para não perguntar mais: aba ThinQQ &gt; Ao abrir.</td><td>A pergunta ao abrir, com <span class="ui">Perguntar</span>. Para não ver mais, escolha <span class="ui">Atualizar sempre</span> ou <span class="ui">Não atualizar</span>.</td></tr>
       <tr><td>Gráficos do ThinQQ atualizados: N. Sem mudança: M.</td><td>O resumo. "Sem mudança" são os gráficos que já estavam iguais (só na atualização ao abrir).</td></tr>
       <tr><td>Pasta de origem não encontrada ou sem acesso (o gráfico ficou como estava): arquivos. Se ela foi movida ou renomeada, use no PowerPoint Arquivo &gt; Informações &gt; Editar Links para Arquivos &gt; Alterar Origem.</td><td>O arquivo do Excel foi movido, renomeado ou apagado, a rede não responde, a pasta é protegida por senha ou está corrompida. O gráfico ficou como estava. Aponte o vínculo para o arquivo novo com <strong>Alterar Origem</strong> e atualize de novo.</td></tr>
       <tr><td>Gráfico não encontrado na pasta de origem (apagado ou recriado): K.</td><td>A pasta abriu, mas o gráfico do ThinQQ que ela tinha não existe mais (ou foi recriado com outro identificador). Cole o gráfico de novo com <span class="ui">Copiar como gráfico vinculado</span>.</td></tr>
@@ -1572,6 +1572,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
 
   <h3>Limites e o que fazer</h3>
   <ul>
+    <li><strong>Segurança:</strong> a atualização abre, somente leitura e com as macros desligadas, as pastas de trabalho para as quais a apresentação aponta (é a apresentação que diz quais são). Confira as pastas listadas na pergunta e use <span class="ui">Atualizar sempre</span> só para apresentações de fontes confiáveis.</li>
     <li><strong>Sem o suplemento ou sem o ThinQQ no Excel só os dados atualizam.</strong> Quem abre a apresentação sem o suplemento do PowerPoint (um colega sem o ThinQQ, ou você antes de instalar) vê um gráfico vinculado comum: <strong>Design do Gráfico &gt; Atualizar Dados</strong> ou <strong>Editar Links para Arquivos</strong> atualiza as séries e os rótulos ligados, mas as setas e os textos de seta ficam como estavam (o "+20" de uma seta continua "+20"). Com o suplemento mas sem o ThinQQ no Excel, o resultado é o mesmo, com o aviso da tabela acima.</li>
     <li><strong>Modo de Exibição Protegido:</strong> clique em <strong>Habilitar Edição</strong> para a pergunta aparecer.</li>
     <li><strong>Pasta movida ou renomeada:</strong> o gráfico fica como estava e o aviso lista o arquivo; no PowerPoint, <strong>Arquivo &gt; Informações &gt; Editar Links para Arquivos &gt; Alterar Origem</strong> aponta o vínculo para o arquivo novo. O ThinQQ nunca tenta atualizar uma origem que não existe, porque o PowerPoint trava nesse caso.</li>

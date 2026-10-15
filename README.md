@@ -193,6 +193,7 @@ do que cada tipo aceita, as mensagens do ThinQQ e os limites conhecidos.
 - **Quem controla a branch `main` do repositório e os assets das releases controla o código que roda no Excel dos colegas** (o manifesto padrão vem de lá). Proteja a conta com autenticação em dois fatores e limite quem pode publicar; em empresas, use uma fonte de atualização interna.
 - O SHA-256 é calculado em VBA puro (módulo `modSha256`), sem iniciar processos externos (nada de `certutil`).
 - Downloads ficam em `%TEMP%\ThinQQ`, fora do local confiável; só depois de conferidos vão para `%LOCALAPPDATA%\ThinQQ`.
+- **PowerPoint:** a atualização dos gráficos abre, somente leitura e com as macros desligadas, as pastas de trabalho para as quais a apresentação aponta (é a apresentação que diz quais são); a pergunta ao abrir lista as pastas. Use **Atualizar sempre** só para apresentações de fontes confiáveis (com uma pasta de rede ou da web ainda não aberta no Excel, o suplemento pergunta assim mesmo).
 
 ### O que o instalador altera
 
