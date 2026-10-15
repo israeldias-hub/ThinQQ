@@ -12,7 +12,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ### Alterado
 - Faixa do Excel: o menu PowerPoint fica sempre ativo (só os dois itens de copiar exigem um gráfico selecionado).
-- Documentação: tutorial (seção Copiar para o PowerPoint reescrita, atualizações, instalação, problemas e limitações), README (instalação, verificações manuais 43 a 52, limitações) e `installer/LEIA-ME.txt` (instalação manual do suplemento e requisito do PowerPoint 16.0); `Test-Docs` confere os rótulos da faixa do PowerPoint, as mensagens e os arquivos da release.
+- Documentação: tutorial (seção Copiar para o PowerPoint reescrita, atualizações, instalação, problemas e limitações), README (instalação, verificações manuais 43 a 54, limitações) e `installer/LEIA-ME.txt` (instalação manual do suplemento e requisito do PowerPoint 16.0); `Test-Docs` confere os rótulos da faixa do PowerPoint, as mensagens e os arquivos da release.
 
 ### Corrigido
 - Copiar como gráfico vinculado: as setas e rótulos de seta não ficam mais esticados e fora do lugar quando o PowerPoint ajusta o gráfico ao slide.

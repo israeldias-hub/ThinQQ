@@ -420,7 +420,7 @@ PowerPoint atualizado ao reabrir (1.4.0): pesquisa, sondas em PowerPoint e Excel
 
 ## Verificações manuais no Excel real
 
-Os testes automáticos usam um Excel invisível; estas verificações precisam de uma sessão de Excel real (depois de `Instalar-ThinQQ.cmd` ou de `build.ps1 -Install`), com uma tabela 4x3 com cabeçalho para os itens 1 a 11 e as tabelas de exemplo de cada tipo (planilhas "Exemplos 2" e "Exemplos 3") para os demais. Os itens 43 a 52 (PowerPoint atualizado ao reabrir, 1.4.0) precisam também de um **PowerPoint real**: nada disso foi verificado nele (só o motor, o suplemento e o instalador têm teste automático):
+Os testes automáticos usam um Excel invisível; estas verificações precisam de uma sessão de Excel real (depois de `Instalar-ThinQQ.cmd` ou de `build.ps1 -Install`), com uma tabela 4x3 com cabeçalho para os itens 1 a 11 e as tabelas de exemplo de cada tipo (planilhas "Exemplos 2" e "Exemplos 3") para os demais. Os itens 43 a 54 (PowerPoint atualizado ao reabrir, 1.4.0) precisam também de um **PowerPoint real**: nada disso foi verificado nele (só o motor, o suplemento e o instalador têm teste automático):
 
 1. A aba ThinQQ aparece na faixa de opções, ao lado de Inserir, com os cinco menus de inserção (Colunas, Barras, Cascata, Linha e área, Mais tipos). Esta é a primeira conferência: sem a aba, nenhum outro item vale.
 2. Com células selecionadas, só os cinco menus, Mais opções (com Mesma escala, Escala automática e Arredondar intervalo...), Atualizar e o grupo ThinQQ ficam ativos; o resto do grupo "Gráfico selecionado" (inclusive o menu Setas; no menu PowerPoint só Atualizar gráficos no PowerPoint fica ativo) fica cinza.
