@@ -207,16 +207,34 @@ Public Function Updater_PpamInstalled() As Boolean
     Updater_PpamInstalled = (Len(Dir(PpamPath())) > 0)
 End Function
 
+' 64 caracteres hexadecimais (maiusculas ou minusculas).
+Private Function IsSha256Hex(s As String) As Boolean
+    Dim i As Long
+    If Len(s) <> 64 Then Exit Function
+    For i = 1 To 64
+        If Not (Mid$(s, i, 1) Like "[0-9a-fA-F]") Then Exit Function
+    Next
+    IsSha256Hex = True
+End Function
+
 ' (1) Ha suplemento mais novo para este usuario: opcao ligada, instalado, manifesto com versao/url/SHA validos, versao maior que a
 ' instalada (PpamVersion; ausente = 0.0.0) e diferente da que ja esta pendente.
 Public Function Updater_PpamNeeded(json As String) As Boolean
     Dim v As String
     On Error GoTo Fail
+    If JsonGetNumber(json, "schemaVersion") > 1 Then
+        Loader_Log "Updater_PpamNeeded: schemaVersion " & JsonGetNumber(json, "schemaVersion") & " nao suportado; suplemento ignorado."
+        Exit Function
+    End If
     If Not Updater_PpamAutoOn() Then Exit Function
     If Not Updater_PpamInstalled() Then Exit Function
     v = JsonGetString(json, "pptAddinVersion")
     If Not IsValidVersion(v) Then Exit Function
-    If Len(JsonGetString(json, "pptAddinUrl")) = 0 Or Len(Trim$(JsonGetString(json, "pptAddinSha256"))) <> 64 Then Exit Function
+    If Len(JsonGetString(json, "pptAddinUrl")) = 0 Then Exit Function
+    If Not IsSha256Hex(Trim$(JsonGetString(json, "pptAddinSha256"))) Then
+        Loader_Log "Updater_PpamNeeded: manifesto com pptAddinUrl mas pptAddinSha256 ausente ou malformado; suplemento ignorado."
+        Exit Function
+    End If
     If Settings_Get(KEY_PENDING_PPAM) = "1" And Settings_Get(KEY_PENDING_PPAM_VER) = v Then Exit Function
     Updater_PpamNeeded = (CompareVersions(v, Settings_Get(KEY_PPAM_VERSION, "0.0.0")) > 0)
     Exit Function

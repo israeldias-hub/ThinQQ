@@ -1031,3 +1031,47 @@ Fail:
     FailCleanup
 End Sub
 
+Private Function LogText(root As String) As String
+    If Len(Dir(root & "\logs\thinqq.log")) > 0 Then LogText = Transport_ReadTextFile(root & "\logs\thinqq.log")
+End Function
+
+' Manifesto de esquema mais novo (ignorado pelo avaliador): o suplemento tambem e ignorado, em todos os caminhos (Check, Apply, VersionLine).
+Public Sub Test_Updater_Ppam_SchemaVersionNewer_IsIgnored()
+    Dim root As String, json As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Updater_TestSetPptRunning False
+    json = Replace(PpamJson(FixturePpam(), Transport_Sha256File(FixturePpam()), "9.9.9"), """schemaVersion"":1", """schemaVersion"":2")
+    AssertFalse Updater_PpamNeeded(json), "schemaVersion 2: nada"
+    AssertEqual "", Updater_PpamUpdateNow(json)
+    UseManifestFile json
+    Updater_Check False
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "nada trocado"
+    AssertEqual "1.0.0", Settings_Get(KEY_PPAM_VERSION)
+    AssertEqual 0, Len(Dir(Loader_TmpDir() & "\ThinQQ.ppam")) + Len(Dir(root & "\ThinQQ.ppam.new")), "nada baixado"
+    AssertTrue InStr(Loader_LastMsg, "já está na versão mais recente") > 0, Loader_LastMsg
+    AssertTrue InStr(LogText(root), "schemaVersion") > 0, "registrado no log"
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' Manifesto com pptAddinUrl mas hash ausente, curto ou malformado: nada, e o motivo vai para o log.
+Public Sub Test_Updater_Ppam_BadHash_IsLogged()
+    Dim root As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    AssertFalse Updater_PpamNeeded(PpamJson(FixturePpam(), "", "9.9.9")), "sem hash"
+    AssertFalse Updater_PpamNeeded(PpamJson(FixturePpam(), "abc", "9.9.9")), "hash curto"
+    AssertFalse Updater_PpamNeeded(PpamJson(FixturePpam(), String$(64, "z"), "9.9.9")), "hash nao hexadecimal"
+    AssertTrue InStr(LogText(root), "pptAddinSha256") > 0, "motivo registrado no log"
+    AssertTrue Updater_PpamNeeded(PpamJson(FixturePpam(), UCase$(Transport_Sha256File(FixturePpam())), "9.9.9")), "hash valido (maiusculas)"
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
