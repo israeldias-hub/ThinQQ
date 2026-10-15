@@ -363,8 +363,9 @@ reabertura do Excel; "Sobre" do PowerPoint mostra a versão nova.
 - **Sem interferência quando desarmado:** os manipuladores saem na primeira linha (`If Not mArmed Then Exit Sub`); custo medido ~3 ms por
   evento já com registro.
 - **Emenda (revisão da B3):** além dos cancelamentos acima, o modo desarma ao ativar outra planilha ou outra pasta (os observadores de cliques
-  mudam de planilha) e ao fechar a pasta do gráfico armado. O prazo de 60 s conta de quando o modo é armado (o `OnTime` é agendado uma vez em
-  `DeltaPick_Arm`; um clique não o renova) e o aviso "ThinQQ - Delta cancelado (60 s sem clique)." fica 4 s na barra de status. O Esc devolve
+  mudam de planilha) e ao fechar a pasta do gráfico armado. O modo desarma depois de 60 s sem clique, contados do último clique aceito
+  (emenda da B6: o `OnTime` é agendado em `DeltaPick_Arm` e reagendado no clique de origem aceito, cancelando o anterior com o mesmo
+  horário, sem empilhar; um disparo mais de 2 s antes do prazo é de um temporizador velho e é ignorado) e o aviso "ThinQQ - Delta cancelado (60 s sem clique)." fica 4 s na barra de status. O Esc devolve
   a tecla ao padrão do Excel (`Application.OnKey "{ESC}"`) sem restaurar um `OnKey` de outro suplemento (não há como lê-lo), e a barra de
   status volta ao padrão do Excel (não ao texto anterior). Clicar num rótulo de dados, linha de tendência, barra de erro, forma (inclusive as
   setas) ou linha de série, de máximo/mínimo, de projeção ou de chamada mostra "ThinQQ - Delta: clique numa barra (não em rótulos, setas ou

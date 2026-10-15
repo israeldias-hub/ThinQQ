@@ -1715,7 +1715,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
     <li>clica em <strong>outro gráfico do ThinQQ</strong>: &quot;ThinQQ - Delta cancelado (outro gráfico).&quot; (um gráfico que não é do ThinQQ, uma imagem ou uma forma solta não cancelam: o modo segue armado);</li>
     <li>troca de <strong>planilha ou de pasta de trabalho</strong>, ou fecha a pasta do gráfico (a moldura sai antes de o Excel perguntar se quer salvar);</li>
     <li>clica de novo em <span class="ui">Delta clicando nas barras</span>: &quot;ThinQQ - Delta cancelado.&quot;;</li>
-    <li>deixa passar o prazo: o modo se desarma sozinho 60 s depois de armado, com o aviso &quot;ThinQQ - Delta cancelado (60 s sem clique).&quot; (o prazo conta a partir de quando o modo é armado; os cliques não o renovam).</li>
+    <li>deixa passar o prazo: o modo se desarma sozinho depois de 60 s sem clique, contados do último clique aceito (armar o modo ou escolher a barra de origem; um clique em rótulo, área vazia ou na mesma barra não conta), com o aviso &quot;ThinQQ - Delta cancelado (60 s sem clique).&quot;.</li>
   </ul>
   <p>Todo aviso de cancelamento fica 4 s na barra de status e some, e a barra volta ao padrão do Excel; a moldura laranja sai em qualquer cancelamento.</p>
 

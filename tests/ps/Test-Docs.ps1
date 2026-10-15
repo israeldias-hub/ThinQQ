@@ -590,6 +590,15 @@ $bt = [string][char]96
 Check ($specDelta.Contains('DeltaPick_TimeoutFired') -and -not $specDelta.Contains($bt + 'DeltaPick_Timeout' + $bt + ', ' + $bt + 'DeltaPick_IsArmedFor')) 'especificação do delta: o manipulador do OnTime é DeltaPick_TimeoutFired'
 Check ($specDelta.Contains('Emenda (revisão da B4), lado de baixo') -and $specDelta.Contains('Delta_IsStackBottomNeg') -and $specDelta.Contains('NÃO deslocam')) 'especificação do delta (5.3): regra do lado de baixo'
 Check ($specDelta.Contains('Emenda (revisão da B3)') -and $specDelta.Contains('DELTAPICK_MSG_ARMFAIL')) 'especificação do delta (5.1): cancelamentos e mensagens da B3'
+# B6: o prazo do modo de dois cliques e renovado no clique de origem aceito: tutorial, README (limitações e item manual) e especificação dizem
+# "60 s sem clique, contados do último clique aceito" e nenhum volta a dizer que o prazo conta só de quando o modo é armado
+$prazo = '60 s sem clique, contados do último clique aceito'
+Check ($html.Contains($prazo)) "tutorial: '$prazo'"
+Check (([regex]::Matches($readme, [regex]::Escape($prazo))).Count -ge 2) "README (limitações e item manual 58): '$prazo'"
+Check ($specDelta.Contains($prazo)) "especificação do delta: '$prazo'"
+foreach ($velho in 'os cliques não o renovam', 'um clique não o renova', 'conta a partir de quando o modo é armado', 'conta de quando o modo é armado', '60 s depois de armado') {
+    Check (-not $html.Contains($velho) -and -not $readme.Contains($velho) -and -not $specDelta.Contains($velho)) "prazo do delta: nenhum documento diz '$velho'"
+}
 
 # ---- o limite do Arredondar intervalo vem do código (ROUND_MAX_CELLS) e a documentação cita o mesmo número
 $rndSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modRounding.bas')
