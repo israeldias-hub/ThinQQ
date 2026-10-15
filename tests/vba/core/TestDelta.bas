@@ -411,7 +411,7 @@ Public Sub Test_Delta_Waterfall_EndValues()
     Core_AddDelta "0:1", "0:3"
     Relayout c
     AssertEqual Delta_Text(100, 70, "both", Style_NumberFormat(Registry_GetOption(c, "numfmt", "int"))), CStr(c.Shapes("tqq_ann_delta_1_lbl").TextFrame2.TextRange.Text)
-    AssertAlmost YOf(c, 100) - 3, c.Shapes("tqq_ann_delta_1_t1").Top + c.Shapes("tqq_ann_delta_1_t1").Height, 1
+    AssertAlmost YOf(c, 100) - LEG_GAP - LBL_ROOM, c.Shapes("tqq_ann_delta_1_t1").Top + c.Shapes("tqq_ann_delta_1_t1").Height, 1, "barra inicial com rotulo por fora: alem do rotulo (3 + 18 pt)"
     Teardown wb
 End Sub
 
@@ -571,6 +571,76 @@ Public Sub Test_Delta_Labels_Line_LegClearOfLabel()
         AssertTrue LabelBox(c, 1, cat, l, t, w, h), "o ponto " & cat & " tem rotulo"
         If s.Left >= l - 0.5 And s.Left <= l + w + 0.5 Then AssertTrue s.Top + s.Height <= t - 0.5, "perna " & sfx & " acima do rotulo (" & (s.Top + s.Height) & " / " & t & ")"
     Next
+    Teardown wb
+End Sub
+
+' Rotulo de dados real do ponto p da serie auxiliar nm (depois de ForceLayout). False sem a serie, o ponto ou o rotulo.
+Private Function HelperLabelBox(c As Chart, nm As String, p As Long, ByRef l As Double, ByRef t As Double, ByRef w As Double, ByRef h As Double, ByRef txt As String) As Boolean
+    Dim s As Long, pt As Point
+    s = Delta_FindSeriesByName(c, nm)
+    If s = 0 Then Exit Function
+    If p > c.SeriesCollection(s).Points.Count Then Exit Function
+    Set pt = c.SeriesCollection(s).Points(p)
+    If Not pt.HasDataLabel Then Exit Function
+    txt = pt.DataLabel.Text
+    If Len(txt) = 0 Then Exit Function
+    l = pt.DataLabel.Left: t = pt.DataLabel.Top: w = pt.DataLabel.Width: h = pt.DataLabel.Height
+    HelperLabelBox = True
+End Function
+
+' Cascata (uma serie): a barra inicial (100) e o total (70) tem o rotulo por fora, acima: a perna e a ponta ficam acima dele (oraculo: o
+' DataLabel real de tqq_lbl). O degrau negativo (Custo, rotulo embaixo) encosta a 3 pt do topo dele.
+Public Sub Test_Delta_Labels_Waterfall_TotalsAndSteps()
+    Dim wb As Workbook, c As Chart, l As Double, t As Double, w As Double, h As Double, txt As String, s As Shape
+    Set wb = NewTempWorkbook()
+    Set c = InsertOn(WaterfallFixture(wb), "waterfall")
+    Core_AddDelta "0:1", "0:3"
+    Core_AddDelta "0:2", "0:3"
+    Relayout c
+    AssertTrue HelperLabelBox(c, "tqq_lbl", 1, l, t, w, h, txt), "rotulo da barra inicial"
+    Set s = c.Shapes("tqq_ann_delta_1_t1")
+    AssertTrue s.Top + s.Height <= t - 0.5, "perna acima do rotulo '" & txt & "' (" & (s.Top + s.Height) & " / " & t & ")"
+    AssertTrue HelperLabelBox(c, "tqq_lbl", 3, l, t, w, h, txt), "rotulo do total"
+    Set s = c.Shapes("tqq_ann_delta_1_t2")
+    AssertTrue s.Top + s.Height <= t - 0.5, "ponta acima do rotulo do total '" & txt & "' (" & (s.Top + s.Height) & " / " & t & ")"
+    AssertAlmost YOf(c, 100) - LEG_GAP, c.Shapes("tqq_ann_delta_2_t1").Top + c.Shapes("tqq_ann_delta_2_t1").Height, 1, "degrau negativo (rotulo embaixo): 3 pt do topo"
+    Teardown wb
+End Sub
+
+' Cascata horizontal com numeros largos: as pernas comecam depois da borda direita do rotulo da barra inicial e do total.
+Public Sub Test_Delta_Labels_BarWaterfall_WideNumbers()
+    Dim wb As Workbook, c As Chart, rng As Range, l As Double, t As Double, w As Double, h As Double, txt As String
+    Set wb = NewTempWorkbook(): Set rng = WaterfallFixture(wb)
+    rng.Worksheet.Range("B2").Value = 12345678: rng.Worksheet.Range("B3").Value = -3000000
+    Set c = InsertOn(rng, "barwaterfall")
+    Core_AddDelta "0:1", "0:3"
+    Relayout c
+    AssertTrue HelperLabelBox(c, "tqq_lbl", 1, l, t, w, h, txt), "rotulo da barra inicial"
+    AssertTrue c.Shapes("tqq_ann_delta_1_t1").Left >= l + w + 0.5, "perna depois do rotulo '" & txt & "' (" & c.Shapes("tqq_ann_delta_1_t1").Left & " / " & (l + w) & ")"
+    AssertTrue HelperLabelBox(c, "tqq_lbl", 3, l, t, w, h, txt), "rotulo do total"
+    AssertTrue c.Shapes("tqq_ann_delta_1_t2").Left >= l + w + 0.5, "ponta depois do rotulo '" & txt & "' (" & c.Shapes("tqq_ann_delta_1_t2").Left & " / " & (l + w) & ")"
+    AssertTrue c.Shapes("tqq_ann_delta_1").Left >= l + w + 0.5, "linha vertical depois dos rotulos"
+    Teardown wb
+End Sub
+
+' Comparativa: barra inicial A (27) e total B da ultima etapa ("22 (76%)"): perna e ponta acima dos rotulos de total reais (tqq_lbltot,
+' ponto = fatia); o degrau (Comp 1, lado A: rotulo no meio) fica a 3 pt; e a seta continua acima das setas de variacao.
+Public Sub Test_Delta_Labels_WaterfallPair_BigBars()
+    Dim wb As Workbook, c As Chart, l As Double, t As Double, w As Double, h As Double, txt As String, s As Shape, v As Double, lo As Double, hi As Double
+    Set wb = NewTempWorkbook()
+    Set c = InsertOn(PairFixture(wb), "waterfallpair")
+    Core_AddDelta "1:1", "2:3"
+    Core_AddDelta "1:2", "2:2"
+    Relayout c
+    AssertTrue HelperLabelBox(c, "tqq_lbltot", 1, l, t, w, h, txt), "rotulo da barra inicial A"
+    Set s = c.Shapes("tqq_ann_delta_1_t1")
+    AssertTrue s.Top + s.Height <= t - 0.5, "perna acima do rotulo '" & txt & "' (" & (s.Top + s.Height) & " / " & t & ")"
+    AssertTrue HelperLabelBox(c, "tqq_lbltot", 8, l, t, w, h, txt), "rotulo do total B"
+    AssertTrue InStr(txt, "%") > 0, "o rotulo do total tem o percentual ('" & txt & "')"
+    Set s = c.Shapes("tqq_ann_delta_1_t2")
+    AssertTrue s.Top + s.Height <= t - 0.5, "ponta acima do rotulo '" & txt & "' (" & (s.Top + s.Height) & " / " & t & ")"
+    AssertTrue Delta_Extent(c, "1:2", v, lo, hi)
+    AssertAlmost YOf(c, hi) - LEG_GAP, c.Shapes("tqq_ann_delta_2_t1").Top + c.Shapes("tqq_ann_delta_2_t1").Height, 1, "degrau: rotulo no meio, 3 pt"
     Teardown wb
 End Sub
 

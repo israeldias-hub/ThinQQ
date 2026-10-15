@@ -511,10 +511,11 @@ End Function
 ' Afastamento (pt) da ponta da perna a partir da borda da barra (emenda da spec 5.3, revisao B2): 3 pt; com o rotulo de valor POR FORA
 ' da barra (Rotulos ligados: pontos das agrupadas e da linha, a linha da combinacao; Totais ligados: o segmento de cima de uma pilha
 ' positiva) e a ancora no FIM da barra (valor diferente de zero), a perna comeca depois do rotulo: 3 + 18 pt nas colunas, 3 + max(18,
-' largura estimada do rotulo + 6) nas barras (o rotulo fica ~6 pt depois do fim; Labels_EstimateWidth, como Ann_TotalsExtra). Rotulos
-' centrados das empilhadas, rotulos das cascatas e ancoras no zero ficam nos 3 pt. Estimativa conservadora: nao le a geometria dos rotulos.
+' largura estimada do rotulo + 6) nas barras (o rotulo fica ~6 pt depois do fim; Labels_EstimateWidth, como Ann_TotalsExtra). Cascatas e
+' comparativa: onde o bloco poe o rotulo de fora na ponta (Delta_WaterfallOutsideLabel: barras grandes; na cascata de uma serie tambem os
+' degraus). Rotulos centrados (segmentos das empilhadas, degraus da comparativa) e ancoras no zero ficam nos 3 pt. Estimativa conservadora: nao le a geometria dos rotulos.
 Private Function Ann_DeltaEndOffset(cht As Chart, ref As String, v As Double, anchor As Double, above As Boolean, horiz As Boolean, fmt As String) As Double
-    Dim kind As String, k As Long, c As Long, s As Long, outside As Boolean, isTotal As Boolean, w As Double
+    Dim kind As String, k As Long, c As Long, s As Long, outside As Boolean, isTotal As Boolean, w As Double, lblTxt As String
     Ann_DeltaEndOffset = 3
     If anchor = 0 Then Exit Function
     If Not Delta_ParseRef(ref, k, c) Then Exit Function
@@ -531,10 +532,20 @@ Private Function Ann_DeltaEndOffset(cht As Chart, ref As String, v As Double, an
                 isTotal = Delta_IsStackTop(cht, ref)
                 outside = isTotal
             End If
+        Case "waterfall", "barwaterfall", "waterfallpair"
+            ' cascatas (revisao B2, 2a rodada): o rotulo de fora so onde o bloco o poe na ponta da seta (barras grandes; numa cascata de uma
+            ' serie tambem os degraus positivos); o texto real do rotulo da a largura nas barras
+            If Registry_GetOption(cht, "labels", "1") = "1" Then outside = Delta_WaterfallOutsideLabel(cht, ref, anchor, above, fmt, lblTxt)
     End Select
     If Not outside Then Exit Function
     If horiz Then
-        If isTotal Then w = Labels_MaxTotalWidth(cht) Else w = Labels_EstimateWidth(Delta_FormatPlain(v, fmt))
+        If isTotal Then
+            w = Labels_MaxTotalWidth(cht)
+        ElseIf Len(lblTxt) > 0 Then
+            w = Labels_EstimateWidth(lblTxt)
+        Else
+            w = Labels_EstimateWidth(Delta_FormatPlain(v, fmt))
+        End If
         w = w + 6
         If w < DELTA_LABEL_ROOM Then w = DELTA_LABEL_ROOM
         Ann_DeltaEndOffset = 3 + w
@@ -546,7 +557,7 @@ End Function
 ' Folga dos rotulos para a linha principal nas barras horizontais: max(18, maior largura estimada + 6) entre os rotulos de valor do trecho
 ' (Rotulos ligados) e os totais (Totais ligados).
 Private Function Ann_DeltaBarsLabelRoom(cht As Chart, ia As Long, ib As Long, fmt As String) As Double
-    Dim a As Long, k As Long, fam As String, v As Double, lo As Double, hi As Double, w As Double, best As Double, ref As String, nK As Long
+    Dim a As Long, k As Long, fam As String, v As Double, lo As Double, hi As Double, w As Double, best As Double, ref As String, nK As Long, txt As String
     fam = Kinds_Family(Registry_ChartType(cht))
     If fam = "waterfall" Then nK = 1 Else nK = Delta_DataSeriesCount(cht)     ' cascata: a barra da categoria ("0:c")
     If Registry_GetOption(cht, "labels", "1") = "1" Then
@@ -554,7 +565,12 @@ Private Function Ann_DeltaBarsLabelRoom(cht As Chart, ia As Long, ib As Long, fm
             For k = 1 To nK
                 If fam = "waterfall" Then ref = "0:" & a Else ref = k & ":" & a
                 If Delta_Extent(cht, ref, v, lo, hi) Then
-                    w = Labels_EstimateWidth(Delta_FormatPlain(v, fmt))
+                    If fam = "waterfall" Then
+                        txt = ""                                    ' cascata: o texto do rotulo de fora no fim da barra (se houver)
+                        If Delta_WaterfallOutsideLabel(cht, ref, hi, True, fmt, txt) Then w = Labels_EstimateWidth(txt) Else w = 0
+                    Else
+                        w = Labels_EstimateWidth(Delta_FormatPlain(v, fmt))
+                    End If
                     If w > best Then best = w
                 End If
             Next

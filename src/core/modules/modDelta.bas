@@ -226,6 +226,42 @@ Public Function Delta_IsStackTop(cht As Chart, ref As String) As Boolean
     Delta_IsStackTop = (hi >= sumPos - 0.0000001)
 End Function
 
+' Cascatas: True quando o rotulo de FORA da barra da referencia fica na ponta 'anchor' (no lado da seta) e txt = o texto dele. Cascata: o
+' auxiliar tqq_lbl fica em LabelPos (Hi com valor >= 0, rotulo depois do fim; Lo com valor < 0, rotulo antes); com uma serie todas as barras
+' tem esse rotulo (texto LabelVal), com varias so os totais (texto Total; os segmentos tem rotulo no meio). Comparativa: so as barras grandes
+' (inicio e totais) tem o rotulo de fora (tqq_lbltot em TotPos, acima; texto TotTxt da fatia, que no modo so-valor ja vem sem o percentual);
+' os degraus tem o rotulo no meio. Le o bloco (barato), nao a geometria dos rotulos. Quem chama confere se os Rotulos estao ligados.
+Public Function Delta_WaterfallOutsideLabel(cht As Chart, ref As String, anchor As Double, above As Boolean, fmt As String, ByRef txt As String) As Boolean
+    Dim k As Long, c As Long, bb As Range, pos As Variant, lv As Variant, r As Long
+    If Not Delta_ParseRef(ref, k, c) Then Exit Function
+    Set bb = Block_Body(Registry_Block(cht))
+    Select Case Kinds_Family(Registry_ChartType(cht))
+        Case "waterfall"
+            If k <> 0 Or c > bb.Rows.Count - 1 Then Exit Function
+            pos = bb.Cells(c + 1, WF_COL_LABELPOS).Value
+            If Waterfall_SeriesCount(cht) > 1 Then lv = bb.Cells(c + 1, WF_COL_TOTAL).Value Else lv = bb.Cells(c + 1, WF_COL_LABELVAL).Value
+            If IsError(pos) Or IsError(lv) Then Exit Function
+            If Not IsNumeric(pos) Or Not IsNumeric(lv) Or IsEmpty(pos) Then Exit Function
+            If Abs(CDbl(pos) - anchor) > 0.000001 Then Exit Function
+            If above <> (CDbl(lv) >= 0) Then Exit Function
+            txt = Delta_FormatPlain(CDbl(lv), fmt)
+        Case "waterfallpair"
+            If Not above Or k < 1 Or k > 2 Or c > Wfp_StepCount(cht) Then Exit Function
+            r = Wfp_SlotOf(c, k) + 1
+            pos = bb.Cells(r, WFP_COL_TOTPOS).Value
+            If IsError(pos) Then Exit Function
+            If Not IsNumeric(pos) Or IsEmpty(pos) Then Exit Function
+            If Abs(CDbl(pos) - anchor) > 0.000001 Then Exit Function
+            lv = bb.Cells(r, WFP_COL_TOTTXT).Value
+            If IsError(lv) Then Exit Function
+            txt = CStr(lv)
+            If Len(txt) = 0 Then Exit Function
+        Case Else
+            Exit Function
+    End Select
+    Delta_WaterfallOutsideLabel = True
+End Function
+
 ' Indice no eixo de categorias (na comparativa, a fatia da barra; nos demais, a categoria).
 Public Function Delta_AxisIndex(cht As Chart, ref As String) As Long
     Dim k As Long, c As Long

@@ -394,9 +394,10 @@ reabertura do Excel; "Sobre" do PowerPoint mostra a versão nova.
   horizontal. Barras horizontais: o mesmo girado (linha vertical à direita das barras). Ambas as barras sem parte positiva (as duas
   inteiramente ≤ 0): abaixo (à esquerda nas barras).
 - **Emenda (revisão da B2):** com Rótulos (ou Totais) ligados, a perna começa **depois do rótulo de valor de fora** da barra (agrupadas,
-  linha, a linha da combinação; com Totais, o segmento de cima da pilha): 3 + 18 pt nas colunas, 3 + máx(18, largura estimada do rótulo +
-  6) nas barras (a mesma folga entra na altura base das barras); rótulos de dentro (segmentos das empilhadas, cascatas), âncora no zero e
-  Rótulos desligados ficam nos 3 pt.
+  linha, a linha da combinação; com Totais, o segmento de cima da pilha; nas cascatas e na comparativa, onde o bloco põe o rótulo de fora na
+  ponta: barras grandes e, na cascata de uma série, os degraus): 3 + 18 pt nas colunas, 3 + máx(18, largura estimada do rótulo +
+  6) nas barras (a mesma folga entra na altura base das barras); rótulos de dentro (segmentos das empilhadas, degraus da comparativa),
+  âncora no zero e Rótulos desligados ficam nos 3 pt.
 - **Altura base**: a borda mais externa de **todas** as barras entre origem e destino (inclusive; nas agrupadas, o maior valor positivo de
   qualquer série; nas empilhadas, a soma dos positivos; nas cascatas, `Hi`; na comparativa, a coluna `Top` das fatias) + 8 pt + meia altura do
   rótulo + 18 pt quando Rótulos ou Totais estão ligados.
