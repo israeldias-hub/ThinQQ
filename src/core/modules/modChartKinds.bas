@@ -84,6 +84,7 @@ Public Function Kinds_Supports(kind As String, feature As String, Optional serie
         Case "pairdiff":   list = "waterfallpair"
         Case "pairabs":    list = "waterfallpair"
         Case "inbar":      list = "waterfallpair"
+        Case "delta":      list = "stacked,clustered,line,waterfall,barstacked,barclustered,barwaterfall,combo,waterfallpair"
         Case Else: Exit Function
     End Select
     Kinds_Supports = InList(list, kind)
@@ -112,6 +113,7 @@ Public Function Kinds_FeatureLabel(feature As String) As String
         Case "pairdiff":   Kinds_FeatureLabel = "Setas de variação"
         Case "pairabs":    Kinds_FeatureLabel = "Variação em valor"
         Case "inbar":      Kinds_FeatureLabel = "Nome dentro das barras"
+        Case "delta":      Kinds_FeatureLabel = "Delta clicando nas barras"
     End Select
 End Function
 

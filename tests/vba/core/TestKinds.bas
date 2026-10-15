@@ -477,3 +477,44 @@ Public Sub Test_Kinds_PairWaterfall_Matrix_ExhaustiveFromSpec()
     AssertEqual 23, nFeat, "23 recursos na tabela do spec"
     AssertEqual 483, nPairs
 End Sub
+
+Public Sub Test_Kinds_Delta_LabelAndRefusal()
+    Dim wb As Workbook, ws As Worksheet, c As Chart
+    AssertEqual "Delta clicando nas barras", Kinds_FeatureLabel("delta")
+    AssertTrue Kinds_Supports("clustered", "delta"): AssertTrue Kinds_Supports("waterfallpair", "delta")
+    AssertFalse Kinds_Supports("stacked100", "delta"): AssertFalse Kinds_Supports("area", "delta"): AssertFalse Kinds_Supports("butterfly", "delta")
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1").Value = "Cat": ws.Range("B1").Value = "Valor": ws.Range("A2").Value = "a": ws.Range("B2").Value = 1: ws.Range("A3").Value = "b": ws.Range("B3").Value = 2
+    ws.Range("A1:B3").Select
+    Core_Insert "pie"
+    Set c = Core_ActiveChart()
+    AssertEqual ANN_DELTA_REFUSAL, Ann_RefusalText(c, "delta")
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' Parte B (1.5.0): a matriz inteira (21 tipos x 24 recursos) conferida contra o TEXTO da tabela da secao 6 do spec 2026-10-14.
+Public Sub Test_Kinds_Delta_Matrix_ExhaustiveFromSpec()
+    Dim sec As String, lines() As String, i As Long, cells() As String, feat As String, expect As String, k As Variant, allKinds As Variant
+    Dim nFeat As Long, nPairs As Long, want As Boolean
+    allKinds = Array("stacked", "clustered", "stacked100", "line", "waterfall", "barstacked", "barclustered", "barstacked100", "barwaterfall", "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut", "butterfly", "scatter", "bubble", "waterfallpair")
+    sec = SpecSectionOf("2026-10-14-thinqq-ppt-delta-design.md", "## 6. ", "## 7. ")
+    lines = Split(Replace(sec, vbCr, ""), vbLf)
+    For i = LBound(lines) To UBound(lines)
+        If Left$(lines(i), 2) = "| " Then
+            cells = Split(lines(i), "|")
+            feat = Trim$(Replace(cells(1), "**", ""))
+            If feat <> "feature" And Left$(feat, 3) <> "---" Then
+                nFeat = nFeat + 1
+                expect = SpecKinds(cells(2), allKinds)
+                For Each k In allKinds
+                    want = (InStr(expect, "," & k & ",") > 0)
+                    AssertEqual want, Kinds_Supports(CStr(k), feat, 2), feat & " x " & k & " (spec: " & Trim$(cells(2)) & ")"
+                    nPairs = nPairs + 1
+                Next
+            End If
+        End If
+    Next
+    AssertEqual 24, nFeat, "24 recursos na tabela do spec"
+    AssertEqual 504, nPairs
+End Sub

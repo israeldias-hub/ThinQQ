@@ -15,8 +15,9 @@ Private Const ANN_BRACKET_STEP As Double = 20   ' cada colchete a mais sobe 20 p
 Private Const ANN_BRACKET_ROOM As Double = 42   ' folga (pt) acima da area interna com um colchete: 25 + rotulo de 13,1 + respiro; +20 por colchete
 Private Const ANN_BRACKET_MAX_FRACTION As Double = 0.4  ' teto da folga dos colchetes: 40% da altura do grafico (com muitos colchetes o passo encolhe)
 Public Const ANN_BRACKET_REFUSAL As String = "O colchete só está disponível em gráficos Gantt."
+Public Const ANN_DELTA_REFUSAL As String = "O delta entre barras não está disponível para este tipo de gráfico."
 
-' Texto da recusa (erro 7001) de uma anotação ("cagr", "diff" ou "bracket") pela matriz de tipos; "" quando o gráfico a suporta. Fonte única
+' Texto da recusa (erro 7001) de uma anotação ("cagr", "diff", "bracket" ou "delta") pela matriz de tipos; "" quando o gráfico a suporta. Fonte única
 ' das mensagens: Ann_AddCagr/Ann_AddDifference/Ann_AddBracket as levantam e Core_AddAnnotation a consulta ANTES de qualquer outra verificação
 ' (formulário de categorias, mínimo de categorias), para uma pizza ou um Gantt de uma linha receberem a mensagem do tipo.
 Public Function Ann_RefusalText(cht As Chart, kind As String) As String
@@ -34,6 +35,8 @@ Public Function Ann_RefusalText(cht As Chart, kind As String) As String
             End If
         Case "bracket"
             Ann_RefusalText = ANN_BRACKET_REFUSAL
+        Case "delta"
+            Ann_RefusalText = ANN_DELTA_REFUSAL
     End Select
 End Function
 

@@ -218,7 +218,7 @@ if ($parsed) {
         $matrix[$m.Groups['f'].Value] = $list
     }
     Check ($allKinds.Count -eq 21) "21 tipos de gráfico em modChartKinds.bas ($($allKinds.Count))"
-    Check ($matrix.Count -eq 23) "23 recursos na matriz de capacidades de modChartKinds.bas ($($matrix.Count))"
+    Check ($matrix.Count -eq 24) "24 recursos na matriz de capacidades de modChartKinds.bas ($($matrix.Count))"
     $nk = $allKinds.Count
     Check ($html -match "\b$nk tipos" -and $html -notmatch "\b$($nk - 1) tipos") "tutorial cita os $nk tipos (e nenhum '$($nk - 1) tipos')"
     # Rótulo de cada recurso: Kinds_FeatureLabel (modChartKinds.bas) ou, nos que ela não cobre, o controle da faixa que o aciona
