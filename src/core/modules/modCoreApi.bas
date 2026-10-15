@@ -529,6 +529,24 @@ Fail:
     End If
 End Sub
 
+' Delta entre duas barras (Parte B): referencias "k:c" (modDelta). Chamado pelo modo de dois cliques (com o grafico) e pelo gerador da
+' demonstracao (Application.Run, grafico ativo). Recusas 7001 (tipo) e 7003 (mesma barra/referencia invalida) viram aviso. Nunca propaga.
+Public Sub Core_AddDelta(fromRef As String, toRef As String, Optional fmt As String = "both", Optional cht As Chart = Nothing)
+    Dim c As Chart
+    On Error GoTo Fail
+    If cht Is Nothing Then Set c = Core_ActiveChart() Else Set c = cht
+    If c Is Nothing Then Exit Sub
+    If fmt <> "abs" And fmt <> "pct" Then fmt = "both"
+    Ann_AddDelta c, fromRef, toRef, fmt
+    Exit Sub
+Fail:
+    If Err.Number = vbObjectError + 7001 Or Err.Number = vbObjectError + 7003 Then
+        Core_Notify Err.Description, vbInformation
+    Else
+        Errors_Handle "Core_AddDelta"
+    End If
+End Sub
+
 ' Abre o formulário de categorias (allowSame: o colchete aceita a mesma atividade nas duas pontas). Nunca abre em build de teste (modal
 ' travaria o Excel invisível).
 Private Function Core_AskCategories(c As Chart, n As Long, ByRef fromIdx As Long, ByRef toIdx As Long, Optional allowSame As Boolean = False) As Boolean

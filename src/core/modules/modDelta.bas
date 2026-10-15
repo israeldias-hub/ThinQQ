@@ -11,10 +11,16 @@ Public Const DELTA_BAD_PICK As String = "Escolha duas barras diferentes do gráf
 ' Texto do delta de a para b: "both" = "+5 (+50%)" (como a Seta diferenca), "abs" = "+5", "pct" = "+50%". Percentual (b - a) / |a|; a = 0:
 ' "both" mostra so o valor e "pct" mostra "n/d". fmt = codigo do formato do grafico (Style_NumberFormat; a 1a secao). Pura.
 Public Function Delta_Text(a As Double, b As Double, mode As String, fmt As String) As String
-    Dim d As Double, sec As String, absTxt As String, pctTxt As String
+    Dim d As Double, sec As String, absTxt As String, pctTxt As String, shown As Double
     d = b - a
+    shown = d
     sec = Split(fmt & ";", ";")(0)
-    absTxt = Format$(d, "+" & sec & ";-" & sec & ";0")
+    ' virgulas finais = escala do Excel (mil: "#,##0,"; milhoes: "#,##0.0,,"); o Format$ do VBA nao as entende: divide e tira
+    Do While Len(sec) > 1 And Right$(sec, 1) = ","
+        sec = Left$(sec, Len(sec) - 1)
+        shown = shown / 1000
+    Loop
+    absTxt = Format$(shown, "+" & sec & ";-" & sec & ";0")
     If a <> 0 Then pctTxt = Format$(d / Abs(a), "+0%;-0%;0%") Else pctTxt = "n/d"
     Select Case mode
         Case "abs": Delta_Text = absTxt
@@ -220,14 +226,107 @@ Private Sub Delta_EdgeAdd(cht As Chart, ref As String, above As Boolean, ByRef e
     End If
 End Sub
 
+' Grupo de eixo da serie da referencia (xlPrimary ou xlSecondary): so a linha da combinacao com o eixo secundario fica no secundario; as
+' cascatas (barra do bloco) e referencias inexistentes sao primarias.
+Public Function Delta_AxisGroup(cht As Chart, ref As String) As Long
+    Dim k As Long, c As Long, s As Long
+    Delta_AxisGroup = xlPrimary
+    If Not Delta_ParseRef(ref, k, c) Then Exit Function
+    Select Case Kinds_Family(Registry_ChartType(cht))
+        Case "waterfall", "waterfallpair": Exit Function
+    End Select
+    s = Delta_SeriesIndex(cht, k)
+    If s = 0 Then Exit Function
+    If cht.SeriesCollection(s).AxisGroup = xlSecondary Then Delta_AxisGroup = xlSecondary
+End Function
+
+' Coordenada (pt, sentido dos valores) do valor v da serie da referencia, pela regra de tres do eixo DELA (a linha da combinacao no eixo
+' secundario tem outra escala), presa a area interna (valor alem da escala fixa ou do corte de eixo: a barra termina na borda).
+Public Function Delta_ValCoord(cht As Chart, ref As String, v As Double) As Double
+    Dim ax As Axis, p As Double, lo As Double, hi As Double
+    If Delta_AxisGroup(cht, ref) = xlSecondary Then
+        Set ax = cht.Axes(xlValue, xlSecondary)
+        With cht.PlotArea
+            If Geom_ChartIsHorizontal(cht) Then
+                p = Geom_ValueToX(.InsideLeft, .InsideWidth, ax.MinimumScale, ax.MaximumScale, v)
+            Else
+                p = Geom_ValueToY(.InsideTop, .InsideHeight, ax.MinimumScale, ax.MaximumScale, v)
+            End If
+        End With
+    Else
+        p = Geom_ChartValCoord(cht, v)
+    End If
+    With cht.PlotArea
+        If Geom_ChartIsHorizontal(cht) Then lo = .InsideLeft: hi = .InsideLeft + .InsideWidth Else lo = .InsideTop: hi = .InsideTop + .InsideHeight
+    End With
+    If p < lo Then p = lo
+    If p > hi Then p = hi
+    Delta_ValCoord = p
+End Function
+
+' Borda mais externa (pt) de TODAS as barras do trecho ia..ib, no lado da seta: dirn = sentido "para fora" em pt (-1 = para cima nas colunas,
+' +1 = para a direita nas barras; invertido abaixo). Cada extensao vai pela regra de tres do eixo da sua serie (Delta_ValCoord); comeca no
+' zero do eixo primario (a borda nunca fica aquem dele).
+Public Function Delta_SpanEdgeCoord(cht As Chart, ia As Long, ib As Long, above As Boolean, dirn As Double) As Double
+    Dim a As Long, k As Long, fam As String, nData As Long, edge As Double
+    fam = Kinds_Family(Registry_ChartType(cht))
+    nData = Delta_DataSeriesCount(cht)
+    edge = Delta_ValCoord(cht, "0:1", 0)                ' "0:1" e sempre primaria (k = 0 nao e serie de dados)
+    For a = Application.WorksheetFunction.Min(ia, ib) To Application.WorksheetFunction.Max(ia, ib)
+        If fam = "waterfall" Then
+            Delta_EdgeAddCoord cht, "0:" & a, above, dirn, edge
+        ElseIf fam = "waterfallpair" Then
+            If a Mod 3 = 1 Then Delta_EdgeAddCoord cht, "1:" & ((a + 2) \ 3), above, dirn, edge
+            If a Mod 3 = 2 Then Delta_EdgeAddCoord cht, "2:" & ((a + 2) \ 3), above, dirn, edge
+        Else
+            For k = 1 To nData
+                Delta_EdgeAddCoord cht, k & ":" & a, above, dirn, edge
+            Next
+        End If
+    Next
+    Delta_SpanEdgeCoord = edge
+End Function
+
+Private Sub Delta_EdgeAddCoord(cht As Chart, ref As String, above As Boolean, dirn As Double, ByRef edge As Double)
+    Dim v As Double, lo As Double, hi As Double, p As Double
+    If Not Delta_Extent(cht, ref, v, lo, hi) Then Exit Sub
+    If above Then p = Delta_ValCoord(cht, ref, hi) Else p = Delta_ValCoord(cht, ref, lo)
+    If dirn * p > dirn * edge Then edge = p
+End Sub
+
+' Cascata comparativa com as setas de variacao do par ligadas (auxiliar tqq_pdroom: um ponto por etapa, 12 pt acima da linha horizontal da
+' seta, a sala da elipse): a coordenada (pt) do ponto de sala mais alto entre as etapas que tem fatia no trecho ia..ib. False sem setas, abaixo,
+' fora da comparativa ou sem etapa no trecho.
+Public Function Delta_PairArrowEdgeCoord(cht As Chart, ia As Long, ib As Long, above As Boolean, ByRef edge As Double) As Boolean
+    Dim s As Long, vals As Variant, i As Long, lo As Long, hi As Long, p As Double
+    If Not above Then Exit Function
+    If Kinds_Family(Registry_ChartType(cht)) <> "waterfallpair" Then Exit Function
+    s = Delta_FindSeriesByName(cht, "tqq_pdroom")
+    If s = 0 Then Exit Function
+    vals = cht.SeriesCollection(s).Values
+    If Not IsArray(vals) Then Exit Function
+    lo = Application.WorksheetFunction.Min(ia, ib): hi = Application.WorksheetFunction.Max(ia, ib)
+    For i = 1 To UBound(vals) - LBound(vals) + 1
+        If (3 * i - 2 >= lo And 3 * i - 2 <= hi) Or (3 * i - 1 >= lo And 3 * i - 1 <= hi) Then
+            If IsNumeric(vals(LBound(vals) + i - 1)) And Not IsEmpty(vals(LBound(vals) + i - 1)) Then
+                p = Geom_ChartValCoord(cht, CDbl(vals(LBound(vals) + i - 1)))
+                If Not Delta_PairArrowEdgeCoord Or p < edge Then edge = p
+                Delta_PairArrowEdgeCoord = True
+            End If
+        End If
+    Next
+End Function
+
 ' Centro da barra no sentido das categorias (pt). Agrupadas: o centro do PONTO da serie (cada serie tem a sua barra; geometria do Excel,
 ' valida depois do layout); demais: o centro da categoria (Geom_ChartCatCoord; na comparativa a fatia).
 Public Function Delta_CatCenter(cht As Chart, ref As String) As Double
-    Dim k As Long, c As Long, kind As String, pt As Point
-    Delta_ParseRef ref, k, c
+    Dim k As Long, c As Long, kind As String, pt As Point, s As Long
+    If Not Delta_ParseRef(ref, k, c) Then Exit Function
     kind = Registry_ChartType(cht)
     If kind = "clustered" Or kind = "barclustered" Then
-        Set pt = cht.SeriesCollection(Delta_SeriesIndex(cht, k)).Points(c)
+        s = Delta_SeriesIndex(cht, k)
+        If s = 0 Then Exit Function
+        Set pt = cht.SeriesCollection(s).Points(c)
         If Geom_ChartIsHorizontal(cht) Then Delta_CatCenter = pt.Top + pt.Height / 2 Else Delta_CatCenter = pt.Left + pt.Width / 2
     Else
         Delta_CatCenter = Geom_ChartCatCoord(cht, Delta_AxisIndex(cht, ref))
@@ -237,10 +336,12 @@ End Function
 ' Meia espessura da barra no sentido das categorias (moldura da origem no modo de dois cliques).
 Public Function Delta_BarHalf(cht As Chart, ref As String) As Double
     Dim k As Long, c As Long, kind As String, pt As Point, s As Long
-    Delta_ParseRef ref, k, c
+    If Not Delta_ParseRef(ref, k, c) Then Exit Function
     kind = Registry_ChartType(cht)
     If kind = "clustered" Or kind = "barclustered" Then
-        Set pt = cht.SeriesCollection(Delta_SeriesIndex(cht, k)).Points(c)
+        s = Delta_SeriesIndex(cht, k)
+        If s = 0 Then Exit Function
+        Set pt = cht.SeriesCollection(s).Points(c)
         If Geom_ChartIsHorizontal(cht) Then Delta_BarHalf = pt.Height / 2 Else Delta_BarHalf = pt.Width / 2
     ElseIf kind = "line" Then
         Delta_BarHalf = 5
