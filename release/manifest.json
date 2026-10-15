@@ -1,13 +1,16 @@
 {
   "schemaVersion": 1,
-  "coreVersion": "1.3.0",
-  "coreUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.3.0/ThinQQ.core.xlam",
-  "coreSha256": "2dbb3c2b2987032eaf0474e15941428cad9bbda5b4ab133774b63d6f8d283ecc",
-  "loaderVersion": "1.3.0",
-  "loaderUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.3.0/ThinQQ.xlam",
-  "loaderSha256": "4381e0d506192552ab0582a447da16dfa0bdfb8bb5764926e9e569b4e41d9207",
-  "tutorialUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.3.0/tutorial.html",
+  "coreVersion": "1.4.0",
+  "coreUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.4.0/ThinQQ.core.xlam",
+  "coreSha256": "5b29b22a4ff41cf315e2d13b611daa85456cc2004873c44cd98f0bda274d27a1",
+  "loaderVersion": "1.4.0",
+  "loaderUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.4.0/ThinQQ.xlam",
+  "loaderSha256": "31063c97af71c9d063b7b6578e536195bf12f6e17d57316acbeb2dca72a1fee0",
+  "pptAddinVersion": "1.4.0",
+  "pptAddinUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.4.0/ThinQQ.ppam",
+  "pptAddinSha256": "373be0ecca2aa4f7fc053aa350f532eedaf7c2bd43cb41ef790ade7cc5e7e2f2",
+  "tutorialUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.4.0/tutorial.html",
   "manifestUrl": "https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json",
-  "publishedAt": "2026-10-14",
-  "notes": "• Novo: Cascata comparativa (menu Cascata): duas séries lado a lado, com conectores, setas de variação entre elas e o percentual do primeiro total.\r\n• Atualização pelo Excel volta a baixar os arquivos do GitHub (antes parava com 'HTTP 0').\r\n• Quem tem a 1.2.0, 1.2.1 ou 1.2.2 precisa reinstalar uma vez pelo ZIP desta versão (o carregador antigo não consegue baixar a atualização); daí em diante a atualização pelo Excel funciona."
+  "publishedAt": "2026-10-15",
+  "notes": "• Novo: o PowerPoint atualiza os gráficos do ThinQQ ao abrir a apresentação (dados e setas); reinstale pelo ZIP para ganhar o suplemento do PowerPoint.\r\n• Novo: no Excel, PowerPoint > Atualizar gráficos no PowerPoint atualiza dados e setas das apresentações abertas.\r\n• Para quem instalou o suplemento do PowerPoint pelo ZIP, o Excel também o atualiza (com o PowerPoint aberto, quando ele fechar).\r\n• Corrigido: ao colar como gráfico vinculado, as setas e os rótulos de seta não ficam mais esticados e fora do lugar.\r\n• Quem tem a 1.2.0, 1.2.1 ou 1.2.2 precisa reinstalar uma vez pelo ZIP desta versão (o carregador antigo não consegue baixar a atualização); daí em diante a atualização pelo Excel funciona."
 }
