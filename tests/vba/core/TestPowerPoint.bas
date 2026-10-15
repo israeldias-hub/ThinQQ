@@ -251,6 +251,14 @@ End Sub
 
 ' So cria o PowerPoint se nenhum estiver aberto (nem na ROT nem como processo POWERPNT: um aberto so para incorporacao nao aparece na ROT).
 ' Devolve Nothing (e registra o motivo) se pulou. Desarma os ganchos de um teste anterior.
+' A nota da colagem com alteracoes nao salvas diz a verdade medida: pasta ABERTA no Excel = o vinculo le os valores nao salvos;
+' fechada = o arquivo salvo (a frase antiga dizia que o PowerPoint sempre le o arquivo salvo).
+Public Sub Test_Ppt_NoteDirty_OpenWorkbookReadsUnsavedValues()
+    AssertTrue InStr(1, PPT_NOTE_DIRTY, "aberta no Excel", vbTextCompare) > 0, "cita a pasta aberta no Excel"
+    AssertTrue InStr(1, PPT_NOTE_DIRTY, "fechada", vbTextCompare) > 0, "cita a pasta fechada"
+    AssertTrue InStr(1, PPT_NOTE_DIRTY, "nas atualizações do vínculo", vbTextCompare) = 0, "sem a afirmacao antiga"
+End Sub
+
 Private Function StartScratchPowerPoint() As Object
     Dim app As Object
     Ppt_ResetTestHooks

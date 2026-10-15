@@ -25,7 +25,7 @@ Public Const PPT_ERR_NOT_INSTALLED As String = "O PowerPoint não está instalad
 Public Const PPT_ERR_UNSAVED As String = "Salve a pasta de trabalho antes de copiar o gráfico vinculado: o vínculo aponta para o arquivo salvo."
 Public Const PPT_ERR_CLIPBOARD As String = "A área de transferência do Windows não está disponível (outro programa a mantém aberta). Tente novamente em instantes."
 Public Const PPT_ERR_BUSY As String = "O PowerPoint está ocupado (uma caixa de diálogo aberta ou um texto em edição). Termine o que está fazendo nele e tente de novo."
-Public Const PPT_NOTE_DIRTY As String = "A pasta tem alterações não salvas: o PowerPoint lê o arquivo salvo nas atualizações do vínculo."
+Public Const PPT_NOTE_DIRTY As String = "A pasta tem alterações não salvas: enquanto ela estiver aberta no Excel o vínculo lê esses valores; fechada, o PowerPoint lê o arquivo salvo."
 
 ' Gancho de teste: instancia injetada (inerte fora do build Test).
 Public Sub Ppt_SetAppForTest(app As Object)

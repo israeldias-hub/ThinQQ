@@ -412,7 +412,7 @@ $messages = @(
     'ficaria quase invisível (menos de um quarto dele abaixo do corte).',
     'O PowerPoint não está instalado neste computador (ou não pôde ser iniciado).',
     'Salve a pasta de trabalho antes de copiar o gráfico vinculado: o vínculo aponta para o arquivo salvo.',
-    'A pasta tem alterações não salvas: o PowerPoint lê o arquivo salvo nas atualizações do vínculo.',
+    'A pasta tem alterações não salvas: enquanto ela estiver aberta no Excel o vínculo lê esses valores; fechada, o PowerPoint lê o arquivo salvo.',
     'A área de transferência do Windows não está disponível (outro programa a mantém aberta). Tente novamente em instantes.',
     'O PowerPoint está ocupado (uma caixa de diálogo aberta ou um texto em edição). Termine o que está fazendo nele e tente de novo.',
     'Selecione uma única coluna ou linha só com números (pelo menos 2).',
@@ -426,6 +426,10 @@ $messages = @(
     'A cascata comparativa compara exatamente 2 séries; a tabela tem ',
     ' colunas de valores. Selecione a coluna das etapas e só as duas colunas a comparar.'
 )
+# a nota da colagem e o tutorial nao podem voltar a dizer que o vinculo so le o arquivo salvo (a sonda mediu: com a pasta ABERTA no Excel,
+# LinkFormat.Update le os valores nao salvos)
+Check ($html -notmatch [regex]::Escape('o PowerPoint lê o arquivo salvo nas atualizações do vínculo')) 'tutorial sem a nota antiga da colagem (pasta aberta le os valores nao salvos)'
+Check ($html -notmatch [regex]::Escape('Atualizar Dados</strong> relê o arquivo salvo')) 'tutorial: Atualizar Dados qualificado (pasta aberta x fechada)'
 foreach ($msg in $messages) {
     Check ($html -match [regex]::Escape($msg)) "tutorial cita a mensagem '$msg'"
     Check ($coreSrc -match [regex]::Escape($msg)) "o core emite a mensagem '$msg'"
