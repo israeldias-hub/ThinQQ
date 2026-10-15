@@ -175,14 +175,20 @@ Public Sub DeltaPick_EscKey()
     End If
 End Sub
 
-' O OnTime do prazo disparou. Todo desarme cancela o OnTime vivo, entao um disparo e sempre o do modo atual: desarma SEM comparar Now com o
-' horario (Date exato pode ficar um ulp antes e o modo ficaria armado com o Esc preso). Desarmado: so devolve o Esc.
+' O OnTime do prazo disparou. Armado: desarma se o prazo do modo atual chegou, com 2 s de folga (o Date exato pode ficar um ulp antes e o
+' modo ficaria armado com o Esc preso); mais cedo que isso o disparo e de um OnTime velho (um cancelamento que falhou, o VBA reiniciado) e
+' e ignorado sem esquecer o OnTime vivo. Desarmado: so devolve o Esc.
 Public Sub DeltaPick_TimeoutFired()
     On Error Resume Next
-    mTimeoutAt = 0                                  ' disparou: nada a cancelar
     If mArmed Then
+        If Now < mDeadline - TimeSerial(0, 0, 2) Then
+            Errors_Log "DeltaPick: OnTime do prazo velho ignorado (faltam " & Format$((mDeadline - Now) * 86400#, "0") & " s)"
+            Exit Sub
+        End If
+        mTimeoutAt = 0                              ' disparou: nada a cancelar
         DeltaPick_Disarm DELTAPICK_MSG_TIMEOUT
     Else
+        mTimeoutAt = 0
         Application.OnKey "{ESC}"
     End If
 End Sub
@@ -193,11 +199,12 @@ Public Sub DeltaPick_Timeout()
     If mArmed And Now >= mDeadline Then DeltaPick_Disarm DELTAPICK_MSG_TIMEOUT
 End Sub
 
-' Gancho de teste: simula o disparo do OnTime do prazo antes de vencer (cancela o OnTime real, como se o Excel o tivesse consumido, e chama
-' o manipulador do disparo). Inerte fora do build Test.
+' Gancho de teste: simula o disparo REAL do OnTime do prazo (cancela o OnTime real, como se o Excel o tivesse consumido, poe o prazo 1 s
+' adiante, como um Date que chega um pouco antes do horario, e chama o manipulador do disparo). Inerte fora do build Test.
 Public Sub DeltaPick_FireTimeoutForTest()
     If BUILD_CONFIG <> "Test" Then Exit Sub
     DeltaPick_CancelTimer mTimeoutAt, "DeltaPick_TimeoutFired"
+    If mArmed Then mDeadline = Now + TimeSerial(0, 0, 1)
     DeltaPick_TimeoutFired
 End Sub
 

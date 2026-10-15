@@ -400,8 +400,8 @@ Private Function PointPixels(c As Chart, s As Long, p As Long, ByRef x As Long, 
     If Not PointPixels Then Errors_Log "TestDeltaPick: GetChartElement(" & x & "," & y & ") deu " & id & "/" & a1 & "/" & a2 & " para " & s & "/" & p & ": trecho do MouseUp pulado"
 End Function
 
-' O OnTime do prazo dispara: desarma SEM comparar Now com o prazo (Date exato podia nao vencer por um ulp e deixar o modo armado e o Esc
-' preso). Disparar de novo, ja desarmado, so devolve o Esc (sem erro).
+' O OnTime do prazo dispara: desarma mesmo com Now um pouco antes do prazo (Date exato podia nao vencer por um ulp e deixar o modo armado e
+' o Esc preso; a folga e de 2 s, B6). Disparar de novo, ja desarmado, so devolve o Esc (sem erro).
 Public Sub Test_DeltaPick_TimeoutFired_DisarmsWithoutDeadlineCompare()
     Dim wb As Workbook, c As Chart
     On Error GoTo Fail
@@ -417,6 +417,29 @@ Public Sub Test_DeltaPick_TimeoutFired_DisarmsWithoutDeadlineCompare()
     AssertEqual 0, DeltaPick_TimerFailures(), "nenhum cancelamento do OnTime ja disparado"
     DeltaPick_TimeoutFired
     AssertFalse DeltaPick_IsArmed()
+    DeltaPick_Disarm ""
+    AssertEqual 0, DeltaPick_PendingTimers()
+    AssertEqual 0, DeltaPick_TimerFailures()
+    Teardown wb
+    Exit Sub
+Fail:
+    FailTeardown wb
+End Sub
+
+' B6: um OnTime velho (de um modo anterior cujo cancelamento falhou, ou o de antes da renovacao do prazo) que dispara com o modo NOVO
+' armado e o prazo ainda longe nao desarma, nem esquece o OnTime vivo; o disparo do OnTime do modo atual (ate 2 s antes do prazo) desarma.
+Public Sub Test_DeltaPick_StaleTimeout_DoesNotDisarmNewArm()
+    Dim wb As Workbook, c As Chart
+    On Error GoTo Fail
+    Set wb = NewTempWorkbook()
+    Set c = ArmedChart(wb, "clustered")
+    DeltaPick_TimeoutFired                                   ' disparo velho: o prazo deste modo vence daqui a ~60 s
+    AssertTrue DeltaPick_IsArmedFor(c), "temporizador velho nao desarma o modo novo"
+    AssertEqual DELTAPICK_MSG_FROM, StatusText()
+    AssertEqual 1, DeltaPick_PendingTimers(), "o OnTime vivo continua registrado (cancelavel no desarme)"
+    DeltaPick_FireTimeoutForTest                             ' o disparo do OnTime do modo atual (1 s antes do prazo: tolerancia)
+    AssertFalse DeltaPick_IsArmed(), "o OnTime do modo atual desarma"
+    AssertEqual DELTAPICK_MSG_TIMEOUT, StatusText()
     DeltaPick_Disarm ""
     AssertEqual 0, DeltaPick_PendingTimers()
     AssertEqual 0, DeltaPick_TimerFailures()
