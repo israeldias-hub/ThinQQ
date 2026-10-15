@@ -7,6 +7,7 @@ Option Explicit
 Public Const DELTA_GAP As Double = 8            ' pt: da borda mais externa das barras do trecho ate o rotulo
 Public Const DELTA_LABEL_ROOM As Double = 18    ' pt a mais com Rotulos ou Totais ligados (como ANN_TOTALS_EXTRA)
 Public Const DELTA_BAD_PICK As String = "Escolha duas barras diferentes do gráfico."
+Public Const DELTA_NONE As String = "Este gráfico não tem delta entre barras. Use Setas > Delta clicando nas barras."
 
 ' Texto do delta de a para b: "both" = "+5 (+50%)" (como a Seta diferenca), "abs" = "+5", "pct" = "+50%". Percentual (b - a) / |a|; a = 0:
 ' "both" mostra so o valor e "pct" mostra "n/d". fmt = codigo do formato do grafico (Style_NumberFormat; a 1a secao). Pura.
@@ -226,6 +227,27 @@ Public Function Delta_IsStackTop(cht As Chart, ref As String) As Boolean
     Delta_IsStackTop = (hi >= sumPos - 0.0000001)
 End Function
 
+' Espelho de Delta_IsStackTop para a seta que vai para BAIXO: True quando o segmento da referencia e o de baixo de uma pilha toda negativa
+' (sem nenhum valor positivo na categoria), onde o rotulo do total (TotalPos = a extensao negativa) fica ABAIXO dela (barras: a esquerda).
+' False para segmento positivo ou de cima, pilha com algum positivo (o total fica por cima), linha ou referencia inexistente.
+Public Function Delta_IsStackBottomNeg(cht As Chart, ref As String) As Boolean
+    Dim k As Long, c As Long, v As Double, lo As Double, hi As Double, i As Long, x As Double, sumPos As Double, sumNeg As Double, s As Long
+    If Not Delta_ParseRef(ref, k, c) Then Exit Function
+    If Not Delta_Extent(cht, ref, v, lo, hi) Then Exit Function
+    If v >= 0 Then Exit Function
+    s = Delta_SeriesIndex(cht, k)
+    If s = 0 Then Exit Function
+    If Not Delta_IsColumnSeries(cht.SeriesCollection(s)) Then Exit Function
+    For i = 1 To cht.SeriesCollection.Count
+        If Not Style_IsHelperSeries(cht.SeriesCollection(i)) And Delta_IsColumnSeries(cht.SeriesCollection(i)) Then
+            x = Delta_PointValue(cht.SeriesCollection(i), c)
+            If x > 0 Then sumPos = sumPos + x Else sumNeg = sumNeg + x
+        End If
+    Next
+    If sumPos > 0 Then Exit Function
+    Delta_IsStackBottomNeg = (lo <= sumNeg + 0.0000001)
+End Function
+
 ' Cascatas: True quando o rotulo de FORA da barra da referencia fica na ponta 'anchor' (no lado da seta) e txt = o texto dele. Cascata: o
 ' auxiliar tqq_lbl fica em LabelPos (Hi com valor >= 0, rotulo depois do fim; Lo com valor < 0, rotulo antes); com uma serie todas as barras
 ' tem esse rotulo (texto LabelVal), com varias so os totais (texto Total; os segmentos tem rotulo no meio). Comparativa: so as barras grandes
@@ -246,12 +268,15 @@ Public Function Delta_WaterfallOutsideLabel(cht As Chart, ref As String, anchor 
             If above <> (CDbl(lv) >= 0) Then Exit Function
             txt = Delta_FormatPlain(CDbl(lv), fmt)
         Case "waterfallpair"
-            If Not above Or k < 1 Or k > 2 Or c > Wfp_StepCount(cht) Then Exit Function
+            If k < 1 Or k > 2 Or c > Wfp_StepCount(cht) Then Exit Function
             r = Wfp_SlotOf(c, k) + 1
             pos = bb.Cells(r, WFP_COL_TOTPOS).Value
             If IsError(pos) Then Exit Function
             If Not IsNumeric(pos) Or IsEmpty(pos) Then Exit Function
             If Abs(CDbl(pos) - anchor) > 0.000001 Then Exit Function
+            lv = bb.Cells(r, WFP_COL_TOP).Value                    ' o rotulo fica ABAIXO quando TotPos < Top (Wfp_SyncLabels), senao acima
+            If IsError(lv) Then Exit Function
+            If above = (CDbl(pos) < Util_ToDouble(lv) - 0.000000001) Then Exit Function
             lv = bb.Cells(r, WFP_COL_TOTTXT).Value
             If IsError(lv) Then Exit Function
             txt = CStr(lv)

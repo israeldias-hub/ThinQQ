@@ -413,6 +413,38 @@ Fail:
     Err.Raise en, "Ann_AddDelta", ed
 End Function
 
+' Alterna o texto (ambos -> valor -> % -> ambos) da seta onlyName ou, com "", de todas as setas de delta do grafico. Devolve quantas mudou.
+Public Function Ann_CycleDeltaFormat(cht As Chart, onlyName As String) As Long
+    Dim i As Long, shp As Shape
+    For i = 1 To cht.Shapes.Count
+        Set shp = cht.Shapes(i)
+        If Left$(shp.Name, Len(ANN_DELTA)) = ANN_DELTA Then
+            If Ann_ParseParam(shp.AlternativeText, "kind") = "delta" And (Len(onlyName) = 0 Or shp.Name = onlyName) Then
+                shp.AlternativeText = Ann_SetParam(shp.AlternativeText, "fmt", Delta_NextFormat(Ann_ParseParam(shp.AlternativeText, "fmt")))
+                Ann_CycleDeltaFormat = Ann_CycleDeltaFormat + 1
+            End If
+        End If
+    Next
+    If Ann_CycleDeltaFormat > 0 Then
+        Ann_Refresh cht
+        Ann_EnsureDeltaRoom cht
+    End If
+End Function
+
+' Nome da seta de delta selecionada (linha, perna ou rotulo dentro do grafico ativo); "" se a selecao nao e uma delas.
+Public Function Ann_SelectedDeltaName() As String
+    Dim nm As String, sfx As Variant
+    On Error Resume Next
+    nm = CStr(Selection.Name)
+    If Err.Number <> 0 Then Exit Function
+    On Error GoTo 0
+    If Left$(nm, Len(ANN_DELTA)) <> ANN_DELTA Then Exit Function
+    For Each sfx In Array("_lbl", "_t1", "_t2")
+        If Right$(nm, Len(sfx)) = sfx Then nm = Left$(nm, Len(nm) - Len(sfx)): Exit For
+    Next
+    Ann_SelectedDeltaName = nm
+End Function
+
 Private Sub Ann_StyleDeltaLine(ln As Shape, withHead As Boolean)
     With ln.Line
         .ForeColor.RGB = RGB(89, 89, 89)
@@ -510,7 +542,9 @@ End Function
 
 ' Afastamento (pt) da ponta da perna a partir da borda da barra (emenda da spec 5.3, revisao B2): 3 pt; com o rotulo de valor POR FORA
 ' da barra (Rotulos ligados: pontos das agrupadas e da linha, a linha da combinacao; Totais ligados: o segmento de cima de uma pilha
-' positiva) e a ancora no FIM da barra (valor diferente de zero), a perna comeca depois do rotulo: 3 + 18 pt nas colunas, 3 + max(18,
+' positiva; seta para baixo: o de baixo de uma pilha toda negativa, Delta_IsStackBottomNeg) e a ancora no FIM da barra (valor diferente
+' de zero), a perna comeca depois do rotulo: 3 + 18 pt nas colunas (a linha, simples ou da combinacao, so com a seta para CIMA: o rotulo do
+' ponto fica acima dele), 3 + max(18,
 ' largura estimada do rotulo + 6) nas barras (o rotulo fica ~6 pt depois do fim; Labels_EstimateWidth, como Ann_TotalsExtra). Cascatas e
 ' comparativa: onde o bloco poe o rotulo de fora na ponta (Delta_WaterfallOutsideLabel: barras grandes; na cascata de uma serie tambem os
 ' degraus). Rotulos centrados (segmentos das empilhadas, degraus da comparativa) e ancoras no zero ficam nos 3 pt. Estimativa conservadora: nao le a geometria dos rotulos.
@@ -521,15 +555,18 @@ Private Function Ann_DeltaEndOffset(cht As Chart, ref As String, v As Double, an
     If Not Delta_ParseRef(ref, k, c) Then Exit Function
     kind = Registry_ChartType(cht)
     Select Case kind
-        Case "clustered", "barclustered", "line"
-            outside = (Registry_GetOption(cht, "labels", "1") = "1")
+        Case "clustered", "barclustered"
+            outside = (Registry_GetOption(cht, "labels", "1") = "1")                 ' fora da ponta: acima (positivo) ou abaixo (negativo)
+        Case "line"
+            outside = (Registry_GetOption(cht, "labels", "1") = "1") And above       ' o rotulo fica ACIMA do ponto: com a seta para baixo nao ha o que desviar
         Case "stacked", "barstacked", "combo"
             s = Delta_SeriesIndex(cht, k)
             If s = 0 Then Exit Function
             If Not Delta_IsColumnSeries(cht.SeriesCollection(s)) Then
-                outside = (Registry_GetOption(cht, "labels", "1") = "1")             ' a linha da combinacao: rotulo do ponto
-            ElseIf above And Registry_GetOption(cht, "totals", "0") = "1" Then
-                isTotal = Delta_IsStackTop(cht, ref)
+                outside = (Registry_GetOption(cht, "labels", "1") = "1") And above   ' a linha da combinacao: rotulo ACIMA do ponto
+            ElseIf Registry_GetOption(cht, "totals", "0") = "1" Then
+                ' o rotulo do total fica depois do segmento de cima (positivo) ou, numa pilha toda negativa, abaixo/a esquerda do de baixo
+                If above Then isTotal = Delta_IsStackTop(cht, ref) Else isTotal = Delta_IsStackBottomNeg(cht, ref)
                 outside = isTotal
             End If
         Case "waterfall", "barwaterfall", "waterfallpair"
@@ -813,9 +850,9 @@ End Sub
 Public Sub Ann_Refresh(cht As Chart)
     Dim values() As Double, tops() As Double, n As Long, i As Long, shp As Shape, kind As String, errs As String
     Dim fmt As String, fromIdx As Long, toIdx As Long, valid As Boolean, chartKind As String, nm As String
-    mDeltaPlaced = 0                    ' numeros da sala do delta valem so para ESTE grafico (saidas cedo nao deixam os de outro)
     If mRefreshing Then Exit Sub
     mRefreshing = True
+    mDeltaPlaced = 0                    ' numeros da sala do delta valem so para ESTE grafico (saidas cedo nao deixam os de outro); um aninhado barrado acima nao zera os do externo
     On Error GoTo Done
     n = Geom_ChartCategoryCount(cht)
     If n = 0 Then GoTo Done

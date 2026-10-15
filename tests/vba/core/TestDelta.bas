@@ -644,6 +644,137 @@ Public Sub Test_Delta_Labels_WaterfallPair_BigBars()
     Teardown wb
 End Sub
 
+' ---------- B4 (adendo da revisao da B2): o lado de BAIXO da regra de afastamento da perna; oraculo = o DataLabel real ----------
+
+' Sul -10, -20, -30; Norte -5, -6, -4: toda coluna e inteiramente negativa (o total fica ABAIXO da pilha).
+Private Function NegFixture(wb As Workbook) As Range
+    Dim rng As Range
+    Set rng = Fixture(wb)
+    rng.Worksheet.Range("B2:C2").Value = Array(-10, -5)
+    rng.Worksheet.Range("B3:C3").Value = Array(-20, -6)
+    rng.Worksheet.Range("B4:C4").Value = Array(-30, -4)
+    Set NegFixture = rng
+End Function
+
+Public Sub Test_Delta_IsStackBottomNeg()
+    Dim wb As Workbook, c As Chart
+    Set wb = NewTempWorkbook()
+    Set c = InsertOn(NegFixture(wb), "stacked")
+    AssertTrue Delta_IsStackBottomNeg(c, "2:1"), "Norte e o segmento de baixo da pilha negativa"
+    AssertFalse Delta_IsStackBottomNeg(c, "1:1"), "Sul fica entre o zero e o Norte"
+    AssertFalse Delta_IsStackTop(c, "2:1"), "o espelho nao e o topo"
+    Teardown wb
+    Set wb = NewTempWorkbook()
+    Set c = InsertOn(Fixture(wb), "stacked")
+    AssertFalse Delta_IsStackBottomNeg(c, "2:3"), "Norte -4 com Sul 30 acima: o total (+26) fica por cima, nao embaixo"
+    AssertFalse Delta_IsStackBottomNeg(c, "1:3"), "segmento positivo"
+    AssertFalse Delta_IsStackBottomNeg(c, "2:9"), "referencia inexistente"
+    Teardown wb
+End Sub
+
+' Coluna empilhada toda negativa com Totais: o rotulo do total fica ABAIXO da pilha; a perna do delta (seta para baixo) comeca depois dele.
+Public Sub Test_Delta_Labels_StackedNegative_Totals_LegBelowTotal()
+    Dim wb As Workbook, c As Chart, l As Double, t As Double, w As Double, h As Double, txt As String
+    Set wb = NewTempWorkbook()
+    Set c = InsertOn(NegFixture(wb), "stacked")
+    Core_SetToggle "totals", True
+    Core_AddDelta "2:1", "2:3"
+    Relayout c
+    AssertTrue HelperLabelBox(c, "tqq_total", 1, l, t, w, h, txt), "rotulo do total T1"
+    AssertTrue c.Shapes("tqq_ann_delta_1").Top > YOf(c, -34), "seta para baixo (todas as barras inteiramente negativas)"
+    AssertTrue c.Shapes("tqq_ann_delta_1_t1").Top >= t + h - 0.5, "perna da origem abaixo do rotulo do total '" & txt & "' (" & c.Shapes("tqq_ann_delta_1_t1").Top & " / " & (t + h) & ")"
+    AssertAlmost YOf(c, -15) + LEG_GAP + LBL_ROOM, c.Shapes("tqq_ann_delta_1_t1").Top, 1, "afastamento 3 + 18 pt"
+    AssertTrue HelperLabelBox(c, "tqq_total", 3, l, t, w, h, txt), "rotulo do total T3"
+    AssertTrue c.Shapes("tqq_ann_delta_1_t2").Top >= t + h - 0.5, "ponta abaixo do rotulo do total '" & txt & "' (" & c.Shapes("tqq_ann_delta_1_t2").Top & " / " & (t + h) & ")"
+    Core_SetToggle "totals", False
+    Relayout c
+    AssertAlmost YOf(c, -15) + LEG_GAP, c.Shapes("tqq_ann_delta_1_t1").Top, 1, "Totais desligados: so 3 pt"
+    Teardown wb
+End Sub
+
+' Barras empilhadas todas negativas com Totais: o total fica a ESQUERDA da pilha; a perna comeca depois (mais a esquerda) do rotulo.
+Public Sub Test_Delta_Labels_BarStackedNegative_Totals_LegBeyondTotal()
+    Dim wb As Workbook, c As Chart, l As Double, t As Double, w As Double, h As Double, txt As String
+    Set wb = NewTempWorkbook()
+    Set c = InsertOn(NegFixture(wb), "barstacked")
+    Core_SetToggle "totals", True
+    Core_AddDelta "2:1", "2:3"
+    Relayout c
+    AssertTrue HelperLabelBox(c, "tqq_total", 1, l, t, w, h, txt), "rotulo do total T1"
+    AssertTrue c.Shapes("tqq_ann_delta_1_t1").Left + c.Shapes("tqq_ann_delta_1_t1").Width <= l - 0.5, "perna da origem a esquerda do rotulo '" & txt & "' (" & (c.Shapes("tqq_ann_delta_1_t1").Left + c.Shapes("tqq_ann_delta_1_t1").Width) & " / " & l & ")"
+    AssertTrue HelperLabelBox(c, "tqq_total", 3, l, t, w, h, txt), "rotulo do total T3"
+    AssertTrue c.Shapes("tqq_ann_delta_1_t2").Left + c.Shapes("tqq_ann_delta_1_t2").Width <= l - 0.5, "ponta a esquerda do rotulo '" & txt & "'"
+    Teardown wb
+End Sub
+
+' Pilha mista (Sul positivo, Norte negativo): o total fica POR CIMA, nao ha rotulo embaixo; a perna da seta para baixo (nos segmentos
+' negativos, o fim da pilha negativa) encosta a 3 pt, sem afastar.
+Public Sub Test_Delta_Stacked_MixedSigns_BelowNoOffset()
+    Dim wb As Workbook, c As Chart, rng As Range
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Worksheet.Range("C2").Value = -5
+    Set c = InsertOn(rng, "stacked")
+    Core_SetToggle "totals", True
+    Core_AddDelta "2:1", "2:3"
+    Relayout c
+    AssertTrue c.Shapes("tqq_ann_delta_1").Top > YOf(c, -6), "seta para baixo (os dois segmentos Norte sao negativos)"
+    AssertAlmost YOf(c, -5) + LEG_GAP, c.Shapes("tqq_ann_delta_1_t1").Top, 1, "sem rotulo de total embaixo: 3 pt"
+    AssertAlmost YOf(c, -4) + LEG_GAP, c.Shapes("tqq_ann_delta_1_t2").Top, 1, "ponta a 3 pt"
+    Teardown wb
+End Sub
+
+' Comparativa com barra grande NEGATIVA (rotulo do total ABAIXO): a perna da seta para baixo comeca depois do rotulo (oraculo: tqq_lbltot).
+Public Sub Test_Delta_Labels_WaterfallPair_NegativeBigBar_LegBelowLabel()
+    Dim wb As Workbook, c As Chart, ws As Worksheet, l As Double, t As Double, w As Double, h As Double, txt As String, v As Double, lo As Double, hi As Double
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Par"
+    ws.Range("A1:C1").Value = Array("Etapa", "Seg 1", "Seg 2")
+    ws.Range("A2:C2").Value = Array("Bruto", -27, -29)
+    ws.Range("A3:C3").Value = Array("Comp 1", -4, -7)
+    ws.Range("A4:C4").Value = Array("Líquido", "e", "e")
+    Set c = InsertOn(ws.Range("A1:C4"), "waterfallpair")
+    Core_AddDelta "1:1", "2:3"
+    Relayout c
+    AssertTrue Delta_Extent(c, "1:1", v, lo, hi): AssertTrue lo < 0 And hi = 0, "barra grande negativa: de 0 para baixo"
+    AssertTrue HelperLabelBox(c, "tqq_lbltot", 1, l, t, w, h, txt), "rotulo da barra inicial A"
+    AssertTrue t > YOf(c, lo) - 1, "o rotulo fica ABAIXO da barra negativa (oraculo)"
+    AssertTrue c.Shapes("tqq_ann_delta_1").Top > YOf(c, lo), "seta para baixo"
+    AssertTrue c.Shapes("tqq_ann_delta_1_t1").Top >= t + h - 0.5, "perna abaixo do rotulo '" & txt & "' (" & c.Shapes("tqq_ann_delta_1_t1").Top & " / " & (t + h) & ")"
+    AssertTrue HelperLabelBox(c, "tqq_lbltot", 8, l, t, w, h, txt), "rotulo do total B"
+    AssertTrue c.Shapes("tqq_ann_delta_1_t2").Top >= t + h - 0.5, "ponta abaixo do rotulo '" & txt & "' (" & c.Shapes("tqq_ann_delta_1_t2").Top & " / " & (t + h) & ")"
+    Teardown wb
+End Sub
+
+' Linha com a seta para BAIXO (todos os pontos negativos): o rotulo do ponto fica ACIMA dele; a perna encosta a 3 pt (sem afastar).
+Public Sub Test_Delta_Labels_Line_Below_NoOffset()
+    Dim wb As Workbook, c As Chart, l As Double, t As Double, w As Double, h As Double
+    Set wb = NewTempWorkbook()
+    Set c = InsertOn(NegFixture(wb), "line")
+    Core_AddDelta "1:1", "1:3"
+    Relayout c
+    AssertTrue LabelBox(c, 1, 1, l, t, w, h), "o ponto de origem tem rotulo"
+    AssertTrue t + h <= YOf(c, -10) + 1, "o rotulo do ponto fica acima dele (oraculo)"
+    AssertAlmost YOf(c, -10) + LEG_GAP, c.Shapes("tqq_ann_delta_1_t1").Top, 1, "perna da origem a 3 pt do ponto (o rotulo esta do outro lado)"
+    AssertAlmost YOf(c, -30) + LEG_GAP, c.Shapes("tqq_ann_delta_1_t2").Top, 1, "ponta a 3 pt do ponto de destino"
+    Teardown wb
+End Sub
+
+' A linha da combinacao (eixo secundario) com a seta para baixo: tambem 3 pt.
+Public Sub Test_Delta_Labels_ComboLine_Below_NoOffset()
+    Dim wb As Workbook, ws As Worksheet, c As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:C1").Value = Array("Tri", "Sul", "Linha")
+    ws.Range("A2:C2").Value = Array("T1", 10, -500)
+    ws.Range("A3:C3").Value = Array("T2", 20, -600)
+    ws.Range("A4:C4").Value = Array("T3", 30, -700)
+    Set c = InsertOn(ws.Range("A1:C4"), "combo")
+    If Registry_GetOption(c, "secondary", "0") <> "1" Then Combo_SetSecondary c, True
+    Core_AddDelta "2:1", "2:3"
+    Relayout c
+    AssertAlmost YSecOf(c, -500) + LEG_GAP, c.Shapes("tqq_ann_delta_1_t1").Top, 1, "ponto da linha: 3 pt (rotulo acima do ponto)"
+    AssertAlmost YSecOf(c, -700) + LEG_GAP, c.Shapes("tqq_ann_delta_1_t2").Top, 1, "ponta da linha: 3 pt"
+    Teardown wb
+End Sub
+
 ' 8 categorias num grafico estreito: dois deltas DENTRO de categorias vizinhas, na mesma altura base. O rotulo e mais largo que o trecho:
 ' a sobreposicao conta a extensao do rotulo e as setas vao para faixas diferentes (caixas reais sem se tocar).
 Public Sub Test_Delta_Lanes_LabelWiderThanSpan()

@@ -555,3 +555,52 @@ Public Sub Test_DeltaPick_ArmFailure_Notifies()
 Fail:
     FailTeardown wb
 End Sub
+
+' B4: "Delta: valor / % / ambos" alterna o texto de TODAS as setas de delta (nenhuma selecionada) ou so da selecionada (rotulo, perna ou
+' linha dela); sem delta no grafico, avisa.
+Public Sub Test_Delta_CycleFormat_AllOrSelected()
+    Dim wb As Workbook, rng As Range, c As Chart
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "clustered"
+    Set c = Core_ActiveChart()
+    Core_AddDelta "1:1", "1:3"
+    Core_AddDelta "2:1", "2:2"
+    c.Parent.Activate
+    c.ChartArea.Select
+    Core_DeltaCycleFormat
+    AssertEqual "abs", Ann_ParseParam(c.Shapes("tqq_ann_delta_1").AlternativeText, "fmt"), "sem seta selecionada: todas"
+    AssertEqual "abs", Ann_ParseParam(c.Shapes("tqq_ann_delta_2").AlternativeText, "fmt")
+    AssertEqual Delta_Text(10, 30, "abs", Style_NumberFormat(Registry_GetOption(c, "numfmt", "int"))), CStr(c.Shapes("tqq_ann_delta_1_lbl").TextFrame2.TextRange.Text)
+    c.Shapes("tqq_ann_delta_2_lbl").Select
+    AssertEqual "tqq_ann_delta_2", Ann_SelectedDeltaName()
+    Core_DeltaCycleFormat
+    AssertEqual "abs", Ann_ParseParam(c.Shapes("tqq_ann_delta_1").AlternativeText, "fmt"), "so a selecionada muda"
+    AssertEqual "pct", Ann_ParseParam(c.Shapes("tqq_ann_delta_2").AlternativeText, "fmt")
+    Ann_RemoveAll c
+    c.ChartArea.Select
+    Core_ClearLastNotice
+    Core_DeltaCycleFormat
+    AssertEqual DELTA_NONE, Core_LastNotice(), "sem delta: aviso"
+    Teardown wb
+End Sub
+
+' B4: a seta selecionada pode ser a perna (_t1/_t2) ou a linha; qualquer outra selecao (area do grafico) devolve "".
+Public Sub Test_Delta_SelectedName_LegsAndLine()
+    Dim wb As Workbook, c As Chart
+    Set wb = NewTempWorkbook()
+    Fixture(wb).Select
+    Core_Insert "clustered"
+    Set c = Core_ActiveChart()
+    Core_AddDelta "1:1", "1:3"
+    c.Parent.Activate
+    c.Shapes("tqq_ann_delta_1_t1").Select
+    AssertEqual "tqq_ann_delta_1", Ann_SelectedDeltaName(), "perna da origem"
+    c.Shapes("tqq_ann_delta_1_t2").Select
+    AssertEqual "tqq_ann_delta_1", Ann_SelectedDeltaName(), "perna do destino"
+    c.Shapes("tqq_ann_delta_1").Select
+    AssertEqual "tqq_ann_delta_1", Ann_SelectedDeltaName(), "linha"
+    c.ChartArea.Select
+    AssertEqual "", Ann_SelectedDeltaName(), "area do grafico"
+    Teardown wb
+End Sub

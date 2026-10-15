@@ -569,6 +569,18 @@ Fail:
     Errors_Handle "Core_DeltaPick"          ' DeltaPick_Arm tem tratador proprio (desarma); antes dele nada foi mexido
 End Sub
 
+' Botao "Delta: valor / % / ambos": alterna o texto da seta de delta selecionada (ou de todas do grafico). Nunca propaga.
+Public Sub Core_DeltaCycleFormat()
+    Dim c As Chart
+    On Error GoTo Fail
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Sub
+    If Ann_CycleDeltaFormat(c, Ann_SelectedDeltaName()) = 0 Then Core_Notify DELTA_NONE, vbInformation
+    Exit Sub
+Fail:
+    Errors_Handle "Core_DeltaCycleFormat"
+End Sub
+
 ' Abre o formulário de categorias (allowSame: o colchete aceita a mesma atividade nas duas pontas). Nunca abre em build de teste (modal
 ' travaria o Excel invisível).
 Private Function Core_AskCategories(c As Chart, n As Long, ByRef fromIdx As Long, ByRef toIdx As Long, Optional allowSame As Boolean = False) As Boolean

@@ -111,7 +111,7 @@ Public Sub Test_Ribbon_Xml_HasAllCallbacks()
     names = Array("Rx_OnLoad", "Rx_OnInsert", "Rx_GetEnabled", "Rx_OnToggle", "Rx_GetPressed", "Rx_OnDropdown", _
                   "Rx_GetSelectedId", "Rx_OnAnnotation", "Rx_OnRemoveAnnotations", "Rx_OnRefresh", "Rx_OnChangeSource", _
                   "Rx_OnSamples", "Rx_OnTutorial", "Rx_OnCheckUpdates", "Rx_OnSettings", "Rx_OnAbout", "Rx_OnSameScale", "Rx_OnResetScale", _
-                  "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart", "Rx_OnPptSync")
+                  "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart", "Rx_OnPptSync", "Rx_OnDelta", "Rx_OnDeltaFormat")
     For i = LBound(names) To UBound(names)
         AssertTrue InStr(xml, names(i)) > 0, "callback ausente no XML: " & names(i)
     Next
@@ -294,6 +294,50 @@ Public Sub Test_Ribbon_PairWaterfall_LabelsAndTips()
     AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='tglTotals']"), "supertip"), "cascata comparativa") > 0, "Totais explica o percentual da comparativa"
     AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='tglPairDiff']"), "supertip"), "n/d") > 0
     AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='btnWaterfallPair']"), "supertip"), "exatamente 2 colunas de valores") > 0
+End Sub
+
+' Delta entre barras (Parte B): rotulos, tags, posicao no menu Setas e supertips exatos (o tutorial, a matriz e o Test-Docs dependem dos rotulos).
+Public Sub Test_Ribbon_Delta_LabelsAndTips()
+    Dim d As Object, n As Object, m As Object
+    Set d = LoadRibbon()
+    Set n = d.SelectSingleNode("//u:menu[@id='mnuArrows']/u:button[@id='btnDelta']")
+    AssertTrue Not n Is Nothing, "btnDelta no menu Setas"
+    AssertEqual "Delta clicando nas barras", AttrText(n, "label"): AssertEqual "delta", AttrText(n, "tag")
+    AssertEqual "Rx_OnDelta", AttrText(n, "onAction"): AssertEqual "Rx_GetEnabled", AttrText(n, "getEnabled")
+    AssertEqual "btnDelta", AttrText(d.SelectSingleNode("//u:button[@id='btnDiff']/following-sibling::*[1]"), "id"), "logo depois da Seta diferenca"
+    Set m = d.SelectSingleNode("//u:menu[@id='mnuArrows']/u:button[@id='btnDeltaFmt']")
+    AssertTrue Not m Is Nothing
+    AssertEqual "Delta: valor / % / ambos", AttrText(m, "label"): AssertEqual "delta", AttrText(m, "tag"): AssertEqual "Rx_OnDeltaFormat", AttrText(m, "onAction")
+    AssertEqual "Rx_GetEnabled", AttrText(m, "getEnabled")
+    AssertEqual "btnDeltaFmt", AttrText(d.SelectSingleNode("//u:button[@id='btnDelta']/following-sibling::*[1]"), "id"), "o formato logo depois do Delta"
+    AssertTrue InStr(AttrText(n, "supertip"), "Esc") > 0, "supertip ensina a cancelar"
+    AssertTrue InStr(AttrText(m, "supertip"), "selecionada") > 0, "supertip do formato diz o que ele altera"
+    AssertEqual "tqq_arrows16", AttrText(n, "image"): AssertEqual "tqq_arrows16", AttrText(m, "image")
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//u:menu[@id='mnuArrows']"), "supertip"), "delta entre duas barras escolhidas com o mouse") > 0, "o supertip do menu cita o delta"
+    AssertEqual 3, d.SelectNodes("//u:button[@onAction='Rx_OnAnnotation']").Length, "as 3 setas antigas continuam"
+End Sub
+
+' Os dois botoes do delta chegam ao core pelo caminho que avisa 'atualize' quando o core e anterior (RunCoreFeature) e nunca propagam erro.
+Public Sub Test_Ribbon_Delta_Buttons_ReachCore()
+    Dim code As String, en As Long, ed As String
+    On Error GoTo Cleanup
+    code = RibbonModuleCode()
+    AssertTrue InStr(code, "RunCoreFeature ""Core_DeltaPick""") > 0, "Rx_OnDelta chama Core_DeltaPick"
+    AssertTrue InStr(code, "RunCoreFeature ""Core_DeltaCycleFormat""") > 0, "Rx_OnDeltaFormat chama Core_DeltaCycleFormat"
+    If Loader_CoreWorkbook() Is Nothing Then Loader_Log "TestRibbon: core nao carregado (parte do aviso pulada)": GoTo Cleanup
+    Rx_TestSetFeatureProcSuffix "_inexistente"
+    Loader_LastMsg = ""
+    Rx_OnDelta Nothing
+    AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "Delta clicando nas barras com core anterior"
+    Loader_LastMsg = ""
+    Rx_OnDeltaFormat Nothing
+    AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "Delta: valor / % / ambos com core anterior"
+    Rx_TestSetFeatureProcSuffix ""
+    Err.Clear
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    Rx_TestSetFeatureProcSuffix ""
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
 End Sub
 
 ' Rotulos, tags e textos de ajuda exatos dos controles da Fase 3 (o tutorial e o Test-Docs dependem dos rotulos).
