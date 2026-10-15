@@ -524,6 +524,31 @@ Fail:
     FailTeardown wb
 End Sub
 
+' B6: a janela de 0,6 s do mesmo clique comeca DEPOIS de desenhar a moldura: num grafico pesado (desenho de 0,8 s) o MouseUp do clique que
+' escolheu a origem pelo Select ainda e o mesmo clique (hit test noutra barra) e nao completa o delta.
+Public Sub Test_DeltaPick_SlowMark_SameClickWindowStartsAfterDraw()
+    Dim wb As Workbook, c As Chart, s As Long, x As Long, y As Long
+    On Error GoTo Fail
+    Set wb = NewTempWorkbook()
+    Set c = ArmedChart(wb, "clustered")
+    ForceLayout c
+    s = Delta_SeriesIndex(c, 2)
+    If PointPixels(c, s, 3, x, y) Then
+        DeltaPick_SlowMarkForTest 0.8
+        DeltaPick_OnSelect c, xlSeries, s, 1
+        AssertEqual "2:1", DeltaPick_FromRef()
+        AssertTrue HasShape(c, DELTAPICK_MARK), "moldura desenhada"
+        DeltaPick_OnMouseUp c, x, y                     ' o MouseUp do mesmo clique, logo depois do desenho lento
+        AssertTrue DeltaPick_IsArmed(), "o MouseUp do mesmo clique nao vira destino"
+        AssertEqual "2:1", DeltaPick_FromRef()
+        AssertFalse HasShape(c, "tqq_ann_delta_1"), "um clique nao insere delta"
+    End If
+    Teardown wb
+    Exit Sub
+Fail:
+    FailTeardown wb
+End Sub
+
 ' Rotulo de dados, linhas de serie, formas (setas, a propria moldura): "clique numa barra", segue armado; area/eixo/legenda: silencio.
 Public Sub Test_DeltaPick_NonBarElements_StayArmed()
     Dim wb As Workbook, c As Chart, s As Long

@@ -36,6 +36,7 @@ Private mTimeoutAt As Date                      ' horario do OnTime do prazo age
 Private mClearAt As Date                        ' horario do OnTime que apaga o aviso da barra de status (0 = nenhum)
 Private mStatusOwned As Boolean                 ' a barra de status mostra um texto nosso (armado ou aviso de 4 s)
 Private mTimerFailures As Long                  ' OnTime que nao pode ser agendado/cancelado (testes: deve ficar 0)
+Private mSlowMark As Single                     ' gancho de teste: segundos a mais no proximo desenho da moldura (uma vez; 0 = nada)
 
 Public Function DeltaPick_IsArmed() As Boolean
     DeltaPick_IsArmed = mArmed
@@ -138,6 +139,7 @@ Public Sub DeltaPick_Disarm(msg As String)
     wasArmed = mArmed
     mArmed = False
     mFromRef = "": mLastKey = "": mLastSrc = ""
+    mSlowMark = 0
     If wasArmed Then
         Set co = Workbooks(mBookName).Worksheets(mSheetName).ChartObjects(mChartName)
         If Not co Is Nothing Then DeltaPick_RemoveMark co.Chart
@@ -206,6 +208,12 @@ Public Sub DeltaPick_FireTimeoutForTest()
     DeltaPick_CancelTimer mTimeoutAt, "DeltaPick_TimeoutFired"
     If mArmed Then mDeadline = Now + TimeSerial(0, 0, 1)
     DeltaPick_TimeoutFired
+End Sub
+
+' Gancho de teste: o proximo desenho da moldura demora secs a mais (grafico pesado). Vale uma vez; inerte fora do build Test.
+Public Sub DeltaPick_SlowMarkForTest(secs As Single)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mSlowMark = secs
 End Sub
 
 ' Gancho de teste: faz o prazo do modo armado vencer agora (o OnTime real continua agendado e e cancelado no desarme). Inerte fora do Test.
@@ -291,6 +299,7 @@ Private Sub DeltaPick_Take(cht As Chart, s As Long, p As Long, src As String)
         DeltaPick_DrawMark cht, ref
         Application.StatusBar = DELTAPICK_MSG_TO
         DeltaPick_StartDeadline DELTAPICK_TIMEOUT_S      ' os 60 s contam do ultimo clique aceito
+        mLastAt = Timer                                 ' a janela do mesmo clique (0,6 s) comeca depois do desenho da moldura
         Exit Sub
     End If
     If ref = mFromRef Then Application.StatusBar = DELTAPICK_MSG_SAME: Exit Sub
@@ -307,8 +316,14 @@ End Sub
 ' Moldura laranja de 2 pt em volta da barra de origem (cosmetica: falha so registra). Sentido dos valores pelo eixo da serie (Delta_ValCoord:
 ' a linha da combinacao no eixo secundario), preso a area interna.
 Private Sub DeltaPick_DrawMark(cht As Chart, ref As String)
-    Dim v As Double, lo As Double, hi As Double, c As Double, half As Double, a As Double, b As Double, m As Shape, lft As Double
+    Dim v As Double, lo As Double, hi As Double, c As Double, half As Double, a As Double, b As Double, m As Shape, lft As Double, t As Single
     On Error GoTo Done
+    If BUILD_CONFIG = "Test" And mSlowMark > 0 Then
+        t = Timer
+        Do While Abs(Timer - t) < mSlowMark And Abs(Timer - t) < 5
+        Loop
+    End If
+    mSlowMark = 0
     DeltaPick_RemoveMark cht
     If Not Delta_Extent(cht, ref, v, lo, hi) Then Exit Sub
     c = Delta_CatCenter(cht, ref)
