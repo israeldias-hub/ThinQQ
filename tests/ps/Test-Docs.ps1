@@ -68,7 +68,7 @@ if ($parsed) {
     foreach ($l in $ui) { Check ($known.Contains($l)) "rótulo do tutorial existe na interface: '$l'" }
     # Todos os rótulos da faixa de opções (exceto itens de lista) aparecem no tutorial: botões, toggles, listas, menus, grupos e a aba.
     # O customUI tem namespace padrão: o XPath precisa de local-name() (a forma 'self::button' não casa nenhum nó; já houve esse buraco).
-    $ctlNodes = @($ribbon.SelectNodes("//*[local-name()='button' or local-name()='toggleButton' or local-name()='dropDown' or local-name()='menu' or local-name()='group' or local-name()='tab']"))
+    $ctlNodes = @($ribbon.SelectNodes("//*[local-name()='button' or local-name()='toggleButton' or local-name()='checkBox' or local-name()='dropDown' or local-name()='menu' or local-name()='group' or local-name()='tab']"))
     Check ($ctlNodes.Count -ge 40) "faixa: controles encontrados pelo XPath com local-name() ($($ctlNodes.Count))"
     foreach ($n in $ctlNodes) {
         $l = $n.GetAttribute('label')
@@ -502,6 +502,13 @@ $pptMessages = @(
     @('ppt', 'powerpoint', 'O ThinQQ não está instalado no Excel deste computador: só os dados foram atualizados; setas e outras anotações do ThinQQ ficaram como estavam.'),
     @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para atualizar também as setas.'),
     @('ppt', 'powerpoint', 'O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e tente de novo.'),
+    @('ppt', 'powerpoint', 'Selecione um ou mais gráficos do ThinQQ vinculados ao Excel.'),
+    @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada).'),
+    @('ppt', 'powerpoint', 'Marcado para atualizar automaticamente. Para os gráficos acompanharem a pasta de origem, abra o Excel com o ThinQQ (1.6.0 ou mais novo).'),
+    @('ppt', 'powerpoint', 'A atualização automática está desligada no Excel: aba ThinQQ > PowerPoint > Atualização automática ligada.'),
+    @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para atualizar só os gráficos selecionados (desta vez a apresentação inteira foi atualizada).'),
+    @('ppt', 'powerpoint', 'Não foi possível marcar o gráfico como automático: '),
+    @('ppt', 'powerpoint', 'Não foi possível voltar o gráfico para a atualização manual: '),
     @('ppt', 'powerpoint', 'Dados atualizados em '),
     @('ppt', 'powerpoint', ' sem a pasta de origem (ficaram como estavam)'),
     # motor do core (modPptSync.bas, modCoreApi.bas): o resumo
@@ -573,9 +580,10 @@ Check (-not $html.Contains('saem sempre na mesma versão') -and -not $html.Conta
 Check ($html -match 'só é gravada ao clicar <span class="ui">Atualizar agora</span>') 'tutorial: a caixa do suplemento só é gravada ao clicar Atualizar agora'
 Check ($readme -notmatch 'de 6 a 8' -and (Read-Utf8 (Join-Path $RepoRoot 'tools\lib\Release-Publish.ps1')) -notmatch 'de 6 a 8') 'README e publicar-release: notas de 1 a 8 linhas'
 Check ($readme -match 'run-tests\.ps1 -Ppt' -and $readme -match 'tests/ps/Test-PptAddin\.ps1') 'README (comandos): run-tests.ps1 -Ppt e tests/ps/Test-PptAddin.ps1'
-# notas da 1.5.0: so a Parte B (o delta; a Parte A sai na 1.4.0), de 1 a 3 linhas, sem o aviso de reinstalar pelo ZIP (quem tem a 1.4.0 atualiza pelo Excel)
+# notas da 1.6.0 (Parte C, atualização automática): o texto fica em $notesText; as frases-chave e a contagem de linhas são conferidas no bloco
+# "Atualização automática no PowerPoint" mais abaixo; sem o aviso de reinstalar pelo ZIP (quem tem a 1.5.0 atualiza pelo Excel)
 $notesText = Read-Utf8 (Join-Path $RepoRoot 'release\notes.txt')
-Check ($notesLines.Count -ge 1 -and $notesLines.Count -le 3 -and $notesText -match 'delta' -and $notesText -notmatch 'suplemento do PowerPoint' -and $notesText -notmatch 'reinstal') 'notes.txt (1.5.0): só o delta, de 1 a 3 linhas, sem o suplemento do PowerPoint nem o aviso de reinstalar'
+Check ($notesLines.Count -ge 1 -and $notesLines.Count -le 8 -and $notesText -notmatch 'reinstal') 'notes.txt (1.6.0): de 1 a 8 linhas, sem o aviso de reinstalar pelo ZIP'
 # o intervalo da nova tentativa do suplemento (PPAM_RETRY_MINUTES) e o mesmo no aviso do loader, no tutorial e no README
 $updSrc = Read-Utf8 (Join-Path $RepoRoot 'src\loader\modules\modUpdater.bas')
 $retryMin = [regex]::Match($updSrc, 'Private Const PPAM_RETRY_MINUTES As Long = (\d+)').Groups[1].Value
@@ -593,15 +601,15 @@ Check $mvSeq "README: a lista de verificações manuais é numerada de 1 a $($mv
 # os itens novos (a partir do 43, depois do último de antes da Parte A) cobrem o roteiro manual da especificação (§4.7): sem o corte pelo
 # número, os itens antigos do PowerPoint (32 a 36, que também citam "PowerPoint fechado") fariam o teste passar sem os itens novos
 $mvNew = (($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 43 }) -join "`n"
-Check ($mvNums.Count -ge 60) "README: a lista de verificações manuais tem os itens novos do PowerPoint e do delta (a partir do 43; total $($mvNums.Count))"
+Check ($mvNums.Count -ge 68) "README: a lista de verificações manuais tem os itens novos do PowerPoint, do delta e da atualização automática (a partir do 43; total $($mvNums.Count))"
 foreach ($t in 'Perguntar.*Atualizar sempre.*Não atualizar', 'Habilitar Edição', 'pasta movida|Alterar Origem', 'pasta em rede', '30 gráficos', 'Excel aberto', 'sem o ThinQQ no Excel', 'aba ThinQQ no PowerPoint', 'PowerPoint fechado', 'somente leitura', 'Desfazer', 'protegida por senha', 'não verificado em PowerPoint real', 'Assinatura do suplemento do PowerPoint[^\r\n]*ThinQQ\.ppam', 'Instalação manual do suplemento do PowerPoint[^\r\n]*Adicionar novo') {
     Check ($mvNew -match $t) "README (verificações manuais 43 em diante): cobre '$t'"
 }
 
 # delta entre barras (1.5.0): os itens 55 em diante cobrem a lista manual da B3 (cliques reais nos 9 tipos, 1.o clique num gráfico não ativado,
 # Esc com o gráfico ativo, zoom/DPI, cancelamentos reais, casos de borda, PowerPoint) e cada um se declara não verificado com mouse real
-$mvDelta = (($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 55 }) -join "`n"
-Check (@($mvNums | Where-Object { $_ -ge 55 }).Count -ge 6) "README: itens 55 em diante (delta): $(@($mvNums | Where-Object { $_ -ge 55 }).Count)"
+$mvDelta = (($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 55 -and [int]$Matches[1] -le 60 }) -join "`n"
+Check (@($mvNums | Where-Object { $_ -ge 55 -and $_ -le 60 }).Count -eq 6) "README: itens 55 a 60 (delta): $(@($mvNums | Where-Object { $_ -ge 55 -and $_ -le 60 }).Count)"
 foreach ($t in 'cliques reais com o mouse nos 9 tipos', 'primeiro clique num gráfico que não estava ativado', 'clique único em barra de série já selecionada', 'zoom 75% e 150% e escala de tela 125% e 150%', 'Esc com o gráfico ativo', '60 s', 'outro gráfico', 'grupo de formas', 'planilha protegida', 'Delta no PowerPoint', 'Ctrl\+Z') {
     Check ($mvDelta -match $t) "README (verificações manuais 55 em diante): cobre '$t'"
 }
@@ -747,5 +755,126 @@ Check ($html -notmatch $roomWrong -and $readme -notmatch $roomWrong -and $specDe
 Check ($specDelta.Contains('não reabre o espaço') -and $specDelta.Contains('Chart_EnsureRoomAfterChange') -and $specDelta.Contains('corte de eixo')) 'delta: a especificação lista os gatilhos reais da sala e diz que o redimensionamento a mão não reabre o espaço'
 Check ($limitesTxt.Contains('legenda, formato, decorações e corte de eixo') -and $readmeLimTxt.Contains('legenda, formato, decorações') -and $setasTxt.Contains('Corte de eixo...')) 'delta: tutorial e README citam os gatilhos reais da sala (legenda, formato, decorações, corte de eixo)'
 
+# ---- Atualização automática no PowerPoint (1.6.0, Parte C): cada afirmação é conferida contra o CÓDIGO e POR LUGAR (subseção #ppt-auto do
+# tutorial, "Recursos" e "Limitações conhecidas" do README, itens manuais 61 a 68, [Não lançado] do CHANGELOG e notes.txt): tirar a frase de UM
+# lugar derruba o teste, e um número que muda no código (espera, tentativas, tempo máximo) obriga a reescrever os textos.
+$autoSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modPptAuto.bas')
+$syncSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modPptSync.bas')
+$evSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\classes\clsAppEvents.cls')
+$pptTqqSrc = Read-Utf8 (Join-Path $RepoRoot 'src\ppt\modules\modPptTqq.bas')
+$debounce = [int][regex]::Match($autoSrc, 'Public Const PPTAUTO_DEBOUNCE_S As Long = (\d+)').Groups[1].Value
+$maxRetries = [int][regex]::Match($autoSrc, 'Public Const PPTAUTO_MAX_RETRIES As Long = (\d+)').Groups[1].Value
+$maxWait = [int][regex]::Match($autoSrc, 'Public Const PPTAUTO_MAX_WAIT_S As Long = (\d+)').Groups[1].Value
+$tagAuto = [regex]::Match($syncSrc, 'Public Const PPTSYNC_TAG_AUTO As String = "([^"]+)"').Groups[1].Value
+$tagIdx = [regex]::Match($syncSrc, 'Public Const PPTSYNC_TAG_INDEX As String = "([^"]+)"').Groups[1].Value
+Check ($debounce -ge 1 -and $maxRetries -ge 2 -and $maxWait -gt $debounce) "atualização automática: constantes lidas do código (espera $debounce s, $maxRetries tentativas, teto $maxWait s)"
+Check ($tagAuto -ceq 'TQQ_AUTO' -and $tagIdx -ceq 'TQQ_AUTOIDX' -and $pptTqqSrc.Contains('PPT_TAG_AUTO As String = "TQQ_AUTO"') -and $pptTqqSrc.Contains('PPT_TAG_INDEX As String = "TQQ_AUTOIDX"')) 'atualização automática: as etiquetas TQQ_AUTO e TQQ_AUTOIDX são as mesmas no core e no suplemento'
+# as novas tentativas seguem DEBOUNCE * (n + 1): 4, 6, 8, 10 e 12 s com os valores atuais
+Check ($autoSrc.Contains('PptAuto_Schedule PPTAUTO_DEBOUNCE_S * (mRetries + 1)') -and $autoSrc.Contains('mRetries < PPTAUTO_MAX_RETRIES')) 'atualização automática: a nova tentativa espera DEBOUNCE * (n + 1) e há um teto de tentativas'
+$retrySecs = @(); for ($i = 1; $i -le $maxRetries; $i++) { $retrySecs += ($debounce * ($i + 1)) }
+$retryText = (($retrySecs[0..($retrySecs.Count - 2)]) -join ', ') + ' e ' + $retrySecs[$retrySecs.Count - 1] + ' s'
+$retryTotal = ($retrySecs | Measure-Object -Sum).Sum
+$waitText = "$maxWait a $($maxWait + 1) s"
+$waitTextLong = "$maxWait a $($maxWait + 1) segundos"
+$debText = "cerca de $debounce s"
+$debTextLong = "cerca de $debounce segundos"
+# padrões das duas opções, eventos, ciclo que nunca abre pasta, somente leitura e PowerPoint já aberto
+Check ($autoSrc.Contains('GetSetting(APP_NAME, PPTAUTO_SECTION, "AutoUpdate", "1")') -and $autoSrc.Contains('GetSetting(APP_NAME, PPTAUTO_SECTION, "AutoNew", "0")')) 'atualização automática (código): Atualização automática ligada começa ligada e Novos vínculos começa desligada'
+Check ($evSrc -match '(?s)App_SheetChange.{0,200}PptAuto_OnChange.{0,200}App_SheetCalculate.{0,200}PptAuto_OnChange.{0,260}App_WorkbookAfterSave.{0,200}PptAuto_OnChange') 'atualização automática (código): digitar, recalcular e salvar chamam PptAuto_OnChange'
+Check ($autoSrc.Contains('PptSync_Items(items, False, True)') -and $autoSrc.Contains('PptAuto_KeepOpenBooks mDirty')) 'atualização automática (código): o ciclo nunca abre pasta (noOpen e a poda das pastas fechadas)'
+Check ($autoSrc.Contains('If CLng(pres.ReadOnly) <> 0 Then Exit Sub') -and $autoSrc.Contains('Set app = Ppt_GetApp(False)')) 'atualização automática (código): o ciclo pula somente leitura e só usa um PowerPoint já aberto'
+Check ($autoSrc.Contains('If Len(wb.Path) = 0 Then Exit Function') -and $autoSrc.Contains('Set ws = wb.Worksheets(CALC_SHEET)')) 'atualização automática (código): só pastas salvas e com gráficos do ThinQQ são candidatas'
+Check ($autoSrc.Contains('PptAuto_Log "PptAuto: desistiu"') -and $autoSrc.Contains('If mInTick Or Ppt_InOperation() Then PptAuto_Schedule PPTAUTO_DEBOUNCE_S')) 'atualização automática (código): desiste com o registro "PptAuto: desistiu" e espera uma operação do core em andamento'
+Check ($pptTqqSrc -match '(?s)If turnOn Then PptTqq_SyncEntries pres, PptTqq_EntriesOf\(shapes\), True, True') 'atualização automática (código): ligar o automático já atualiza uma vez só as formas do botão'
+Check ($pptTqqSrc.Contains('PPT_API_SHAPES As Long = 2') -and $syncSrc.Contains('CORE_PPT_API As Long = 2')) 'atualização automática (código): o contrato do suplemento com o core passa à API 2'
+
+# rótulos exatos das duas faixas (a do Excel tem as caixas, a do PowerPoint o botão de alternância e o botão)
+$lblOn = 'Atualização automática ligada'; $lblNew = 'Novos vínculos atualizam automaticamente'; $lblAuto = 'Atualizar automaticamente'; $lblOnce = 'Atualizar uma vez'
+$xlOnNode = $ribbon.SelectSingleNode("//*[@id='chkPptAutoOn']"); $xlNewNode = $ribbon.SelectSingleNode("//*[@id='chkPptAutoNew']")
+$pAutoNode = $pptRibbon.SelectSingleNode("//*[@id='tglPptAuto']"); $pOnceNode = $pptRibbon.SelectSingleNode("//*[@id='btnPptUpdateSel']")
+Check ($null -ne $xlOnNode -and $xlOnNode.LocalName -eq 'checkBox' -and $xlOnNode.GetAttribute('label') -ceq $lblOn -and $xlOnNode.GetAttribute('tag') -ceq 'autoon') "faixa do Excel: a caixa chkPptAutoOn tem o rótulo '$lblOn'"
+Check ($null -ne $xlNewNode -and $xlNewNode.LocalName -eq 'checkBox' -and $xlNewNode.GetAttribute('label') -ceq $lblNew -and $xlNewNode.GetAttribute('tag') -ceq 'autonew') "faixa do Excel: a caixa chkPptAutoNew tem o rótulo '$lblNew'"
+Check ($null -ne $pAutoNode -and $pAutoNode.GetAttribute('label') -ceq $lblAuto -and $null -ne $pOnceNode -and $pOnceNode.GetAttribute('label') -ceq $lblOnce) "faixa do PowerPoint: tglPptAuto '$lblAuto' e btnPptUpdateSel '$lblOnce'"
+$xlChk = @($ribbon.SelectNodes("//*[local-name()='checkBox']"))
+Check ($xlChk.Count -ge 2) "faixa do Excel: as caixas de seleção entram na regra 'todo controle aparece no tutorial' ($($xlChk.Count))"
+if ($parsed) {
+    Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']//*[local-name()='h3'][@id='ppt-auto']")) 'tutorial: a subseção id="ppt-auto" está dentro de #powerpoint'
+    Check ($xml.SelectNodes("//a[@href='#ppt-auto']").Count -ge 3) 'tutorial: a subseção #ppt-auto tem links de #powerpoint, da referência da faixa e dos limites'
+    foreach ($l in $lblOn, $lblNew, $lblAuto, $lblOnce) { Check ($pptUi -contains $l) "tutorial: '$l' citado como span.ui dentro de #powerpoint" }
+}
+# o texto da subseção #ppt-auto (do h3 até o próximo h3) sem tags nem entidades
+function Get-SubsectionText([string]$id) {
+    $h = $xml.SelectSingleNode("//*[@id='$id']")
+    if ($null -eq $h) { return '' }
+    $sb = New-Object Text.StringBuilder
+    [void]$sb.Append($h.InnerText).Append(' ')
+    $n = $h.NextSibling
+    while ($null -ne $n -and -not ($n.NodeType -eq 'Element' -and $n.LocalName -eq 'h3')) { [void]$sb.Append($n.InnerText).Append(' '); $n = $n.NextSibling }
+    return (($sb.ToString() -replace '\s+', ' ').Trim())
+}
+$autoTut = Get-SubsectionText 'ppt-auto'
+$recRaw = [regex]::Match($readme, '(?s)\*\*Atualização automática no PowerPoint \(1\.6\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value
+$autoRec = ($recRaw -replace '\s+', ' ')
+$clUnrel = [regex]::Match(($cl -replace "`r`n", "`n"), '(?ms)^## \[Não lançado\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
+$notesNorm = ($notesText -replace '\s+', ' ')
+Check ($autoTut.Length -gt 3000 -and $autoRec.Length -gt 1500 -and $clUnrel.Length -gt 1000) "atualização automática: subseção do tutorial ($($autoTut.Length)), Recursos do README ($($autoRec.Length)) e [Não lançado] ($($clUnrel.Length)) lidos"
+
+$labelPins = @($lblOn, $lblNew, $lblAuto, $lblOnce)
+$autoPlaces = [ordered]@{
+    'tutorial #ppt-auto' = @{ text = $autoTut; phrases = @(
+        'por gráfico', $tagAuto, $tagIdx, 'Nada vira automático sem uma ação sua', '(padrão: ligada)', '(padrão: desligada)',
+        $debTextLong, 'de 1 a 2 s', $waitTextLong, 'nunca abre uma pasta', 'já abertas', 'somente leitura', $retryText, 'PptAuto: desistiu',
+        'Pasta não salva', 'Excel fechado', 'Desfazer do Excel', 'sem diferenciar maiúsculas', 'ignora a caixa', 'Slides copiados de outra apresentação',
+        'Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada).', 'verificado em PowerPoint real', 'aguardando ação OLE',
+        'itens 61 a 68', 'só lê, de cada apresentação', 'volta ao texto que estava antes', 'espera e roda depois', 'não muda o modo', 'valem para todas as suas pastas',
+        'Valores ainda não salvos entram', 'não usa a janela do PowerPoint') }
+    'README Recursos' = @{ text = $autoRec; phrases = @(
+        $tagAuto, $tagIdx, 'Nada vira automático sem uma ação do usuário', '(padrão: ligada;', '(padrão: desligada;', $debTextLong, $waitText, 'pasta fechada nunca é aberta',
+        'já abertas', $retryText, 'Desfazer do Excel', 'maiúsculas de minúsculas', 'verificado em PowerPoint real', 'itens 61 a 68', 'aguardando ação OLE',
+        'Atualize o ThinQQ no Excel para a atualização automática funcionar', 'somente leitura', 'sem usar a janela do PowerPoint', 'Slides copiados de outra apresentação'.ToLowerInvariant()) }
+    'README Limitações' = @{ text = $readmeLimTxt; phrases = @(
+        'Atualização automática no PowerPoint (1.6.0)', 'nada vira automático sem uma ação do usuário', 'já abertas', 'nunca abre o PowerPoint, uma apresentação nem uma pasta',
+        $debText, $waitText, $retryText, 'Desfazer do Excel pode ser limpo', 'marca a apresentação como modificada', 'Atualize o ThinQQ no Excel para a atualização automática funcionar',
+        'verificado em PowerPoint real', 'itens 61 a 68', 'Slides copiados de outra apresentação', 'somente leitura') }
+    'CHANGELOG [Não lançado]' = @{ text = $clUnrel; phrases = @(
+        $lblOn, $lblNew, $lblAuto, $lblOnce, $debTextLong, $waitText, $retryText, $tagAuto, $tagIdx, 'nunca abre pasta', 'Core_PptSyncShapes', 'verificado em PowerPoint real',
+        '### Adicionado', '### Alterado', 'sem diferenciar maiúsculas', 'Desfazer do Excel') }
+    'release/notes.txt' = @{ text = $notesNorm; phrases = @($lblAuto, $lblOnce, $lblOn, $lblNew, "$debounce segundos", 'Nada vira automático sem uma ação sua', 'por gráfico') }
+}
+foreach ($place in $autoPlaces.Keys) {
+    $pt = [string]$autoPlaces[$place].text
+    foreach ($ph in $autoPlaces[$place].phrases) { Check ($pt.Contains($ph)) "atualização automática, $place cita '$ph'" }
+}
+# os quatro rótulos também aparecem na seção #powerpoint, no README (Recursos) e nos itens manuais, com o caminho de menu certo
+foreach ($l in $labelPins) { Check ($autoRec.Contains($l)) "README Recursos cita o rótulo '$l'" }
+Check ($autoRec.Contains('aba ThinQQ > Gráfico selecionado > Atualizar automaticamente') -and $autoRec.Contains('No Excel, ThinQQ > PowerPoint:')) 'README Recursos: caminhos de menu do PowerPoint e do Excel'
+Check ($readmeText.Contains('Arquitetura') -and $readme.Contains('**Atualização automática (1.6.0):** `clsAppEvents`') -and $readme.Contains('`PptAuto_Tick`') -and $readme.Contains('API 2')) 'README (Arquitetura): o motor automático (clsAppEvents, PptAuto_OnChange, PptAuto_Tick, API 2)'
+# a CHANGELOG: estrutura que o publicar-release espera (cabeçalho, ### e entradas "- ") e as linhas do delta ficam em [1.5.0]
+Check ($clUnrel -match '(?m)^### Adicionado\s*$' -and @([regex]::Matches($clUnrel, '(?m)^\s*[-*]\s+\S')).Count -ge 4) 'CHANGELOG [Não lançado]: seção ### Adicionado e pelo menos 4 entradas "- "'
+Check ($clUnrel -notmatch 'Delta \(1\.5\.0\)') 'CHANGELOG [Não lançado]: sem linhas da 1.5.0 (o delta já está na [1.5.0])'
+# notes.txt (1.6.0): de 1 a 8 linhas com o marcador, sem texto da 1.5.0
+Check ($notesLines.Count -ge 3 -and $notesLines.Count -le 8) "notes.txt (1.6.0): de 3 a 8 linhas ($($notesLines.Count))"
+Check ($notesText -notmatch 'delta entre quaisquer duas barras') 'notes.txt (1.6.0): sem as notas da 1.5.0 (o delta)'
+
+# README: os itens manuais 61 a 68 (um por frase-chave do roteiro, por número) e todos se declaram não verificados em PowerPoint real
+$mvAutoLines = @(($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 61 -and [int]$Matches[1] -le 68 })
+Check ($mvAutoLines.Count -eq 8 -and @($mvNums | Where-Object { $_ -ge 61 -and $_ -le 68 }).Count -eq 8) "README: os itens manuais 61 a 68 existem, numerados sem buracos ($($mvAutoLines.Count))"
+Check ($mvNums.Count -ge 68) "README: a lista de verificações manuais vai pelo menos até o 68 ($($mvNums.Count))"
+Check (@($mvAutoLines | Where-Object { $_ -notmatch 'não verificado em PowerPoint real' }).Count -eq 0) 'README (itens 61 a 68): todo item marca "não verificado em PowerPoint real"'
+$mvAutoPins = @{
+    61 = @('digitar valores', 'em até 3 s', 'Ctrl+Z', $lblAuto, 'volta ao manual')
+    62 = @('duas apresentações abertas', 'mesma pasta', 'somente leitura')
+    63 = @('texto em edição', 'aguardando ação OLE', 'sonda P3', $retryText, 'PptAuto: desistiu')
+    64 = @('somente leitura', $lblOnce, 'só na memória')
+    65 = @($lblOn, $lblNew, 'Copiar como gráfico vinculado', 'nasce automático', 'nasce manual')
+    66 = @('20 gráficos', 'tempo', 'Excel fica ocupado', $waitText)
+    67 = @('salvar a apresentação', 'continua automático', 'descarregar o ThinQQ', 'ciclo pendente')
+    68 = @('.ppam', '1.5.x', 'só grava a marca', 'Atualize o ThinQQ no Excel para a atualização automática funcionar', 'Atualize o ThinQQ no Excel para atualizar só os gráficos selecionados')
+}
+foreach ($n in ($mvAutoPins.Keys | Sort-Object)) {
+    $line = @($mvAutoLines | Where-Object { $_ -match "^$n\. " })
+    foreach ($ph in $mvAutoPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
+}
+
 if ($script:fail -gt 0) { Write-Host "FALHAS Test-Docs: $script:fail"; exit 1 }
 Write-Host 'Test-Docs: OK'

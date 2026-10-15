@@ -1511,6 +1511,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
     </tbody>
   </table>
   </div>
+  <p>Abaixo desses itens o menu tem duas caixas de seleção: <span class="ui">Atualização automática ligada</span> (a pausa geral da atualização automática, padrão ligada) e <span class="ui">Novos vínculos atualizam automaticamente</span> (padrão desligada). Elas ficam sempre ativas e valem para todas as suas pastas; veja <a href="#ppt-auto">Atualização automática</a>.</p>
   <p>Para os gráficos vinculados se atualizarem sozinhos quando a apresentação é aberta, instale também o <strong>suplemento do PowerPoint</strong> (<code>ThinQQ.ppam</code>, que vem no ZIP): veja <a href="#ppt-suplemento">O suplemento do PowerPoint</a>.</p>
 
   <h3>Onde o gráfico é colado</h3>
@@ -1577,6 +1578,51 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
   </ol>
   <p>O PowerPoint espera a resposta do Excel <strong>sem tempo limite</strong>: se o Excel travar de vez (não apenas ocupado), o PowerPoint fica esperando; encerre o Excel que travou pelo Gerenciador de Tarefas para liberá-lo.</p>
 
+  <h3 id="ppt-auto">Atualização automática</h3>
+  <p>Com o Excel e o PowerPoint abertos, um gráfico do ThinQQ vinculado pode acompanhar sozinho a pasta de origem, como o "Update Automatically" do think-cell: você muda um valor no Excel e, cerca de 2 segundos depois, os dados e as setas do slide estão atualizados, sem clicar em nada. A escolha é <strong>por gráfico</strong>: o gráfico automático leva uma marca invisível na própria forma (<code>TQQ_AUTO</code>) e a apresentação guarda a lista deles (<code>TQQ_AUTOIDX</code>), então dois gráficos da mesma pasta podem ter modos diferentes. <strong>Nada vira automático sem uma ação sua</strong>: um gráfico colado continua manual, a menos que você ligue <span class="ui">Atualizar automaticamente</span> nele ou que a opção <span class="ui">Novos vínculos atualizam automaticamente</span> esteja marcada no Excel na hora da colagem. Os botões ficam no suplemento do PowerPoint; quem faz a atualização é o ThinQQ do Excel.</p>
+  <div class="tw" tabindex="0" role="region" aria-label="Como ligar e desligar a atualização automática">
+  <table>
+    <thead><tr><th scope="col">Controle (onde fica)</th><th scope="col">O que faz</th></tr></thead>
+    <tbody>
+      <tr><td><span class="ui">Atualizar automaticamente</span><br />PowerPoint: aba <span class="ui">ThinQQ</span> &gt; grupo <span class="ui">Gráfico selecionado</span></td><td>Com um ou mais gráficos do ThinQQ selecionados, liga o modo automático e já atualiza uma vez só esses gráficos. Clicar de novo volta ao manual (sem chamar o Excel). Fica pressionado quando todos os selecionados são automáticos; numa seleção mista, clicar liga todos.</td></tr>
+      <tr><td><span class="ui">Atualizar uma vez</span><br />PowerPoint: o mesmo grupo</td><td>Atualiza agora dados e setas só dos gráficos selecionados e <strong>não muda o modo</strong> (automático continua automático, manual continua manual).</td></tr>
+      <tr><td><span class="ui">Atualização automática ligada</span><br />Excel: aba <span class="ui">ThinQQ</span> &gt; <span class="ui">PowerPoint</span></td><td>A pausa geral (padrão: ligada). Desmarcada, nenhum gráfico se atualiza sozinho, mas as marcas dos gráficos ficam; ao marcar de novo, o slide volta a acompanhar a partir da próxima mudança na pasta (nada é atualizado na hora).</td></tr>
+      <tr><td><span class="ui">Novos vínculos atualizam automaticamente</span><br />Excel: aba <span class="ui">ThinQQ</span> &gt; <span class="ui">PowerPoint</span></td><td>(padrão: desligada) Os gráficos colados com <span class="ui">Copiar como gráfico vinculado</span> depois de marcar já nascem automáticos; sem a opção nascem manuais, como no think-cell. Os que já estão nos slides não mudam.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>As duas opções do Excel valem para todas as suas pastas e ficam guardadas no seu usuário do Windows. Elas exigem o ThinQQ 1.6.0 ou mais novo no Excel: com um núcleo 1.5.x (antigo), ligar <span class="ui">Atualizar automaticamente</span> só grava a marca e mostra "Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada).", e <span class="ui">Atualizar uma vez</span> atualiza a apresentação inteira e avisa. Sem o Excel aberto, ligar também só grava a marca (a mensagem pede para abrir o Excel com o ThinQQ).</p>
+
+  <h4>Quando o slide muda e quando não</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Quando a atualização automática acontece">
+  <table>
+    <thead><tr><th scope="col">Situação</th><th scope="col">O que o ThinQQ faz</th></tr></thead>
+    <tbody>
+      <tr><td>Você digita, cola ou recalcula uma célula, ou salva a pasta</td><td>A pasta é marcada e o ciclo espera cerca de 2 segundos depois da <strong>última</strong> mudança (cada mudança nova reinicia a espera; na prática de 1 a 2 s, porque o relógio do Excel conta em segundos inteiros). Vários gráficos da mesma pasta mudam juntos. Valores ainda não salvos entram: o vínculo lê a pasta aberta.</td></tr>
+      <tr><td>Uma pasta que nunca para de recalcular (funções voláteis, dados em tempo real)</td><td>O slide é atualizado no máximo uns 10 a 11 segundos depois da primeira mudança, e de novo a cada rajada, em vez de esperar para sempre.</td></tr>
+      <tr><td>Pasta não salva, ou sem gráficos do ThinQQ</td><td>Nada é agendado: o vínculo aponta para o arquivo salvo, e só pastas com gráficos do ThinQQ têm o que atualizar.</td></tr>
+      <tr><td>Pasta que você fechou</td><td>O ciclo automático <strong>nunca abre uma pasta</strong>: o gráfico fica como estava. <span class="ui">Atualizar uma vez</span> ou <span class="ui">Atualizar gráficos</span> abrem a pasta somente leitura, como antes.</td></tr>
+      <tr><td>Apresentação que não está aberta no PowerPoint</td><td>Só as apresentações <strong>já abertas</strong> são atualizadas; o ciclo nunca abre o PowerPoint nem uma apresentação.</td></tr>
+      <tr><td>Apresentação somente leitura</td><td>É pulada pelo ciclo automático (<span class="ui">Atualizar uma vez</span> a atualiza somente na memória, como os outros botões).</td></tr>
+      <tr><td>Gráfico manual, ou de outra pasta</td><td>Não é tocado: só os gráficos automáticos ligados à pasta que mudou são considerados, e os que já estão iguais (mesma impressão digital de dados, setas e tamanho) são pulados.</td></tr>
+      <tr><td>Nenhum gráfico automático nas apresentações abertas</td><td>O ciclo só lê, de cada apresentação, se ela é somente leitura e a lista dos gráficos automáticos, e para: não usa a janela do PowerPoint, não tenta de novo e não registra nada.</td></tr>
+      <tr><td>Uma colagem ou uma atualização manual está em andamento</td><td>O ciclo espera e roda depois.</td></tr>
+      <tr><td>Você está editando um texto no PowerPoint (ou há uma caixa de diálogo aberta)</td><td>O ciclo adia e tenta de novo depois de 4, 6, 8, 10 e 12 s; passado isso desiste daquele ciclo (fica registrado no log, "PptAuto: desistiu") e o slide só acompanha na próxima mudança da pasta.</td></tr>
+      <tr><td>Barra de status do Excel</td><td>Mostra "ThinQQ: atualizando gráfico i de N do PowerPoint..." durante o ciclo e volta ao texto que estava antes; um texto escrito por outro recurso no meio do ciclo fica.</td></tr>
+      <tr><td>Excel fechado</td><td>Não há atualização automática (quem muda os dados é o Excel); ao abrir a apresentação vale a pergunta de <span class="ui">Ao abrir</span>.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h4>Limites</h4>
+  <ul>
+    <li><strong>Desfazer do Excel:</strong> quando um gráfico realmente atualiza, cerca de 2 segundos depois de digitar, o histórico do Desfazer do Excel pode ser limpo, porque o ThinQQ altera o gráfico do Excel por macro (como nas demais atualizações; não verificado no Excel real).</li>
+    <li><strong>Nomes únicos:</strong> ao ligar o automático (e em <span class="ui">Atualizar uma vez</span>), o ThinQQ renomeia a forma que tiver o mesmo nome de outra do slide (<code>tqq_x</code> vira <code>tqq_x_2</code>), sem diferenciar maiúsculas de minúsculas, porque a busca de forma por nome do PowerPoint ignora a caixa; um nome com separadores internos também é saneado.</li>
+    <li><strong>Slides copiados de outra apresentação:</strong> o gráfico leva a marca <code>TQQ_AUTO</code>, mas a lista da apresentação nova não o conhece; ele volta a ser automático depois de um <span class="ui">Atualizar gráficos</span> (do PowerPoint ou do Excel), que refaz a lista (não verificado em PowerPoint real).</li>
+    <li><strong>Marca como modificada:</strong> cada atualização automática altera a apresentação, que o ThinQQ nunca salva: o PowerPoint pergunta se quer salvar ao fechar.</li>
+    <li><strong>Não verificado em PowerPoint real:</strong> o tempo de verdade entre digitar e o slide mudar, a caixa "aguardando ação OLE" quando há um texto em edição no PowerPoint (se aparecer no Excel, anote), o Ctrl+Z, o descarregamento do ThinQQ com um ciclo pendente e a apresentação somente leitura. O roteiro está nos itens 61 a 68 das verificações manuais do README.</li>
+  </ul>
+
   <h3 id="ppt-mensagens">Mensagens da atualização</h3>
   <div class="tw" tabindex="0" role="region" aria-label="Mensagens da atualização dos gráficos do PowerPoint">
   <table>
@@ -1596,6 +1642,12 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
       <tr><td>O ThinQQ não está instalado no Excel deste computador: só os dados foram atualizados; setas e outras anotações do ThinQQ ficaram como estavam.</td><td>Não há o ThinQQ (núcleo) para carregar: só os dados pelo vínculo do PowerPoint. Instale o ThinQQ no Excel e atualize de novo.</td></tr>
       <tr><td>Dados atualizados em N gráfico(s); M sem a pasta de origem (ficaram como estavam).</td><td>O resumo do modo só dos dados (sem o ThinQQ no Excel, ou com o ThinQQ antigo).</td></tr>
       <tr><td>Atualize o ThinQQ no Excel para atualizar também as setas.</td><td>O ThinQQ do Excel é anterior à 1.4.0 e não conhece o pedido do suplemento: só os dados foram atualizados. Use <span class="ui">Verificar atualizações</span>.</td></tr>
+      <tr><td>Selecione um ou mais gráficos do ThinQQ vinculados ao Excel.</td><td>Você clicou em <span class="ui">Atualizar automaticamente</span> ou <span class="ui">Atualizar uma vez</span> sem nenhum gráfico do ThinQQ selecionado (só gráficos soltos num slide contam).</td></tr>
+      <tr><td>Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada).</td><td>Você ligou <span class="ui">Atualizar automaticamente</span> com um ThinQQ anterior à 1.6.0 no Excel: o gráfico ficou marcado, mas nada foi atualizado. Use <span class="ui">Verificar atualizações</span> no Excel.</td></tr>
+      <tr><td>Marcado para atualizar automaticamente. Para os gráficos acompanharem a pasta de origem, abra o Excel com o ThinQQ (1.6.0 ou mais novo).</td><td>Você ligou <span class="ui">Atualizar automaticamente</span> sem o Excel aberto (ou sem o ThinQQ nele): só a marca foi gravada, e o ThinQQ não inicia um Excel para isso. Abra o Excel com o ThinQQ e a pasta de origem; a atualização automática vale a partir da próxima mudança.</td></tr>
+      <tr><td>A atualização automática está desligada no Excel: aba ThinQQ &gt; PowerPoint &gt; Atualização automática ligada.</td><td>Acompanha o resumo de <span class="ui">Atualizar automaticamente</span> quando a pausa geral está ativa: marque <span class="ui">Atualização automática ligada</span> no menu <span class="ui">PowerPoint</span> do Excel.</td></tr>
+      <tr><td>Atualize o ThinQQ no Excel para atualizar só os gráficos selecionados (desta vez a apresentação inteira foi atualizada).</td><td><span class="ui">Atualizar uma vez</span> com um ThinQQ anterior à 1.6.0 no Excel: a apresentação inteira foi atualizada, não só os selecionados.</td></tr>
+      <tr><td>Não foi possível marcar o gráfico como automático: motivo (código).</td><td>O PowerPoint recusou gravar a marca no gráfico (por exemplo, forma bloqueada). Tente de novo; ao voltar para o manual a mensagem é "Não foi possível voltar o gráfico para a atualização manual: motivo (código).".</td></tr>
       <tr><td>O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e tente de novo.</td><td>O Excel recusou o pedido porque está ocupado. Termine a edição, feche a caixa de diálogo e use de novo o botão que você clicou na aba do PowerPoint (<span class="ui">Atualizar gráficos</span>, <span class="ui">Atualizar uma vez</span> ou <span class="ui">Atualizar automaticamente</span>).</td></tr>
       <tr><td>Não foi possível atualizar os gráficos do ThinQQ: motivo (código).</td><td>Falha inesperada. O motivo e o código ajudam a diagnosticar; tente de novo e, se persistir, veja o log.</td></tr>
     </tbody>
@@ -1659,7 +1711,9 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
       <tr><td><span class="ui">Seta diferença</span></td><td>No menu <span class="ui">Setas</span>: seta com a diferença absoluta e relativa entre dois totais. Não existe nos gráficos 100%, no Mekko, na pizza e no Gantt.</td></tr>
       <tr><td><span class="ui">Colchete (Gantt)</span></td><td>No menu <span class="ui">Setas</span>: colchete sobre uma ou mais atividades do Gantt, com o período. Só existe no Gantt.</td></tr>
       <tr><td><span class="ui">Remover setas</span></td><td>No menu <span class="ui">Setas</span>: apaga as setas e os colchetes do gráfico. Os conectores da cascata e o indicador 100% ficam.</td></tr>
-      <tr><td><span class="ui">PowerPoint</span></td><td>Menu com <span class="ui">Copiar como imagem</span>, <span class="ui">Copiar como gráfico vinculado</span> e <span class="ui">Atualizar gráficos no PowerPoint</span>. O menu fica sempre ativo; os dois itens de copiar só ficam ativos com um gráfico do ThinQQ selecionado. Veja <a href="#powerpoint">Copiar para o PowerPoint</a>.</td></tr>
+      <tr><td><span class="ui">PowerPoint</span></td><td>Menu com <span class="ui">Copiar como imagem</span>, <span class="ui">Copiar como gráfico vinculado</span> e <span class="ui">Atualizar gráficos no PowerPoint</span>, mais as caixas <span class="ui">Atualização automática ligada</span> e <span class="ui">Novos vínculos atualizam automaticamente</span>. O menu fica sempre ativo; os dois itens de copiar só ficam ativos com um gráfico do ThinQQ selecionado. Veja <a href="#powerpoint">Copiar para o PowerPoint</a>.</td></tr>
+      <tr><td><span class="ui">Atualização automática ligada</span></td><td>No menu <span class="ui">PowerPoint</span>: caixa de seleção que pausa (desmarcada) ou liga (marcada, o padrão) a atualização automática dos gráficos do PowerPoint marcados com <span class="ui">Atualizar automaticamente</span>. Veja <a href="#ppt-auto">Atualização automática</a>.</td></tr>
+      <tr><td><span class="ui">Novos vínculos atualizam automaticamente</span></td><td>No menu <span class="ui">PowerPoint</span>: caixa de seleção (padrão desmarcada); marcada, os gráficos colados no PowerPoint daí em diante já nascem automáticos.</td></tr>
       <tr><td><span class="ui">Copiar como imagem</span></td><td>No menu <span class="ui">PowerPoint</span>: cola uma imagem do gráfico no slide da janela ativa, abrindo o PowerPoint se preciso.</td></tr>
       <tr><td><span class="ui">Copiar como gráfico vinculado</span></td><td>No menu <span class="ui">PowerPoint</span>: cola um gráfico do PowerPoint vinculado a esta pasta de trabalho, que precisa estar salva.</td></tr>
       <tr><td><span class="ui">Atualizar</span></td><td>Reposiciona setas e rótulos, recalcula a escala do Gantt e remove dados internos de gráficos que você apagou. Funciona também sem gráfico selecionado: atualiza todos os gráficos ThinQQ da planilha ativa.</td></tr>
@@ -2003,6 +2057,7 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
     <li>Ao copiar uma planilha inteira com um gráfico do ThinQQ (<em>Mover ou copiar &gt; Criar uma cópia</em>), o aviso aparece uma vez e você usa <span class="ui">Alterar dados</span> no gráfico da cópia, para separá-lo do original.</li>
     <li>O <strong>texto</strong> das setas de CAGR, de diferença e de delta e dos colchetes é calculado e gravado pelo ThinQQ: sem ele, o texto <strong>não se recalcula</strong> quando os números mudam (e a posição só é refeita por ele).</li>
     <li>O menu <span class="ui">PowerPoint</span> usa a área de transferência do Windows e substitui o que estava nela; uma pasta de trabalho aberta de um endereço da web (SharePoint ou OneDrive) pode não manter o vínculo do gráfico vinculado.</li>
+    <li>A atualização automática no PowerPoint só acontece com o Excel e a apresentação abertos, para pastas salvas e abertas e apresentações editáveis; fica adiada enquanto você edita um texto no PowerPoint (4, 6, 8, 10 e 12 s e depois desiste até a próxima mudança) e pode limpar o Desfazer do Excel (veja <a href="#ppt-auto">Atualização automática</a>).</li>
     <li>A atualização dos gráficos no PowerPoint (suplemento ou botão do Excel) só atualiza dados e setas quando o ThinQQ está instalado no Excel; sem o suplemento do PowerPoint ou sem o ThinQQ no Excel só os dados atualizam. Ela marca a apresentação como modificada, limpa o Desfazer do Excel e não é transacional: se falhar no meio, o gráfico pode ficar parcialmente atualizado.</li>
   </ul>
 

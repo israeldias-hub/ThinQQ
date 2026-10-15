@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+### Adicionado
+- Atualização automática dos gráficos do ThinQQ no PowerPoint (por gráfico, como o "Update Automatically" do think-cell): no PowerPoint, aba ThinQQ > Gráfico selecionado > Atualizar automaticamente (ligar já atualiza uma vez; clicar de novo volta ao manual) e Atualizar uma vez, só nos gráficos selecionados. Com o Excel e o PowerPoint abertos, mudar um valor da pasta (digitar, recalcular ou salvar) atualiza dados e setas dos gráficos automáticos cerca de 2 segundos depois da última mudança; uma pasta que nunca para de recalcular é atualizada no máximo uns 10 a 11 s depois da primeira mudança. Só apresentações já abertas e editáveis, só pastas salvas e abertas com gráficos do ThinQQ; o ciclo nunca abre pasta, PowerPoint nem apresentação, e sem gráfico automático não usa a janela do PowerPoint. Espera uma colagem ou atualização manual; com texto em edição no PowerPoint tenta de novo depois de 4, 6, 8, 10 e 12 s e depois desiste daquele ciclo (log) até a próxima mudança. Nada vira automático sem uma ação do usuário; a marca fica na forma (`TQQ_AUTO`) e a apresentação guarda o índice (`TQQ_AUTOIDX`).
+- Excel: ThinQQ > PowerPoint ganha as caixas Atualização automática ligada (padrão: ligada; desmarcada pausa o automático) e Novos vínculos atualizam automaticamente (padrão: desligada; os gráficos colados a partir daí já nascem automáticos).
+- Contrato com o suplemento do PowerPoint na API 2 do core (Core_PptSyncShapes, Core_PptGetFlag, Core_PptSetFlag), conferida por recurso: com o ThinQQ 1.5.x no Excel, ligar o automático só grava a marca ("Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada).") e Atualizar uma vez atualiza a apresentação inteira, com um aviso.
+
+### Alterado
+- Os nomes dos gráficos do ThinQQ no slide ficam únicos sem diferenciar maiúsculas de minúsculas ao ligar o automático e em Atualizar uma vez (o Shapes(nome) do PowerPoint ignora a caixa).
+- Documentação: tutorial (subseção Atualização automática, mensagens e limites), README (recursos, arquitetura, verificações manuais 61 a 68 e limitações) e Test-Docs (rótulos das faixas do Excel e do PowerPoint, âncora #ppt-auto, mensagens e limites por lugar). Não verificado em PowerPoint real: o tempo de verdade entre digitar e o slide mudar, a caixa "aguardando ação OLE" com texto em edição, o Ctrl+Z, o descarregamento com um ciclo pendente e a apresentação somente leitura.
+- O Desfazer do Excel pode ser limpo cerca de 2 segundos depois de digitar, quando um gráfico realmente atualiza.
+
 ## [1.5.0] - 2026-10-15
 - Delta (1.5.0): Delta entre barras: Setas > Delta clicando nas barras insere uma seta com a diferença (valor e %) entre quaisquer duas barras, escolhidas com dois cliques; Delta: valor / % / ambos alterna o texto.
 - - Delta (1.5.0): faixa do Excel: o menu Setas ganha Delta clicando nas barras e Delta: valor / % / ambos (ativos nos tipos que aceitam o delta; coluna Delta na tabela do tutorial).

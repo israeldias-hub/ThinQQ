@@ -1,2 +1,4 @@
-• Novo: delta entre quaisquer duas barras, escolhidas clicando nelas (menu Setas): a seta mostra a diferença em valor e em %.
-• Novo: Setas > Delta: valor / % / ambos alterna o texto do delta (valor e %, só o valor, só o %).
+• Novo: atualização automática dos gráficos do ThinQQ no PowerPoint, por gráfico (como no think-cell): com o Excel e o PowerPoint abertos, mudar um valor da pasta atualiza dados e setas no slide em cerca de 2 segundos. No PowerPoint: aba ThinQQ > Gráfico selecionado > Atualizar automaticamente.
+• Novo: Atualizar uma vez, só nos gráficos selecionados.
+• Novo: no Excel, ThinQQ > PowerPoint ganha Atualização automática ligada (pausa) e Novos vínculos atualizam automaticamente. Nada vira automático sem uma ação sua.
+• O suplemento do PowerPoint também é atualizado pelo Excel (feche o PowerPoint para a troca valer).
