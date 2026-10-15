@@ -381,12 +381,14 @@ End Function
 
 ' (2) Aplicacao da pendencia: na abertura do Excel (Loader_Startup) e pela nova tentativa agendada. Reconfere o SHA-256 do .new (arquivo em
 ' pasta do usuario: nunca confia no que esta la); adulterado, ausente ou nao mais novo que o instalado = descarta. Ainda em uso = continua
-' pendente (e agenda nova tentativa, sem empilhar). Nunca propaga.
+' pendente (e agenda nova tentativa, sem empilhar). Antes, com ou sem pendencia: uma troca interrompida (ThinQQ.ppam ausente, .old
+' presente) tem o .old devolvido ao lugar. Nunca propaga.
 Public Sub Updater_ApplyPendingPpam()
     Dim nw As String, ver As String, ok As Boolean
     On Error GoTo Fail
-    If Settings_Get(KEY_PENDING_PPAM) <> "1" Then Exit Sub
     If PpamRootIsRealInTest() Then Exit Sub
+    PpamRecoverOld
+    If Settings_Get(KEY_PENDING_PPAM) <> "1" Then Exit Sub
     nw = PpamPath() & ".new"
     ver = Settings_Get(KEY_PENDING_PPAM_VER)
     If Not Updater_PpamInstalled() Then                  ' desinstalado depois de pendente: descarta (nunca instala, nunca tenta para sempre)

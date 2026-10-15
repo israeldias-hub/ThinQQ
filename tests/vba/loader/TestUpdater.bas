@@ -1202,3 +1202,21 @@ Fail:
     FailCleanup
 End Sub
 
+' Troca interrompida SEM pendencia (o Excel fechou entre as duas renomeacoes de uma troca imediata): a abertura do Excel
+' (Loader_Startup -> Updater_ApplyPendingPpam) devolve o .old ao lugar, sem precisar de uma nova verificacao.
+Public Sub Test_Updater_Ppam_Startup_RecoversOldWithoutPending()
+    Dim root As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Name root & "\ThinQQ.ppam" As root & "\ThinQQ.ppam.old"
+    AssertEqual "", Settings_Get(KEY_PENDING_PPAM), "sem pendencia"
+    Updater_ApplyPendingPpam
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "o .old voltou a ser o ThinQQ.ppam"
+    AssertEqual 0, Len(Dir(root & "\ThinQQ.ppam.old")), "nao sobra .old"
+    AssertEqual 0, Updater_PpamRetryScheduleCount, "nada agendado"
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
