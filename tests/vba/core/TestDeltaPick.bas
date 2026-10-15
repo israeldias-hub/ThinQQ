@@ -426,6 +426,34 @@ Fail:
     FailTeardown wb
 End Sub
 
+' B6: o prazo de 60 s conta do ultimo clique ACEITO: o clique de origem 40 s depois de armar deixa de novo ~60 s (OnTime cancelado e
+' reagendado com o mesmo procedimento, sem empilhar; prazo e horario agendado coerentes). Clique que nao vira origem nao renova.
+Public Sub Test_DeltaPick_OriginClick_RenewsDeadline()
+    Dim wb As Workbook, c As Chart, s As Long
+    On Error GoTo Fail
+    Set wb = NewTempWorkbook()
+    Set c = ArmedChart(wb, "clustered")
+    s = Delta_SeriesIndex(c, 1)
+    AssertTrue DeltaPick_SecondsLeft() > 55 And DeltaPick_SecondsLeft() <= 61, "armado: ~60 s (" & DeltaPick_SecondsLeft() & ")"
+    DeltaPick_AgeForTest 40
+    AssertTrue DeltaPick_SecondsLeft() > 15 And DeltaPick_SecondsLeft() <= 21, "40 s simulados: ~20 s (" & DeltaPick_SecondsLeft() & ")"
+    DeltaPick_OnSelect c, xlDataLabel, s, 1                  ' rotulo: nao e clique aceito
+    AssertTrue DeltaPick_SecondsLeft() <= 21, "clique fora da barra nao renova (" & DeltaPick_SecondsLeft() & ")"
+    c.SeriesCollection(s).Points(1).Select
+    AssertEqual "1:1", DeltaPick_FromRef()
+    AssertTrue DeltaPick_SecondsLeft() > 55 And DeltaPick_SecondsLeft() <= 61, "origem aceita: ~60 s de novo (" & DeltaPick_SecondsLeft() & ")"
+    AssertTrue Abs(DeltaPick_TimerSecondsLeft() - DeltaPick_SecondsLeft()) < 1.5, "OnTime reagendado no novo prazo (" & DeltaPick_TimerSecondsLeft() & ")"
+    AssertEqual 1, DeltaPick_PendingTimers(), "um so OnTime do prazo"
+    AssertEqual 0, DeltaPick_TimerFailures(), "o OnTime antigo foi cancelado com o horario agendado"
+    DeltaPick_Disarm ""
+    AssertEqual 0, DeltaPick_PendingTimers()
+    AssertEqual 0, DeltaPick_TimerFailures()
+    Teardown wb
+    Exit Sub
+Fail:
+    FailTeardown wb
+End Sub
+
 ' Um clique fisico chega como Select (ponto pelo Excel) e MouseUp (ponto pelo GetChartElement); se os dois discordam (borda, zoom, DPI)
 ' o MouseUp logo depois de um Select aceito e ignorado: um clique nunca completa o delta. Dois cliques rapidos em barras DIFERENTES pelo
 ' mesmo caminho (Select -> Select ou MouseUp -> MouseUp) continuam valendo.

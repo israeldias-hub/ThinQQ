@@ -4,7 +4,8 @@ Option Explicit
 ' escolhe a origem (moldura laranja temporaria tqq_pickmark), o 2o o destino e a seta e inserida (Core_AddDelta). Caminhos do clique:
 ' Chart.MouseUp + GetChartElement (acha o ponto ja no 1o clique) e Chart.Select (ElementID = xlSeries, Arg1 = serie, Arg2 = ponto; -1
 ' quando o Excel selecionou a serie inteira). O mesmo clique pelos dois caminhos conta uma vez. Cancela: Esc, clique numa celula, outro
-' grafico, outra planilha/pasta ativada, fechar a pasta, o botao de novo, 60 s sem clique. Desarmado, os manipuladores saem na primeira
+' grafico, outra planilha/pasta ativada, fechar a pasta, o botao de novo, 60 s sem clique (contados do ultimo
+' clique aceito: armar ou escolher a origem). Desarmado, os manipuladores saem na primeira
 ' linha. Estado global mexido SO enquanto armado e devolvido em todo caminho (DeltaPick_Disarm): barra de status, tecla Esc (OnKey),
 ' OnTime do prazo e do aviso de 4 s (cancelados com o MESMO horario agendado; apontam para o core, nunca para a pasta do usuario) e a
 ' moldura. Nada aqui propaga erro (todos os pontos de entrada sao chamados por eventos do Excel, OnKey ou OnTime).
@@ -87,6 +88,30 @@ Private Function DeltaPick_Schedule(secs As Long, proc As String) As Date
     DeltaPick_Schedule = at
 End Function
 
+' (Re)comeca o prazo: cancela o OnTime vivo (mesmo horario/procedimento, nada empilha) e agenda outro daqui a secs; o prazo e o horario
+' agendado (mDeadline = mTimeoutAt), ou Now + secs se o OnTime nao pode ser agendado.
+Private Sub DeltaPick_StartDeadline(secs As Long)
+    DeltaPick_CancelTimer mTimeoutAt, "DeltaPick_TimeoutFired"
+    mTimeoutAt = DeltaPick_Schedule(secs, "DeltaPick_TimeoutFired")
+    If mTimeoutAt <> 0 Then mDeadline = mTimeoutAt Else mDeadline = Now + TimeSerial(0, 0, secs)
+End Sub
+
+' Segundos que faltam para o prazo do modo armado (0 desarmado) e para o OnTime agendado (0 sem OnTime). Ganchos de teste (so leitura).
+Public Function DeltaPick_SecondsLeft() As Double
+    If mArmed Then DeltaPick_SecondsLeft = (mDeadline - Now) * 86400#
+End Function
+
+Public Function DeltaPick_TimerSecondsLeft() As Double
+    If mTimeoutAt <> 0 Then DeltaPick_TimerSecondsLeft = (mTimeoutAt - Now) * 86400#
+End Function
+
+' Gancho de teste: o modo armado ha secs segundos (o OnTime e trocado por um que vence em 60 - secs, como se o tempo tivesse passado).
+' Inerte fora do build Test.
+Public Sub DeltaPick_AgeForTest(secs As Long)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    If mArmed Then DeltaPick_StartDeadline DELTAPICK_TIMEOUT_S - secs
+End Sub
+
 Public Sub DeltaPick_Arm(cht As Chart)
     On Error GoTo Fail
     DeltaPick_Disarm ""
@@ -96,8 +121,7 @@ Public Sub DeltaPick_Arm(cht As Chart)
     mStatusOwned = True
     Application.StatusBar = DELTAPICK_MSG_FROM
     Application.OnKey "{ESC}", DeltaPick_Proc("DeltaPick_EscKey")
-    mDeadline = Now + TimeSerial(0, 0, DELTAPICK_TIMEOUT_S)
-    mTimeoutAt = DeltaPick_Schedule(DELTAPICK_TIMEOUT_S, "DeltaPick_TimeoutFired")
+    DeltaPick_StartDeadline DELTAPICK_TIMEOUT_S
     Exit Sub
 Fail:
     Errors_Log "DeltaPick_Arm" & vbTab & Err.Number & vbTab & Err.Description
@@ -259,6 +283,7 @@ Private Sub DeltaPick_Take(cht As Chart, s As Long, p As Long, src As String)
         mFromRef = ref
         DeltaPick_DrawMark cht, ref
         Application.StatusBar = DELTAPICK_MSG_TO
+        DeltaPick_StartDeadline DELTAPICK_TIMEOUT_S      ' os 60 s contam do ultimo clique aceito
         Exit Sub
     End If
     If ref = mFromRef Then Application.StatusBar = DELTAPICK_MSG_SAME: Exit Sub
