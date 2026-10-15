@@ -647,6 +647,42 @@ Public Sub Test_PptSync_HostileSourceMacros_NeverRun_Fake()
     AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 0.") = 1, s
 End Sub
 
+' Variante (re-revisao): so as macros desligadas ja bastam. Com o gancho de teste que deixa os eventos LIGADOS no fechamento, a macro
+' Workbook_BeforeClose da .xlsm hostil continua sem rodar (a AutomationSecurity 3 do Open vale para a pasta inteira).
+Public Sub Test_PptSync_HostileSourceMacros_MacrosOffAlone_Fake()
+    Dim wb As Workbook, dir_ As String, xlsm As String, marker As String, cm As Object, pres As TestPptFake, sl As TestPptFake, shp As TestPptFake
+    Dim ch As TestPptFake, cd As TestPptFake, tags As Object, prevEv As Boolean, s As String, code As String
+    dir_ = TempDir()
+    xlsm = dir_ & "\pptsync-hostil2.xlsm": marker = dir_ & "\marcador2.txt"
+    Set wb = NewTempWorkbook()
+    code = "Private Sub Workbook_BeforeClose(Cancel As Boolean)" & vbCrLf
+    code = code & "    Dim f As Integer: f = FreeFile: Open """ & marker & """ For Output As #f: Print #f, ""macro rodou"": Close #f" & vbCrLf
+    code = code & "End Sub"
+    Set cm = wb.VBProject.VBComponents(wb.CodeName).CodeModule
+    cm.AddFromString code
+    Set cm = Nothing
+    wb.SaveAs xlsm, 52
+    prevEv = Application.EnableEvents: Application.EnableEvents = False
+    wb.Close SaveChanges:=False
+    Application.EnableEvents = prevEv
+    Set wb = Nothing
+    If Len(Dir(marker)) > 0 Then Kill marker
+    Set cd = New TestPptFake: cd.IsLinked = True
+    Set ch = New TestPptFake: Set ch.ChartData = cd
+    Set tags = CreateObject("Scripting.Dictionary")
+    tags.Add PPTSYNC_TAG_CHART, "tqq_nao_existe"
+    tags.Add PPTSYNC_TAG_BOOK, xlsm
+    Set shp = New TestPptFake: shp.Width = 400: shp.Height = 300: Set shp.Chart = ch: Set shp.Tags = tags
+    Set sl = New TestPptFake: Set sl.Shapes = New Collection: sl.Shapes.Add shp
+    Set pres = New TestPptFake: Set pres.Slides = New Collection: pres.Slides.Add sl
+    Application.EnableEvents = True
+    PptSync_KeepEventsOnCloseForTest
+    s = PptSync_Presentation(pres, True)
+    PptSync_ResetTestHooks
+    Application.EnableEvents = prevEv
+    AssertEqual 0, Len(Dir(marker)), "eventos ligados no fechamento e mesmo assim a macro NAO rodou (" & s & ")"
+End Sub
+
 ' Re-revisao da A1: o resultado "Update ignorado por origem inalcancavel" e visivel a quem chama (updateSkipped); com a pasta alcancavel ou
 ' updateData = False, False. O Update so roda quando nao foi ignorado.
 Public Sub Test_PptSync_UpdateSkipped_IsReported_Fake()

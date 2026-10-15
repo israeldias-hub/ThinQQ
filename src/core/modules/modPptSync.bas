@@ -45,8 +45,15 @@ Private Const PPTSYNC_LAYOUT_TOL As Double = 2              ' pt: area interna d
 Private mTestFail As String                                 ' gancho de teste: ponto de falha injetada (so no build Test)
 Private mTestSkip As Long                                 ' gancho de teste: quantos acertos do ponto saltar antes de falhar (PptSync_SetFailAfterForTest)
 Private mUpdateCount As Long                                ' chamadas de LinkFormat.Update feitas por PptSync_SyncShape (lido so no build Test)
+Private mTestKeepEventsOnClose As Boolean                   ' gancho de teste: PptSync_CloseOpened deixa os eventos como estao (prova que so as macros desligadas bastam)
 
 ' Gancho de teste: o proximo ponto nomeado ("update", "snapshot", "apply") levanta erro (uso unico). Inerte fora do build Test.
+' Gancho de teste: o proximo PptSync_CloseOpened NAO desliga os eventos (zerado por PptSync_ResetTestHooks). Inerte fora do build Test.
+Public Sub PptSync_KeepEventsOnCloseForTest()
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestKeepEventsOnClose = True
+End Sub
+
 Public Sub PptSync_SetFailForTest(point As String)
     If BUILD_CONFIG <> "Test" Then Exit Sub
     mTestFail = point
@@ -61,6 +68,7 @@ Public Sub PptSync_SetFailAfterForTest(point As String, skipFirst As Long)
 End Sub
 
 Public Sub PptSync_ResetTestHooks()
+    mTestKeepEventsOnClose = False
     mTestFail = ""
     mTestSkip = 0
     mUpdateCount = 0
@@ -449,7 +457,7 @@ Private Sub PptSync_CloseOpened(opened As Collection)
     Dim w As Variant, prevEvents As Boolean
     On Error Resume Next
     prevEvents = Application.EnableEvents
-    Application.EnableEvents = False
+    If Not (BUILD_CONFIG = "Test" And mTestKeepEventsOnClose) Then Application.EnableEvents = False
     For Each w In opened
         w.Close SaveChanges:=False
     Next
