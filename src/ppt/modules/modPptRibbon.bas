@@ -59,9 +59,6 @@ Public Sub PptRx_OnAuto(control As IRibbonControl, pressed As Boolean)
 End Sub
 
 Public Sub PptRx_OnUpdateSel(control As IRibbonControl)
-    Dim sel As Collection
     On Error Resume Next
-    Set sel = PptTqq_SelectedTagged()
-    If sel.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
-    PptTqq_SyncEntries sel(1).Parent.Parent, PptTqq_EntriesOf(sel), True
+    PptTqq_UpdateSelected PptTqq_SelectedTagged()
 End Sub

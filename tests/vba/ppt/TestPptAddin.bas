@@ -548,9 +548,11 @@ Public Sub Test_PptTqq_SyncEntries_OldCore_WholePresentation()
     AssertEqual "inteira" & vbLf & PPT_MSG_SEL_OLDCORE, PptTqq_LastMsg()
     AssertEqual 0, InStr(f.Calls, "Core_PptSyncShapes"), f.Calls
     c.Add p.Slides(1).Shapes(1)
+    f.Calls = ""
     PptTqq_ToggleAuto c, True
     AssertEqual "1", CStr(p.Slides(1).Shapes(1).Tags(PPT_TAG_AUTO)), "a marca foi gravada"
-    AssertEqual "inteira" & vbLf & PPT_MSG_AUTO_OLDCORE, PptTqq_LastMsg()
+    AssertEqual PPT_MSG_AUTO_OLDCORE, PptTqq_LastMsg(), "ligar com core antigo: so a marca e o aviso"
+    AssertEqual 0, InStr(f.Calls, "Core_PptSync"), "ligar com core antigo nao atualiza nada: " & f.Calls
     f.Calls = ""
     PptTqq_Sync p, True
     AssertEqual "inteira", PptTqq_LastMsg(), "sincronizacao da apresentacao: API 1 basta"
@@ -588,6 +590,112 @@ Cleanup:
     PptTqq_ResetTestHooks
     ClosePres p
     If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Fix C3 (I1): "Atualizar uma vez" deixa os nomes unicos ANTES de montar as entradas (grafico copiado e colado no mesmo slide tem o mesmo
+' nome; a busca do core por nome ignora a caixa): cada entrada acha a SUA forma.
+Public Sub Test_PptTqq_UpdateSelected_DuplicateNames_DistinctEntries()
+    Dim p As Object, sl As Object, s1 As Object, s2 As Object, s3 As Object, f As TestXlFake, c As New Collection, e As Variant, ids As String, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set sl = p.Slides(1)
+    Set s1 = sl.Shapes.AddShape(1, 10, 10, 50, 50): s1.Name = "tqq_x": s1.Tags.Add PPT_TAG_CHART, "c1"
+    Set s2 = sl.Shapes.AddShape(1, 70, 10, 50, 50): s2.Name = "tqq_x": s2.Tags.Add PPT_TAG_CHART, "c2"
+    Set s3 = sl.Shapes.AddShape(1, 130, 10, 50, 50): s3.Name = "TQQ_X": s3.Tags.Add PPT_TAG_CHART, "c3"
+    Set f = NewFakeXl(2)
+    PptTqq_ResetTestHooks
+    PptTqq_SetExcelForTest f, ""
+    c.Add s2: c.Add s3
+    PptTqq_UpdateSelected c
+    AssertEqual "selecionados", PptTqq_LastMsg()
+    For Each e In PptTqq_IdxParse(f.LastEntries)
+        ids = ids & CStr(p.Slides.FindBySlideID(CLng(e(0))).Shapes(CStr(e(1))).Id) & ","
+    Next
+    AssertEqual CStr(s2.Id) & "," & CStr(s3.Id) & ",", ids, "entradas resolvem para as formas selecionadas: " & f.LastEntries
+    AssertEqual "", CStr(s2.Tags(PPT_TAG_AUTO)), "atualizar uma vez nao liga o automatico"
+    PptTqq_ClearLastMsg
+    PptTqq_UpdateSelected New Collection
+    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set s1 = Nothing: Set s2 = Nothing: Set s3 = Nothing: Set sl = Nothing
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Fix C3 (m1): ligar o automatico sem Excel ou com Excel sem o core so grava a marca e da a dica de abrir o Excel com o ThinQQ (nada de
+' atualizar, nada de Excel novo); "Atualizar uma vez" com core sem Core_PptApiVersion: so os dados e UM aviso (sem empilhar).
+Public Sub Test_PptTqq_ToggleAuto_NoCoreOrNoExcel_TagOnly()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String, c As New Collection
+    Set p = NewTagged()
+    On Error GoTo Cleanup
+    c.Add p.Slides(1).Shapes(1)
+    PptTqq_ResetTestHooks
+    PptTqq_SetExcelForTest Nothing, ""
+    PptTqq_ToggleAuto c, True
+    AssertTrue PptTqq_ShapesAuto(c), "marca gravada sem Excel"
+    AssertEqual PPT_MSG_AUTO_NOCORE, PptTqq_LastMsg(), "sem Excel"
+    Set f = NewFakeXl(2): f.NoCore = True
+    PptTqq_SetExcelForTest f, "", True
+    PptTqq_ToggleAuto c, False
+    PptTqq_ToggleAuto c, True
+    AssertTrue PptTqq_ShapesAuto(c)
+    AssertEqual PPT_MSG_AUTO_NOCORE, PptTqq_LastMsg(), "Excel sem o core"
+    AssertEqual 0, InStr(f.Calls, "Core_PptSync"), f.Calls
+    Set f = NewFakeXl(Empty)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_SyncEntries p, "E1", True
+    AssertEqual PptTqq_DataOnly(p, New Collection) & vbLf & PPT_MSG_OLD_CORE, PptTqq_LastMsg(), "core sem a API: um aviso so"
+    AssertEqual 1, (Len(f.Calls) - Len(Replace(f.Calls, "Core_PptApiVersion", ""))) / Len("Core_PptApiVersion"), "API lida uma vez: " & f.Calls
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Fix C3 (m6): core com a API 2 e a atualizacao automatica desligada no Excel: ligar avisa onde liga-la. (m2): falha ao gravar a marca
+' tem texto proprio.
+Public Sub Test_PptTqq_ToggleAuto_AutoOffNote_AndTagFailure()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String, c As New Collection, bad As New Collection
+    Set p = NewTagged()
+    On Error GoTo Cleanup
+    c.Add p.Slides(1).Shapes(1)
+    Set f = NewFakeXl(2): f.AutoOn = False
+    PptTqq_ResetTestHooks
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_ToggleAuto c, True
+    AssertEqual "selecionados" & vbLf & PPT_MSG_AUTO_OFF, PptTqq_LastMsg()
+    f.AutoOn = True
+    PptTqq_ToggleAuto c, True
+    AssertEqual "selecionados", PptTqq_LastMsg(), "ligada no Excel: sem a nota"
+    bad.Add New TestXlFake
+    PptTqq_ToggleAuto bad, True
+    AssertTrue InStr(PptTqq_LastMsg(), "Não foi possível marcar o gráfico como automático: ") = 1, PptTqq_LastMsg()
+    PptTqq_ToggleAuto bad, False
+    AssertTrue InStr(PptTqq_LastMsg(), "Não foi possível voltar o gráfico para a atualização manual: ") = 1, PptTqq_LastMsg()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Fix C3 (m4): o aviso de Excel ocupado nao cita um botao (vale para Atualizar graficos, Atualizar uma vez e Atualizar automaticamente).
+Public Sub Test_PptTqq_BusyText_Generic()
+    AssertEqual 0, InStr(PPT_MSG_BUSY, "Atualizar gráficos"), PPT_MSG_BUSY
+    AssertTrue InStr(PPT_MSG_BUSY, "tente de novo") > 0, PPT_MSG_BUSY
+End Sub
+
+' Usado por tests/ps/Test-PptAddin.ps1 (ponta a ponta, passo a2): "Atualizar uma vez" de uma forma dada, como o botao com ela selecionada.
+Public Sub E2e_UpdateShape(shp As Object)
+    Dim c As New Collection
+    c.Add shp
+    PptTqq_UpdateSelected c
 End Sub
 
 ' Faixa sem selecao (o PowerPoint do teste nao tem janela): botoes desligados, toggle solto, clique avisa para selecionar.

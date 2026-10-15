@@ -69,16 +69,29 @@ try {
     Check ($vals -contains 40) "(a) valor novo no slide ($($vals -join ','))"
     $alive = $false; try { $alive = ([string]$xl.Workbooks.Item('e2e.xlsx').Name -eq 'e2e.xlsx') } catch { }   # Workbooks.Count nao conta o core (suplemento)
     Check ($alive -and [bool](Get-Process -Id $xlPid -ErrorAction SilentlyContinue)) '(a) Excel injetado que nao foi criado pelo suplemento continua aberto (sem Quit)'
-    # (a2) "Atualizar uma vez" (1.6.0) com o core de verdade (API 2): Core_PptSyncShapes so na forma listada
+    # (a2) "Atualizar uma vez" (1.6.0) com o core de verdade (API 2): o mesmo grafico colado de novo no slide, com o MESMO nome da primeira
+    # forma (copiar e colar no PowerPoint); so a forma "selecionada" (a segunda) e atualizada, a primeira fica como estava
+    $wb.Save()
+    $ws.ChartObjects(1).Activate() | Out-Null
+    [void]$xl.Run("'$cn'!Core_CopyToPowerPoint", 'chart')
+    Check ($slide.Shapes.Count -eq 2) "(a2) segundo grafico colado ($($slide.Shapes.Count))"
+    $shp = $slide.Shapes.Item(2)
+    $shp.Name = [string]$slide.Shapes.Item(1).Name
     $ws.Range('B3').Value2 = 45
-    $shp = $slide.Shapes.Item(1)
-    $entry = [string]$pp.Run("$tpName!PptTqq_IdxEntry", [int]$slide.SlideID, [string]$shp.Name, '')
-    [void]$pp.Run("$tpName!PptTqq_SyncEntries", $pres, $entry, $true, $false)
+    # Os valores lidos de um grafico vinculado acompanham a pasta aberta (medido na C3: a forma nao atualizada tambem mostra 45); o que prova
+    # QUAL forma o core atualizou e a impressao digital TQQ_FP (dados + geometria), regravada so na forma sincronizada
+    $fp1 = [string]$slide.Shapes.Item(1).Tags.Item('TQQ_FP')
+    $fp2 = [string]$shp.Tags.Item('TQQ_FP')
+    [void]$pp.Run("$tpName!E2e_UpdateShape", $shp)
     $msg = [string]$pp.Run("$tpName!PptTqq_LastMsg")
     Check ($msg -like 'Gráficos do ThinQQ atualizados: 1.*') "(a2) Atualizar uma vez pelo core (API 2): $msg"
-    $vals = @($slide.Shapes.Item(1).Chart.SeriesCollection(1).Values)
-    Check ($vals -contains 45) "(a2) valor novo no slide ($($vals -join ','))"
-    $shp = $null
+    Check ([string]$shp.Name -ne [string]$slide.Shapes.Item(1).Name) "(a2) nomes unicos antes de montar as entradas ($($shp.Name))"
+    $vals = @($shp.Chart.SeriesCollection(1).Values)
+    Check ($vals -contains 45) "(a2) valor novo na forma selecionada ($($vals -join ','))"
+    Check ($fp1.Length -gt 0 -and $fp2.Length -gt 0) "(a2) antes: as duas formas tem TQQ_FP (da sincronizacao (a) e da colagem)"
+    Check ([string]$shp.Tags.Item('TQQ_FP') -ne $fp2) '(a2) a forma selecionada foi sincronizada (TQQ_FP mudou com B3 = 45)'
+    Check ([string]$slide.Shapes.Item(1).Tags.Item('TQQ_FP') -eq $fp1) '(a2) a outra forma, de mesmo nome, nao foi sincronizada (TQQ_FP igual)'
+    $shp.Delete(); $shp = $null
     [void]$pp.Run("$tpName!PptTqq_ResetTestHooks")
 
     # (b) Excel novo, sem o core, injetado como criado pelo suplemento; pasta de versoes com 9.9.11 parcial (sem o arquivo), 9.9.10 com um

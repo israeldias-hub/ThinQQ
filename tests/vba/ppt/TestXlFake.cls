@@ -15,6 +15,8 @@ Public Calls As String                          ' "Core_Ping;Core_PptApiVersion;
 Public LastEntries As String                    ' entradas recebidas por Core_PptSyncShapes
 Public ShapesResult As String                   ' resposta de Core_PptSyncShapes ("" = "selecionados")
 Public FailOn As String                         ' macro que levanta erro 1004
+Public NoCore As Boolean                        ' Core_Ping nao responde "pong" (Excel sem o core)
+Public AutoOn As Variant                        ' Core_PptGetFlag("autoon") (Empty = True)
 Public DisplayAlerts As Boolean
 Private mBooks As New Collection
 
@@ -28,7 +30,8 @@ Public Function Run(macro As String, Optional a1 As Variant, Optional a2 As Vari
     Calls = Calls & nm & ";"
     If nm = FailOn Then Err.Raise 1004, "TestXlFake", "falha simulada em " & nm
     Select Case nm
-        Case "Core_Ping": Run = "pong"
+        Case "Core_Ping": If NoCore Then Run = "" Else Run = "pong"
+        Case "Core_PptGetFlag": If IsEmpty(AutoOn) Then Run = True Else Run = AutoOn
         Case "Core_PptApiVersion"
             If IsEmpty(Api) Then Err.Raise 1004, "TestXlFake", "macro inexistente"
             Run = Api

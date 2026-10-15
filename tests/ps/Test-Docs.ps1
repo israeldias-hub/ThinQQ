@@ -501,7 +501,7 @@ $pptMessages = @(
     @('ppt', 'powerpoint', 'O Excel não está instalado (ou não pôde ser iniciado): os gráficos do ThinQQ não foram atualizados.'),
     @('ppt', 'powerpoint', 'O ThinQQ não está instalado no Excel deste computador: só os dados foram atualizados; setas e outras anotações do ThinQQ ficaram como estavam.'),
     @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para atualizar também as setas.'),
-    @('ppt', 'powerpoint', 'O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e use ThinQQ > Atualizar gráficos.'),
+    @('ppt', 'powerpoint', 'O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e tente de novo.'),
     @('ppt', 'powerpoint', 'Dados atualizados em '),
     @('ppt', 'powerpoint', ' sem a pasta de origem (ficaram como estavam)'),
     # motor do core (modPptSync.bas, modCoreApi.bas): o resumo

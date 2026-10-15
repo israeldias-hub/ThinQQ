@@ -15,7 +15,7 @@ Public Const PPT_MSG_NO_PRES As String = "Abra uma apresentação primeiro."
 Public Const PPT_MSG_NO_EXCEL As String = "O Excel não está instalado (ou não pôde ser iniciado): os gráficos do ThinQQ não foram atualizados."
 Public Const PPT_MSG_DATA_ONLY As String = "O ThinQQ não está instalado no Excel deste computador: só os dados foram atualizados; setas e outras anotações do ThinQQ ficaram como estavam."
 Public Const PPT_MSG_OLD_CORE As String = "Atualize o ThinQQ no Excel para atualizar também as setas."
-Public Const PPT_MSG_BUSY As String = "O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e use ThinQQ > Atualizar gráficos."
+Public Const PPT_MSG_BUSY As String = "O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e tente de novo."
 Public Const PPT_MAX_SOURCES_SHOWN As Long = 5                ' pastas de origem listadas na pergunta ao abrir (depois, "...")
 Public Const PPT_MAX_PATH_SHOWN As Long = 150                 ' caracteres de cada pasta na pergunta (cortada no meio)
 Public Const PPT_MAX_ASK_LEN As Long = 900                    ' tamanho maximo da pergunta (o MsgBox corta perto de 1024)
@@ -27,7 +27,9 @@ Public Const PPT_IDX_MAX_ENTRIES As Long = 2000             ' = PPTIDX_MAX_ENTRI
 Public Const PPT_IDX_MAX_LEN As Long = 1000000              ' = PPTIDX_MAX_LEN do core
 Public Const PPT_MSG_SELECT As String = "Selecione um ou mais gráficos do ThinQQ vinculados ao Excel."
 Public Const PPT_MSG_AUTO_OLDCORE As String = "Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada)."
-Public Const PPT_MSG_SEL_OLDCORE As String = "Atualize o ThinQQ no Excel para atualizar só os gráficos selecionados (desta vez a apresentação inteira foi atualizada)."
+Public Const PPT_MSG_AUTO_NOCORE As String = "Marcado para atualizar automaticamente. Para os gráficos acompanharem a pasta de origem, abra o Excel com o ThinQQ (1.6.0 ou mais novo)."
+Public Const PPT_MSG_AUTO_OFF As String = "A atualização automática está desligada no Excel: aba ThinQQ > PowerPoint > Atualização automática ligada."
+Public Const PPT_MSG_SEL_OLDCORE As String ="Atualize o ThinQQ no Excel para atualizar só os gráficos selecionados (desta vez a apresentação inteira foi atualizada)."
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
 Private Const RPC_E_RETRYLATER As Long = -2147417846
 Private mEvents As clsPptEvents
@@ -437,12 +439,12 @@ End Sub
 
 ' Excel a usar: no build Test, so o injetado (created conforme o gancho). Senao: o aberto (GetObject) SE ele tem o core (ocupado: erro de
 ' ocupado, sem cair para outra instancia); senao uma instancia nova e invisivel (created). O retorno e atribuido antes de configurar: a
-' instancia criada nunca fica sem dono.
-Private Function PptTqq_GetExcel(ByRef created As Boolean) As Object
+' instancia criada nunca fica sem dono. noCreate: so o Excel ja aberto (com ou sem o core), nunca uma instancia nova (Nothing se nao ha).
+Private Function PptTqq_GetExcel(ByRef created As Boolean, Optional noCreate As Boolean = False) As Object
     Dim xl As Object, st As Long
     created = False
     If BUILD_CONFIG = "Test" Then
-        created = mTestCreated
+        created = mTestCreated And Not noCreate
         Set PptTqq_GetExcel = mTestXl
         Exit Function
     End If
@@ -454,7 +456,9 @@ Private Function PptTqq_GetExcel(ByRef created As Boolean) As Object
         st = PptTqq_PingState(xl)
         If st = 1 Then Set PptTqq_GetExcel = xl: Exit Function
         If st = -1 Then PptTqq_RaiseBusy
+        If noCreate Then Set PptTqq_GetExcel = xl: Exit Function
     End If
+    If noCreate Then Exit Function
     Set xl = Nothing
     On Error Resume Next
     Set xl = CreateObject("Excel.Application")
@@ -580,10 +584,11 @@ Public Function PptTqq_ApiCompatible(coreApi As Long) As Boolean
 End Function
 
 ' Core_PptSyncPresentation no Excel. Excel ocupado: o erro sobe (aviso proprio). Core antigo ou API menor: so os dados + aviso. Core com a
-' API que falha na chamada: o texto do erro (nao o de core antigo).
-Private Function PptTqq_RunCoreSync(xl As Object, core As String, pres As Object, force As Boolean) As String
+' API que falha na chamada: o texto do erro (nao o de core antigo). api: a versao ja lida (-1 = ler agora).
+Private Function PptTqq_RunCoreSync(xl As Object, core As String, pres As Object, force As Boolean, Optional api As Long = -1) As String
     Dim v As Variant, en As Long, ed As String
-    If Not PptTqq_ApiCompatible(PptTqq_CoreApi(xl, core)) Then PptTqq_RunCoreSync = PptTqq_DataOnly(pres, PptTqq_WorkbookNames(xl)) & vbLf & PPT_MSG_OLD_CORE: Exit Function
+    If api < 0 Then api = PptTqq_CoreApi(xl, core)
+    If Not PptTqq_ApiCompatible(api) Then PptTqq_RunCoreSync = PptTqq_DataOnly(pres, PptTqq_WorkbookNames(xl)) & vbLf & PPT_MSG_OLD_CORE: Exit Function
     On Error Resume Next
     v = xl.Run("'" & core & "'!Core_PptSyncPresentation", pres, force)
     en = Err.Number: ed = Err.Description
@@ -855,24 +860,42 @@ Public Function PptTqq_ShapesApiOk(coreApi As Long) As Boolean
     PptTqq_ShapesApiOk = (coreApi >= PPT_API_SHAPES)
 End Function
 
-' "Atualizar uma vez" das entradas dadas: core com API 2 => Core_PptSyncShapes (o texto do core, inclusive o de PowerPoint ocupado, e
-' exibido como veio); core mais velho => a apresentacao inteira, com o aviso para atualizar o ThinQQ (fromAuto: o de "Atualizar
-' automaticamente"); sem o core => so os dados. Reentrada ignorada; mBusy liberado em todo caminho antes do aviso. Nunca propaga.
+' Atualiza as entradas dadas. Core com API 2 => Core_PptSyncShapes (o texto do core, inclusive o de PowerPoint ocupado, e exibido como veio).
+' "Atualizar uma vez" (fromAuto False): core mais velho => a apresentacao inteira com UM aviso (sem Core_PptApiVersion: so os dados e o aviso
+' de core antigo; API 1: Core_PptSyncPresentation e o aviso de "so os selecionados"); sem o core => so os dados; sem Excel => cria um.
+' "Atualizar automaticamente" (fromAuto, chamado depois de gravar a marca; design secao 8): so o Excel ja aberto (nunca cria um); sem Excel ou
+' sem o core => so a dica de abrir o Excel com o ThinQQ; core mais velho => so o aviso de atualizar o ThinQQ (nada e atualizado); API 2 =>
+' atualiza e, se a atualizacao automatica esta desligada no Excel, acrescenta onde liga-la. A API e lida uma vez. Reentrada ignorada;
+' mBusy liberado em todo caminho antes do aviso. Nunca propaga.
 Public Sub PptTqq_SyncEntries(pres As Object, entries As String, force As Boolean, Optional fromAuto As Boolean = False)
-    Dim xl As Object, created As Boolean, core As String, msg As String, v As Variant, en As Long, ed As String
+    Dim xl As Object, created As Boolean, core As String, msg As String, v As Variant, en As Long, ed As String, api As Long
     If mBusy Then Exit Sub
     mBusy = True
     On Error GoTo Fail
-    Set xl = PptTqq_GetExcel(created)
-    If xl Is Nothing Then mBusy = False: PptTqq_Msg PPT_MSG_NO_EXCEL, vbExclamation: Exit Sub
+    Set xl = PptTqq_GetExcel(created, fromAuto)
+    If xl Is Nothing Then
+        mBusy = False
+        If fromAuto Then PptTqq_Msg PPT_MSG_AUTO_NOCORE, vbInformation Else PptTqq_Msg PPT_MSG_NO_EXCEL, vbExclamation
+        Exit Sub
+    End If
     core = PptTqq_EnsureCore(xl, created)
     If Len(core) = 0 Then
-        msg = PptTqq_DataOnly(pres, PptTqq_WorkbookNames(xl)) & vbLf & PPT_MSG_DATA_ONLY
-    ElseIf PptTqq_ShapesApiOk(PptTqq_CoreApi(xl, core)) Then
-        v = xl.Run("'" & core & "'!Core_PptSyncShapes", pres, entries, force)
-        msg = CStr(v)
+        If fromAuto Then msg = PPT_MSG_AUTO_NOCORE Else msg = PptTqq_DataOnly(pres, PptTqq_WorkbookNames(xl)) & vbLf & PPT_MSG_DATA_ONLY
     Else
-        msg = PptTqq_RunCoreSync(xl, core, pres, force) & vbLf & IIf(fromAuto, PPT_MSG_AUTO_OLDCORE, PPT_MSG_SEL_OLDCORE)
+        api = PptTqq_CoreApi(xl, core)
+        If PptTqq_ShapesApiOk(api) Then
+            v = xl.Run("'" & core & "'!Core_PptSyncShapes", pres, entries, force)
+            msg = CStr(v)
+            If fromAuto Then
+                If Not PptTqq_CoreAutoOn(xl, core) Then msg = msg & vbLf & PPT_MSG_AUTO_OFF
+            End If
+        ElseIf fromAuto Then
+            msg = PPT_MSG_AUTO_OLDCORE
+        ElseIf PptTqq_ApiCompatible(api) Then
+            msg = PptTqq_RunCoreSync(xl, core, pres, force, api) & vbLf & PPT_MSG_SEL_OLDCORE
+        Else
+            msg = PptTqq_RunCoreSync(xl, core, pres, force, api)          ' so os dados + PPT_MSG_OLD_CORE (um aviso so)
+        End If
     End If
     PptTqq_Release xl, created
     mBusy = False
@@ -887,15 +910,48 @@ Fail:
     PptTqq_Msg PptTqq_ErrorText(en, ed), vbExclamation
 End Sub
 
+' Opcao "autoon" do core (API 2). Erro ou Excel ocupado: True (nenhuma nota; o resumo ja saiu). Nunca propaga.
+Private Function PptTqq_CoreAutoOn(xl As Object, core As String) As Boolean
+    Dim v As Variant
+    PptTqq_CoreAutoOn = True
+    On Error Resume Next
+    v = xl.Run("'" & core & "'!Core_PptGetFlag", "autoon")
+    If Err.Number = 0 Then PptTqq_CoreAutoOn = CBool(v)
+    Err.Clear
+End Function
+
 ' Botao "Atualizar automaticamente": grava a marca (e o indice) e, ao ligar, ja atualiza uma vez so essas formas (como o "Update
-' Automatically" do think-cell). Desligar nao chama o Excel. Nunca propaga erro (falha ao gravar: aviso).
+' Automatically" do think-cell). Desligar nao chama o Excel. Nunca propaga erro (falha ao gravar a marca: aviso proprio).
 Public Sub PptTqq_ToggleAuto(shapes As Collection, turnOn As Boolean)
     Dim pres As Object, en As Long, ed As String
     If shapes.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
     On Error GoTo Fail
     Set pres = shapes(1).Parent.Parent
     PptTqq_SetAutoShapes shapes, turnOn
+    On Error GoTo 0
     If turnOn Then PptTqq_SyncEntries pres, PptTqq_EntriesOf(shapes), True, True
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    If turnOn Then
+        PptTqq_Msg "Não foi possível marcar o gráfico como automático: " & ed & " (" & en & ")", vbExclamation
+    Else
+        PptTqq_Msg "Não foi possível voltar o gráfico para a atualização manual: " & ed & " (" & en & ")", vbExclamation
+    End If
+End Sub
+
+' Botao "Atualizar uma vez": deixa o nome de cada forma unico no slide ANTES de montar as entradas (um grafico copiado e colado no mesmo
+' slide tem o mesmo nome, e a busca do core por nome ignora a caixa: atualizaria a outra forma) e atualiza so essas formas. Nunca propaga.
+Public Sub PptTqq_UpdateSelected(shapes As Collection)
+    Dim s As Object, en As Long, ed As String
+    If shapes.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
+    On Error GoTo Fail
+    For Each s In shapes
+        PptTqq_EnsureUniqueName s
+    Next
+    On Error GoTo 0
+    PptTqq_SyncEntries shapes(1).Parent.Parent, PptTqq_EntriesOf(shapes), True
     Exit Sub
 Fail:
     en = Err.Number: ed = Err.Description
