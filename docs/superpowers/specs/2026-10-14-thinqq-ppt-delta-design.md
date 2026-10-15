@@ -414,11 +414,15 @@ reabertura do Excel; "Sobre" do PowerPoint mostra a versão nova.
   `Delta_IsStackBottomNeg`) e nas barras grandes negativas da cascata comparativa (nas cascatas, quando o bloco põe o rótulo na ponta `Lo`);
   a linha e a linha da combinação com a seta para baixo NÃO deslocam (o rótulo do ponto fica acima dele, do lado oposto ao da seta);
   âncora no zero e rótulos de dentro ficam nos 3 pt, como em cima.
-- **Emenda (documentação, B5):** a sala (`Ann_EnsureDeltaRoom`) só é reavaliada ao inserir, ao alternar o texto e em `Ann_EnsureRoomAfterChange`
-  (legenda, formato, redimensionar), e só encolhe a área de plotagem: dados que crescem e mudam a escala podem cortar a linha até o próximo
-  desses eventos, e alternar de "valor e %" para "%" não devolve o espaço. As larguras dos rótulos de fora nas barras são estimadas
+- **Emenda (documentação, B5):** a sala (`Ann_EnsureDeltaRoom`) só é reavaliada ao inserir (`Ann_AddDelta`), ao alternar o texto
+  (`Ann_CycleDeltaFormat`) e em `Ann_EnsureRoomAfterChange`, que `Chart_EnsureRoomAfterChange` chama nos comandos de legenda, formato numérico,
+  decorações (indicador 100%, linha de valor) e corte de eixo (e `Core_AddDelta`, no fim). O redimensionamento à mão só reposiciona (`Cht_Resize`
+  -> `Core_SafeRefresh` -> `Ann_Refresh` -> `Ann_LayoutDeltas`) e não reabre o espaço. A sala só encolhe a área de plotagem: dados que crescem e
+  mudam a escala, ou um gráfico reduzido à mão, podem cortar a linha até o próximo desses comandos, e alternar de "valor e %" para "%" não
+  devolve o espaço; só uma mudança de legenda (`Deco_SetLegend` volta `PlotArea.Position` ao automático e refaz as folgas) ou desligar uma
+  decoração (`ReturnRoom`, o mesmo reset) o devolve. As larguras dos rótulos de fora nas barras são estimadas
   (Calibri 9 negrito, `Labels_EstimateWidth`): fonte maior pode encostar na perna; com 50 ou mais categorias em barras horizontais a folga
-  varre todas as barras do trecho (desempenho não medido). Na comparativa, a perna do delta que sai da barra A compartilha o x com a perna da
+  varre todas as barras do trecho (desempenho não medido). Na comparativa, com as setas de variação ligadas (o padrão), a perna do delta que sai da barra A compartilha o x com a perna da
   seta de variação; numa coluna empilhada, a perna de um segmento de baixo cruza o rótulo do segmento de cima; com muitos deltas, o piso de 30%
   da área de plotagem deixa os rótulos de fora se sobreporem. Percentual: com formato percentual (`pct0`/`pct1`) o valor mostra `+5%` ao lado
   de `(+50%)`, sem "p.p." (a especificação não pede pontos percentuais).
@@ -427,11 +431,10 @@ reabertura do Excel; "Sobre" do PowerPoint mostra a versão nova.
   rótulo + 18 pt quando Rótulos ou Totais estão ligados.
 - **Faixas** (`Ann_LayoutDeltas`): as setas visíveis são ordenadas pela largura do trecho (menor primeiro); cada uma começa na altura base e
   sobe (desce) para ficar a `meia altura própria + meia altura da outra + 6 pt` de toda seta já posta cujo trecho se sobrepõe (com 2 pt de
-  margem) e que fica do mesmo lado. Determinístico e sem colisão de rótulos entre setas sobrepostas; setas de trechos disjuntos compartilham a
-  altura.
+  margem) e que fica do mesmo lado. Determinístico e sem colisão de rótulos entre setas sobrepostas; setas de trechos disjuntos não se afastam (cada uma fica na própria altura base, que pode ser diferente).
 - **Espaço** (`Ann_EnsureDeltaRoom`): depois do layout, se o rótulo ou a linha mais externa passa da borda livre (2 pt do topo; da borda de
   baixo ou da legenda embaixo; da borda direita ou da legenda à direita nas barras), a área de plotagem encolhe pelo déficit e o layout é
-  refeito; até 3 passadas (o eixo automático pode mudar), como nos colchetes do Gantt. Também em `Ann_EnsureRoomAfterChange`.
+  refeito; até 3 passadas (o eixo automático pode mudar), como nos colchetes do Gantt. Também em `Ann_EnsureRoomAfterChange` (legenda, formato, decorações, corte de eixo; não no redimensionamento à mão).
 - **Coordenadas**: sentido das categorias = centro da categoria (`Geom_ChartCatCoord`; nas agrupadas, o centro do **ponto** da série,
   `Points(c).Left + Width/2` ou `Top + Height/2`, porque cada série tem a sua barra); sentido dos valores = regra de três do eixo
   (`Geom_ChartValCoord`).

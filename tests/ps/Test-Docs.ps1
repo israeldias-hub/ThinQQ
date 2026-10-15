@@ -549,7 +549,9 @@ Check (-not $html.Contains('saem sempre na mesma versão') -and -not $html.Conta
 Check ($html -match 'só é gravada ao clicar <span class="ui">Atualizar agora</span>') 'tutorial: a caixa do suplemento só é gravada ao clicar Atualizar agora'
 Check ($readme -notmatch 'de 6 a 8' -and (Read-Utf8 (Join-Path $RepoRoot 'tools\lib\Release-Publish.ps1')) -notmatch 'de 6 a 8') 'README e publicar-release: notas de 1 a 8 linhas'
 Check ($readme -match 'run-tests\.ps1 -Ppt' -and $readme -match 'tests/ps/Test-PptAddin\.ps1') 'README (comandos): run-tests.ps1 -Ppt e tests/ps/Test-PptAddin.ps1'
-Check ((Read-Utf8 (Join-Path $RepoRoot 'release\notes.txt')) -match 'quem instalou o suplemento do PowerPoint pelo ZIP') 'notes.txt: a atualização do suplemento vale para quem o instalou pelo ZIP'
+# notas da 1.5.0: so a Parte B (o delta; a Parte A sai na 1.4.0), de 1 a 3 linhas, sem o aviso de reinstalar pelo ZIP (quem tem a 1.4.0 atualiza pelo Excel)
+$notesText = Read-Utf8 (Join-Path $RepoRoot 'release\notes.txt')
+Check ($notesLines.Count -ge 1 -and $notesLines.Count -le 3 -and $notesText -match 'delta' -and $notesText -notmatch 'suplemento do PowerPoint' -and $notesText -notmatch 'reinstal') 'notes.txt (1.5.0): só o delta, de 1 a 3 linhas, sem o suplemento do PowerPoint nem o aviso de reinstalar'
 # o intervalo da nova tentativa do suplemento (PPAM_RETRY_MINUTES) e o mesmo no aviso do loader, no tutorial e no README
 $updSrc = Read-Utf8 (Join-Path $RepoRoot 'src\loader\modules\modUpdater.bas')
 $retryMin = [regex]::Match($updSrc, 'Private Const PPAM_RETRY_MINUTES As Long = (\d+)').Groups[1].Value
@@ -567,7 +569,7 @@ Check $mvSeq "README: a lista de verificações manuais é numerada de 1 a $($mv
 # os itens novos (a partir do 43, depois do último de antes da Parte A) cobrem o roteiro manual da especificação (§4.7): sem o corte pelo
 # número, os itens antigos do PowerPoint (32 a 36, que também citam "PowerPoint fechado") fariam o teste passar sem os itens novos
 $mvNew = (($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 43 }) -join "`n"
-Check ($mvNums.Count -ge 61) "README: a lista de verificações manuais tem os itens novos do PowerPoint e do delta (a partir do 43; total $($mvNums.Count))"
+Check ($mvNums.Count -ge 60) "README: a lista de verificações manuais tem os itens novos do PowerPoint e do delta (a partir do 43; total $($mvNums.Count))"
 foreach ($t in 'Perguntar.*Atualizar sempre.*Não atualizar', 'Habilitar Edição', 'pasta movida|Alterar Origem', 'pasta em rede', '30 gráficos', 'Excel aberto', 'sem o ThinQQ no Excel', 'aba ThinQQ no PowerPoint', 'PowerPoint fechado', 'somente leitura', 'Desfazer', 'protegida por senha', 'não verificado em PowerPoint real', 'Assinatura do suplemento do PowerPoint[^\r\n]*ThinQQ\.ppam', 'Instalação manual do suplemento do PowerPoint[^\r\n]*Adicionar novo') {
     Check ($mvNew -match $t) "README (verificações manuais 43 em diante): cobre '$t'"
 }
@@ -575,8 +577,8 @@ foreach ($t in 'Perguntar.*Atualizar sempre.*Não atualizar', 'Habilitar Ediçã
 # delta entre barras (1.5.0): os itens 55 em diante cobrem a lista manual da B3 (cliques reais nos 9 tipos, 1.o clique num gráfico não ativado,
 # Esc com o gráfico ativo, zoom/DPI, cancelamentos reais, casos de borda, PowerPoint) e cada um se declara não verificado com mouse real
 $mvDelta = (($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 55 }) -join "`n"
-Check (@($mvNums | Where-Object { $_ -ge 55 }).Count -ge 7) "README: itens 55 em diante (delta): $(@($mvNums | Where-Object { $_ -ge 55 }).Count)"
-foreach ($t in 'cliques reais nos 9 tipos', 'primeiro clique num gráfico que não estava ativado', 'Esc com o gráfico ativo', 'zoom 75% e 150%', '125% e 150%', '60 s', 'outro gráfico', 'grupo de formas', 'planilha protegida', 'Delta no PowerPoint', 'Ctrl\+Z') {
+Check (@($mvNums | Where-Object { $_ -ge 55 }).Count -ge 6) "README: itens 55 em diante (delta): $(@($mvNums | Where-Object { $_ -ge 55 }).Count)"
+foreach ($t in 'cliques reais com o mouse nos 9 tipos', 'primeiro clique num gráfico que não estava ativado', 'clique único em barra de série já selecionada', 'zoom 75% e 150% e escala de tela 125% e 150%', 'Esc com o gráfico ativo', '60 s', 'outro gráfico', 'grupo de formas', 'planilha protegida', 'Delta no PowerPoint', 'Ctrl\+Z') {
     Check ($mvDelta -match $t) "README (verificações manuais 55 em diante): cobre '$t'"
 }
 Check (@(($mvDelta -split "`n") | Where-Object { $_ -notmatch 'não verificado com mouse real' }).Count -eq 0) 'README (verificações manuais 55 em diante): todo item do delta marca "não verificado com mouse real"'
@@ -584,7 +586,8 @@ Check (@(($mvDelta -split "`n") | Where-Object { $_ -notmatch 'não verificado c
 # delta: a especificação (as duas copias que o repositorio guarda: so a de docs/superpowers e rastreada) cita o manipulador certo do OnTime e a regra do lado de baixo
 $specDeltaPath = Join-Path $RepoRoot 'docs\superpowers\specs\2026-10-14-thinqq-ppt-delta-design.md'
 $specDelta = Read-Utf8 $specDeltaPath
-Check ($specDelta.Contains('DeltaPick_TimeoutFired') -and -not $specDelta.Contains('DeltaPick_Timeout, DeltaPick_IsArmedFor')) 'especificação do delta: o manipulador do OnTime é DeltaPick_TimeoutFired'
+$bt = [string][char]96
+Check ($specDelta.Contains('DeltaPick_TimeoutFired') -and -not $specDelta.Contains($bt + 'DeltaPick_Timeout' + $bt + ', ' + $bt + 'DeltaPick_IsArmedFor')) 'especificação do delta: o manipulador do OnTime é DeltaPick_TimeoutFired'
 Check ($specDelta.Contains('Emenda (revisão da B4), lado de baixo') -and $specDelta.Contains('Delta_IsStackBottomNeg') -and $specDelta.Contains('NÃO deslocam')) 'especificação do delta (5.3): regra do lado de baixo'
 Check ($specDelta.Contains('Emenda (revisão da B3)') -and $specDelta.Contains('DELTAPICK_MSG_ARMFAIL')) 'especificação do delta (5.1): cancelamentos e mensagens da B3'
 
@@ -663,28 +666,50 @@ $mustDocument = [ordered]@{
     'powerpoint: formatacao feita no PowerPoint fica; legenda desalinha as setas' = @('tutorial', 'desalinhar as setas')
     'powerpoint: pasta do OneDrive/SharePoint so com a pasta aberta no Excel' = @('tutorial', 'aberta no Excel')
     'powerpoint: o instalador cria o local confiavel do PowerPoint'  = @('both', 'PowerPoint\Security\Trusted Locations\LocationThinQQ')
-    # delta entre barras (Parte B, 1.5.0)
-    'delta: seta nao arrastavel'                                     = @('tutorial', 'não é arrastável')
-    'delta: grafico em grupo de formas'                              = @('tutorial', 'grupo de formas')
-    'delta: percentual diferente da seta de variacao'                = @('tutorial', '-75%')
-    'delta: formato percentual sem p.p.'                             = @('both', 'p.p.')
-    'delta: a sala so encolhe a area de plotagem'                    = @('both', 'só encolhe a área de plotagem')
-    'delta: a sala so e reavaliada em alguns eventos'                = @('tutorial', 'até o próximo desses eventos')
-    'delta: larguras de rotulo estimam fonte 9 pt negrito'           = @('both', 'fonte de 9 pt em negrito')
-    'delta: 50 ou mais categorias em barras horizontais'             = @('both', '50 ou mais categorias')
-    'delta: muitos deltas e o piso de 30%'                           = @('both', 'abaixo de 30% do gráfico')
-    'delta: comparativa, perna compartilha o x da seta de variacao'  = @('both', 'mesmo x da perna da seta de variação')
-    'delta: empilhadas, perna de baixo cruza o rotulo de cima'       = @('both', 'cruza o rótulo do segmento de cima')
-    'delta: Esc devolve o padrao do Excel (OnKey de outro suplemento se perde)' = @('both', 'outro suplemento ou macro se perde')
-    'delta: cancela ao trocar de planilha ou de pasta'               = @('tutorial', 'planilha ou de pasta de trabalho')
-    'delta: planilha protegida so com o grafico desbloqueado'        = @('tutorial', 'nem pode ser selecionado')
-    'delta: Alterar dados nao preserva os deltas'                    = @('both', 'não preserva os deltas')
-    'delta: cliques reais nao verificados com mouse real'            = @('both', 'não verificado com mouse real')
 }
 foreach ($k in $mustDocument.Keys) {
     $scope = $mustDocument[$k][0]; $phrase = $mustDocument[$k][1]
     Check ($html -cmatch [regex]::Escape($phrase)) "tutorial documenta: $k ('$phrase')"
     if ($scope -eq 'both') { Check ($readme -cmatch [regex]::Escape($phrase)) "README documenta: $k ('$phrase')" }
 }
+# ---- delta entre barras (1.5.0): cada limite e conferido POR LUGAR (secao #setas e #limites do tutorial, "Limitações conhecidas" do README):
+# tirar UMA das ocorrencias derruba o teste (uma frase presente so em outro lugar nao a cobre)
+$setasTxt = Get-SectionText 'setas'
+$limitesTxt = Get-SectionText 'limites'
+$readmeLimTxt = ([regex]::Match($readme, '(?s)## Limitações conhecidas(?<b>.*?)## Licença').Groups['b'].Value -replace '\s+', ' ')
+Check ($setasTxt.Contains('Delta entre barras') -and $limitesTxt.Length -gt 500 -and $readmeLimTxt.Length -gt 500) 'delta: secoes #setas e #limites e a lista de limitações do README lidas'
+$deltaPins = @(
+    @('seta nao arrastavel',                          'não é arrastável',                           @('setas', 'limites', 'readme')),
+    @('grafico em grupo de formas',                   'grupo de formas',                            @('setas', 'limites', 'readme')),
+    @('percentual diferente da seta de variacao',     '-75%',                                       @('setas', 'limites', 'readme')),
+    @('Alterar dados nao preserva os deltas',         'não preserva os deltas',                     @('setas', 'limites', 'readme')),
+    @('a sala so encolhe a area de plotagem',         'só encolhe a área de plotagem',              @('setas', 'limites', 'readme')),
+    @('redimensionar a mao nao reabre a sala',        'não reabre o espaço',                        @('setas', 'limites', 'readme')),
+    @('formato percentual sem p.p.',                  'p.p.',                                       @('setas', 'readme')),
+    @('a sala so e refeita ate o proximo comando',    'até o próximo desses comandos',              @('setas', 'readme')),
+    @('larguras de rotulo estimam fonte 9 pt negrito', 'fonte de 9 pt em negrito',                  @('setas', 'readme')),
+    @('50 ou mais categorias em barras horizontais',  '50 ou mais categorias',                      @('setas', 'readme')),
+    @('muitos deltas e o piso de 30%',                'abaixo de 30% do gráfico',                   @('setas', 'readme')),
+    @('comparativa: perna compartilha o x da seta de variacao', 'mesmo x da perna da seta de variação', @('setas', 'readme')),
+    @('comparativa: so com as setas de variacao ligadas', 'com as setas de variação ligadas',       @('setas', 'readme')),
+    @('empilhadas: perna de baixo cruza o rotulo de cima', 'cruza o rótulo do segmento de cima',    @('setas', 'readme')),
+    @('Esc: atribuicao de outro suplemento se perde', 'outro suplemento ou macro se perde',         @('setas', 'readme')),
+    @('cliques reais nao verificados com mouse real', 'não verificado com mouse real',              @('setas', 'readme')),
+    @('cancela ao trocar de planilha ou de pasta',    'planilha ou de pasta de trabalho',           @('setas')),
+    @('planilha protegida so com o grafico desbloqueado', 'nem pode ser selecionado',               @('setas')),
+    @('clicar de novo na origem so avisa na barra de status', 'Clicar de novo na própria origem',   @('setas'))
+)
+$pinText = @{ setas = $setasTxt; limites = $limitesTxt; readme = $readmeLimTxt }
+$pinName = @{ setas = 'tutorial #setas (Delta entre barras)'; limites = 'tutorial #limites'; readme = 'README Limitações conhecidas' }
+foreach ($d in $deltaPins) {
+    foreach ($w in $d[2]) { Check ($pinText[$w].Contains($d[1])) "delta: $($d[0]) ($($pinName[$w]): '$($d[1])')" }
+}
+# a sala do delta NAO e refeita ao redimensionar a mao (Cht_Resize so reposiciona): nenhum texto pode listar o redimensionamento/tamanho como
+# gatilho da sala; a frase positiva com os gatilhos reais (inserir, alternar o texto, legenda, formato, decoracoes, corte de eixo) fica no tutorial, no README e na especificacao
+$roomWrong = '(?i)formato e (tamanho|redimensionamento)|legenda, formato, redimensionar|<span class="ui">Formato</span> e redimensionamento|próximo redimensionamento'
+Check ($html -notmatch $roomWrong -and $readme -notmatch $roomWrong -and $specDelta -notmatch $roomWrong) 'delta: nenhum texto lista o redimensionamento como gatilho da sala do delta'
+Check ($specDelta.Contains('não reabre o espaço') -and $specDelta.Contains('Chart_EnsureRoomAfterChange') -and $specDelta.Contains('corte de eixo')) 'delta: a especificação lista os gatilhos reais da sala e diz que o redimensionamento a mão não reabre o espaço'
+Check ($limitesTxt.Contains('legenda, formato, decorações e corte de eixo') -and $readmeLimTxt.Contains('legenda, formato, decorações') -and $setasTxt.Contains('Corte de eixo...')) 'delta: tutorial e README citam os gatilhos reais da sala (legenda, formato, decorações, corte de eixo)'
+
 if ($script:fail -gt 0) { Write-Host "FALHAS Test-Docs: $script:fail"; exit 1 }
 Write-Host 'Test-Docs: OK'

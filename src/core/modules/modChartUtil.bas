@@ -268,8 +268,8 @@ Public Sub Chart_SyncSecondaryX(cht As Chart)
     Err.Clear
 End Sub
 
-' Depois de uma mudanca posterior a criacao (legenda ligada/desligada, formato numerico dos rotulos, redimensionamento do
-' grafico), a folga que o Insert deu aos totais (barras), as setas e colchetes, o rotulo "nome valor" do fim da linha, o indicador 100%, o
+' Depois de uma mudanca posterior a criacao (legenda ligada/desligada, formato numerico dos rotulos, decoracoes, corte de eixo, Alterar
+' dados; o redimensionamento a mao NAO a chama: Cht_Resize so reposiciona), a folga que o Insert deu aos totais (barras), as setas e colchetes, o rotulo "nome valor" do fim da linha, o indicador 100%, o
 ' rotulo da linha de valor, os totais acima do Mekko e a escala de datas do Gantt so valia para o estado do momento, e a area de plotagem de
 ' tamanho manual pode ter ficado sob a legenda: reexecuta as contas (legenda, totais, setas, fim da linha, decoracoes, Mekko, Gantt). So reduz a
 ' area de plotagem; sem nada disso ligado nao faz nada.

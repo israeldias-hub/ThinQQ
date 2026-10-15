@@ -229,9 +229,10 @@ Private Sub Ann_EnsureRoom(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Ann_EnsureRoom" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
 
-' Reexecuta a folga das setas depois de uma mudança posterior à criação (legenda, formato numérico dos rótulos, tamanho do
-' gráfico): Ann_EnsureRoom só roda ao inserir a seta, e a legenda ligada depois, um rótulo de total mais largo ou um gráfico
-' redimensionado podem deixar a seta e o rótulo sob a legenda ou fora da folga. Só reduz a área de plotagem. Sem setas não faz nada.
+' Reexecuta a folga das setas depois de uma mudança posterior à criação (legenda, formato numérico dos rótulos, decorações, corte de
+' eixo; chamada por Chart_EnsureRoomAfterChange): Ann_EnsureRoom só roda ao inserir a seta, e a legenda ligada depois ou um rótulo de
+' total mais largo podem deixar a seta e o rótulo sob a legenda ou fora da folga. NÃO roda ao redimensionar o gráfico à mão (Cht_Resize
+' só reposiciona as setas). Só reduz a área de plotagem. Sem setas não faz nada.
 Public Sub Ann_EnsureRoomAfterChange(cht As Chart)
     Dim nDelta As Long
     nDelta = Ann_CountPrefix(cht, ANN_DELTA)
