@@ -17,6 +17,11 @@ $removed = 0
 foreach ($d in $stale) { Remove-Item -LiteralPath $d.FullName -Recurse -Force -ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath $d.FullName)) { $removed++ } }
 Get-ChildItem -Path (Join-Path $env:TEMP '*') -Include 'modBuildInfo_*.bas','modTestDispatch_*.bas' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 Write-Host "Limpeza: $removed pasta(s) thinqq_test_* antigas removidas de %TEMP%"
+# Ramo do registro do atualizador usado SO pelo build Test (Settings_AppName / Util_UpdaterRegApp = "ThinQQ.Test"); o ramo real "ThinQQ" nunca
+# e tocado aqui. Apagado antes (estado velho de uma execucao morta) e depois dos testes VBA.
+$testRegBranch = 'HKCU:\Software\VB and VBA Program Settings\ThinQQ.Test'
+function Clear-TqqTestRegBranch { if (Test-Path -LiteralPath $testRegBranch) { Remove-Item -LiteralPath $testRegBranch -Recurse -Force -ErrorAction SilentlyContinue } }
+Clear-TqqTestRegBranch
 
 if (-not $NoBuild) {
     $global:LASTEXITCODE = 0
@@ -104,6 +109,7 @@ try {
         if ($xp -gt 0) { Stop-Process -Id $xp -Force -ErrorAction SilentlyContinue }
     } else { Close-ExcelApp $xl }
     if ($server) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
+    Clear-TqqTestRegBranch
 }
 if ($Filter) {
     Write-Host "Filtro '$Filter' ativo: suites PowerShell puladas"

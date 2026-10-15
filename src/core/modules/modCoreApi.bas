@@ -1121,7 +1121,7 @@ Public Sub Core_ApplyPendingLoader()
     mApplyBusy = True
     ApplyPendingLoaderImpl
     On Error Resume Next
-    DeleteSetting "ThinQQ", "Updater", "SwapInProgress"
+    DeleteSetting Util_UpdaterRegApp(), "Updater", "SwapInProgress"
     mApplyBusy = False
 End Sub
 
@@ -1160,15 +1160,15 @@ Private Sub ApplyPendingLoaderImpl()
     Dim pending As String, target As String, expectSha As String, nw As String, bak As String
     Dim ai As AddIn, found As Boolean, started As Boolean, committed As Boolean, en As Long, ed As String, prevAlerts As Boolean
     On Error GoTo Fail
-    pending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    pending = GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", "")
     target = mLoaderPath
     If Len(pending) = 0 Or Len(target) = 0 Then Exit Sub
     If Len(Dir(pending)) = 0 Then
-        SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
-        SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", ""
+        SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", ""
+        SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", ""
         Exit Sub
     End If
-    expectSha = LCase$(GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", ""))
+    expectSha = LCase$(GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", ""))
     nw = target & ".new": bak = target & ".bak"
     If Len(Dir(nw)) > 0 Then Kill nw
     If Len(Dir(bak)) > 0 Then Kill bak
@@ -1177,12 +1177,12 @@ Private Sub ApplyPendingLoaderImpl()
         Errors_Log "Core_ApplyPendingLoader: SHA-256 do loader pendente nao confere; descartado: " & pending
         Kill nw
         Kill pending
-        SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
-        SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", ""
+        SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", ""
+        SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", ""
         Core_Notify "A atualização do carregador do ThinQQ foi descartada: o arquivo não passou na verificação de integridade.", vbExclamation, False
         Exit Sub
     End If
-    SaveSetting "ThinQQ", "Updater", "SwapInProgress", Format$(Now, "yyyy-mm-dd hh:nn:ss")
+    SaveSetting Util_UpdaterRegApp(), "Updater", "SwapInProgress", Format$(Now, "yyyy-mm-dd hh:nn:ss")
     started = True
     prevAlerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
@@ -1208,9 +1208,9 @@ Private Sub ApplyPendingLoaderImpl()
     Application.DisplayAlerts = prevAlerts
     Kill bak
     Kill pending
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", ""
-    DeleteSetting "ThinQQ", "Updater", "PendingLoaderFailNotified"
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", ""
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", ""
+    DeleteSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderFailNotified"
     Errors_Log "loader substituído: " & target
     Exit Sub
 Fail:
@@ -1226,13 +1226,13 @@ End Sub
 Private Sub NotifyPendingFailureThrottled()
     Dim last As String
     On Error Resume Next
-    last = GetSetting("ThinQQ", "Updater", "PendingLoaderFailNotified", "")
+    last = GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderFailNotified", "")
     If Len(last) > 0 Then
         If IsDate(last) Then
             If Now - CDate(last) >= 0 And Now - CDate(last) < 1 Then Exit Sub
         End If
     End If
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderFailNotified", Format$(Now, "yyyy-mm-dd hh:nn:ss")
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderFailNotified", Format$(Now, "yyyy-mm-dd hh:nn:ss")
     Core_Notify "Não foi possível atualizar o carregador do ThinQQ. A versão anterior foi mantida.", vbExclamation, False
 End Sub
 

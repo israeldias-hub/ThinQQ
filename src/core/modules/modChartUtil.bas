@@ -115,6 +115,12 @@ Public Function Util_CellLabel(c As Range) As String
     Util_CellLabel = s
 End Function
 
+' Nome do aplicativo no registro do atualizador (HKCU\Software\VB and VBA Program Settings\<nome>\Updater), o mesmo do loader
+' (Settings_AppName): o build Test usa um ramo proprio e nunca le nem grava as configuracoes reais do usuario.
+Public Function Util_UpdaterRegApp() As String
+    If BUILD_CONFIG = "Test" Then Util_UpdaterRegApp = "ThinQQ.Test" Else Util_UpdaterRegApp = "ThinQQ"
+End Function
+
 ' SHA-256 (hex minusculo) de um arquivo, em VBA puro (modSha256; sem processo filho). Retorna "" em qualquer falha
 ' (arquivo ausente/ilegivel): quem chama trata como nao verificado.
 Public Function Util_Sha256File(path As String) As String
