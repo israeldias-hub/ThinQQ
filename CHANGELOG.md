@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.4.0] - 2026-10-15
+
 ### Adicionado
 - Suplemento do PowerPoint (ThinQQ.ppam): ao abrir uma apresentação, atualiza dados e setas dos gráficos do ThinQQ colados como gráfico vinculado (perguntar, sempre ou nunca). Aba ThinQQ no PowerPoint, grupo Gráficos do Excel: Atualizar gráficos, Ao abrir (Perguntar, Atualizar sempre, Não atualizar) e Sobre. Usa o Excel aberto com o ThinQQ ou, senão, um Excel invisível só para isso; sem o ThinQQ no Excel atualiza só os dados. As pastas de origem são abertas somente leitura e com as macros desligadas; a pergunta lista as pastas, e "Atualizar sempre" pergunta assim mesmo com uma pasta de rede ou da web ainda não aberta no Excel. Apresentações somente leitura não são atualizadas ao abrir (só pelos botões, na memória); Modo de Exibição Protegido: a pergunta aparece depois de Habilitar Edição (não verificado em PowerPoint real).
 - Excel: PowerPoint > Atualizar gráficos no PowerPoint (atualiza dados e setas dos gráficos vinculados das apresentações abertas; funciona sem o suplemento do PowerPoint).
