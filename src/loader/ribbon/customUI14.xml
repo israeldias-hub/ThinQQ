@@ -183,7 +183,7 @@
           </menu>
           <!-- PowerPoint: o menu fica sempre ativo (Atualizar graficos no PowerPoint nao exige grafico); copiar exige um grafico (getEnabled). -->
           <menu id="mnuPpt" label="PowerPoint" image="tqq_ppt16"
-                screentip="PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint (como imagem ou gráfico vinculado) e atualiza os gráficos vinculados das apresentações abertas.">
+                screentip="PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint (como imagem ou gráfico vinculado), atualiza os gráficos vinculados das apresentações abertas e controla a atualização automática.">
             <button id="btnPptImage" label="Copiar como imagem" onAction="Rx_OnPptImage" getEnabled="Rx_GetEnabled"
                     screentip="Copiar como imagem" supertip="Cola uma imagem do gráfico no slide ativo (abre o PowerPoint se preciso)."/>
             <button id="btnPptChart" label="Copiar como gráfico vinculado" onAction="Rx_OnPptChart" getEnabled="Rx_GetEnabled"
@@ -191,6 +191,11 @@
             <menuSeparator id="msepPpt"/>
             <button id="btnPptSync" label="Atualizar gráficos no PowerPoint" imageMso="Refresh" onAction="Rx_OnPptSync"
                     screentip="Atualizar gráficos no PowerPoint" supertip="Atualiza dados e setas dos gráficos do ThinQQ vinculados nas apresentações abertas no PowerPoint (também acontece ao abrir a apresentação, com o suplemento do PowerPoint)."/>
+            <menuSeparator id="msepPptAuto"/>
+            <checkBox id="chkPptAutoOn" label="Atualização automática ligada" tag="autoon" getPressed="Rx_GetPptFlag" onAction="Rx_OnPptFlag"
+                      screentip="Atualização automática ligada" supertip="Com o Excel e o PowerPoint abertos, atualiza sozinho os gráficos marcados como 'Atualizar automaticamente' cerca de 2 segundos depois que um valor da pasta muda. Desmarque para pausar."/>
+            <checkBox id="chkPptAutoNew" label="Novos vínculos atualizam automaticamente" tag="autonew" getPressed="Rx_GetPptFlag" onAction="Rx_OnPptFlag"
+                      screentip="Novos vínculos atualizam automaticamente" supertip="Gráficos colados no PowerPoint a partir de agora já nascem com 'Atualizar automaticamente' ligado (sem esta opção nascem manuais, como no think-cell)."/>
           </menu>
           <separator id="sep3"/>
           <button id="btnRefresh" label="Atualizar" imageMso="Refresh" onAction="Rx_OnRefresh"

@@ -43,7 +43,13 @@ Private Sub RunCoreFeature(procName As String, Optional arg As Variant)
     Dim p As String
     p = procName
     If BUILD_CONFIG = "Test" Then p = p & mTestProcSuffix
-    If IsMissing(arg) Then Loader_RunCore p Else Loader_RunCore p, arg
+    If IsMissing(arg) Then
+        Loader_RunCore p
+    ElseIf IsArray(arg) Then
+        Loader_RunCore p, arg(0), arg(1)            ' Array(a, b): dois argumentos (as opcoes da atualizacao automatica)
+    Else
+        Loader_RunCore p, arg
+    End If
     If Loader_RunCoreMissed() Then RxMsg RX_MSG_UPDATE, vbInformation
 End Sub
 
@@ -250,6 +256,38 @@ End Sub
 Public Sub Rx_OnPptSync(control As IRibbonControl)
     On Error Resume Next
     If CoreOrWarn() Then RunCoreFeature "Core_PptSyncOpen"
+End Sub
+
+' Opcoes da atualizacao automatica (1.6.0): "autoon" e "autonew" (tag do controle). Core anterior (sem Core_PptGetFlag) ou sem core: a caixa
+' fica desmarcada; o clique avisa "Atualize". Nunca propaga erro.
+Public Sub Rx_GetPptFlag(control As IRibbonControl, ByRef pressed)
+    On Error Resume Next
+    pressed = False
+    pressed = Rx_PptFlagValue(CStr(control.Tag))
+End Sub
+
+Public Sub Rx_OnPptFlag(control As IRibbonControl, pressed As Boolean)
+    On Error Resume Next
+    Rx_OnPptFlagCore CStr(control.Tag), pressed
+End Sub
+
+' Partes testaveis dos dois callbacks (IRibbonControl nao e criavel nos testes). Rx_PptFlagValue le o estado real do core (False sem core ou
+' com um core sem o procedimento: Loader_RunCore devolve Empty); Rx_OnPptFlagCore grava e redesenha a faixa.
+Public Function Rx_PptFlagValue(tag As String) As Boolean
+    Dim v As Variant, p As String
+    On Error Resume Next
+    If Loader_CoreWorkbook() Is Nothing Then Exit Function
+    p = "Core_PptGetFlag"
+    If BUILD_CONFIG = "Test" Then p = p & mTestProcSuffix
+    v = Loader_RunCore(p, tag)
+    If Not IsEmpty(v) Then Rx_PptFlagValue = CBool(v)
+    If Err.Number <> 0 Then Rx_PptFlagValue = False
+End Function
+
+Public Sub Rx_OnPptFlagCore(tag As String, pressed As Boolean)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_PptSetFlag", Array(tag, pressed)
+    Loader_InvalidateRibbon
 End Sub
 
 Public Sub Rx_OnSamples(control As IRibbonControl)

@@ -77,7 +77,7 @@ Private Function ExpectedSig(elem As String, attr As String) As String
         Case "onAction"
             Select Case elem
                 Case "button": ExpectedSig = "iribboncontrol"
-                Case "toggleButton": ExpectedSig = "iribboncontrol,boolean"
+                Case "toggleButton", "checkBox": ExpectedSig = "iribboncontrol,boolean"
                 Case "dropDown": ExpectedSig = "iribboncontrol,string,integer"
             End Select
         Case "getEnabled", "getPressed", "getSelectedItemID": ExpectedSig = "iribboncontrol,byref *"
@@ -111,7 +111,7 @@ Public Sub Test_Ribbon_Xml_HasAllCallbacks()
     names = Array("Rx_OnLoad", "Rx_OnInsert", "Rx_GetEnabled", "Rx_OnToggle", "Rx_GetPressed", "Rx_OnDropdown", _
                   "Rx_GetSelectedId", "Rx_OnAnnotation", "Rx_OnRemoveAnnotations", "Rx_OnRefresh", "Rx_OnChangeSource", _
                   "Rx_OnSamples", "Rx_OnTutorial", "Rx_OnCheckUpdates", "Rx_OnSettings", "Rx_OnAbout", "Rx_OnSameScale", "Rx_OnResetScale", _
-                  "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart", "Rx_OnPptSync", "Rx_OnDelta", "Rx_OnDeltaFormat")
+                  "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart", "Rx_OnPptSync", "Rx_OnDelta", "Rx_OnDeltaFormat", "Rx_GetPptFlag", "Rx_OnPptFlag")
     For i = LBound(names) To UBound(names)
         AssertTrue InStr(xml, names(i)) > 0, "callback ausente no XML: " & names(i)
     Next
@@ -871,4 +871,81 @@ Public Sub Test_Ribbon_PptSync_LabelAndTip()
     AssertEqual "Atualizar gráficos no PowerPoint", AttrText(n, "label")
     AssertEqual "Refresh", AttrText(n, "imageMso")
     AssertTrue InStr(AttrText(n, "supertip"), "ao abrir a apresentação") > 0, "o supertip cita a atualizacao ao abrir"
+End Sub
+
+' Atualizacao automatica (1.6.0): duas caixas de selecao no menu PowerPoint, depois do Atualizar graficos e de um separador.
+Public Sub Test_Ribbon_PptAutoCheckBoxes()
+    Dim d As Object
+    Set d = LoadRibbon()
+    AssertEqual 2, d.SelectNodes("//u:menu[@id='mnuPpt']/u:checkBox").Length
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:checkBox[@id='chkPptAutoOn'][@tag='autoon'][@getPressed='Rx_GetPptFlag'][@onAction='Rx_OnPptFlag']") Is Nothing
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:checkBox[@id='chkPptAutoNew'][@tag='autonew'][@getPressed='Rx_GetPptFlag'][@onAction='Rx_OnPptFlag']") Is Nothing
+    AssertEqual "msepPptAuto", AttrText(d.SelectSingleNode("//u:button[@id='btnPptSync']/following-sibling::*[1]"), "id")
+    AssertEqual "chkPptAutoOn", AttrText(d.SelectSingleNode("//u:menuSeparator[@id='msepPptAuto']/following-sibling::*[1]"), "id")
+    AssertEqual "chkPptAutoNew", AttrText(d.SelectSingleNode("//u:checkBox[@id='chkPptAutoOn']/following-sibling::*[1]"), "id")
+    AssertTrue Len(AttrText(d.SelectSingleNode("//*[@id='chkPptAutoOn']"), "supertip")) > 20
+    AssertTrue Len(AttrText(d.SelectSingleNode("//*[@id='chkPptAutoNew']"), "supertip")) > 20
+    ' as caixas ficam sempre ativas (sem getEnabled): sao opcoes globais, nao dependem de grafico selecionado
+    AssertEqual "", AttrText(d.SelectSingleNode("//*[@id='chkPptAutoOn']"), "getEnabled")
+    AssertEqual "", AttrText(d.SelectSingleNode("//*[@id='chkPptAutoNew']"), "getEnabled")
+End Sub
+
+' Rotulos exatos (o tutorial os cita) e supertips que dizem o que a opcao faz de verdade.
+Public Sub Test_Ribbon_PptAutoCheckBoxes_LabelsAndTips()
+    Dim d As Object, n As Object
+    Set d = LoadRibbon()
+    Set n = d.SelectSingleNode("//*[@id='chkPptAutoOn']")
+    AssertEqual "Atualização automática ligada", AttrText(n, "label")
+    AssertEqual "Atualização automática ligada", AttrText(n, "screentip")
+    AssertTrue InStr(AttrText(n, "supertip"), "Atualizar automaticamente") > 0, "cita o comando do PowerPoint"
+    AssertTrue InStr(AttrText(n, "supertip"), "2 segundos") > 0, "cita o intervalo do ciclo"
+    Set n = d.SelectSingleNode("//*[@id='chkPptAutoNew']")
+    AssertEqual "Novos vínculos atualizam automaticamente", AttrText(n, "label")
+    AssertEqual "Novos vínculos atualizam automaticamente", AttrText(n, "screentip")
+    AssertTrue InStr(AttrText(n, "supertip"), "nascem") > 0, "diz que o gráfico novo nasce automático"
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='mnuPpt']"), "supertip"), "controla a atualização automática") > 0, "o supertip do menu cita a atualizacao automatica"
+End Sub
+
+' Core sem os procedimentos (sufixo de teste): a caixa fica desmarcada e o clique avisa "Atualize".
+Public Sub Test_Ribbon_PptFlag_OldCore()
+    Dim en As Long, ed As String
+    On Error GoTo Cleanup
+    Rx_TestSetFeatureProcSuffix "_naoexiste"
+    AssertFalse Rx_PptFlagValue("autoon"), "core sem Core_PptGetFlag: desmarcada, sem erro"
+    AssertFalse Rx_PptFlagValue("autonew"), "core sem Core_PptGetFlag: desmarcada, sem erro"
+    Loader_LastMsg = ""
+    Rx_OnPptFlagCore "autoon", True
+    AssertEqual RX_MSG_UPDATE, Loader_LastMsg
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    Rx_TestSetFeatureProcSuffix ""
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+' Estado real: a caixa le o que o core guarda (padrao: automatico ligado, novos vinculos manuais) e o clique grava os dois valores
+' (inclusive "True"/"False" como 2o argumento: RunCoreFeature passa dois argumentos). Restaura os padroes no fim.
+Public Sub Test_Ribbon_PptFlag_ReadsAndWritesCoreState()
+    Dim en As Long, ed As String
+    On Error GoTo Cleanup
+    If Loader_CoreWorkbook() Is Nothing Then Loader_Log "TestRibbon: core nao carregado (pulado)": Exit Sub
+    Loader_RunCore "Core_PptSetFlag", "autoon", True
+    Loader_RunCore "Core_PptSetFlag", "autonew", False
+    AssertTrue Rx_PptFlagValue("autoon"), "padrao: automatico ligado"
+    AssertFalse Rx_PptFlagValue("autonew"), "padrao: novos vinculos manuais"
+    Loader_LastMsg = ""
+    Rx_OnPptFlagCore "autoon", False
+    AssertFalse Rx_PptFlagValue("autoon"), "desligar grava"
+    AssertTrue Rx_PptFlagValue("autonew") = False, "a outra opcao nao muda"
+    Rx_OnPptFlagCore "autonew", True
+    AssertTrue Rx_PptFlagValue("autonew"), "ligar grava"
+    AssertFalse Rx_PptFlagValue("autoon"), "a outra opcao nao muda"
+    Rx_OnPptFlagCore "autoon", True
+    AssertTrue Rx_PptFlagValue("autoon")
+    AssertTrue Loader_LastMsg <> RX_MSG_UPDATE, "core atual: sem o aviso de atualizar"
+    AssertFalse Rx_PptFlagValue("tagqualquer"), "tag desconhecida: desmarcada"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    Loader_RunCore "Core_PptSetFlag", "autoon", True
+    Loader_RunCore "Core_PptSetFlag", "autonew", False
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
 End Sub
