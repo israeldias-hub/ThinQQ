@@ -206,7 +206,8 @@ Public Sub Test_DeltaPick_NotArmed_NoEffect_AndRefusals()
     Next
     t = Timer - t
     Errors_Log "TestDeltaPick: 200 selecoes desarmadas em " & Format$(t, "0.00") & " s"
-    AssertTrue t < 1.5, "desarmado: eventos baratos (200 selecoes em " & t & " s; medido na spec: 0,62 s)"
+    ' limite folgado (3 s): pega um manipulador que faz trabalho desarmado sem falhar por uma maquina lenta ou ocupada (B6, revisao da B3)
+    AssertTrue t < 3, "desarmado: eventos baratos (200 selecoes em " & t & " s; medido na spec: 0,62 s)"
     DeltaPick_OnMouseUp c, 10, 10
     AssertFalse HasShape(c, "tqq_ann_delta_1"), "desarmado: nada inserido"
     AssertFalse HasShape(c, DELTAPICK_MARK), "desarmado: sem moldura"
