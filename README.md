@@ -307,6 +307,14 @@ linhas com o marcador •; vão para o campo `notes` do manifesto e para o texto
 4. **Verificar** (manual): baixe o ZIP pela página da release, extraia a pasta inteira, rode `Instalar-ThinQQ.cmd` e confira a aba ThinQQ no
    Excel. Os usuários recebem o aviso na próxima abertura do Excel (no máximo uma verificação por dia).
 
+**Publicando a Parte B depois da 1.4.0.** O delta entre barras (ramo `feat/delta-cliques`) sai como 1.5.0, depois da 1.4.0 (PowerPoint).
+Mescle `feat/delta-cliques` na `main` só depois de a v1.4.0 estar publicada. A etapa 1 da 1.4.0 transforma `[Não lançado]` em `[1.4.0]`, e o
+merge de 3 vias aplica as linhas `Delta (1.5.0):` do `CHANGELOG.md` sem conflito, mas dentro da seção `[1.4.0]`: antes de rodar
+`publicar-release.bat 1.5.0`, mova essas linhas para a nova `[Não lançado]` (o prefixo `Delta (1.5.0):` pode sair). O `Test-Docs.ps1` recusa
+o CHANGELOG com a `[1.4.0]` e as linhas do delta fora de `[Não lançado]`. Não se espera conflito de texto em `version.json`,
+`release/manifest.json`, `installer/LEIA-ME.txt` nem no rodapé do tutorial; se o `release/notes.txt` conflitar, fica a versão do ramo (só os
+itens do delta).
+
 Opções (o `.bat` repassa ao PowerShell): `-DryRun` (ou `set DRYRUN=1`) confere as pré-condições locais e mostra o que faria, sem gravar,
 construir, enviar, ler o token nem chamar a API; `-Draft` termina a etapa 3 com a release em rascunho (publique-a depois pela página dela; se
 editar o texto do rascunho no GitHub, publique por lá, sem rodar a etapa de novo); `-NoBrowser` não abre o navegador; `-RunTests` roda a

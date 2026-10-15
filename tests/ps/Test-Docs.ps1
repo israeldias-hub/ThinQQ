@@ -356,6 +356,28 @@ Check ($cl -match '(?m)^## \[1\.2\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG tem a se
 Check ($cl -match '(?m)^## \[1\.1\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG tem a seção 1.1.0'
 Check ($cl -match '(?m)^## \[1\.0\.0\] - \d{4}-\d{2}-\d{2}') 'CHANGELOG mantém a seção 1.0.0'
 Check ($cl.IndexOf('## [Não lançado]') -ge 0 -and $cl.IndexOf('## [Não lançado]') -lt $cl.IndexOf('## [1.2.0]')) 'CHANGELOG tem a seção [Não lançado] no topo, antes das versões (pode ter entradas)'
+# Parte B (delta, 1.5.0) depois da 1.4.0 publicada: o publicar-release transforma [Não lançado] em [1.4.0] e um merge de 3 vias deste ramo
+# poria as linhas 'Delta (1.5.0)' SEM conflito dentro da [1.4.0]. Guarda (inerte enquanto nao houver [1.4.0]): com a [1.4.0] no arquivo, as
+# linhas do delta ficam em [Não lançado] e nenhuma na [1.4.0]. Devolve 'inerte', 'ok' ou o motivo da falha.
+function Test-DeltaChangelogSection([string]$text) {
+    $t = $text -replace "`r`n", "`n"
+    if ($t -notmatch '(?m)^## \[1\.4\.0\]') { return 'inerte' }
+    $un = [regex]::Match($t, '(?ms)^## \[Não lançado\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
+    $v14 = [regex]::Match($t, '(?ms)^## \[1\.4\.0\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
+    if (-not $un.Contains('Delta (1.5.0)')) { return 'as linhas Delta (1.5.0) não estão em [Não lançado]' }
+    if ($v14.Contains('Delta (1.5.0)')) { return 'há linhas Delta (1.5.0) dentro da [1.4.0]' }
+    return 'ok'
+}
+$clBad = "# Changelog`n`n## [Não lançado]`n`n## [1.4.0] - 2026-10-20`n`n- PowerPoint atualizado ao reabrir`n- Delta (1.5.0): Delta entre barras`n`n## [1.3.0] - 2026-10-14`n`n- x`n"
+$clGood = "# Changelog`n`n## [Não lançado]`n`n- Delta (1.5.0): Delta entre barras`n`n## [1.4.0] - 2026-10-20`n`n- PowerPoint atualizado ao reabrir`n`n## [1.3.0] - 2026-10-14`n`n- x`n"
+$clEmpty = "# Changelog`r`n`r`n## [Não lançado]`r`n`r`n## [1.4.0] - 2026-10-20`r`n`r`n- PowerPoint`r`n"
+Check ((Test-DeltaChangelogSection $clBad) -ne 'ok' -and (Test-DeltaChangelogSection $clBad) -ne 'inerte') 'guarda do CHANGELOG (sintético): Delta (1.5.0) caído dentro da [1.4.0] depois do merge = falha'
+Check ((Test-DeltaChangelogSection $clEmpty) -ne 'ok' -and (Test-DeltaChangelogSection $clEmpty) -ne 'inerte') 'guarda do CHANGELOG (sintético, CRLF): [1.4.0] publicada e [Não lançado] sem o delta = falha'
+Check ((Test-DeltaChangelogSection $clGood) -eq 'ok') 'guarda do CHANGELOG (sintético): Delta (1.5.0) em [Não lançado] acima da [1.4.0] = ok'
+Check ((Test-DeltaChangelogSection "## [Não lançado]`n`n- Delta (1.5.0): x`n`n## [1.3.0] - 2026-10-14`n") -eq 'inerte') 'guarda do CHANGELOG (sintético): sem [1.4.0] = inerte'
+Check ($readme.Contains('**Publicando a Parte B depois da 1.4.0.**') -and $readme -match '(?s)Publicando a Parte B depois da 1\.4\.0.{0,900}mova essas linhas para a nova `\[Não lançado\]`') 'README (Publicar uma versão): como publicar a Parte B depois da 1.4.0 (mover as linhas Delta (1.5.0) para [Não lançado])'
+$clGuard = Test-DeltaChangelogSection $cl
+Check ($clGuard -eq 'ok' -or $clGuard -eq 'inerte') "CHANGELOG: linhas Delta (1.5.0) na seção certa depois da 1.4.0 ($clGuard)"
 
 # ---- versões: loader e core em x.y.z, a partir da 1.2.0 (a primeira publicada); o rodapé do tutorial e o exemplo do LEIA-ME seguem o
 # version.json (o publicar-release.bat os atualiza junto com o version.json e o CHANGELOG)
