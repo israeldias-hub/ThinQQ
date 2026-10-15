@@ -1075,3 +1075,46 @@ Fail:
     FailCleanup
 End Sub
 
+' Troca interrompida (so sobrou ThinQQ.ppam.old): a proxima troca devolve o .old antes (nunca apaga a ultima copia) e segue.
+Public Sub Test_Updater_Ppam_InterruptedSwap_RecoversOld()
+    Dim root As String, json As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Updater_TestSetPptRunning False
+    Name root & "\ThinQQ.ppam" As root & "\ThinQQ.ppam.old"
+    AssertTrue Updater_PpamInstalled(), "o .old de uma troca interrompida prova a instalacao"
+    json = PpamJson(FixturePpam(), "", "9.9.9")
+    AssertEqual "", Updater_PpamUpdateNow(json), "hash invalido: nada"
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam.old"), "a ultima copia continua la"
+    json = PpamJson(FixturePpam(), Transport_Sha256File(FixturePpam()), "9.9.9")
+    AssertEqual "replaced", Updater_PpamUpdateNow(json)
+    AssertEqual "fake-ppam-9.9.9", Transport_ReadTextFile(root & "\ThinQQ.ppam")
+    AssertEqual 0, Len(Dir(root & "\ThinQQ.ppam.old")) + Len(Dir(root & "\ThinQQ.ppam.new"))
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' Pendencia de um suplemento que foi desinstalado (sem ThinQQ.ppam nem .old): descartada (chaves e .new), sem criar o suplemento e sem
+' nova tentativa infinita.
+Public Sub Test_Updater_Ppam_PendingAfterUninstall_IsDiscarded()
+    Dim root As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot(False)
+    FileCopy FixturePpam(), root & "\ThinQQ.ppam.new"
+    Settings_Set KEY_PENDING_PPAM, "1": Settings_Set KEY_PENDING_PPAM_SHA, Transport_Sha256File(FixturePpam()): Settings_Set KEY_PENDING_PPAM_VER, "9.9.9"
+    Updater_ApplyPendingPpam
+    AssertEqual 0, Len(Dir(root & "\ThinQQ.ppam")), "nunca instala"
+    AssertEqual 0, Len(Dir(root & "\ThinQQ.ppam.new")), ".new apagado"
+    AssertEqual "", Settings_Get(KEY_PENDING_PPAM)
+    AssertEqual "", Settings_Get(KEY_PENDING_PPAM_VER)
+    AssertEqual 0, Updater_PpamRetryScheduleCount, "nada agendado"
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+

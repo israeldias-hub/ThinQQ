@@ -205,6 +205,20 @@ Public Function Updater_PpamInstalled() As Boolean
     On Error Resume Next
     If PpamRootIsRealInTest() Then Exit Function
     Updater_PpamInstalled = (Len(Dir(PpamPath())) > 0)
+    If Not Updater_PpamInstalled Then Updater_PpamInstalled = (Len(Dir(PpamPath() & ".old")) > 0)   ' troca interrompida: o .old e a copia instalada
+End Function
+
+' Troca interrompida (ThinQQ.ppam ausente, .old presente): devolve o .old ao lugar. True = ThinQQ.ppam existe ao final.
+Private Function PpamRecoverOld() As Boolean
+    Dim dest As String
+    On Error Resume Next
+    dest = PpamPath()
+    If Len(Dir(dest)) = 0 And Len(Dir(dest & ".old")) > 0 Then
+        Name dest & ".old" As dest
+        If Err.Number <> 0 Then Loader_Log "PpamRecoverOld: " & Err.Number & " " & Err.Description Else Loader_Log "Suplemento do PowerPoint: .old de uma troca interrompida devolvido"
+        Err.Clear
+    End If
+    PpamRecoverOld = (Len(Dir(dest)) > 0)
 End Function
 
 ' 64 caracteres hexadecimais (maiusculas ou minusculas).
@@ -272,6 +286,7 @@ End Sub
 Private Function Updater_PpamSwap(src As String) As Boolean
     Dim dest As String, old As String
     dest = PpamPath(): old = dest & ".old"
+    If Not PpamRecoverOld() Then Exit Function          ' nunca apaga a ultima copia (.old sem ThinQQ.ppam)
     On Error Resume Next
     If Len(Dir(old)) > 0 Then Kill old
     Err.Clear
@@ -357,6 +372,12 @@ Public Sub Updater_ApplyPendingPpam()
     If PpamRootIsRealInTest() Then Exit Sub
     nw = PpamPath() & ".new"
     ver = Settings_Get(KEY_PENDING_PPAM_VER)
+    If Not Updater_PpamInstalled() Then                  ' desinstalado depois de pendente: descarta (nunca instala, nunca tenta para sempre)
+        Loader_Log "Updater_ApplyPendingPpam: suplemento nao instalado; pendencia descartada"
+        If Len(Dir(nw)) > 0 Then Kill nw
+        ClearPendingPpam
+        Exit Sub
+    End If
     ok = (Len(Dir(nw)) > 0)
     If ok Then ok = IsValidVersion(ver)
     If ok Then ok = (CompareVersions(ver, Settings_Get(KEY_PPAM_VERSION, "0.0.0")) > 0)
