@@ -257,6 +257,22 @@ Fail:
     Updater_PpamNeeded = False
 End Function
 
+' So o suplemento, sem o core: precisa (Updater_PpamNeeded) e o core INSTALADO ja o acompanha (pptAddinVersion <= versao do core em uso; o
+' suplemento sai junto com o core da mesma versao, cuja API ele exige). Nunca "suplemento novo + core velho".
+Private Function Updater_PpamOnlyNeeded(json As String, installedCore As String) As Boolean
+    On Error GoTo Fail
+    If Not Updater_PpamNeeded(json) Then Exit Function
+    If CompareVersions(JsonGetString(json, "pptAddinVersion"), installedCore) > 0 Then
+        Loader_Log "Suplemento do PowerPoint " & JsonGetString(json, "pptAddinVersion") & " aguarda o core (instalado: " & installedCore & ")"
+        Exit Function
+    End If
+    Updater_PpamOnlyNeeded = True
+    Exit Function
+Fail:
+    Loader_Log "Updater_PpamOnlyNeeded: " & Err.Number & " " & Err.Description
+    Updater_PpamOnlyNeeded = False
+End Function
+
 ' (7) Baixa para tmp e confere o SHA-256 do manifesto (obrigatorio: AllowUnverified nao vale para o suplemento). False = nada fica em tmp.
 Private Function Updater_PpamDownload(json As String, tmp As String) As Boolean
     On Error GoTo Fail
@@ -435,24 +451,25 @@ Public Sub Updater_Check(silent As Boolean)
     If mBusy Then Exit Sub
     mBusy = True
     On Error GoTo Fail
-    Dim json As String, what As String, coreVer As String, installedCore As String, choice As String
+    Dim json As String, what As String, coreVer As String, installedCore As String, choice As String, ppamOnly As Boolean
     json = Transport_FetchText(Settings_UpdateSource())
     Settings_Set KEY_LAST_CHECK, Format$(Now, "yyyy-mm-dd hh:nn:ss")
     Settings_Delete KEY_LAST_FAILURE
     installedCore = Loader_CurrentCoreVersion()
     what = Updater_Evaluate(json, installedCore, APP_VERSION)
     coreVer = JsonGetString(json, "coreVersion")
+    ' So o suplemento (core em dia, ou so o carregador muda, mesmo ignorado/adiado): aplica sem formulario e registra. Nunca passa a frente do
+    ' core instalado; com core novo pendente de decisao, o suplemento so vai junto com ele (Updater_Apply).
+    If what = "none" Or what = "loader" Then ppamOnly = Updater_PpamOnlyNeeded(json, installedCore)
+    If ppamOnly Then
+        mLastPpamNote = Updater_PpamUpdateNow(json)
+        If Len(mLastPpamNote) = 0 Then mLastPpamNote = "failed"
+        mLastPpamNote = Updater_PpamStatusText(mLastPpamNote)
+        Loader_Log mLastPpamNote
+        If Not silent Then Loader_Msg mLastPpamNote, vbInformation
+    End If
     If what = "none" Then
-        If Updater_PpamNeeded(json) Then
-            ' So o suplemento atrasado (a mesma versao do core ja foi aceita): aplica sem formulario e registra.
-            mLastPpamNote = Updater_PpamUpdateNow(json)
-            If Len(mLastPpamNote) = 0 Then mLastPpamNote = "failed"
-            mLastPpamNote = Updater_PpamStatusText(mLastPpamNote)
-            Loader_Log mLastPpamNote
-            If Not silent Then Loader_Msg mLastPpamNote, vbInformation
-        ElseIf Not silent Then
-            Loader_Msg "O ThinQQ já está na versão mais recente (" & installedCore & ").", vbInformation
-        End If
+        If Not silent And Not ppamOnly Then Loader_Msg "O ThinQQ já está na versão mais recente (" & installedCore & ").", vbInformation
         mBusy = False
         Exit Sub
     End If

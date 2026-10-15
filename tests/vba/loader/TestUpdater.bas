@@ -1005,26 +1005,107 @@ Fail:
 End Sub
 
 ' (1)(4) So o suplemento atrasado (core em dia): a verificacao silenciosa o atualiza sem abrir o formulario; a linha de versao do formulario
-' cita o suplemento quando ele entra junto.
+' cita o suplemento quando ele entra junto com o core.
 Public Sub Test_Updater_Check_PpamOnly_Silent_And_VersionLine()
-    Dim root As String, json As String
+    Dim root As String, json As String, cv As String
     On Error GoTo Fail
     Setup
     root = PpamRoot()
     Updater_TestSetPptRunning False
-    json = PpamJson(FixturePpam(), Transport_Sha256File(FixturePpam()), "9.9.9")
-    json = Replace(json, """coreVersion"":""0.0.1""", """coreVersion"":""" & Loader_CurrentCoreVersion() & """")
+    cv = Loader_CurrentCoreVersion()
+    json = PpamJsonFor(cv, "0.0.1", cv)
     UseManifestFile json
     Updater_FormShownCount = 0
     Updater_Check True
     AssertEqual 0, Updater_FormShownCount, "so o suplemento: sem formulario"
     AssertEqual "", Loader_LastMsg, "verificacao silenciosa nao fala"
     AssertEqual "fake-ppam-9.9.9", Transport_ReadTextFile(root & "\ThinQQ.ppam")
+    AssertEqual cv, Settings_Get(KEY_PPAM_VERSION)
     Settings_Set KEY_PPAM_VERSION, "1.0.0"
-    AssertTrue InStr(Updater_VersionLine("core", "1.0.0", Replace(json, """coreVersion"":""" & Loader_CurrentCoreVersion() & """", """coreVersion"":""9.9.9""")), "Suplemento do PowerPoint: 1.0.0 > 9.9.9") > 0
+    AssertTrue InStr(Updater_VersionLine("core", "1.0.0", PpamJsonFor("9.9.9", "0.0.1", "9.9.9")), "Suplemento do PowerPoint: 1.0.0 > 9.9.9") > 0
     Updater_Check False
     AssertEqual 0, Updater_FormShownCount
     AssertTrue InStr(Loader_LastMsg, "Suplemento do PowerPoint atualizado.") > 0, "verificacao manual mostra o resultado: " & Loader_LastMsg
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+Private Function PpamJsonFor(coreVer As String, loaderVer As String, ppamVer As String) As String
+    PpamJsonFor = "{""schemaVersion"":1,""coreVersion"":""" & coreVer & """,""coreUrl"":"""",""coreSha256"":"""",""loaderVersion"":""" & loaderVer & _
+        """,""loaderUrl"":"""",""loaderSha256"":"""",""publishedAt"":""2099-01-01"",""notes"":""x"",""pptAddinVersion"":""" & ppamVer & _
+        """,""pptAddinUrl"":""" & Replace(FixturePpam(), "\", "\\") & """,""pptAddinSha256"":""" & Transport_Sha256File(FixturePpam()) & """}"
+End Function
+
+' So o suplemento nunca passa a frente do core instalado: suplemento mais novo que o core em uso fica para quando o core for atualizado.
+Public Sub Test_Updater_Check_PpamOnly_NeverAheadOfInstalledCore()
+    Dim root As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Updater_TestSetPptRunning False
+    UseManifestFile PpamJsonFor(Loader_CurrentCoreVersion(), "0.0.1", "9.9.9")
+    Updater_Check True
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "suplemento mais novo que o core: nada"
+    Updater_Check False
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam")
+    AssertTrue InStr(Loader_LastMsg, "já está na versão mais recente") > 0, Loader_LastMsg
+    AssertEqual "1.0.0", Settings_Get(KEY_PPAM_VERSION)
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' Atualizacao so do carregador ignorada ou adiada: o suplemento (compativel com o core em uso) e atualizado mesmo assim.
+Public Sub Test_Updater_Check_LoaderOnly_SkippedOrLater_StillUpdatesPpam()
+    Dim root As String, json As String, cv As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Updater_TestSetPptRunning False
+    cv = Loader_CurrentCoreVersion()
+    json = PpamJsonFor(cv, "99.0.0", cv)
+    UseManifestFile json
+    AssertEqual "loader", Updater_Evaluate(json, cv, APP_VERSION)
+    Settings_Set KEY_SKIPPED, Updater_SkipKey(json)
+    Updater_Check True
+    AssertEqual 0, Updater_FormShownCount, "versao do carregador ignorada: sem formulario"
+    AssertEqual "fake-ppam-9.9.9", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "ignorada: o suplemento entra mesmo assim"
+    Transport_WriteTextFile root & "\ThinQQ.ppam", "ppam-antigo"
+    Settings_Set KEY_PPAM_VERSION, "1.0.0"
+    Settings_Delete KEY_SKIPPED
+    Updater_TestFormResult = "later"
+    Updater_Check True
+    AssertEqual 1, Updater_FormShownCount, "carregador: formulario"
+    AssertEqual "fake-ppam-9.9.9", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "depois: o suplemento entra mesmo assim"
+    AssertEqual cv, Settings_Get(KEY_PPAM_VERSION)
+    Cleanup
+    Exit Sub
+Fail:
+    FailCleanup
+End Sub
+
+' Atualizacao do core ignorada ou adiada: o suplemento NAO vai sozinho (nunca "suplemento novo + core velho").
+Public Sub Test_Updater_Check_CoreSkippedOrLater_PpamDoesNotRideAlong()
+    Dim root As String, json As String
+    On Error GoTo Fail
+    Setup
+    root = PpamRoot()
+    Updater_TestSetPptRunning False
+    json = PpamJsonFor("9.9.9", "0.0.1", "9.9.9")
+    UseManifestFile json
+    Settings_Set KEY_SKIPPED, Updater_SkipKey(json)
+    Updater_Check True
+    AssertEqual 0, Updater_FormShownCount
+    Settings_Delete KEY_SKIPPED
+    Updater_TestFormResult = "later"
+    Updater_Check True
+    AssertEqual 1, Updater_FormShownCount
+    AssertEqual "ppam-antigo", Transport_ReadTextFile(root & "\ThinQQ.ppam"), "suplemento intocado"
+    AssertEqual "1.0.0", Settings_Get(KEY_PPAM_VERSION)
+    AssertEqual 0, Len(Dir(Loader_TmpDir() & "\ThinQQ.ppam")), "nada baixado"
     Cleanup
     Exit Sub
 Fail:
