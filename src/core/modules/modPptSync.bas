@@ -501,7 +501,8 @@ End Function
 
 ' Nome valido para o indice e unico no slide (o indice acha a forma pelo nome): um nome com os separadores do indice (Chr(30)/Chr(31)) troca
 ' eles por "_"; outra forma com o mesmo nome (Shape.Id diferente: objetos de outro processo nao se comparam com Is) faz esta virar
-' "<nome>_2", "_3"... O nome da forma do slide nao e usado pelo Excel.
+' "<nome>_2", "_3"... O nome da forma do slide nao e usado pelo Excel. Nomes comparados SEM diferenciar maiusculas (medido na C3: Shapes(nome)
+' do PowerPoint ignora a caixa; com "tqq_A" e "tqq_a" no slide, os dois nomes achariam a primeira). Igual a PptTqq_EnsureUniqueName do .ppam.
 Public Sub PptSync_EnsureUniqueName(shp As Object)
     Dim sl As Object, s As Object, base As String, n As Long, clash As Boolean, myId As Long
     Set sl = shp.Parent
@@ -513,7 +514,7 @@ Public Sub PptSync_EnsureUniqueName(shp As Object)
     End If
     If Not clash Then
         For Each s In sl.Shapes
-            If CLng(s.Id) <> myId And StrComp(CStr(s.Name), base, vbBinaryCompare) = 0 Then clash = True: Exit For
+            If CLng(s.Id) <> myId And StrComp(CStr(s.Name), base, vbTextCompare) = 0 Then clash = True: Exit For
         Next
     End If
     If Not clash Then Exit Sub
@@ -525,7 +526,7 @@ End Sub
 Private Function PptSync_SlideHasName(sl As Object, nm As String) As Boolean
     Dim s As Object
     For Each s In sl.Shapes
-        If StrComp(CStr(s.Name), nm, vbBinaryCompare) = 0 Then PptSync_SlideHasName = True: Exit Function
+        If StrComp(CStr(s.Name), nm, vbTextCompare) = 0 Then PptSync_SlideHasName = True: Exit Function
     Next
 End Function
 

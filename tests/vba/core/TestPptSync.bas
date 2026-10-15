@@ -1284,6 +1284,41 @@ Cleanup:
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub
 
+' Medido na C3: Shapes(nome) do PowerPoint ignora a caixa ("tqq_A" e "tqq_a" no slide: os dois nomes acham a primeira). O nome unico do indice
+' compara sem diferenciar maiusculas: depois de reconstruir, cada entrada resolve a sua forma (duas formas, nao uma).
+Public Sub Test_PptSync_EnsureUniqueName_CaseOnly_WhenAvailable()
+    Dim app As Object, pres As Object, sl As Object, a As Object, b As Object, own As New Collection
+    Dim items As New Collection, got As Collection, en As Long, ed As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set sl = pres.Slides.Add(1, 12)
+    Set a = sl.Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_A"
+    Set b = sl.Shapes.AddShape(1, 70, 10, 50, 50): b.Name = "tqq_a"
+    Errors_Log "TestPptSync: Shapes(""tqq_a"") acha a forma ""tqq_A"" (busca ignora a caixa): " & CStr(CLng(sl.Shapes("tqq_a").Id) = CLng(a.Id))
+    a.Tags.Add PPTSYNC_TAG_CHART, "c1": a.Tags.Add PPTSYNC_TAG_AUTO, "1"
+    b.Tags.Add PPTSYNC_TAG_CHART, "c2": b.Tags.Add PPTSYNC_TAG_AUTO, "1"
+    items.Add a: items.Add b
+    PptSync_RebuildIndex pres, items
+    AssertTrue StrComp(CStr(a.Name), CStr(b.Name), vbTextCompare) <> 0, "nomes unicos sem diferenciar maiusculas: " & a.Name & " / " & b.Name
+    Set got = PptSync_ResolveEntries(pres, PptSync_Tag(pres, PPTSYNC_TAG_INDEX))
+    AssertEqual 2, got.Count, "cada entrada acha a sua forma"
+    AssertEqual CLng(a.Id), CLng(got(1).Id)
+    AssertEqual CLng(b.Id), CLng(got(2).Id)
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set items = New Collection: Set got = Nothing
+    Set a = Nothing: Set b = Nothing: Set sl = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    PptSync_ResetTestHooks
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
 ' ---- Parte C2: motor automatico ----
 
 ' Estado limpo do motor: nada agendado, fila vazia, opcoes e relogio padrao, sem OnTime real (o teste chama PptAuto_Tick).
