@@ -17,7 +17,9 @@ Public Const PPTSYNC_TAG_VER As String = "TQQ_VER"          ' versao do formato 
 Public Const PPTSYNC_TAG_FP As String = "TQQ_FP"            ' impressao digital da ultima sincronizacao (PptSync_Fingerprint)
 Public Const PPTSYNC_TAG_AUTO As String = "TQQ_AUTO"        ' "1" = atualizar automaticamente (spec 2026-10-15 secao 5.1)
 Public Const PPTSYNC_TAG_INDEX As String = "TQQ_AUTOIDX"   ' etiqueta da APRESENTACAO: indice das formas automaticas (PptIdx_*)
-Public Const CORE_PPT_API As Long = 2                       ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0)
+Public Const PPTIDX_MAX_ENTRIES As Long = 2000             ' PptIdx_Parse: entradas alem disto sao ignoradas
+Public Const PPTIDX_MAX_LEN As Long = 1000000              ' PptIdx_Parse: etiqueta maior que isto (caracteres) e recusada inteira
+Public Const CORE_PPT_API As Long = 2                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0)
 Public Const PPTSYNC_NONE As String = "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."
 Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."
 Public Const PPTSYNC_UNKNOWN_SRC As String = "(origem desconhecida)"      ' forma marcada sem SourceFullName e sem TQQ_BOOK
@@ -47,6 +49,7 @@ Private Const PPTSYNC_LAYOUT_TOL As Double = 2              ' pt: area interna d
 Private mTestFail As String                                 ' gancho de teste: ponto de falha injetada (so no build Test)
 Private mTestSkip As Long                                 ' gancho de teste: quantos acertos do ponto saltar antes de falhar (PptSync_SetFailAfterForTest)
 Private mUpdateCount As Long                                ' chamadas de LinkFormat.Update feitas por PptSync_SyncShape (lido so no build Test)
+Private mTestFailNum As Long                                ' gancho de teste: numero do erro injetado (0 = vbObjectError + 9992; PptSync_SetFailNumberForTest)
 Private mTestKeepEventsOnClose As Boolean                   ' gancho de teste: PptSync_CloseOpened deixa os eventos como estao (prova que so as macros desligadas bastam)
 
 ' Gancho de teste: o proximo ponto nomeado ("update", "snapshot", "apply") levanta erro (uso unico). Inerte fora do build Test.
@@ -60,6 +63,7 @@ Public Sub PptSync_SetFailForTest(point As String)
     If BUILD_CONFIG <> "Test" Then Exit Sub
     mTestFail = point
     mTestSkip = 0
+    mTestFailNum = 0
 End Sub
 
 ' Gancho de teste: como PptSync_SetFailForTest, mas salta os primeiros skipFirst acertos do ponto (a falha cai na (skipFirst+1)-esima vez).
@@ -67,11 +71,21 @@ Public Sub PptSync_SetFailAfterForTest(point As String, skipFirst As Long)
     If BUILD_CONFIG <> "Test" Then Exit Sub
     mTestFail = point
     mTestSkip = skipFirst
+    mTestFailNum = 0
+End Sub
+
+' Gancho de teste: como PptSync_SetFailForTest, mas a falha injetada tem o numero errNum (ex.: PowerPoint ocupado, -2147418111). Uso unico.
+Public Sub PptSync_SetFailNumberForTest(point As String, errNum As Long)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestFail = point
+    mTestSkip = 0
+    mTestFailNum = errNum
 End Sub
 
 Public Sub PptSync_ResetTestHooks()
     mTestKeepEventsOnClose = False
     mTestFail = ""
+    mTestFailNum = 0
     mTestSkip = 0
     mUpdateCount = 0
 End Sub
@@ -83,11 +97,14 @@ Public Function PptSync_UpdateCountForTest() As Long
 End Function
 
 Private Sub PptSync_Hook(point As String)
+    Dim n As Long
     If BUILD_CONFIG <> "Test" Then Exit Sub
     If mTestFail <> point Then Exit Sub
     If mTestSkip > 0 Then mTestSkip = mTestSkip - 1: Exit Sub
     mTestFail = ""
-    Err.Raise vbObjectError + 9992, "modPptSync", "falha injetada (" & point & ")"
+    n = mTestFailNum: mTestFailNum = 0
+    If n = 0 Then n = vbObjectError + 9992
+    Err.Raise n, "modPptSync", "falha injetada (" & point & ")"
 End Sub
 
 ' Gancho de teste "unreachable" (uso unico): faz PptSync_SyncShape ver a origem como inalcancavel (a pasta sumiu entre a conferencia de
@@ -403,43 +420,58 @@ Public Function PptSync_Fingerprint(co As ChartObject, shp As Object) As String
 End Function
 
 ' ---- Indice das formas automaticas (1.6.0). Formato (igual no .ppam: PptTqq_Idx*): entradas separadas por Chr(30), campos por Chr(31):
-' SlideID, nome da forma, pasta de origem. Puras. ----
+' SlideID, nome da forma, pasta de origem. Puras e totais: a etiqueta vem da apresentacao (de quem a fez), entao lixo nunca levanta erro, o
+' SlideID so vale com 1 a 9 algarismos, entradas alem de PPTIDX_MAX_ENTRIES sao ignoradas e uma etiqueta maior que PPTIDX_MAX_LEN e recusada
+' inteira. Os separadores nunca entram num campo (PptIdx_SafeField). ----
+
+' Campo do indice sem os separadores (Chr(30) e Chr(31) viram "_"). Pura.
+Public Function PptIdx_SafeField(s As String) As String
+    PptIdx_SafeField = Replace(Replace(s, Chr$(30), "_"), Chr$(31), "_")
+End Function
 
 Public Function PptIdx_Entry(slideId As Long, shapeName As String, book As String) As String
-    PptIdx_Entry = CStr(slideId) & Chr$(31) & shapeName & Chr$(31) & book
+    PptIdx_Entry = CStr(slideId) & Chr$(31) & PptIdx_SafeField(shapeName) & Chr$(31) & PptIdx_SafeField(book)
 End Function
 
 Public Function PptIdx_Parse(idx As String) As Collection
-    Dim out As New Collection, e As Variant, f() As String
-    For Each e In Split(idx, Chr$(30))
-        If Len(CStr(e)) > 0 Then
-            f = Split(CStr(e), Chr$(31))
+    Dim out As New Collection, parts() As String, f() As String, i As Long
+    Set PptIdx_Parse = out
+    On Error GoTo Done
+    If Len(idx) = 0 Or Len(idx) > PPTIDX_MAX_LEN Then Exit Function
+    parts = Split(idx, Chr$(30))
+    For i = LBound(parts) To UBound(parts)
+        If out.Count >= PPTIDX_MAX_ENTRIES Then Exit For
+        If Len(parts(i)) > 0 Then
+            f = Split(parts(i), Chr$(31))
             If UBound(f) = 2 Then
                 If Len(f(0)) > 0 And Len(f(0)) < 10 And Len(f(1)) > 0 Then
-                    If IsNumeric(f(0)) And InStr(f(0), ",") = 0 And InStr(f(0), ".") = 0 And InStr(f(0), "-") = 0 Then out.Add Array(CLng(f(0)), f(1), f(2))
+                    If Not f(0) Like "*[!0-9]*" Then out.Add Array(CLng(f(0)), f(1), f(2))
                 End If
             End If
         End If
     Next
-    Set PptIdx_Parse = out
+Done:
 End Function
 
 Public Function PptIdx_Join(entries As Collection) As String
-    Dim e As Variant, s As String
+    Dim e As Variant, a() As String, n As Long
+    If entries.Count = 0 Then Exit Function
+    ReDim a(0 To entries.Count - 1)
     For Each e In entries
-        If Len(s) > 0 Then s = s & Chr$(30)
-        s = s & PptIdx_Entry(CLng(e(0)), CStr(e(1)), CStr(e(2)))
+        a(n) = PptIdx_Entry(CLng(e(0)), CStr(e(1)), CStr(e(2)))
+        n = n + 1
     Next
-    PptIdx_Join = s
+    PptIdx_Join = Join(a, Chr$(30))
 End Function
 
 ' Tira a forma (slideId, nome) do indice e, com turnOn, a acrescenta no fim. Pura.
 Public Function PptIdx_Set(idx As String, slideId As Long, shapeName As String, book As String, turnOn As Boolean) As String
-    Dim out As New Collection, e As Variant
+    Dim out As New Collection, e As Variant, nm As String
+    nm = PptIdx_SafeField(shapeName)
     For Each e In PptIdx_Parse(idx)
-        If Not (CLng(e(0)) = slideId And StrComp(CStr(e(1)), shapeName, vbBinaryCompare) = 0) Then out.Add e
+        If Not (CLng(e(0)) = slideId And StrComp(CStr(e(1)), nm, vbBinaryCompare) = 0) Then out.Add e
     Next
-    If turnOn Then out.Add Array(slideId, shapeName, book)
+    If turnOn Then out.Add Array(slideId, nm, book)
     PptIdx_Set = PptIdx_Join(out)
 End Function
 
@@ -461,15 +493,23 @@ Public Function PptSync_ItemBook(shp As Object) As String
     PptSync_ItemBook = PptSync_SourcePath(PptSync_LinkSource(shp), PptSync_Tag(shp, PPTSYNC_TAG_BOOK))
 End Function
 
-' Nome unico no slide (o indice acha a forma pelo nome): outra forma com o mesmo nome (Shape.Id diferente: objetos de outro processo nao se
-' comparam com Is) faz esta virar "<nome>_2", "_3"... O nome da forma do slide nao e usado pelo Excel.
+' Nome valido para o indice e unico no slide (o indice acha a forma pelo nome): um nome com os separadores do indice (Chr(30)/Chr(31)) troca
+' eles por "_"; outra forma com o mesmo nome (Shape.Id diferente: objetos de outro processo nao se comparam com Is) faz esta virar
+' "<nome>_2", "_3"... O nome da forma do slide nao e usado pelo Excel.
 Public Sub PptSync_EnsureUniqueName(shp As Object)
     Dim sl As Object, s As Object, base As String, n As Long, clash As Boolean, myId As Long
     Set sl = shp.Parent
     base = CStr(shp.Name): myId = CLng(shp.Id)
-    For Each s In sl.Shapes
-        If CLng(s.Id) <> myId And StrComp(CStr(s.Name), base, vbBinaryCompare) = 0 Then clash = True: Exit For
-    Next
+    If PptIdx_SafeField(base) <> base Then
+        base = PptIdx_SafeField(base)
+        If Not PptSync_SlideHasName(sl, base) Then shp.Name = base: Exit Sub
+        clash = True
+    End If
+    If Not clash Then
+        For Each s In sl.Shapes
+            If CLng(s.Id) <> myId And StrComp(CStr(s.Name), base, vbBinaryCompare) = 0 Then clash = True: Exit For
+        Next
+    End If
     If Not clash Then Exit Sub
     For n = 2 To 999
         If Not PptSync_SlideHasName(sl, base & "_" & n) Then shp.Name = base & "_" & n: Exit Sub
@@ -484,6 +524,9 @@ Private Function PptSync_SlideHasName(sl As Object, nm As String) As Boolean
 End Function
 
 ' Liga/desliga "Atualizar automaticamente" de uma forma do ThinQQ e mantem o indice da apresentacao (TQQ_AUTOIDX). Propaga erro do PowerPoint.
+' Ordem de proposito: (1) o nome fica definitivo ANTES de ir para o indice (o indice acha a forma pelo nome); (2) a etiqueta da forma (a
+' verdade) e gravada antes do indice (o atalho): se a gravacao do indice falhar, a proxima sincronizacao completa o reconstroi a partir das
+' etiquetas (PptSync_RebuildIndex).
 Public Sub PptSync_SetAuto(shp As Object, turnOn As Boolean)
     Dim sl As Object, pres As Object, idx As String
     Set sl = shp.Parent: Set pres = sl.Parent
@@ -493,10 +536,11 @@ Public Sub PptSync_SetAuto(shp As Object, turnOn As Boolean)
     If Len(idx) = 0 Then PptSync_TagDelete pres, PPTSYNC_TAG_INDEX Else pres.Tags.Add PPTSYNC_TAG_INDEX, idx
 End Sub
 
-' Formas do ThinQQ apontadas pelas entradas (formato do indice; a pasta da entrada e ignorada): slide por SlideID, forma pelo nome. Entrada
-' que nao acha nada e ignorada; PowerPoint ocupado sobe (nunca vira "nao achou").
+' Formas do ThinQQ apontadas pelas entradas (formato do indice; a pasta da entrada e ignorada): slide por SlideID, forma pelo nome; a mesma
+' forma listada mais de uma vez entra uma vez so. Entrada que nao acha nada e ignorada; PowerPoint ocupado sobe (nunca vira "nao achou").
 Public Function PptSync_ResolveEntries(pres As Object, entries As String) As Collection
-    Dim out As New Collection, e As Variant, sl As Object, shp As Object, en As Long
+    Dim out As New Collection, e As Variant, sl As Object, shp As Object, en As Long, seen As Object, k As String
+    Set seen = CreateObject("Scripting.Dictionary")
     For Each e In PptIdx_Parse(entries)
         Set sl = Nothing: Set shp = Nothing
         On Error Resume Next
@@ -507,28 +551,55 @@ Public Function PptSync_ResolveEntries(pres As Object, entries As String) As Col
         On Error GoTo 0
         If Ppt_IsBusyError(en) Then Err.Raise en, "PptSync_ResolveEntries", "PowerPoint ocupado"
         If Not shp Is Nothing Then
-            If Len(PptSync_ItemKind(shp)) > 0 Then out.Add shp
+            If Len(PptSync_ItemKind(shp)) > 0 Then
+                k = PptSync_ShapeKey(CLng(e(0)), shp, CStr(e(1)))
+                If Not seen.Exists(k) Then seen.Add k, True: out.Add shp
+            End If
         End If
     Next
     Set PptSync_ResolveEntries = out
 End Function
 
-' Reconstroi TQQ_AUTOIDX com as formas automaticas de items (todas as formas do ThinQQ da apresentacao); so grava se mudou. Nunca propaga erro.
-Private Sub PptSync_RebuildIndex(pres As Object, items As Collection)
-    Dim shp As Object, out As New Collection, s As String
+' Chave da forma resolvida: SlideID e Shape.Id (o mesmo objeto achado por nomes que o PowerPoint trata como iguais); sem Id legivel, o nome
+' da entrada. Nunca propaga erro.
+Private Function PptSync_ShapeKey(slideId As Long, shp As Object, entryName As String) As String
+    Dim id As Long
+    On Error Resume Next
+    id = CLng(shp.Id)
+    If Err.Number = 0 Then PptSync_ShapeKey = CStr(slideId) & "#" & CStr(id) Else PptSync_ShapeKey = CStr(slideId) & Chr$(31) & entryName
+    Err.Clear
+End Function
+
+' Reconstroi TQQ_AUTOIDX com as formas automaticas de items (todas as formas do ThinQQ da apresentacao); so grava se mudou. Cada forma e
+' isolada (a que falha fica fora do indice e e registrada; as outras seguem). Nunca propaga erro.
+Public Sub PptSync_RebuildIndex(pres As Object, items As Collection)
+    Dim shp As Object, out As New Collection, s As String, e As Variant
     On Error GoTo Done
     For Each shp In items
-        If PptSync_Tag(shp, PPTSYNC_TAG_AUTO) = "1" Then
-            PptSync_EnsureUniqueName shp
-            out.Add Array(CLng(shp.Parent.SlideID), CStr(shp.Name), PptSync_ItemBook(shp))
-        End If
+        e = PptSync_IndexEntryOf(shp)
+        If IsArray(e) Then out.Add e
     Next
     s = PptIdx_Join(out)
     If s <> PptSync_Tag(pres, PPTSYNC_TAG_INDEX) Then
         If Len(s) = 0 Then PptSync_TagDelete pres, PPTSYNC_TAG_INDEX Else pres.Tags.Add PPTSYNC_TAG_INDEX, s
     End If
+    Exit Sub
 Done:
+    Errors_Log "PptSync_RebuildIndex" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
+
+' Entrada do indice de uma forma automatica (Array(slideId, nome, pasta)); Empty se a forma nao e automatica ou se a leitura falhou
+' (registrado). Nunca propaga erro.
+Private Function PptSync_IndexEntryOf(shp As Object) As Variant
+    On Error GoTo Fail
+    If PptSync_Tag(shp, PPTSYNC_TAG_AUTO) <> "1" Then Exit Function
+    PptSync_EnsureUniqueName shp
+    PptSync_IndexEntryOf = Array(CLng(shp.Parent.SlideID), CStr(shp.Name), PptSync_ItemBook(shp))
+    Exit Function
+Fail:
+    Errors_Log "PptSync_RebuildIndex: forma fora do indice" & vbTab & Err.Number & vbTab & Err.Description
+    PptSync_IndexEntryOf = Empty
+End Function
 
 ' ---- Sincronizacao da apresentacao inteira (Tarefa A2) ----
 
@@ -642,7 +713,8 @@ Public Function PptSync_MissingText(paths As Variant) As String
 End Function
 
 ' Sincroniza UMA forma ja ligada a pasta de origem wb, isolada: qualquer erro (achar o grafico, impressao digital, SyncShape) conta a forma como
-' falha, registra e devolve PPTSYNC_R_FAIL sem levantar. A TQQ_FP e calculada DEPOIS da sincronizacao (descreve o que o slide acabou de receber,
+' falha, registra e devolve PPTSYNC_R_FAIL sem levantar, EXCETO PowerPoint ocupado (Ppt_IsBusyError), que sobe para quem chama poder tentar
+' de novo (PptSync_Items fecha as pastas que abriu e repassa). A TQQ_FP e calculada DEPOIS da sincronizacao (descreve o que o slide acabou de receber,
 ' igual a colagem); se so a gravacao dela falha, o grafico conta como atualizado, a TQQ_FP velha e apagada (senao uma volta do dado ao valor
 ' antigo seria pulada como "sem mudanca") e fica registrado.
 Private Function PptSync_SyncOne(shp As Object, wb As Workbook, force As Boolean) As Long
@@ -689,7 +761,11 @@ Public Function PptSync_Presentation(pres As Object, force As Boolean) As String
             If Len(PptSync_ItemKind(shp)) > 0 Then items.Add shp
         Next
     Next
-    If items.Count = 0 Then PptSync_Presentation = PPTSYNC_NONE: Exit Function
+    If items.Count = 0 Then
+        If Len(PptSync_Tag(pres, PPTSYNC_TAG_INDEX)) > 0 Then PptSync_TagDelete pres, PPTSYNC_TAG_INDEX    ' indice velho de formas apagadas
+        PptSync_Presentation = PPTSYNC_NONE
+        Exit Function
+    End If
     PptSync_RebuildIndex pres, items
     PptSync_Presentation = PptSync_Items(items, force)
 End Function

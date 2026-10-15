@@ -24,6 +24,7 @@ Public Chart As Object
 Public ChartData As Object
 Public IsLinked As Variant
 Public SlideIndexValue As Long
+Public SlideIdValue As Long                     ' colecao de slides: o SlideID que FindBySlideID acha
 Public Deleted As Boolean                       ' Delete foi chamado (slide ou forma apagados pelo desfazer)
 Public ProtectedViewWindows As Collection       ' janelas do Modo de Exibicao Protegido (fora de Windows e de Presentations)
 Public QuitCalled As Boolean                    ' Quit foi chamado (aplicativo encerrado pelo teste)
@@ -56,3 +57,9 @@ End Sub
 Public Sub Update()
     UpdateCount = UpdateCount + 1
 End Sub
+
+' Colecao de slides (Slides): FindBySlideID devolve Slide quando o id e SlideIdValue; outro id falha como no PowerPoint.
+Public Function FindBySlideID(slideId As Long) As Object
+    If Slide Is Nothing Or slideId <> SlideIdValue Then Err.Raise -2147188160, "TestPptFake", "slide inexistente"
+    Set FindBySlideID = Slide
+End Function

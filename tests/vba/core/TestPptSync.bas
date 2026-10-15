@@ -989,7 +989,7 @@ End Sub
 
 ' Contrato com o .ppam (TestPptAddin.Test_PptIdx_Literal tem as MESMAS cadeias): entradas por Chr(30), campos por Chr(31).
 Public Sub Test_PptIdx_Literal()
-    Dim s As String, a As String, b As String
+    Dim s As String, a As String, b As String, bad As Variant, g As String, c As Collection
     a = "256" & Chr$(31) & "tqq_abc" & Chr$(31) & "C:\a\b.xlsx"
     b = "257" & Chr$(31) & "tqq_def" & Chr$(31) & "C:\a\c.xlsx"
     s = PptIdx_Set("", 256, "tqq_abc", "C:\a\b.xlsx", True)
@@ -1001,6 +1001,43 @@ Public Sub Test_PptIdx_Literal()
     AssertEqual "", PptIdx_Set(a, 256, "tqq_abc", "", False)
     AssertEqual 2, PptIdx_Parse(s & Chr$(30) & "x" & Chr$(31) & "y" & Chr$(31) & "z" & Chr$(30) & Chr$(30)).Count, "entrada invalida e vazia ignoradas"
     AssertEqual a, PptIdx_Entry(256, "tqq_abc", "C:\a\b.xlsx")
+    ' total para lixo da apresentacao: SlideID so com 1 a 9 algarismos; nada levanta erro
+    For Each bad In Array("9e9", "1E10", "3d9", "&H10", "(5)", " 1", "-1", "1 ", "+1", "1234567890", "", "1.5", "1,5", ChrW$(1633))
+        g = g & CStr(bad) & Chr$(31) & "n" & Chr$(31) & "" & Chr$(30)
+    Next
+    AssertEqual 2, PptIdx_Parse(g & s).Count, "SlideID invalido ignorado"
+    AssertEqual 0, PptIdx_Parse(Chr$(31) & Chr$(31) & Chr$(31) & Chr$(30) & Chr$(31)).Count, "so separadores"
+    AssertEqual 0, PptIdx_Parse("").Count
+    AssertEqual 1, PptIdx_Parse("0" & Chr$(31) & "n" & Chr$(31)).Count, "pasta vazia e SlideID 0 sao validos"
+    Set c = PptIdx_Parse("999999999" & Chr$(31) & "n" & Chr$(31) & "b")
+    AssertEqual 1, c.Count, "9 algarismos"
+    AssertEqual 999999999, IdxSlide(c, 1)
+    ' separadores nunca entram num campo
+    AssertEqual "1" & Chr$(31) & "a_b" & Chr$(31) & "c_d", PptIdx_Entry(1, "a" & Chr$(30) & "b", "c" & Chr$(31) & "d")
+    AssertEqual 1, PptIdx_Parse(PptIdx_Set("", 1, "x" & Chr$(30) & "y" & Chr$(31) & "z", "p" & Chr$(30), True)).Count, "nome com separadores: uma entrada"
+    AssertEqual "", PptIdx_Set(PptIdx_Set("", 1, "x" & Chr$(30) & "y", "", True), 1, "x" & Chr$(30) & "y", "", False), "desligar acha o nome saneado"
+End Sub
+
+' Tetos do indice: entradas alem de PPTIDX_MAX_ENTRIES ignoradas; etiqueta acima de PPTIDX_MAX_LEN recusada inteira.
+Public Sub Test_PptIdx_Caps()
+    Dim a() As String, i As Long, big As String, c As Collection
+    ReDim a(0 To 2499)
+    For i = 0 To 2499
+        a(i) = PptIdx_Entry(i + 1, "tqq_" & i, "")
+    Next
+    Set c = PptIdx_Parse(Join(a, Chr$(30)))
+    AssertEqual 2000, c.Count, "2500 entradas: as 2000 primeiras"
+    AssertEqual 1, IdxSlide(c, 1)
+    AssertEqual 2000, IdxSlide(c, 2000)
+    AssertEqual 2000, PptIdx_Parse(PptIdx_Set(Join(a, Chr$(30)), 9999, "nova", "", True)).Count
+    For i = 0 To 2499
+        a(i) = PptIdx_Entry(i + 1, "tqq_" & i, "C:\" & String$(480, "a") & ".xlsx")
+    Next
+    big = Join(a, Chr$(30))
+    AssertTrue Len(big) > 1200000, CStr(Len(big))
+    AssertEqual 0, PptIdx_Parse(big).Count, "etiqueta de 1,2 MB recusada"
+    AssertEqual 0, PptIdx_Parse(Left$(big, PPTIDX_MAX_LEN + 1)).Count, "um caractere acima do teto"
+    AssertTrue PptIdx_Parse(Left$(big, PPTIDX_MAX_LEN)).Count > 0, "no teto ainda le"
 End Sub
 
 Public Sub Test_PptSync_ItemKind_ByTags()
@@ -1010,6 +1047,8 @@ Public Sub Test_PptSync_ItemKind_ByTags()
 End Sub
 
 Public Sub Test_PptAuto_Flags_TestBuildInMemory()
+    Dim en As Long, ed As String
+    On Error GoTo Cleanup
     PptAuto_ResetTestHooks
     AssertTrue PptAuto_Enabled(), "padrao: ligado"
     AssertFalse PptAuto_NewLinksAuto(), "padrao: vinculo nasce manual (como o think-cell)"
@@ -1020,6 +1059,12 @@ Public Sub Test_PptAuto_Flags_TestBuildInMemory()
     AssertFalse Core_PptGetFlag("outra"), "chave desconhecida: False"
     PptAuto_ResetTestHooks
     AssertTrue PptAuto_Enabled()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    PptAuto_ResetTestHooks
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub
 
 Public Sub Test_PptSync_SetAuto_IndexAndRebuild_WhenAvailable()
@@ -1107,6 +1152,133 @@ Cleanup:
     Set shp = Nothing: Set pres = Nothing
     StopScratchPowerPoint app, own
     If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' ---- Correcao 1 da C1 (revisao) ----
+
+Private Function IdxSlide(c As Collection, i As Long) As Long
+    Dim v As Variant
+    v = c.Item(i)
+    IdxSlide = CLng(v(0))
+End Function
+
+' Duble de forma do ThinQQ vinculada (para PptSync_Items sem PowerPoint): TQQ_CHART chartId, TQQ_BOOK book, vinculo legivel e ativo.
+Private Function FakeLinkedShape(chartId As String, book As String) As TestPptFake
+    Dim cd As TestPptFake, ch As TestPptFake, shp As TestPptFake, tags As Object
+    Set cd = New TestPptFake: cd.IsLinked = True
+    Set ch = New TestPptFake: Set ch.ChartData = cd
+    Set tags = CreateObject("Scripting.Dictionary")
+    tags.Add PPTSYNC_TAG_CHART, chartId
+    tags.Add PPTSYNC_TAG_BOOK, book
+    Set shp = New TestPptFake: shp.Width = 400: shp.Height = 300: Set shp.Chart = ch: Set shp.Tags = tags
+    Set FakeLinkedShape = shp
+End Function
+
+' A mesma forma listada duas vezes entra uma vez so; entradas de slide inexistente ou forma inexistente sao ignoradas.
+Public Sub Test_PptSync_ResolveEntries_Dedup_Fake()
+    Dim shp As TestPptFake, sl As TestPptFake, slides As TestPptFake, pres As TestPptFake, e As String
+    Set shp = FakeLinkedShape("tqq_x", "C:\nao\existe.xlsx")
+    Set sl = New TestPptFake: Set sl.Shapes = New Collection: sl.Shapes.Add shp, "tqq_x"
+    Set slides = New TestPptFake: Set slides.Slide = sl: slides.SlideIdValue = 256
+    Set pres = New TestPptFake: Set pres.Slides = slides
+    e = PptIdx_Entry(256, "tqq_x", "")
+    AssertEqual 1, PptSync_ResolveEntries(pres, e).Count
+    AssertEqual 1, PptSync_ResolveEntries(pres, e & Chr$(30) & e & Chr$(30) & PptIdx_Entry(256, "tqq_x", "C:\outra.xlsx")).Count, "mesma forma uma vez so"
+    AssertEqual 0, PptSync_ResolveEntries(pres, PptIdx_Entry(257, "tqq_x", "") & Chr$(30) & PptIdx_Entry(256, "outra", "")).Count
+End Sub
+
+' PowerPoint ocupado no meio da sincronizacao (PptSync_SyncOne): sobe ate a API, que devolve PPT_ERR_BUSY na hora (sem laco), e a pasta de
+' origem aberta pela sincronizacao e fechada. Vale para a API 2 (Core_PptSyncShapes) e a API 1 (Core_PptSyncPresentation).
+Public Sub Test_PptSync_Busy_PropagatesToApi_ClosesBook_Fake()
+    Dim wb As Workbook, p As String, shp As TestPptFake, sl As TestPptFake, slides As TestPptFake, presA As TestPptFake, presB As TestPptFake
+    Dim n0 As Long, s As String, t As Single, en As Long, ed As String
+    On Error GoTo Cleanup
+    p = TempDir() & "\pptsync-ocupado.xlsx"
+    Set wb = NewTempWorkbook()
+    wb.SaveAs p, xlOpenXMLWorkbook
+    wb.Close SaveChanges:=False
+    Set wb = Nothing
+    Set shp = FakeLinkedShape("tqq_x", p)
+    Set sl = New TestPptFake: Set sl.Shapes = New Collection: sl.Shapes.Add shp, "tqq_x"
+    Set slides = New TestPptFake: Set slides.Slide = sl: slides.SlideIdValue = 256
+    Set presA = New TestPptFake: Set presA.Slides = slides
+    Set presB = New TestPptFake: Set presB.Slides = New Collection: presB.Slides.Add sl
+    n0 = Application.Workbooks.Count
+    s = Core_PptSyncShapes(presA, PptIdx_Entry(256, "tqq_x", ""), True)
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 0.") = 1, "sem gancho: a pasta abre e o grafico nao existe nela (" & s & ")"
+    AssertEqual n0, Application.Workbooks.Count, "sem gancho: pasta fechada"
+    PptSync_SetFailNumberForTest "findchart", -2147418111
+    t = Timer
+    s = Core_PptSyncShapes(presA, PptIdx_Entry(256, "tqq_x", ""), True)
+    AssertEqual PPT_ERR_BUSY, s, "API 2"
+    AssertTrue Timer - t < 10, "sem laco"
+    AssertEqual n0, Application.Workbooks.Count, "API 2: pasta aberta pela sincronizacao foi fechada"
+    PptSync_SetFailNumberForTest "findchart", -2147417846
+    s = Core_PptSyncPresentation(presB, True)
+    AssertEqual PPT_ERR_BUSY, s, "API 1"
+    AssertEqual n0, Application.Workbooks.Count, "API 1: pasta fechada"
+    PptSync_SetFailForTest "findchart"
+    s = Core_PptSyncPresentation(presB, True)
+    AssertTrue InStr(s, "Falha ao atualizar: 1") > 0, "outro erro continua contado por forma (" & s & ")"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptSync_ResetTestHooks
+    Application.StatusBar = False
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Indice reconstruido com PowerPoint real (sem Excel): entrada velha sai, nomes repetidos viram unicos ("_2"), nome com separadores e saneado,
+' uma forma que falha (duble sem Parent) nao derruba as outras; apresentacao sem formas do ThinQQ perde o indice velho.
+Public Sub Test_PptSync_RebuildIndex_StaleUniqueIsolated_WhenAvailable()
+    Dim app As Object, pres As Object, pres2 As Object, sl As Object, a As Object, b As Object, c As Object, own As New Collection
+    Dim f As TestPptFake, items As New Collection, idx As String, en As Long, ed As String, nmC As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set sl = pres.Slides.Add(1, 12)
+    Set a = sl.Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_x"
+    Set b = sl.Shapes.AddShape(1, 70, 10, 50, 50): b.Name = "tqq_x"
+    Set c = sl.Shapes.AddShape(1, 130, 10, 50, 50): c.Name = "tqq_c"
+    On Error Resume Next
+    c.Name = "tqq" & Chr$(30) & "c" & Chr$(31) & "d"
+    nmC = CStr(c.Name)
+    Err.Clear
+    On Error GoTo Cleanup
+    Errors_Log "TestPptSync: nome com separadores aceito pelo PowerPoint: " & CStr(InStr(nmC, Chr$(30)) > 0)
+    a.Tags.Add PPTSYNC_TAG_CHART, "c1": a.Tags.Add PPTSYNC_TAG_BOOK, "C:\t\a.xlsx": a.Tags.Add PPTSYNC_TAG_AUTO, "1"
+    b.Tags.Add PPTSYNC_TAG_CHART, "c2": b.Tags.Add PPTSYNC_TAG_AUTO, "1"
+    c.Tags.Add PPTSYNC_TAG_CHART, "c3": c.Tags.Add PPTSYNC_TAG_AUTO, "1"
+    pres.Tags.Add PPTSYNC_TAG_INDEX, PptIdx_Entry(999, "velha", "")
+    Set f = New TestPptFake: Set f.Tags = CreateObject("Scripting.Dictionary"): f.Tags.Add PPTSYNC_TAG_AUTO, "1"
+    items.Add f: items.Add a: items.Add b: items.Add c
+    PptSync_RebuildIndex pres, items
+    idx = PptSync_Tag(pres, PPTSYNC_TAG_INDEX)
+    AssertEqual 3, PptIdx_Parse(idx).Count, idx
+    AssertEqual 0, InStr(idx, "velha"), "entrada velha saiu"
+    AssertEqual "tqq_x_2", CStr(a.Name), "nome repetido: _2"
+    AssertEqual "tqq_x", CStr(b.Name)
+    AssertEqual 0, InStr(CStr(c.Name), Chr$(30)) + InStr(CStr(c.Name), Chr$(31)), "sem separadores no nome"
+    AssertEqual PptIdx_Entry(CLng(sl.SlideID), CStr(a.Name), "C:\t\a.xlsx") & Chr$(30) & PptIdx_Entry(CLng(sl.SlideID), "tqq_x", "") & Chr$(30) & PptIdx_Entry(CLng(sl.SlideID), CStr(c.Name), ""), idx
+    Set pres2 = app.Presentations.Add(0): own.Add pres2
+    pres2.Slides.Add 1, 12
+    pres2.Tags.Add PPTSYNC_TAG_INDEX, PptIdx_Entry(256, "velha", "")
+    AssertEqual PPTSYNC_NONE, PptSync_Presentation(pres2, True)
+    AssertEqual "", PptSync_Tag(pres2, PPTSYNC_TAG_INDEX), "sem formas do ThinQQ: indice velho apagado"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set items = New Collection: Set f = Nothing     ' solta as formas do slide ANTES do Quit (senao o processo do PowerPoint fica vivo)
+    Set a = Nothing: Set b = Nothing: Set c = Nothing: Set sl = Nothing: Set pres = Nothing: Set pres2 = Nothing
+    StopScratchPowerPoint app, own
+    PptSync_ResetTestHooks
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub

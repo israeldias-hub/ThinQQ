@@ -1442,7 +1442,7 @@ Fail:
     On Error GoTo -1
     On Error Resume Next
     Errors_Log "Core_PptSyncPresentation" & vbTab & en & vbTab & ed
-    Core_PptSyncPresentation = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
+    If Ppt_IsBusyError(en) Then Core_PptSyncPresentation = PPT_ERR_BUSY Else Core_PptSyncPresentation = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
 End Function
 
 ' Contrato com o suplemento do PowerPoint (spec 4.9): o .ppam so chama Core_PptSyncPresentation se Core_PptApiVersion >= o que ele exige.
