@@ -51,6 +51,7 @@ End Sub
 Public Sub Core_OnUnload()
     On Error Resume Next
     DeltaPick_Disarm ""                  ' Esc e OnTime nunca ficam presos ao core descarregado (o OnTime reabriria o core)
+    PptAuto_Cancel                       ' o OnTime do ciclo automatico nunca fica preso ao core descarregado
     Watchers_Stop
     Set mMismatchSeen = Nothing
     Set mClipSeen = Nothing

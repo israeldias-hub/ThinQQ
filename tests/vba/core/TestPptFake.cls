@@ -35,6 +35,7 @@ Public SourceFullName As String
 Public UpdateCount As Long                      ' quantas vezes Update foi chamado (LinkFormat.Update)
 Public Shapes As Object                         ' slide: as formas (Collection; For Each)
 Public Tags As Object                           ' forma: as etiquetas (Scripting.Dictionary; Tags.Item(nome))
+Public ReadOnly As Long                         ' apresentacao: 0 = editavel (msoFalse)
 
 Public Property Get SlideIndex() As Long
     If SlideIndexValue <= 0 Then Err.Raise 438, "TestPptFake", "nao e um slide"
