@@ -1,5 +1,5 @@
 • Novo: o PowerPoint atualiza os gráficos do ThinQQ ao abrir a apresentação (dados e setas); reinstale pelo ZIP para ganhar o suplemento do PowerPoint.
 • Novo: no Excel, PowerPoint > Atualizar gráficos no PowerPoint atualiza dados e setas das apresentações abertas.
-• O Excel também atualiza o suplemento do PowerPoint (com o PowerPoint aberto, quando ele fechar).
+• Para quem instalou o suplemento do PowerPoint pelo ZIP, o Excel também o atualiza (com o PowerPoint aberto, quando ele fechar).
 • Corrigido: ao colar como gráfico vinculado, as setas e os rótulos de seta não ficam mais esticados e fora do lugar.
 • Quem tem a 1.2.0, 1.2.1 ou 1.2.2 precisa reinstalar uma vez pelo ZIP desta versão (o carregador antigo não consegue baixar a atualização); daí em diante a atualização pelo Excel funciona.

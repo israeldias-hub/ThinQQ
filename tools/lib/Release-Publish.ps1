@@ -866,7 +866,7 @@ function Invoke-ReleasePrepare {
     if ($lastTag) {
         $old = Invoke-RpGit $RepoRoot @('show', "${lastTag}:$notesRel")
         if ($old.Code -eq 0 -and (Get-TextSha256 $old.Output) -ceq (Get-TextSha256 $notesText)) {
-            throw (New-RpError "$notesRel nao mudou desde a ultima versao ($lastTag): escreva as notas da versao $Version (de 6 a 8 linhas com o marcador), faca o commit na main e rode de novo." $pre)
+            throw (New-RpError "$notesRel nao mudou desde a ultima versao ($lastTag): escreva as notas da versao $Version (de 1 a 8 linhas com o marcador), faca o commit na main e rode de novo." $pre)
         }
         Write-Host "Notas: $notesRel mudou desde $lastTag."
     } else { Write-Host "Notas: nenhuma tag v* anterior; $notesRel nao foi comparado." }

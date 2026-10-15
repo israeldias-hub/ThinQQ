@@ -7,7 +7,7 @@
            codigo 2 e nada e assinado. O VBE (Ferramentas > Assinatura Digital) continua sendo o caminho manual.
            ESTADO DE VERIFICACAO: so o diagnostico e o caminho de saida com codigo 2 foram exercitados (maquina sem o Windows SDK nem as SIPs).
            O ramo que chama signtool (sign e verify) NAO foi executado ponta a ponta numa maquina com SDK e SIPs: confira o resultado abrindo o
-           .xlam no Excel (a assinatura de projeto VBA e a do Office) antes de distribuir.
+           .xlam no Excel e o .ppam no PowerPoint (a assinatura de projeto VBA e a do Office) antes de distribuir.
            Prefira -Thumbprint (certificado em Cert:\CurrentUser\My, sem senha na linha de comando) a -PfxPath/-PfxPassword: uma senha em
            texto puro fica no historico do shell e e visivel a outros processos do usuario enquanto o signtool roda.
            VERIFICACAO (`signtool verify /pa`): ela monta a cadeia ate uma raiz confiavel. Um certificado autoassinado confiado so como Editor

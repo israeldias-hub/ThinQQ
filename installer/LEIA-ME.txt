@@ -54,7 +54,7 @@ SEGURANÇA
 Os arquivos do ThinQQ não vêm assinados digitalmente. A proteção das atualizações é a conferência SHA-256 dos arquivos
 baixados contra o manifesto: quem controla a branch main do repositório e os arquivos da release controla o código
 que roda no Excel dos colegas. Proteja a conta do GitHub com autenticação em dois fatores. A TI pode assinar os dois .xlam
-com um certificado da empresa (veja "Ambientes corporativos (TI)" no README do repositório e o tutorial).
+e o ThinQQ.ppam com um certificado da empresa (veja "Ambientes corporativos (TI)" no README do repositório e o tutorial).
 
 COMO MUDAR A FONTE DE ATUALIZAÇÃO
 - Pelo Excel: ThinQQ > Configurações > endereço do manifest.json (link https:// ou pasta/arquivo de rede).
@@ -68,7 +68,7 @@ PROBLEMAS COMUNS
   desbloqueados: botão direito no arquivo (no ZIP, antes de extrair, ou no .xlam) > Propriedades > Desbloquear > OK.
 - Central de Confiabilidade: Arquivo > Opções > Central de Confiabilidade > Configurações da Central de Confiabilidade >
   Configurações de Macro. Com "Desabilitar todas as macros, exceto as assinadas digitalmente" o ThinQQ só funciona a
-  partir de um Local Confiável (ou com os .xlam assinados pela TI).
+  partir de um Local Confiável (ou com os .xlam e o .ppam assinados pela TI).
 - Local Confiável: %LOCALAPPDATA%\ThinQQ, com "Subpastas também são confiáveis" (o core fica em versions\<versão>).
   O instalador o cria; confira em Locais Confiáveis.
 - Antivírus ou proxy: download do ZIP bloqueado ou incompleto, ThinQQ.xlam que sumiu (quarentena) ou "Pacote corrompido

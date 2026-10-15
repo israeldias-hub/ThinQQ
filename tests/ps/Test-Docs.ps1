@@ -524,7 +524,20 @@ foreach ($b in ($leiameText -split '(?m)^(?=[A-ZÀ-Ú]{4,}[A-ZÀ-Ú ]*( \(.*\))?
 $lmManual = ''; foreach ($k in $leiameBlocks.Keys) { if ($k -like 'INSTALAÇÃO MANUAL*') { $lmManual = $leiameBlocks[$k] } }
 $lmPpt = ''; foreach ($k in $leiameBlocks.Keys) { if ($k -like 'POWERPOINT*') { $lmPpt = $leiameBlocks[$k] } }
 $lmReq = ''; foreach ($k in $leiameBlocks.Keys) { if ($k -like 'REQUISITOS*') { $lmReq = $leiameBlocks[$k] } }
-Check ($lmManual -match 'ThinQQ\.ppam' -and $lmManual -match 'PowerPoint' -and $lmManual -match 'Subpastas também são confiáveis' -and $lmManual -match 'Locais Confiáveis') 'LEIA-ME: a INSTALAÇÃO MANUAL copia o ThinQQ.ppam, desbloqueia e cria o Local Confiável do PowerPoint (com subpastas)'
+Check ($lmManual -match 'ThinQQ\.ppam' -and $lmManual -match 'Subpastas também são confiáveis' -and $lmManual -match '(?s)faça o mesmo no PowerPoint \(Arquivo > Opções > Central de Confiabilidade >\s+Configurações > Locais Confiáveis > Adicionar novo local: %LOCALAPPDATA%\\ThinQQ, com as subpastas\)') 'LEIA-ME: a INSTALAÇÃO MANUAL copia o ThinQQ.ppam, desbloqueia e cria o Local Confiável do PowerPoint (com subpastas), na linha do PowerPoint'
+# polimento da revisao da A8: assinatura cita o .ppam; afirmacoes sem exagero; notas com 1 a 8 linhas
+Check ($leiameText -match '(?s)A TI pode assinar os dois \.xlam\s+e o ThinQQ\.ppam' -and $leiameText -match 'os \.xlam e o \.ppam assinados pela TI') 'LEIA-ME: a TI assina os dois .xlam e o .ppam (SEGURANÇA e Central de Confiabilidade)'
+Check ($html.Contains('a TI assina os dois <code>.xlam</code> e o <code>.ppam</code>')) 'tutorial: a TI assina os dois .xlam e o .ppam'
+Check ($signSrc -match '\.xlam no Excel e o \.ppam no PowerPoint') 'Sign-ThinQQ.ps1 (.NOTES): o .ppam se confere abrindo no PowerPoint'
+Check (-not $html.Contains('saem sempre na mesma versão') -and -not $html.Contains('O núcleo foi atualizado normalmente')) 'tutorial: núcleo e suplemento normalmente na mesma versão; a falha do suplemento não afeta o núcleo'
+Check ($html -match 'só é gravada ao clicar <span class="ui">Atualizar agora</span>') 'tutorial: a caixa do suplemento só é gravada ao clicar Atualizar agora'
+Check ($readme -notmatch 'de 6 a 8' -and (Read-Utf8 (Join-Path $RepoRoot 'tools\lib\Release-Publish.ps1')) -notmatch 'de 6 a 8') 'README e publicar-release: notas de 1 a 8 linhas'
+Check ($readme -match 'run-tests\.ps1 -Ppt' -and $readme -match 'tests/ps/Test-PptAddin\.ps1') 'README (comandos): run-tests.ps1 -Ppt e tests/ps/Test-PptAddin.ps1'
+Check ((Read-Utf8 (Join-Path $RepoRoot 'release\notes.txt')) -match 'quem instalou o suplemento do PowerPoint pelo ZIP') 'notes.txt: a atualização do suplemento vale para quem o instalou pelo ZIP'
+# o intervalo da nova tentativa do suplemento (PPAM_RETRY_MINUTES) e o mesmo no aviso do loader, no tutorial e no README
+$updSrc = Read-Utf8 (Join-Path $RepoRoot 'src\loader\modules\modUpdater.bas')
+$retryMin = [regex]::Match($updSrc, 'Private Const PPAM_RETRY_MINUTES As Long = (\d+)').Groups[1].Value
+Check ($retryMin -ne '' -and $updSrc.Contains("a cada $retryMin minutos") -and (Get-SectionText 'atualizar').Contains("a cada $retryMin minutos") -and $readme.Contains("em até $retryMin minutos")) "PPAM_RETRY_MINUTES ($retryMin) citado no aviso, no tutorial (#atualizar) e no README"
 Check ((($lmManual -split "\r?\n") | Where-Object { $_ -match 'Desbloquear' -and $_ -match 'ThinQQ\.ppam' }).Count -ge 1 -or $lmManual -match '(?s)Em cada arquivo[^\r\n]*\.ppam') 'LEIA-ME: a INSTALAÇÃO MANUAL manda desbloquear também o .ppam'
 Check ($lmPpt -match 'macros dessa pasta rodam sem aviso' -and $lmPpt -match '16\.0') 'LEIA-ME: o item POWERPOINT diz que as macros da pasta rodam sem aviso e cita o PowerPoint 16.0'
 Check ($lmReq -match 'PowerPoint' -and $lmReq -match '16\.0') 'LEIA-ME: REQUISITOS cita o PowerPoint 16.0'
@@ -538,8 +551,8 @@ Check $mvSeq "README: a lista de verificações manuais é numerada de 1 a $($mv
 # os itens novos (a partir do 43, depois do último de antes da Parte A) cobrem o roteiro manual da especificação (§4.7): sem o corte pelo
 # número, os itens antigos do PowerPoint (32 a 36, que também citam "PowerPoint fechado") fariam o teste passar sem os itens novos
 $mvNew = (($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 43 }) -join "`n"
-Check ($mvNums.Count -ge 51) "README: a lista de verificações manuais tem os itens novos do PowerPoint (a partir do 43; total $($mvNums.Count))"
-foreach ($t in 'Perguntar.*Atualizar sempre.*Não atualizar', 'Habilitar Edição', 'pasta movida|Alterar Origem', 'pasta em rede', '30 gráficos', 'Excel aberto', 'sem o ThinQQ no Excel', 'aba ThinQQ no PowerPoint', 'PowerPoint fechado', 'somente leitura', 'Desfazer', 'protegida por senha', 'não verificado em PowerPoint real') {
+Check ($mvNums.Count -ge 54) "README: a lista de verificações manuais tem os itens novos do PowerPoint (a partir do 43; total $($mvNums.Count))"
+foreach ($t in 'Perguntar.*Atualizar sempre.*Não atualizar', 'Habilitar Edição', 'pasta movida|Alterar Origem', 'pasta em rede', '30 gráficos', 'Excel aberto', 'sem o ThinQQ no Excel', 'aba ThinQQ no PowerPoint', 'PowerPoint fechado', 'somente leitura', 'Desfazer', 'protegida por senha', 'não verificado em PowerPoint real', 'Assinatura do suplemento do PowerPoint[^\r\n]*ThinQQ\.ppam', 'Instalação manual do suplemento do PowerPoint[^\r\n]*Adicionar novo') {
     Check ($mvNew -match $t) "README (verificações manuais 43 em diante): cobre '$t'"
 }
 
