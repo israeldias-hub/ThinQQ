@@ -2,6 +2,8 @@ Attribute VB_Name = "TestDelta"
 Option Explicit
 ' Parte B (1.5.0): delta entre barras escolhidas com o mouse. Referencias "k:c" (k = ordinal da serie de DADOS; 0 = barra da cascata; na
 ' comparativa k = lado e c = etapa), extensoes, textos e (B2) geometria independente das formulas de producao.
+Private Const LEG_GAP As Double = 3      ' spec 5.3: a perna comeca 3 pt alem da borda da barra...
+Private Const LBL_ROOM As Double = 18    ' ...e, com rotulo de valor POR FORA (colunas), mais 18 pt (emenda da spec, revisao B2)
 
 Private Sub Teardown(wb As Workbook)
     Watchers_Stop
@@ -203,6 +205,12 @@ Private Function Relayout(c As Chart) As Chart
     Set Relayout = c
 End Function
 
+' Afastamento esperado da perna no topo de uma pilha (colunas): 3 pt, mais 18 pt com Totais ligados (o rotulo do total fica por fora).
+Private Function TotalsOff(c As Chart) As Double
+    TotalsOff = LEG_GAP
+    If Registry_GetOption(c, "totals", "0") = "1" Then TotalsOff = LEG_GAP + LBL_ROOM
+End Function
+
 Private Function Overlaps(a As Shape, b As Shape) As Boolean
     Overlaps = Not (a.Left + a.Width <= b.Left Or b.Left + b.Width <= a.Left Or a.Top + a.Height <= b.Top Or b.Top + b.Height <= a.Top)
 End Function
@@ -222,7 +230,7 @@ Public Sub Test_Delta_Columns_ElbowGeometry()
     Set pa = c.SeriesCollection(Delta_SeriesIndex(c, 1)).Points(1): Set pb = c.SeriesCollection(Delta_SeriesIndex(c, 2)).Points(3)
     xA = pa.Left + pa.Width / 2: xB = pb.Left + pb.Width / 2
     AssertAlmost xA, t1.Left, 1, "perna da origem no centro da barra Sul T1"
-    AssertAlmost YOf(c, 10) - 3, t1.Top + t1.Height, 1, "perna da origem comeca 3 pt acima da barra"
+    AssertAlmost YOf(c, 10) - LEG_GAP - LBL_ROOM, t1.Top + t1.Height, 1, "rotulos ligados: perna da origem comeca alem do rotulo de fora (3 + 18 pt)"
     AssertAlmost xB, t2.Left, 1, "perna do destino no centro da barra Norte T3"
     AssertAlmost YOf(c, 0) - 3, t2.Top + t2.Height, 1, "ponta no destino: 3 pt acima do zero (barra negativa)"
     AssertEqual CLng(msoArrowheadTriangle), CLng(t2.Line.EndArrowheadStyle)
@@ -265,11 +273,14 @@ Public Sub Test_Delta_Lanes_SameEdge_StepApart()
     Teardown wb
 End Sub
 
-' Barras horizontais: tudo girado (pernas horizontais, linha principal vertical a direita das barras).
+' Barras horizontais: tudo girado (pernas horizontais, linha principal vertical a direita das barras). So geometria: rotulos desligados
+' (a perna fica a 3 pt do fim da barra).
 Public Sub Test_Delta_Bars_Horizontal()
     Dim wb As Workbook, c As Chart, t1 As Shape, ln As Shape
     Set wb = NewTempWorkbook()
     Set c = InsertOn(Fixture(wb), "barclustered")
+    Core_SetToggle "labels", False
+    AssertEqual "0", Registry_GetOption(c, "labels", "1"), "rotulos desligados"
     Core_AddDelta "1:1", "1:3"
     Relayout c
     Set t1 = c.Shapes("tqq_ann_delta_1_t1"): Set ln = c.Shapes("tqq_ann_delta_1")
@@ -289,7 +300,7 @@ Public Sub Test_Delta_NegativeBelow()
     Core_AddDelta "1:1", "1:2"
     Relayout c
     AssertTrue c.Shapes("tqq_ann_delta_1").Top >= YOf(c, -8) + 8 - 0.5, "linha principal abaixo da barra mais funda"
-    AssertAlmost YOf(c, -5) + 3, c.Shapes("tqq_ann_delta_1_t1").Top, 1, "perna da origem 3 pt abaixo da barra"
+    AssertAlmost YOf(c, -5) + LEG_GAP + LBL_ROOM, c.Shapes("tqq_ann_delta_1_t1").Top, 1, "perna da origem abaixo do rotulo de fora da barra negativa (3 + 18 pt)"
     Teardown wb
 End Sub
 
@@ -421,7 +432,7 @@ End Sub
 ' Comparativa com as setas de variacao do proprio par (tqq_pd) ligadas: a seta de delta passa ACIMA das elipses delas nas etapas do trecho
 ' (a borda conta o ponto de sala tqq_pdroom) e o rotulo do delta nao toca nenhuma elipse.
 Public Sub Test_Delta_WaterfallPair_AboveVariationArrows()
-    Dim wb As Workbook, c As Chart, pd As Series, i As Long, k As Long, dl As DataLabel, lbl As Shape, ln As Shape
+    Dim wb As Workbook, c As Chart, pd As Series, i As Long, k As Long, dl As DataLabel, lbl As Shape, ln As Shape, nChecked As Long
     Set wb = NewTempWorkbook()
     Set c = InsertOn(PairFixture(wb), "waterfallpair")
     If Delta_FindSeriesByName(c, "tqq_pd") = 0 Then Wfp_SetArrows c, True
@@ -433,12 +444,13 @@ Public Sub Test_Delta_WaterfallPair_AboveVariationArrows()
     For i = 1 To 2
         k = 6 * (i - 1) + 3                     ' o ponto do meio do par (a elipse com o texto)
         If pd.Points(k).HasDataLabel Then
-            Set dl = pd.Points(k).DataLabel
+            Set dl = pd.Points(k).DataLabel: nChecked = nChecked + 1
             AssertTrue ln.Top <= dl.Top - 0.5, "linha do delta acima da elipse da etapa " & i & " (" & ln.Top & " / " & dl.Top & ")"
             AssertTrue lbl.Top + lbl.Height <= dl.Top + 0.5 Or lbl.Left + lbl.Width <= dl.Left Or dl.Left + dl.Width <= lbl.Left, "rotulo do delta fora da elipse da etapa " & i
         End If
     Next
     AssertTrue lbl.Top >= 1.5, "rotulo dentro do grafico"
+    AssertTrue nChecked >= 1, "ao menos uma elipse conferida (" & nChecked & ")"
     Teardown wb
 End Sub
 
@@ -450,8 +462,8 @@ Public Sub Test_Delta_Stacked_SegmentEdge()
     Core_AddDelta "2:1", "1:3"
     Relayout c
     Set lbl = c.Shapes("tqq_ann_delta_1_lbl")
-    AssertAlmost YOf(c, 15) - 3, c.Shapes("tqq_ann_delta_1_t1").Top + c.Shapes("tqq_ann_delta_1_t1").Height, 1, "topo do segmento Norte T1 (10 + 5)"
-    AssertAlmost YOf(c, 30) - 3, c.Shapes("tqq_ann_delta_1_t2").Top + c.Shapes("tqq_ann_delta_1_t2").Height, 1, "topo da pilha T3 (o Norte negativo desce)"
+    AssertAlmost YOf(c, 15) - TotalsOff(c), c.Shapes("tqq_ann_delta_1_t1").Top + c.Shapes("tqq_ann_delta_1_t1").Height, 1, "topo do segmento Norte T1 (10 + 5), alem do total se ligado"
+    AssertAlmost YOf(c, 30) - TotalsOff(c), c.Shapes("tqq_ann_delta_1_t2").Top + c.Shapes("tqq_ann_delta_1_t2").Height, 1, "topo da pilha T3 (o Norte negativo desce), alem do total se ligado"
     AssertTrue lbl.Top + lbl.Height <= YOf(c, 30) - 8 + 0.5, "acima da maior pilha do trecho"
     Teardown wb
 End Sub
@@ -470,8 +482,8 @@ Public Sub Test_Delta_Combo_SecondaryAxis()
     Core_AddDelta "1:1", "2:3"
     Relayout c
     Set lbl = c.Shapes("tqq_ann_delta_1_lbl")
-    AssertAlmost YOf(c, 10) - 3, c.Shapes("tqq_ann_delta_1_t1").Top + c.Shapes("tqq_ann_delta_1_t1").Height, 1, "coluna (eixo primario)"
-    AssertAlmost YSecOf(c, 700) - 3, c.Shapes("tqq_ann_delta_1_t2").Top + c.Shapes("tqq_ann_delta_1_t2").Height, 1, "ponto da linha (eixo secundario)"
+    AssertAlmost YOf(c, 10) - TotalsOff(c), c.Shapes("tqq_ann_delta_1_t1").Top + c.Shapes("tqq_ann_delta_1_t1").Height, 1, "coluna (eixo primario; unica coluna = topo da pilha: alem do total se ligado)"
+    AssertAlmost YSecOf(c, 700) - LEG_GAP - LBL_ROOM, c.Shapes("tqq_ann_delta_1_t2").Top + c.Shapes("tqq_ann_delta_1_t2").Height, 1, "ponto da linha (eixo secundario; rotulo de fora: 3 + 18 pt)"
     edge = YOf(c, 30)
     For i = 5 To 7
         If YSecOf(c, i * 100) < edge Then edge = YSecOf(c, i * 100)
@@ -489,6 +501,122 @@ Public Sub Test_Delta_Text_Millions()
     AssertEqual "+" & Format$(1.5, "0.0") & " (+150%)", Delta_Text(1000000, 2500000, "both", f)
     AssertEqual "-" & Format$(1.5, "0.0"), Delta_Text(2500000, 1000000, "abs", f)
     AssertEqual "+2 (+50%)", Delta_Text(4000, 6000, "both", Style_NumberFormat("mil")), "milhares: uma virgula final"
+    AssertEqual "+" & Format$(1.5, "0.0"), Delta_FormatSigned(1500000, f)
+    AssertEqual "-12", Delta_FormatSigned(-12, "0"), "sem escala: o formato como esta"
+    AssertEqual "0", Delta_FormatSigned(0, f)
+End Sub
+
+' ---------- Rotulos de valor ligados: a perna comeca ALEM do rotulo de fora (emenda da spec 5.3); oraculo = o DataLabel real ----------
+
+' Retangulo do rotulo de dados do ponto c da k-esima serie de dados (depois de ForceLayout).
+Private Function LabelBox(c As Chart, k As Long, cat As Long, ByRef l As Double, ByRef t As Double, ByRef w As Double, ByRef h As Double) As Boolean
+    Dim p As Point
+    Set p = c.SeriesCollection(Delta_SeriesIndex(c, k)).Points(cat)
+    If Not p.HasDataLabel Then Exit Function
+    l = p.DataLabel.Left: t = p.DataLabel.Top: w = p.DataLabel.Width: h = p.DataLabel.Height
+    LabelBox = True
+End Function
+
+' Colunas: a ponta da perna fica acima do topo do rotulo da barra (origem Sul T1 = 10, destino Sul T3 = 30).
+Public Sub Test_Delta_Labels_Columns_LegBeyondLabel()
+    Dim wb As Workbook, c As Chart, l As Double, t As Double, w As Double, h As Double, t1 As Shape, t2 As Shape
+    Set wb = NewTempWorkbook()
+    Set c = InsertOn(Fixture(wb), "clustered")
+    AssertEqual "1", Registry_GetOption(c, "labels", "1"), "rotulos ligados (padrao)"
+    Core_AddDelta "1:1", "1:3"
+    Relayout c
+    Set t1 = c.Shapes("tqq_ann_delta_1_t1"): Set t2 = c.Shapes("tqq_ann_delta_1_t2")
+    AssertTrue LabelBox(c, 1, 1, l, t, w, h), "a barra de origem tem rotulo"
+    AssertTrue t1.Top + t1.Height <= t - 0.5, "perna da origem acima do rotulo (" & (t1.Top + t1.Height) & " / " & t & ")"
+    AssertTrue LabelBox(c, 1, 3, l, t, w, h), "a barra de destino tem rotulo"
+    AssertTrue t2.Top + t2.Height <= t - 0.5, "ponta acima do rotulo do destino (" & (t2.Top + t2.Height) & " / " & t & ")"
+    Teardown wb
+End Sub
+
+' Barras horizontais com numeros largos: as pernas comecam depois da borda direita do rotulo e a linha vertical passa de TODOS os rotulos
+' do trecho.
+Public Sub Test_Delta_Labels_Bars_WideNumbers()
+    Dim wb As Workbook, c As Chart, rng As Range, l As Double, t As Double, w As Double, h As Double, k As Long, i As Long, ln As Shape
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Worksheet.Range("B2:C2").Value = Array(12345678, 5000000)
+    rng.Worksheet.Range("B3:C3").Value = Array(23456789, 6000000)
+    rng.Worksheet.Range("B4:C4").Value = Array(34567890, 7000000)
+    Set c = InsertOn(rng, "barclustered")
+    Core_AddDelta "1:1", "1:3"
+    Relayout c
+    Set ln = c.Shapes("tqq_ann_delta_1")
+    AssertTrue LabelBox(c, 1, 1, l, t, w, h), "rotulo da origem"
+    AssertTrue c.Shapes("tqq_ann_delta_1_t1").Left >= l + w + 0.5, "perna da origem depois do rotulo (" & c.Shapes("tqq_ann_delta_1_t1").Left & " / " & (l + w) & ")"
+    AssertTrue LabelBox(c, 1, 3, l, t, w, h), "rotulo do destino"
+    AssertTrue c.Shapes("tqq_ann_delta_1_t2").Left >= l + w + 0.5, "ponta depois do rotulo do destino (" & c.Shapes("tqq_ann_delta_1_t2").Left & " / " & (l + w) & ")"
+    For k = 1 To 2
+        For i = 1 To 3
+            If LabelBox(c, k, i, l, t, w, h) Then AssertTrue ln.Left >= l + w + 0.5, "linha vertical depois do rotulo " & k & ":" & i
+        Next
+    Next
+    AssertTrue c.Shapes("tqq_ann_delta_1_lbl").Left + c.Shapes("tqq_ann_delta_1_lbl").Width <= Geom_ChartRightEdge(c) + 0.5, "rotulo do delta dentro da borda livre"
+    Teardown wb
+End Sub
+
+' Linha: a perna vertical nao atravessa o rotulo do ponto de origem nem o do destino.
+Public Sub Test_Delta_Labels_Line_LegClearOfLabel()
+    Dim wb As Workbook, c As Chart, l As Double, t As Double, w As Double, h As Double, sfx As Variant, cat As Long, s As Shape
+    Set wb = NewTempWorkbook()
+    Set c = InsertOn(Fixture(wb), "line")
+    Core_AddDelta "1:1", "1:3"
+    Relayout c
+    For Each sfx In Array("_t1", "_t2")
+        If sfx = "_t1" Then cat = 1 Else cat = 3
+        Set s = c.Shapes("tqq_ann_delta_1" & sfx)
+        AssertTrue LabelBox(c, 1, cat, l, t, w, h), "o ponto " & cat & " tem rotulo"
+        If s.Left >= l - 0.5 And s.Left <= l + w + 0.5 Then AssertTrue s.Top + s.Height <= t - 0.5, "perna " & sfx & " acima do rotulo (" & (s.Top + s.Height) & " / " & t & ")"
+    Next
+    Teardown wb
+End Sub
+
+' 8 categorias num grafico estreito: dois deltas DENTRO de categorias vizinhas, na mesma altura base. O rotulo e mais largo que o trecho:
+' a sobreposicao conta a extensao do rotulo e as setas vao para faixas diferentes (caixas reais sem se tocar).
+Public Sub Test_Delta_Lanes_LabelWiderThanSpan()
+    Dim wb As Workbook, ws As Worksheet, c As Chart, i As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:C1").Value = Array("Cat", "Sul", "Norte")
+    For i = 1 To 8
+        ws.Range("A" & (i + 1) & ":C" & (i + 1)).Value = Array("C" & i, 10, 15)
+    Next
+    Set c = InsertOn(ws.Range("A1:C9"), "clustered")
+    c.Parent.Width = 360
+    ForceLayout c
+    Core_AddDelta "1:4", "2:4"
+    Core_AddDelta "1:5", "2:5"
+    Relayout c
+    AssertFalse Overlaps(c.Shapes("tqq_ann_delta_1_lbl"), c.Shapes("tqq_ann_delta_2_lbl")), "rotulos de deltas vizinhos nao se tocam"
+    Teardown wb
+End Sub
+
+' A sala (Ann_EnsureDeltaRoom) nunca usa os numeros do layout de OUTRO grafico: B sem series (o refresh sai cedo) nao encolhe pelo deficit
+' deixado por A.
+Public Sub Test_Delta_Room_NoStaleNumbersFromOtherChart()
+    Dim wb As Workbook, ws2 As Worksheet, a As Chart, b As Chart, top0 As Double, h0 As Double
+    Set wb = NewTempWorkbook()
+    Set a = InsertOn(Fixture(wb), "clustered")
+    Core_AddDelta "1:1", "1:3"
+    Set ws2 = wb.Worksheets.Add
+    ws2.Range("A1:B1").Value = Array("Cat", "V")
+    ws2.Range("A2:B2").Value = Array("x", 1)
+    ws2.Range("A3:B3").Value = Array("y", 2)
+    Set b = InsertOn(ws2.Range("A1:B3"), "clustered")
+    Core_AddDelta "1:1", "1:2"
+    Do While b.SeriesCollection.Count > 0
+        b.SeriesCollection(1).Delete
+    Loop
+    a.Axes(xlValue).MaximumScale = 5
+    a.PlotArea.Top = 1
+    Ann_Refresh a                                ' deixa numeros com deficit no topo (o rotulo de A sairia do grafico)
+    top0 = b.PlotArea.InsideTop: h0 = b.PlotArea.InsideHeight
+    Ann_EnsureRoomAfterChange b
+    AssertAlmost top0, b.PlotArea.InsideTop, 0.01, "B nao desce"
+    AssertAlmost h0, b.PlotArea.InsideHeight, 0.01, "B nao encolhe"
+    Teardown wb
 End Sub
 
 ' ---------- PowerPoint (Parte A): o grafico colado leva as formas do delta ----------
@@ -600,7 +728,7 @@ Public Sub Test_Delta_InPowerPoint_WhenAvailable()
     Next
     AssertEqual CStr(c.Shapes("tqq_ann_delta_1_lbl").TextFrame2.TextRange.Text), CStr(pc.Shapes("tqq_ann_delta_1_lbl").TextFrame2.TextRange.Text), "mesmo texto"
     Set t1 = pc.Shapes("tqq_ann_delta_1_t1")
-    AssertAlmost PptYOf(pc, 10) - 3, CDbl(t1.Top + t1.Height), 1.5, "perna da origem 3 pt acima da barra Sul T1 no slide"
+    AssertAlmost PptYOf(pc, 10) - LEG_GAP - LBL_ROOM, CDbl(t1.Top + t1.Height), 1.5, "perna da origem alem do rotulo da barra Sul T1 no slide (3 + 18 pt)"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1

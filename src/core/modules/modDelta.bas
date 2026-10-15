@@ -11,16 +11,9 @@ Public Const DELTA_BAD_PICK As String = "Escolha duas barras diferentes do gráf
 ' Texto do delta de a para b: "both" = "+5 (+50%)" (como a Seta diferenca), "abs" = "+5", "pct" = "+50%". Percentual (b - a) / |a|; a = 0:
 ' "both" mostra so o valor e "pct" mostra "n/d". fmt = codigo do formato do grafico (Style_NumberFormat; a 1a secao). Pura.
 Public Function Delta_Text(a As Double, b As Double, mode As String, fmt As String) As String
-    Dim d As Double, sec As String, absTxt As String, pctTxt As String, shown As Double
+    Dim d As Double, absTxt As String, pctTxt As String
     d = b - a
-    shown = d
-    sec = Split(fmt & ";", ";")(0)
-    ' virgulas finais = escala do Excel (mil: "#,##0,"; milhoes: "#,##0.0,,"); o Format$ do VBA nao as entende: divide e tira
-    Do While Len(sec) > 1 And Right$(sec, 1) = ","
-        sec = Left$(sec, Len(sec) - 1)
-        shown = shown / 1000
-    Loop
-    absTxt = Format$(shown, "+" & sec & ";-" & sec & ";0")
+    absTxt = Delta_FormatSigned(d, fmt)
     If a <> 0 Then pctTxt = Format$(d / Abs(a), "+0%;-0%;0%") Else pctTxt = "n/d"
     Select Case mode
         Case "abs": Delta_Text = absTxt
@@ -29,6 +22,33 @@ Public Function Delta_Text(a As Double, b As Double, mode As String, fmt As Stri
             Delta_Text = absTxt
             If a <> 0 Then Delta_Text = absTxt & " (" & pctTxt & ")"
     End Select
+End Function
+
+' Valor com sinal ("+5", "-5", "0") na 1a secao do formato fmt (codigo de Style_NumberFormat). Virgulas finais = escala do Excel (mil:
+' "#,##0,"; milhoes: "#,##0.0,,"): o Format$ do VBA nao as entende, entao cada uma divide por 1000 e sai do formato. Usada pelo delta e pela
+' Seta diferenca (Ann_LayoutDiff). Pura.
+Public Function Delta_FormatSigned(d As Double, fmt As String) As String
+    Dim sec As String, shown As Double
+    shown = d
+    sec = Split(fmt & ";", ";")(0)
+    Do While Len(sec) > 1 And Right$(sec, 1) = ","
+        sec = Left$(sec, Len(sec) - 1)
+        shown = shown / 1000
+    Loop
+    Delta_FormatSigned = Format$(shown, "+" & sec & ";-" & sec & ";0")
+End Function
+
+' Texto do rotulo de valor (sem sinal forcado) de v no formato fmt, com a mesma escala das virgulas finais: estimativa da largura do rotulo
+' de fora nas barras horizontais (Ann_DeltaPrepare). Pura.
+Public Function Delta_FormatPlain(v As Double, fmt As String) As String
+    Dim sec As String, shown As Double
+    shown = v
+    sec = Split(fmt & ";", ";")(0)
+    Do While Len(sec) > 1 And Right$(sec, 1) = ","
+        sec = Left$(sec, Len(sec) - 1)
+        shown = shown / 1000
+    Loop
+    Delta_FormatPlain = Format$(shown, sec & ";-" & sec & ";0")
 End Function
 
 ' Ciclo do botao "Delta: valor / % / ambos": ambos -> valor -> % -> ambos. Pura.
@@ -187,6 +207,23 @@ Public Function Delta_Extent(cht As Chart, ref As String, ByRef v As Double, ByR
             End If
     End Select
     Delta_Extent = True
+End Function
+
+' True quando o segmento da referencia e o de cima de uma pilha positiva (o rotulo do total, por fora, fica logo depois dele): empilhadas e
+' colunas da combinacao. False para segmento negativo, de baixo, linha ou referencia inexistente.
+Public Function Delta_IsStackTop(cht As Chart, ref As String) As Boolean
+    Dim k As Long, c As Long, v As Double, lo As Double, hi As Double, i As Long, x As Double, sumPos As Double
+    If Not Delta_ParseRef(ref, k, c) Then Exit Function
+    If Not Delta_Extent(cht, ref, v, lo, hi) Then Exit Function
+    If v <= 0 Then Exit Function
+    If Not Delta_IsColumnSeries(cht.SeriesCollection(Delta_SeriesIndex(cht, k))) Then Exit Function
+    For i = 1 To cht.SeriesCollection.Count
+        If Not Style_IsHelperSeries(cht.SeriesCollection(i)) And Delta_IsColumnSeries(cht.SeriesCollection(i)) Then
+            x = Delta_PointValue(cht.SeriesCollection(i), c)
+            If x > 0 Then sumPos = sumPos + x
+        End If
+    Next
+    Delta_IsStackTop = (hi >= sumPos - 0.0000001)
 End Function
 
 ' Indice no eixo de categorias (na comparativa, a fatia da barra; nos demais, a categoria).

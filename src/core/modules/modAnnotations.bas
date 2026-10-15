@@ -443,15 +443,35 @@ Private Function Ann_Overlap(a1 As Double, a2 As Double, b1 As Double, b2 As Dou
     Ann_Overlap = (loA <= hiB + margin And loB <= hiA + margin)
 End Function
 
+' Duas setas de delta disputam a mesma faixa quando o que ocupam no sentido das categorias se sobrepoe (2 pt de margem): o trecho entre
+' as pernas E o rotulo centrado (meio +- rec(8)), que pode ser mais largo que o trecho (delta dentro de uma categoria).
+Private Function Ann_DeltaOverlap(a As Variant, b As Variant) As Boolean
+    Dim loA As Double, hiA As Double, loB As Double, hiB As Double
+    Ann_DeltaExtentCat a, loA, hiA
+    Ann_DeltaExtentCat b, loB, hiB
+    Ann_DeltaOverlap = Ann_Overlap(loA, hiA, loB, hiB, 2)
+End Function
+
+Private Sub Ann_DeltaExtentCat(r As Variant, ByRef lo As Double, ByRef hi As Double)
+    Dim c1 As Double, c2 As Double, m As Double, h As Double
+    c1 = r(1): c2 = r(2): m = (c1 + c2) / 2: h = r(8)
+    lo = c1: hi = c1
+    If c2 < lo Then lo = c2
+    If c2 > hi Then hi = c2
+    If m - h < lo Then lo = m - h
+    If m + h > hi Then hi = m + h
+End Sub
+
 ' Uma seta de delta pronta para o layout (rec): 0 nome, 1 centro da origem e 2 do destino (sentido das categorias, pt), 3 e 4 ancoras da
 ' origem e do destino (sentido dos valores, pt; 3 pt para fora da borda), 5 sentido para fora (-1 ou +1, em pt no sentido dos valores),
-' 6 linha principal (pt; a altura base, ajustada pelas faixas), 7 meia espessura do rotulo no sentido dos valores. False = oculta.
+' 6 linha principal (pt; a altura base, ajustada pelas faixas), 7 meia espessura do rotulo no sentido dos valores, 8 meia extensao do
+' rotulo no sentido das categorias (o rotulo pode ser mais largo que o trecho: Ann_DeltaOverlap). False = oculta.
 ' Ancoras e borda pela regra de tres do eixo de cada serie (Delta_ValCoord: a linha da combinacao no eixo secundario); na comparativa com as
 ' setas de variacao ligadas a altura base tambem passa a elipse delas (Delta_PairArrowEdgeCoord, sem a folga dos rotulos).
 Private Function Ann_DeltaPrepare(cht As Chart, ln As Shape, fmt As String, ByRef rec As Variant) As Boolean
     Dim fromRef As String, toRef As String, mode As String, vA As Double, loA As Double, hiA As Double, vB As Double, loB As Double, hiB As Double
     Dim above As Boolean, horiz As Boolean, dirn As Double, edgeP As Double, half As Double, lbl As Shape, extra As Double, aA As Double, aB As Double
-    Dim txt As String, base As Double, pdEdge As Double, ia As Long, ib As Long
+    Dim txt As String, base As Double, pdEdge As Double, ia As Long, ib As Long, halfCat As Double, pA As Double, pB As Double
     If Not Kinds_Supports(Registry_ChartType(cht), "delta") Then Exit Function
     fromRef = Ann_ParseParam(ln.AlternativeText, "from"): toRef = Ann_ParseParam(ln.AlternativeText, "to")
     mode = Ann_ParseParam(ln.AlternativeText, "fmt")
@@ -468,16 +488,84 @@ Private Function Ann_DeltaPrepare(cht As Chart, ln As Shape, fmt As String, ByRe
         If lbl.TextFrame2.TextRange.Text <> txt Then lbl.TextFrame2.TextRange.Text = txt
         If horiz Then half = lbl.Width / 2 Else half = lbl.Height / 2
     End If
-    If Registry_GetOption(cht, "labels", "1") = "1" Or Registry_GetOption(cht, "totals", "0") = "1" Then extra = DELTA_LABEL_ROOM
     ia = Delta_AxisIndex(cht, fromRef): ib = Delta_AxisIndex(cht, toRef)
+    If Registry_GetOption(cht, "labels", "1") = "1" Or Registry_GetOption(cht, "totals", "0") = "1" Then
+        extra = DELTA_LABEL_ROOM
+        If horiz Then extra = Ann_DeltaBarsLabelRoom(cht, ia, ib, fmt)
+    End If
     edgeP = Delta_SpanEdgeCoord(cht, ia, ib, above, dirn)
     base = edgeP + dirn * (DELTA_GAP + extra + half)
     If Delta_PairArrowEdgeCoord(cht, ia, ib, above, pdEdge) Then
         If dirn * (pdEdge + dirn * (DELTA_GAP + half)) > dirn * base Then base = pdEdge + dirn * (DELTA_GAP + half)
     End If
     If above Then aA = hiA: aB = hiB Else aA = loA: aB = loB
-    rec = Array(ln.Name, Delta_CatCenter(cht, fromRef), Delta_CatCenter(cht, toRef), Delta_ValCoord(cht, fromRef, aA) + dirn * 3, Delta_ValCoord(cht, toRef, aB) + dirn * 3, dirn, base, half)
+    If Not lbl Is Nothing Then
+        If horiz Then halfCat = lbl.Height / 2 Else halfCat = lbl.Width / 2
+    End If
+    pA = Delta_ValCoord(cht, fromRef, aA) + dirn * Ann_DeltaEndOffset(cht, fromRef, vA, aA, above, horiz, fmt)
+    pB = Delta_ValCoord(cht, toRef, aB) + dirn * Ann_DeltaEndOffset(cht, toRef, vB, aB, above, horiz, fmt)
+    rec = Array(ln.Name, Delta_CatCenter(cht, fromRef), Delta_CatCenter(cht, toRef), pA, pB, dirn, base, half, halfCat)
     Ann_DeltaPrepare = True
+End Function
+
+' Afastamento (pt) da ponta da perna a partir da borda da barra (emenda da spec 5.3, revisao B2): 3 pt; com o rotulo de valor POR FORA
+' da barra (Rotulos ligados: pontos das agrupadas e da linha, a linha da combinacao; Totais ligados: o segmento de cima de uma pilha
+' positiva) e a ancora no FIM da barra (valor diferente de zero), a perna comeca depois do rotulo: 3 + 18 pt nas colunas, 3 + max(18,
+' largura estimada do rotulo + 6) nas barras (o rotulo fica ~6 pt depois do fim; Labels_EstimateWidth, como Ann_TotalsExtra). Rotulos
+' centrados das empilhadas, rotulos das cascatas e ancoras no zero ficam nos 3 pt. Estimativa conservadora: nao le a geometria dos rotulos.
+Private Function Ann_DeltaEndOffset(cht As Chart, ref As String, v As Double, anchor As Double, above As Boolean, horiz As Boolean, fmt As String) As Double
+    Dim kind As String, k As Long, c As Long, s As Long, outside As Boolean, isTotal As Boolean, w As Double
+    Ann_DeltaEndOffset = 3
+    If anchor = 0 Then Exit Function
+    If Not Delta_ParseRef(ref, k, c) Then Exit Function
+    kind = Registry_ChartType(cht)
+    Select Case kind
+        Case "clustered", "barclustered", "line"
+            outside = (Registry_GetOption(cht, "labels", "1") = "1")
+        Case "stacked", "barstacked", "combo"
+            s = Delta_SeriesIndex(cht, k)
+            If s = 0 Then Exit Function
+            If Not Delta_IsColumnSeries(cht.SeriesCollection(s)) Then
+                outside = (Registry_GetOption(cht, "labels", "1") = "1")             ' a linha da combinacao: rotulo do ponto
+            ElseIf above And Registry_GetOption(cht, "totals", "0") = "1" Then
+                isTotal = Delta_IsStackTop(cht, ref)
+                outside = isTotal
+            End If
+    End Select
+    If Not outside Then Exit Function
+    If horiz Then
+        If isTotal Then w = Labels_MaxTotalWidth(cht) Else w = Labels_EstimateWidth(Delta_FormatPlain(v, fmt))
+        w = w + 6
+        If w < DELTA_LABEL_ROOM Then w = DELTA_LABEL_ROOM
+        Ann_DeltaEndOffset = 3 + w
+    Else
+        Ann_DeltaEndOffset = 3 + DELTA_LABEL_ROOM
+    End If
+End Function
+
+' Folga dos rotulos para a linha principal nas barras horizontais: max(18, maior largura estimada + 6) entre os rotulos de valor do trecho
+' (Rotulos ligados) e os totais (Totais ligados).
+Private Function Ann_DeltaBarsLabelRoom(cht As Chart, ia As Long, ib As Long, fmt As String) As Double
+    Dim a As Long, k As Long, fam As String, v As Double, lo As Double, hi As Double, w As Double, best As Double, ref As String, nK As Long
+    fam = Kinds_Family(Registry_ChartType(cht))
+    If fam = "waterfall" Then nK = 1 Else nK = Delta_DataSeriesCount(cht)     ' cascata: a barra da categoria ("0:c")
+    If Registry_GetOption(cht, "labels", "1") = "1" Then
+        For a = Application.WorksheetFunction.Min(ia, ib) To Application.WorksheetFunction.Max(ia, ib)
+            For k = 1 To nK
+                If fam = "waterfall" Then ref = "0:" & a Else ref = k & ":" & a
+                If Delta_Extent(cht, ref, v, lo, hi) Then
+                    w = Labels_EstimateWidth(Delta_FormatPlain(v, fmt))
+                    If w > best Then best = w
+                End If
+            Next
+        Next
+    End If
+    If Registry_GetOption(cht, "totals", "0") = "1" Then
+        w = Labels_MaxTotalWidth(cht)
+        If w > best Then best = w
+    End If
+    Ann_DeltaBarsLabelRoom = best + 6
+    If Ann_DeltaBarsLabelRoom < DELTA_LABEL_ROOM Then Ann_DeltaBarsLabelRoom = DELTA_LABEL_ROOM
 End Function
 
 ' Pernas, linha principal e rotulo de uma seta ja com a linha principal decidida (rec(6)).
@@ -566,7 +654,7 @@ Private Sub Ann_LayoutDeltas(cht As Chart)
             moved = False
             For j = 1 To nPlaced
                 p = placed(j)
-                If p(5) = rec(5) And Ann_Overlap(CDbl(rec(1)), CDbl(rec(2)), CDbl(p(1)), CDbl(p(2)), 2) Then
+                If p(5) = rec(5) And Ann_DeltaOverlap(rec, p) Then
                     stp = p(7) + rec(7) + 6
                     If Abs(lineV - p(6)) < stp - 0.001 Then
                         lineV = p(6) + rec(5) * stp
@@ -706,6 +794,7 @@ End Sub
 Public Sub Ann_Refresh(cht As Chart)
     Dim values() As Double, tops() As Double, n As Long, i As Long, shp As Shape, kind As String, errs As String
     Dim fmt As String, fromIdx As Long, toIdx As Long, valid As Boolean, chartKind As String, nm As String
+    mDeltaPlaced = 0                    ' numeros da sala do delta valem so para ESTE grafico (saidas cedo nao deixam os de outro)
     If mRefreshing Then Exit Sub
     mRefreshing = True
     On Error GoTo Done
@@ -891,12 +980,6 @@ Private Sub Ann_MoveLineIfMoved(ln As Shape, x1 As Double, y1 As Double, x2 As D
     Ann_MoveLine ln, x1, y1, x2, y2
 End Sub
 
-Private Function Ann_SignedFormat(fmt As String) As String
-    Dim sec As String
-    sec = Split(fmt & ";", ";")(0)
-    Ann_SignedFormat = "+" & sec & ";-" & sec & ";0"
-End Function
-
 Private Sub Ann_LayoutCagr(cht As Chart, ln As Shape, fromIdx As Long, toIdx As Long, values() As Double, tops() As Double, fmt As String)
     Dim x1 As Double, x2 As Double, y1 As Double, y2 As Double, lbl As Shape, rate As Double, txt As String
     Dim body As Range, periods As Double, extra As Double, xMax As Double
@@ -962,7 +1045,7 @@ Private Sub Ann_LayoutDiff(cht As Chart, ln As Shape, fromIdx As Long, toIdx As 
         Ann_MoveLine ln, xArrow, yFrom, xArrow, yTo
     End If
     diff = values(toIdx) - values(fromIdx)
-    txt = Format$(diff, Ann_SignedFormat(fmt))
+    txt = Delta_FormatSigned(diff, fmt)
     If values(fromIdx) <> 0 Then txt = txt & " (" & Format$(diff / Abs(values(fromIdx)), "+0%;-0%;0%") & ")"
     Set lbl = Ann_Shape(cht, ln.Name & "_lbl")
     If lbl Is Nothing Then Exit Sub

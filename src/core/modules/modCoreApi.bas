@@ -538,6 +538,8 @@ Public Sub Core_AddDelta(fromRef As String, toRef As String, Optional fmt As Str
     If c Is Nothing Then Exit Sub
     If fmt <> "abs" And fmt <> "pct" Then fmt = "both"
     Ann_AddDelta c, fromRef, toRef, fmt
+    Core_SafeRefresh c                       ' quem insere sem desenhar (gerador da demonstracao) termina com o refresh completo...
+    Ann_EnsureRoomAfterChange c              ' ...que pode mudar escalas (combinacao: a faixa da linha acima dos totais): a sala do delta de novo
     Exit Sub
 Fail:
     If Err.Number = vbObjectError + 7001 Or Err.Number = vbObjectError + 7003 Then
