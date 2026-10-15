@@ -273,12 +273,16 @@ try {
     @{ coreVersion = '1.2.3'; loaderVersion = '1.0.0'; manifestUrl = 'https://exemplo/manifest.json'; pptAddinVersion = '1.7.7'
        coreSha256 = (Sha $pkgL 'ThinQQ.core.xlam'); loaderSha256 = (Sha $pkgL 'ThinQQ.xlam'); pptAddinSha256 = (Sha $pkgL 'ThinQQ.ppam') } | ConvertTo-Json | Set-Content (Join-Path $pkgL 'manifest.json')
     $ppamZ = Join-Path $rootZ 'ThinQQ.ppam'; $loaderZ = Join-Path $rootZ 'ThinQQ.xlam'; $coreZ = Join-Path $rootZ 'versions\1.2.3\ThinQQ.core.xlam'
+    # a copia de seguranca do loader (ThinQQ.xlam.bak, so a ultima) de uma instalacao anterior: com o ppam ilegivel (FileShare.None) o
+    # instalador aborta ANTES de tocar em qualquer arquivo, inclusive o .bak
+    Set-Content -LiteralPath ($loaderZ + '.bak') 'bak-antigo'
     foreach ($share in @('None', 'Read')) {
         $shaBefore = @{ ppam = (Sha $rootZ 'ThinQQ.ppam'); loader = (Sha $rootZ 'ThinQQ.xlam'); core = (Sha $rootZ 'versions\1.2.3\ThinQQ.core.xlam') }
         $lock = [IO.File]::Open($ppamZ, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]$share)
         try {
-            Expect-Failure "reinstalar com o ppam em uso (FileShare.$share)" { & $install -Root $rootZ -RegistryRoot $regZ -PackageDir $pkgL -SkipExcelCheck } 'Feche o PowerPoint'
+            Expect-Failure "reinstalar com o ppam em uso (FileShare.$share)" { & $install -Root $rootZ -RegistryRoot $regZ -PackageDir $pkgL -SkipExcelCheck } 'Feche o PowerPoint[^\r\n]*Detalhe: \S'
         } finally { $lock.Dispose() }
+        if ($share -eq 'None') { Assert ((Get-Content -LiteralPath ($loaderZ + '.bak') -Raw).Trim() -eq 'bak-antigo') 'ppam ilegivel: o ThinQQ.xlam.bak anterior continua intacto (aborta antes de copiar o loader)' }
         Assert ((Sha $rootZ 'ThinQQ.ppam') -eq $shaBefore.ppam) "ppam em uso ($share): conteudo nao mudou"
         Assert ((Sha $rootZ 'ThinQQ.xlam') -eq $shaBefore.loader) "ppam em uso ($share): loader voltou ao estado anterior"
         Assert ((Sha $rootZ 'versions\1.2.3\ThinQQ.core.xlam') -eq $shaBefore.core) "ppam em uso ($share): core voltou ao estado anterior"

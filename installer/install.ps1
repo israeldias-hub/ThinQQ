@@ -58,9 +58,10 @@ if ($withPpam) {
 $ppamDest = Join-Path $Root 'ThinQQ.ppam'
 $hadPpam = Test-Path -LiteralPath $ppamDest
 $ppamMoved = $false
-# Copia/troca do .ppam: se o arquivo instalado estiver em uso (PowerPoint aberto), a falha vira uma orientacao clara (o desfazer restaura o resto)
+# Copia/troca do .ppam: se o arquivo instalado estiver em uso (PowerPoint aberto), a falha vira uma orientacao clara (o desfazer restaura o
+# resto), com a mensagem interna no fim (outra causa, como permissao ou disco cheio, fica visivel)
 function Invoke-PpamStep([scriptblock]$Step) {
-    try { & $Step } catch { throw 'Feche o PowerPoint (o suplemento ThinQQ está em uso) e rode o instalador de novo.' }
+    try { & $Step } catch { throw ('Feche o PowerPoint (o suplemento ThinQQ está em uso) e rode o instalador de novo. Detalhe: ' + $_.Exception.Message) }
 }
 
 # Versao do loader gravada no arquivo (propriedade Comentarios: "ThinQQ loader x.y.z (Release)"); $null se ilegivel
@@ -116,11 +117,12 @@ try {
     }
     foreach ($d in @($verDir, (Join-Path $Root 'logs'), $undoDir)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
 
-    # guarda copias para o desfazer; o loader antigo vira ThinQQ.xlam.bak (so o ultimo e mantido)
+    # guarda copias para o desfazer; o loader antigo vira ThinQQ.xlam.bak (so o ultimo e mantido). O .ppam vem PRIMEIRO: em uso (ilegivel),
+    # aborta antes de tocar em qualquer arquivo instalado (inclusive o .bak)
+    if ($hadPpam) { Invoke-PpamStep { Copy-Item -LiteralPath $ppamDest -Destination (Join-Path $undoDir 'ppam') -Force } }
     if ($hadLoader) { Copy-Item -LiteralPath $loaderDest -Destination (Join-Path $undoDir 'loader') -Force; Copy-Item -LiteralPath $loaderDest -Destination $bak -Force }
     if ($hadCore) { Copy-Item -LiteralPath (Join-Path $verDir 'ThinQQ.core.xlam') -Destination (Join-Path $undoDir 'core') -Force }
     if ($hadTut) { Copy-Item -LiteralPath (Join-Path $verDir 'tutorial.html') -Destination (Join-Path $undoDir 'tut') -Force }
-    if ($hadPpam) { Invoke-PpamStep { Copy-Item -LiteralPath $ppamDest -Destination (Join-Path $undoDir 'ppam') -Force } }
 
     Move-Item -LiteralPath (Join-Path $stage 'ThinQQ.xlam') -Destination $loaderDest -Force; $loaderMoved = $true
     Move-Item -LiteralPath (Join-Path $stage 'ThinQQ.core.xlam') -Destination $verDir -Force; $coreMoved = $true
