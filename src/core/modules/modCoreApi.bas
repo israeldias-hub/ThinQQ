@@ -1424,6 +1424,10 @@ Private Sub PptSyncAfterPaste(shp As Object, co As ChartObject)
     If Not ok Then Errors_Log "CopyToPowerPoint/sincronizar" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     If ok Then shp.Tags.Add PPTSYNC_TAG_FP, PptSync_Fingerprint(co, shp)
     Err.Clear
+    If PptAuto_NewLinksAuto() Then
+        PptSync_SetAuto shp, True                     ' opcao "Novos vinculos atualizam automaticamente" (1.6.0)
+        If Err.Number <> 0 Then Errors_Log "CopyToPowerPoint/automatico" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    End If
 End Sub
 
 ' Parte A (1.4.0): atualiza os graficos ThinQQ vinculados de UMA apresentacao. O suplemento ThinQQ.ppam chama por Application.Run com o
@@ -1447,6 +1451,39 @@ Public Function Core_PptApiVersion() As Long
     On Error Resume Next                                    ' constante: nao falha; a guarda mantem o contrato "Core_* nunca propaga" (teste de contencao)
     Core_PptApiVersion = CORE_PPT_API
 End Function
+
+' API 2 (1.6.0): "Atualizar uma vez" do .ppam so nas formas listadas (entries no formato do indice, PptIdx_*). Devolve o resumo; nunca propaga.
+Public Function Core_PptSyncShapes(pres As Object, entries As String, Optional force As Boolean = True) As String
+    Dim items As Collection, en As Long, ed As String
+    On Error GoTo Fail
+    Set items = PptSync_ResolveEntries(pres, entries)
+    If items.Count = 0 Then Core_PptSyncShapes = PPTSYNC_NONE: Exit Function
+    Core_PptSyncShapes = PptSync_Items(items, force)
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Errors_Log "Core_PptSyncShapes" & vbTab & en & vbTab & ed
+    If Ppt_IsBusyError(en) Then Core_PptSyncShapes = PPT_ERR_BUSY Else Core_PptSyncShapes = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
+End Function
+
+' Opcoes do PowerPoint para a faixa do Excel: "autoon" (atualizacao automatica ligada) e "autonew" (novos vinculos ja automaticos).
+Public Function Core_PptGetFlag(key As String) As Boolean
+    On Error Resume Next
+    Select Case key
+        Case "autoon": Core_PptGetFlag = PptAuto_Enabled()
+        Case "autonew": Core_PptGetFlag = PptAuto_NewLinksAuto()
+    End Select
+End Function
+
+Public Sub Core_PptSetFlag(key As String, value As Boolean)
+    On Error Resume Next
+    Select Case key
+        Case "autoon": PptAuto_SetEnabled value
+        Case "autonew": PptAuto_SetNewLinksAuto value
+    End Select
+End Sub
 
 ' Botao "Atualizar graficos no PowerPoint": todas as apresentacoes abertas (inclusive as somente leitura: a atualizacao fica so na memoria e o
 ' PowerPoint pergunta se quer salvar ao fechar; so a atualizacao automatica ao abrir pula somente leitura, decisao do suplemento), forcando a
