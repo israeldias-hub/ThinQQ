@@ -50,6 +50,7 @@ if ($Target -eq 'ppt') {
         if ($Configuration -eq 'Test') {
             $tDir = Join-Path $RepoRoot 'tests\vba\ppt'
             Get-ChildItem $tDir -Filter *.bas | ForEach-Object { Import-VbaFile $vbproj $_.FullName }
+            Get-ChildItem $tDir -Filter *.cls | ForEach-Object { Import-VbaFile $vbproj $_.FullName }   # dubles (TestXlFake)
             Write-TestDispatchModule -TestFiles @(Get-ChildItem $tDir -Filter 'Test*.bas' | ForEach-Object FullName) -OutPath $dispatch
             Import-VbaFile $vbproj $dispatch
         }

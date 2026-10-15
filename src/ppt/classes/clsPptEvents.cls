@@ -22,6 +22,12 @@ Private Sub App_WindowActivate(ByVal Pres As Presentation, ByVal Wn As DocumentW
     PptTqq_OnOpen Pres
 End Sub
 
+' Selecao mudou: o estado de "Atualizar automaticamente" segue o grafico selecionado. So invalida a faixa (nada de MsgBox nem Excel).
+Private Sub App_WindowSelectionChange(ByVal Sel As Selection)
+    On Error Resume Next
+    PptRx_InvalidateElem
+End Sub
+
 ' Fechada de fato (depois de "Salvar?"): esquece a apresentacao, para a proxima abertura perguntar de novo.
 Private Sub App_PresentationCloseFinal(ByVal Pres As Presentation)
     On Error Resume Next

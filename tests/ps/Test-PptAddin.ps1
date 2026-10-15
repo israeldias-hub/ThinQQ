@@ -16,7 +16,7 @@ if (-not (Test-Path $pptm) -or -not (Test-Path $coreTest)) { Write-Host 'ERRO: m
 $tmp = Join-Path $env:TEMP ('thinqq_test_ppt_' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $tmp | Out-Null
 $tpName = ''; $pp = $null; $xl = $null; $xl2 = $null; $wd = $null; $wdx = $null; $wdx2 = $null; $xlPid = 0; $xl2Pid = 0
-$tp = $null; $pres = $null; $slide = $null; $core = $null; $wb = $null; $ws = $null; $vals = $null; $fk = $null
+$tp = $null; $pres = $null; $slide = $null; $core = $null; $wb = $null; $ws = $null; $vals = $null; $fk = $null; $shp = $null
 $marker = Join-Path ([IO.Path]::GetTempPath()) "thinqq_watchdog_pptaddin_$PID.flag"
 Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
 try {
@@ -69,6 +69,16 @@ try {
     Check ($vals -contains 40) "(a) valor novo no slide ($($vals -join ','))"
     $alive = $false; try { $alive = ([string]$xl.Workbooks.Item('e2e.xlsx').Name -eq 'e2e.xlsx') } catch { }   # Workbooks.Count nao conta o core (suplemento)
     Check ($alive -and [bool](Get-Process -Id $xlPid -ErrorAction SilentlyContinue)) '(a) Excel injetado que nao foi criado pelo suplemento continua aberto (sem Quit)'
+    # (a2) "Atualizar uma vez" (1.6.0) com o core de verdade (API 2): Core_PptSyncShapes so na forma listada
+    $ws.Range('B3').Value2 = 45
+    $shp = $slide.Shapes.Item(1)
+    $entry = [string]$pp.Run("$tpName!PptTqq_IdxEntry", [int]$slide.SlideID, [string]$shp.Name, '')
+    [void]$pp.Run("$tpName!PptTqq_SyncEntries", $pres, $entry, $true, $false)
+    $msg = [string]$pp.Run("$tpName!PptTqq_LastMsg")
+    Check ($msg -like 'Gráficos do ThinQQ atualizados: 1.*') "(a2) Atualizar uma vez pelo core (API 2): $msg"
+    $vals = @($slide.Shapes.Item(1).Chart.SeriesCollection(1).Values)
+    Check ($vals -contains 45) "(a2) valor novo no slide ($($vals -join ','))"
+    $shp = $null
     [void]$pp.Run("$tpName!PptTqq_ResetTestHooks")
 
     # (b) Excel novo, sem o core, injetado como criado pelo suplemento; pasta de versoes com 9.9.11 parcial (sem o arquivo), 9.9.10 com um
@@ -114,7 +124,7 @@ try {
     if ($xl2Pid -gt 0 -and -not (Wait-PidExit $xl2Pid 10)) { Stop-Process -Id $xl2Pid -Force -ErrorAction SilentlyContinue }   # Excel criado por este script
     # referencias COM soltas antes do Quit (senao o PowerPoint nao fecha e cai no encerramento pelo PID)
     $owned = @($tp, $pres)
-    $tp = $null; $pres = $null; $slide = $null; $core = $null; $wb = $null; $ws = $null; $vals = $null; $fk = $null
+    $tp = $null; $pres = $null; $slide = $null; $core = $null; $wb = $null; $ws = $null; $vals = $null; $fk = $null; $shp = $null
     $sw = [Diagnostics.Stopwatch]::StartNew()
     Close-PptApp $pp -Owned $owned   # watchdog do PowerPoint ainda ativo
     $owned = $null; $pp = $null

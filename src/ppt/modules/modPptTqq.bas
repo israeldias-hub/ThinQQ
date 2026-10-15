@@ -20,6 +20,14 @@ Public Const PPT_MAX_SOURCES_SHOWN As Long = 5                ' pastas de origem
 Public Const PPT_MAX_PATH_SHOWN As Long = 150                 ' caracteres de cada pasta na pergunta (cortada no meio)
 Public Const PPT_MAX_ASK_LEN As Long = 900                    ' tamanho maximo da pergunta (o MsgBox corta perto de 1024)
 Public Const PPT_REQUIRED_API As Long = 1                   ' Core_PptApiVersion minima (spec 4.9); core sem ela ou menor = so os dados
+Public Const PPT_TAG_AUTO As String = "TQQ_AUTO"
+Public Const PPT_TAG_INDEX As String = "TQQ_AUTOIDX"
+Public Const PPT_API_SHAPES As Long = 2                     ' Core_PptSyncShapes (core 1.6.0); conferida POR RECURSO (ao abrir basta a 1)
+Public Const PPT_IDX_MAX_ENTRIES As Long = 2000             ' = PPTIDX_MAX_ENTRIES do core
+Public Const PPT_IDX_MAX_LEN As Long = 1000000              ' = PPTIDX_MAX_LEN do core
+Public Const PPT_MSG_SELECT As String = "Selecione um ou mais gráficos do ThinQQ vinculados ao Excel."
+Public Const PPT_MSG_AUTO_OLDCORE As String = "Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada)."
+Public Const PPT_MSG_SEL_OLDCORE As String = "Atualize o ThinQQ no Excel para atualizar só os gráficos selecionados (desta vez a apresentação inteira foi atualizada)."
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
 Private Const RPC_E_RETRYLATER As Long = -2147417846
 Private mEvents As clsPptEvents
@@ -690,4 +698,207 @@ Public Sub PptTqq_HandleOpen(pres As Object)
 Fail:
     mBusy = False
     PptTqq_Log "Não foi possível verificar os gráficos do ThinQQ desta apresentação: " & Err.Number & " " & Err.Description
+End Sub
+
+' ---- 1.6.0: atualizacao automatica por elemento. Indice: COPIA EXATA das PptIdx_* do core (mesmos testes de cadeia). Puras e totais: a
+' etiqueta vem da apresentacao (de quem a fez), entao lixo nunca levanta erro, o SlideID so vale com 1 a 9 algarismos, entradas alem de
+' PPT_IDX_MAX_ENTRIES sao ignoradas e uma etiqueta maior que PPT_IDX_MAX_LEN e recusada inteira. Os separadores nunca entram num campo. ----
+
+Public Function PptTqq_IdxSafeField(s As String) As String
+    PptTqq_IdxSafeField = Replace(Replace(s, Chr$(30), "_"), Chr$(31), "_")
+End Function
+
+Public Function PptTqq_IdxEntry(slideId As Long, shapeName As String, book As String) As String
+    PptTqq_IdxEntry = CStr(slideId) & Chr$(31) & PptTqq_IdxSafeField(shapeName) & Chr$(31) & PptTqq_IdxSafeField(book)
+End Function
+
+Public Function PptTqq_IdxParse(idx As String) As Collection
+    Dim out As New Collection, parts() As String, f() As String, i As Long
+    Set PptTqq_IdxParse = out
+    On Error GoTo Done
+    If Len(idx) = 0 Or Len(idx) > PPT_IDX_MAX_LEN Then Exit Function
+    parts = Split(idx, Chr$(30))
+    For i = LBound(parts) To UBound(parts)
+        If out.Count >= PPT_IDX_MAX_ENTRIES Then Exit For
+        If Len(parts(i)) > 0 Then
+            f = Split(parts(i), Chr$(31))
+            If UBound(f) = 2 Then
+                If Len(f(0)) > 0 And Len(f(0)) < 10 And Len(f(1)) > 0 Then
+                    If Not f(0) Like "*[!0-9]*" Then out.Add Array(CLng(f(0)), f(1), f(2))
+                End If
+            End If
+        End If
+    Next
+Done:
+End Function
+
+Public Function PptTqq_IdxJoin(entries As Collection) As String
+    Dim e As Variant, a() As String, n As Long
+    If entries.Count = 0 Then Exit Function
+    ReDim a(0 To entries.Count - 1)
+    For Each e In entries
+        a(n) = PptTqq_IdxEntry(CLng(e(0)), CStr(e(1)), CStr(e(2)))
+        n = n + 1
+    Next
+    PptTqq_IdxJoin = Join(a, Chr$(30))
+End Function
+
+Public Function PptTqq_IdxSet(idx As String, slideId As Long, shapeName As String, book As String, turnOn As Boolean) As String
+    Dim out As New Collection, e As Variant, nm As String
+    nm = PptTqq_IdxSafeField(shapeName)
+    For Each e In PptTqq_IdxParse(idx)
+        If Not (CLng(e(0)) = slideId And StrComp(CStr(e(1)), nm, vbBinaryCompare) = 0) Then out.Add e
+    Next
+    If turnOn Then out.Add Array(slideId, nm, book)
+    PptTqq_IdxSet = PptTqq_IdxJoin(out)
+End Function
+
+Private Sub PptTqq_TagDelete(o As Object, key As String)
+    On Error Resume Next
+    o.Tags.Delete key
+    Err.Clear
+End Sub
+
+' Medido na C3: Shapes(nome) do PowerPoint acha a forma IGNORANDO a caixa ("tqq_A" e "tqq_a" no slide: os dois nomes acham a primeira), entao
+' a comparacao de nomes aqui e sem diferenciar maiusculas (vbTextCompare), como no core.
+Private Function PptTqq_SlideHasName(sl As Object, nm As String) As Boolean
+    Dim s As Object
+    For Each s In sl.Shapes
+        If StrComp(CStr(s.Name), nm, vbTextCompare) = 0 Then PptTqq_SlideHasName = True: Exit Function
+    Next
+End Function
+
+' Copia de PptSync_EnsureUniqueName do core: separadores do indice no nome viram "_" (medido na revisao da C1: o PowerPoint ACEITA Chr(30) no
+' nome de uma forma) e nome repetido no slide (sem diferenciar maiusculas; outra forma = Shape.Id diferente) vira "_2", "_3"...
+Private Sub PptTqq_EnsureUniqueName(shp As Object)
+    Dim sl As Object, s As Object, base As String, n As Long, clash As Boolean, myId As Long
+    Set sl = shp.Parent
+    base = CStr(shp.Name): myId = CLng(shp.Id)
+    If PptTqq_IdxSafeField(base) <> base Then
+        base = PptTqq_IdxSafeField(base)
+        If Not PptTqq_SlideHasName(sl, base) Then shp.Name = base: Exit Sub
+        clash = True
+    End If
+    If Not clash Then
+        For Each s In sl.Shapes
+            If CLng(s.Id) <> myId And StrComp(CStr(s.Name), base, vbTextCompare) = 0 Then clash = True: Exit For
+        Next
+    End If
+    If Not clash Then Exit Sub
+    For n = 2 To 999
+        If Not PptTqq_SlideHasName(sl, base & "_" & n) Then shp.Name = base & "_" & n: Exit Sub
+    Next
+End Sub
+
+' Formas do ThinQQ (TQQ_CHART) da selecao da janela ativa (formas ou texto dentro de uma forma), so as de um slide (mestre/layout nao tem
+' SlideID e o indice nao as acha). Vazia sem janela/selecao. Nunca propaga erro (chamada pelos callbacks da faixa a cada mudanca de selecao).
+Public Function PptTqq_SelectedTagged() As Collection
+    Dim out As New Collection, sel As Object, sr As Object, shp As Object, i As Long, sid As Long
+    Set PptTqq_SelectedTagged = out
+    On Error Resume Next
+    If Application.Windows.Count = 0 Then Exit Function
+    Set sel = Application.ActiveWindow.Selection
+    If sel Is Nothing Then Exit Function
+    If sel.Type <> 2 And sel.Type <> 3 Then Exit Function          ' ppSelectionShapes, ppSelectionText
+    Set sr = sel.ShapeRange
+    If sr Is Nothing Then Exit Function
+    For i = 1 To sr.Count
+        Set shp = Nothing
+        Set shp = sr(i)
+        If Not shp Is Nothing Then
+            If Len(PptTqq_Tag(shp, PPT_TAG_CHART)) > 0 Then
+                Err.Clear
+                sid = CLng(shp.Parent.SlideID)
+                If Err.Number = 0 Then out.Add shp
+            End If
+        End If
+        Err.Clear
+    Next
+    Err.Clear
+End Function
+
+' Todas as formas dadas sao automaticas (e ha pelo menos uma).
+Public Function PptTqq_ShapesAuto(shapes As Collection) As Boolean
+    Dim s As Object
+    If shapes.Count = 0 Then Exit Function
+    For Each s In shapes
+        If PptTqq_Tag(s, PPT_TAG_AUTO) <> "1" Then Exit Function
+    Next
+    PptTqq_ShapesAuto = True
+End Function
+
+' Liga/desliga "Atualizar automaticamente" (etiqueta + indice da apresentacao), sem o Excel. Mesma ordem do core (PptSync_SetAuto): o nome
+' fica definitivo antes do indice e a etiqueta da forma (a verdade) e gravada antes do indice (o atalho, reconstruido pela sincronizacao).
+Public Sub PptTqq_SetAutoShapes(shapes As Collection, turnOn As Boolean)
+    Dim s As Object, pres As Object, idx As String, book As String
+    For Each s In shapes
+        Set pres = s.Parent.Parent
+        If turnOn Then PptTqq_EnsureUniqueName s
+        If turnOn Then s.Tags.Add PPT_TAG_AUTO, "1" Else PptTqq_TagDelete s, PPT_TAG_AUTO
+        book = PptTqq_SourcePath(PptTqq_LinkSource(s), PptTqq_Tag(s, PPT_TAG_BOOK))
+        idx = PptTqq_IdxSet(PptTqq_Tag(pres, PPT_TAG_INDEX), CLng(s.Parent.SlideID), CStr(s.Name), book, turnOn)
+        If Len(idx) = 0 Then PptTqq_TagDelete pres, PPT_TAG_INDEX Else pres.Tags.Add PPT_TAG_INDEX, idx
+    Next
+End Sub
+
+' Entradas (formato do indice, pasta vazia) das formas dadas: o que Core_PptSyncShapes recebe.
+Public Function PptTqq_EntriesOf(shapes As Collection) As String
+    Dim c As New Collection, s As Object
+    For Each s In shapes
+        c.Add Array(CLng(s.Parent.SlideID), CStr(s.Name), "")
+    Next
+    PptTqq_EntriesOf = PptTqq_IdxJoin(c)
+End Function
+
+' O core tem Core_PptSyncShapes (API por recurso: a sincronizacao ao abrir so exige PPT_REQUIRED_API). Pura.
+Public Function PptTqq_ShapesApiOk(coreApi As Long) As Boolean
+    PptTqq_ShapesApiOk = (coreApi >= PPT_API_SHAPES)
+End Function
+
+' "Atualizar uma vez" das entradas dadas: core com API 2 => Core_PptSyncShapes (o texto do core, inclusive o de PowerPoint ocupado, e
+' exibido como veio); core mais velho => a apresentacao inteira, com o aviso para atualizar o ThinQQ (fromAuto: o de "Atualizar
+' automaticamente"); sem o core => so os dados. Reentrada ignorada; mBusy liberado em todo caminho antes do aviso. Nunca propaga.
+Public Sub PptTqq_SyncEntries(pres As Object, entries As String, force As Boolean, Optional fromAuto As Boolean = False)
+    Dim xl As Object, created As Boolean, core As String, msg As String, v As Variant, en As Long, ed As String
+    If mBusy Then Exit Sub
+    mBusy = True
+    On Error GoTo Fail
+    Set xl = PptTqq_GetExcel(created)
+    If xl Is Nothing Then mBusy = False: PptTqq_Msg PPT_MSG_NO_EXCEL, vbExclamation: Exit Sub
+    core = PptTqq_EnsureCore(xl, created)
+    If Len(core) = 0 Then
+        msg = PptTqq_DataOnly(pres, PptTqq_WorkbookNames(xl)) & vbLf & PPT_MSG_DATA_ONLY
+    ElseIf PptTqq_ShapesApiOk(PptTqq_CoreApi(xl, core)) Then
+        v = xl.Run("'" & core & "'!Core_PptSyncShapes", pres, entries, force)
+        msg = CStr(v)
+    Else
+        msg = PptTqq_RunCoreSync(xl, core, pres, force) & vbLf & IIf(fromAuto, PPT_MSG_AUTO_OLDCORE, PPT_MSG_SEL_OLDCORE)
+    End If
+    PptTqq_Release xl, created
+    mBusy = False
+    PptTqq_Msg msg, vbInformation
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptTqq_Release xl, created
+    mBusy = False
+    PptTqq_Msg PptTqq_ErrorText(en, ed), vbExclamation
+End Sub
+
+' Botao "Atualizar automaticamente": grava a marca (e o indice) e, ao ligar, ja atualiza uma vez so essas formas (como o "Update
+' Automatically" do think-cell). Desligar nao chama o Excel. Nunca propaga erro (falha ao gravar: aviso).
+Public Sub PptTqq_ToggleAuto(shapes As Collection, turnOn As Boolean)
+    Dim pres As Object, en As Long, ed As String
+    If shapes.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
+    On Error GoTo Fail
+    Set pres = shapes(1).Parent.Parent
+    PptTqq_SetAutoShapes shapes, turnOn
+    If turnOn Then PptTqq_SyncEntries pres, PptTqq_EntriesOf(shapes), True, True
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    PptTqq_Msg PptTqq_ErrorText(en, ed), vbExclamation
 End Sub

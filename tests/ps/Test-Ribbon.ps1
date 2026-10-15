@@ -171,6 +171,19 @@ $pns = New-Object Xml.XmlNamespaceManager($px.NameTable); $pns.AddNamespace('u',
 Check ($px.customUI.onLoad -eq 'PptRx_OnLoad') 'ppt: onLoad PptRx_OnLoad'
 Check ($null -eq $px.SelectSingleNode('//u:*[@image]', $pns)) 'ppt: nenhum image= (so imageMso)'
 Check ($null -ne $px.SelectSingleNode("//u:button[@id='btnPptSyncNow'][@onAction='PptRx_OnSync']", $pns)) 'ppt: Atualizar gráficos'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:toggleButton[@id='tglPptAuto'][@getPressed='PptRx_GetAuto'][@onAction='PptRx_OnAuto'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Atualizar automaticamente'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptUpdateSel'][@onAction='PptRx_OnUpdateSel'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Atualizar uma vez'
+# Cada callback da faixa do PowerPoint existe como Public Sub em src/ppt/modules (nome errado = erro silencioso so no clique), com a
+# assinatura certa nos de toggle/getPressed/getEnabled; ids unicos.
+$pptBas = (Get-ChildItem (Join-Path $RepoRoot 'src\ppt\modules') -Filter *.bas | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+$pptCbs = @($px.SelectNodes('//@*') | Where-Object { $_.LocalName -match '^(onLoad|onAction|get[A-Z]\w*)$' } | ForEach-Object { $_.Value } | Sort-Object -Unique)
+Check ($pptCbs.Count -ge 7) "ppt: callbacks lidos do XML ($($pptCbs -join ','))"
+foreach ($cb in $pptCbs) { Check ($pptBas -match "(?m)^Public Sub $([regex]::Escape($cb))\(") "ppt: callback $cb existe (Public Sub)" }
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnAuto\(control As IRibbonControl, pressed As Boolean\)') 'ppt: assinatura do onAction do toggleButton'
+Check ($pptBas -match '(?m)^Public Sub PptRx_GetAuto\(control As IRibbonControl, ByRef \w+\)') 'ppt: assinatura do getPressed'
+Check ($pptBas -match '(?m)^Public Sub PptRx_GetElemEnabled\(control As IRibbonControl, ByRef \w+\)') 'ppt: assinatura do getEnabled'
+$pptIds = @($px.SelectNodes('//u:*[@id]', $pns) | ForEach-Object { $_.GetAttribute('id') })
+Check ($pptIds.Count -eq @($pptIds | Sort-Object -Unique).Count) "ppt: ids unicos ($($pptIds.Count))"
 Check ((@($px.SelectNodes("//u:dropDown[@id='ddOpenMode']/u:item", $pns) | ForEach-Object { $_.id }) -join ',') -eq 'modeask,modealways,modenever') 'ppt: itens de Ao abrir'
 # ---- Carimbo do .ppam (Set-PackageDescription): o PowerPoint grava o suplemento sem docProps; pacotes sinteticos, sem Office
 Add-Type -AssemblyName System.IO.Compression

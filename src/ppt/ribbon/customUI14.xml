@@ -15,6 +15,13 @@
           </dropDown>
           <button id="btnPptAbout" label="Sobre" imageMso="Info" onAction="PptRx_OnAbout" screentip="Sobre o ThinQQ para PowerPoint"/>
         </group>
+        <group id="grpPptElem" label="Gráfico selecionado">
+          <toggleButton id="tglPptAuto" label="Atualizar automaticamente" size="large" imageMso="Refresh"
+                        getPressed="PptRx_GetAuto" onAction="PptRx_OnAuto" getEnabled="PptRx_GetElemEnabled"
+                        screentip="Atualizar automaticamente" supertip="Com o Excel aberto, os gráficos do ThinQQ selecionados passam a acompanhar sozinhos as mudanças da pasta de origem (dados e setas), cerca de 2 segundos depois de cada mudança. Clique de novo para voltar ao manual."/>
+          <button id="btnPptUpdateSel" label="Atualizar uma vez" imageMso="Refresh" onAction="PptRx_OnUpdateSel" getEnabled="PptRx_GetElemEnabled"
+                  screentip="Atualizar uma vez" supertip="Atualiza agora dados e setas só dos gráficos do ThinQQ selecionados."/>
+        </group>
       </tab>
     </tabs>
   </ribbon>

@@ -363,3 +363,246 @@ Public Sub Test_PptTqq_AskText_LongPathsKeepRemoteAndHint()
     AssertTrue Len(s) <= 900, "cabe em 900 (" & Len(s) & ")"
     AssertTrue Right$(s, Len("Para não perguntar mais: aba ThinQQ > Ao abrir.")) = "Para não perguntar mais: aba ThinQQ > Ao abrir.", "a dica fecha a pergunta"
 End Sub
+
+' ---- 1.6.0 (C3): Atualizar automaticamente / Atualizar uma vez ----
+
+' Contrato com o core (TestPptSync.Test_PptIdx_Literal tem as MESMAS cadeias).
+Public Sub Test_PptIdx_Literal()
+    Dim s As String, a As String, b As String, bad As Variant, g As String, c As Collection
+    a = "256" & Chr$(31) & "tqq_abc" & Chr$(31) & "C:\a\b.xlsx"
+    b = "257" & Chr$(31) & "tqq_def" & Chr$(31) & "C:\a\c.xlsx"
+    s = PptTqq_IdxSet("", 256, "tqq_abc", "C:\a\b.xlsx", True)
+    AssertEqual a, s
+    s = PptTqq_IdxSet(s, 257, "tqq_def", "C:\a\c.xlsx", True)
+    AssertEqual a & Chr$(30) & b, s
+    AssertEqual a & Chr$(30) & b, PptTqq_IdxSet(s, 257, "tqq_def", "C:\a\c.xlsx", True), "sem repeticao"
+    AssertEqual b, PptTqq_IdxSet(s, 256, "tqq_abc", "", False)
+    AssertEqual "", PptTqq_IdxSet(a, 256, "tqq_abc", "", False)
+    AssertEqual 2, PptTqq_IdxParse(s & Chr$(30) & "x" & Chr$(31) & "y" & Chr$(31) & "z" & Chr$(30) & Chr$(30)).Count
+    AssertEqual a, PptTqq_IdxEntry(256, "tqq_abc", "C:\a\b.xlsx")
+    ' total para lixo da apresentacao: SlideID so com 1 a 9 algarismos; nada levanta erro
+    For Each bad In Array("9e9", "1E10", "3d9", "&H10", "(5)", " 1", "-1", "1 ", "+1", "1234567890", "", "1.5", "1,5", ChrW$(1633))
+        g = g & CStr(bad) & Chr$(31) & "n" & Chr$(31) & "" & Chr$(30)
+    Next
+    AssertEqual 2, PptTqq_IdxParse(g & s).Count, "SlideID invalido ignorado"
+    AssertEqual 0, PptTqq_IdxParse(Chr$(31) & Chr$(31) & Chr$(31) & Chr$(30) & Chr$(31)).Count, "so separadores"
+    AssertEqual 0, PptTqq_IdxParse("").Count
+    AssertEqual 1, PptTqq_IdxParse("0" & Chr$(31) & "n" & Chr$(31)).Count, "pasta vazia e SlideID 0 sao validos"
+    Set c = PptTqq_IdxParse("999999999" & Chr$(31) & "n" & Chr$(31) & "b")
+    AssertEqual 1, c.Count, "9 algarismos"
+    AssertEqual 999999999, IdxSlide(c, 1)
+    ' separadores nunca entram num campo
+    AssertEqual "1" & Chr$(31) & "a_b" & Chr$(31) & "c_d", PptTqq_IdxEntry(1, "a" & Chr$(30) & "b", "c" & Chr$(31) & "d")
+    AssertEqual 1, PptTqq_IdxParse(PptTqq_IdxSet("", 1, "x" & Chr$(30) & "y" & Chr$(31) & "z", "p" & Chr$(30), True)).Count, "nome com separadores: uma entrada"
+    AssertEqual "", PptTqq_IdxSet(PptTqq_IdxSet("", 1, "x" & Chr$(30) & "y", "", True), 1, "x" & Chr$(30) & "y", "", False), "desligar acha o nome saneado"
+End Sub
+
+' Tetos do indice (iguais aos do core): entradas alem de PPT_IDX_MAX_ENTRIES ignoradas; etiqueta acima de PPT_IDX_MAX_LEN recusada inteira.
+Public Sub Test_PptIdx_Caps()
+    Dim a() As String, i As Long, big As String, c As Collection
+    ReDim a(0 To 2499)
+    For i = 0 To 2499
+        a(i) = PptTqq_IdxEntry(i + 1, "tqq_" & i, "")
+    Next
+    Set c = PptTqq_IdxParse(Join(a, Chr$(30)))
+    AssertEqual 2000, c.Count, "2500 entradas: as 2000 primeiras"
+    AssertEqual 1, IdxSlide(c, 1)
+    AssertEqual 2000, IdxSlide(c, 2000)
+    AssertEqual 2000, PptTqq_IdxParse(PptTqq_IdxSet(Join(a, Chr$(30)), 9999, "nova", "", True)).Count
+    For i = 0 To 2499
+        a(i) = PptTqq_IdxEntry(i + 1, "tqq_" & i, "C:\" & String$(480, "a") & ".xlsx")
+    Next
+    big = Join(a, Chr$(30))
+    AssertTrue Len(big) > 1200000, CStr(Len(big))
+    AssertEqual 0, PptTqq_IdxParse(big).Count, "etiqueta de 1,2 MB recusada"
+    AssertEqual 0, PptTqq_IdxParse(Left$(big, PPT_IDX_MAX_LEN + 1)).Count, "um caractere acima do teto"
+    AssertTrue PptTqq_IdxParse(Left$(big, PPT_IDX_MAX_LEN)).Count > 0, "no teto ainda le"
+End Sub
+
+Private Function IdxSlide(c As Collection, i As Long) As Long
+    Dim v As Variant
+    v = c.Item(i)
+    IdxSlide = CLng(v(0))
+End Function
+
+' Ligar/desligar sem Excel: etiqueta na forma, indice na apresentacao, nome repetido no slide renomeado.
+Public Sub Test_PptTqq_SetAutoShapes_TagsAndIndex()
+    Dim p As Object, s1 As Object, s2 As Object, c As New Collection, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set s1 = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): s1.Name = "tqq_x": s1.Tags.Add PPT_TAG_CHART, "abc123": s1.Tags.Add PPT_TAG_BOOK, "C:\t\a.xlsx"
+    Set s2 = p.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50): s2.Name = "tqq_x": s2.Tags.Add PPT_TAG_CHART, "abc123": s2.Tags.Add PPT_TAG_BOOK, "C:\t\a.xlsx"
+    c.Add s1: c.Add s2
+    AssertFalse PptTqq_ShapesAuto(c)
+    PptTqq_SetAutoShapes c, True
+    AssertEqual "1", s1.Tags(PPT_TAG_AUTO): AssertEqual "1", s2.Tags(PPT_TAG_AUTO)
+    AssertTrue s1.Name <> s2.Name, "nomes unicos no slide"
+    AssertEqual 2, PptTqq_IdxParse(p.Tags(PPT_TAG_INDEX)).Count
+    AssertTrue PptTqq_ShapesAuto(c)
+    PptTqq_SetAutoShapes c, False
+    AssertEqual "", p.Tags(PPT_TAG_INDEX)
+    AssertFalse PptTqq_ShapesAuto(c)
+    AssertEqual PptTqq_IdxEntry(p.Slides(1).SlideID, s1.Name, "") & Chr$(30) & PptTqq_IdxEntry(p.Slides(1).SlideID, s2.Name, ""), PptTqq_EntriesOf(c)
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' "Atualizar uma vez" sem Excel (gancho com Nothing): aviso de Excel ausente, nada quebra.
+Public Sub Test_PptTqq_SyncEntries_NoExcel()
+    Dim p As Object
+    Set p = NewTagged()
+    PptTqq_SetExcelForTest Nothing, ""
+    PptTqq_ClearLastMsg
+    PptTqq_SyncEntries p, PptTqq_IdxEntry(p.Slides(1).SlideID, p.Slides(1).Shapes(1).Name, ""), True
+    AssertEqual PPT_MSG_NO_EXCEL, PptTqq_LastMsg()
+    PptTqq_ResetTestHooks
+    ClosePres p
+End Sub
+
+' Medido (revisao C1, item 13): Shapes(nome) do PowerPoint acha a forma IGNORANDO a caixa (com "tqq_A" e "tqq_a" no slide, os dois nomes
+' acham a primeira). Por isso o nome unico compara sem diferenciar maiusculas: ligar as duas deixa cada entrada do indice achar a sua forma.
+Public Sub Test_PptTqq_SetAutoShapes_CaseOnlyNamesBecomeUnique()
+    Dim p As Object, sl As Object, s1 As Object, s2 As Object, c As New Collection, e As Variant, ids As String, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set sl = p.Slides(1)
+    Set s1 = sl.Shapes.AddShape(1, 10, 10, 50, 50): s1.Name = "tqq_A": s1.Tags.Add PPT_TAG_CHART, "c1"
+    Set s2 = sl.Shapes.AddShape(1, 70, 10, 50, 50): s2.Name = "tqq_a": s2.Tags.Add PPT_TAG_CHART, "c2"
+    AssertEqual CLng(s1.Id), CLng(sl.Shapes("tqq_a").Id), "medido: a busca pelo nome ignora a caixa"
+    AssertEqual CLng(s1.Id), CLng(sl.Shapes("TQQ_A").Id), "medido: a busca pelo nome ignora a caixa (2)"
+    c.Add s1: c.Add s2
+    PptTqq_SetAutoShapes c, True
+    AssertTrue StrComp(CStr(s1.Name), CStr(s2.Name), vbTextCompare) <> 0, "nomes unicos sem diferenciar maiusculas: " & s1.Name & " / " & s2.Name
+    For Each e In PptTqq_IdxParse(CStr(p.Tags(PPT_TAG_INDEX)))
+        ids = ids & CStr(p.Slides.FindBySlideID(CLng(e(0))).Shapes(CStr(e(1))).Id) & ","
+    Next
+    AssertEqual CStr(s1.Id) & "," & CStr(s2.Id) & ",", ids, "cada entrada do indice acha a sua forma"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    Set s1 = Nothing: Set s2 = Nothing: Set sl = Nothing
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' A API e conferida por recurso: a sincronizacao ao abrir continua com a API 1 (cores 1.5.x); "Atualizar uma vez"/automatico pedem a 2.
+Public Sub Test_PptTqq_ApiPerFeature()
+    AssertEqual 1, PPT_REQUIRED_API, "a API exigida para a sincronizacao ao abrir nao subiu"
+    AssertEqual 2, PPT_API_SHAPES
+    AssertFalse PptTqq_ShapesApiOk(1), "core 1.5.x: sem Core_PptSyncShapes"
+    AssertTrue PptTqq_ShapesApiOk(2): AssertTrue PptTqq_ShapesApiOk(3)
+    AssertFalse PptTqq_ShapesApiOk(0)
+End Sub
+
+Private Function NewFakeXl(api As Variant) As TestXlFake
+    Dim f As New TestXlFake
+    f.Api = api
+    Set NewFakeXl = f
+End Function
+
+' Core com a API 2: "Atualizar uma vez" chama Core_PptSyncShapes com as entradas e mostra o resumo (inclusive o texto de ocupado do core).
+Public Sub Test_PptTqq_SyncEntries_Api2_CallsSyncShapes()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String
+    Set p = NewTagged()
+    On Error GoTo Cleanup
+    Set f = NewFakeXl(2)
+    PptTqq_ResetTestHooks
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_ClearLastMsg
+    PptTqq_SyncEntries p, "E1", True
+    AssertEqual "selecionados", PptTqq_LastMsg()
+    AssertEqual "E1", f.LastEntries
+    AssertEqual 0, InStr(f.Calls, "Core_PptSyncPresentation"), f.Calls
+    f.ShapesResult = "O PowerPoint está ocupado."
+    PptTqq_SyncEntries p, "E2", True
+    AssertEqual "O PowerPoint está ocupado.", PptTqq_LastMsg(), "texto do core exibido como veio"
+    f.FailOn = "Core_PptSyncShapes"
+    PptTqq_SyncEntries p, "E3", True
+    AssertTrue InStr(PptTqq_LastMsg(), "Não foi possível atualizar") > 0, PptTqq_LastMsg()
+    f.FailOn = "": f.ShapesResult = ""
+    PptTqq_SyncEntries p, "E4", True
+    AssertEqual "selecionados", PptTqq_LastMsg(), "depois da falha a reentrada foi liberada"
+    AssertEqual "E4", f.LastEntries
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Core 1.5.x (API 1): "Atualizar uma vez" atualiza a apresentacao inteira e diz para atualizar o ThinQQ; ligar o automatico grava a marca e
+' avisa; a sincronizacao ao abrir/botao continua chamando Core_PptSyncPresentation sem aviso de core antigo.
+Public Sub Test_PptTqq_SyncEntries_OldCore_WholePresentation()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String, c As New Collection
+    Set p = NewTagged()
+    On Error GoTo Cleanup
+    Set f = NewFakeXl(1)
+    PptTqq_ResetTestHooks
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_ClearLastMsg
+    PptTqq_SyncEntries p, "E1", True
+    AssertEqual "inteira" & vbLf & PPT_MSG_SEL_OLDCORE, PptTqq_LastMsg()
+    AssertEqual 0, InStr(f.Calls, "Core_PptSyncShapes"), f.Calls
+    c.Add p.Slides(1).Shapes(1)
+    PptTqq_ToggleAuto c, True
+    AssertEqual "1", CStr(p.Slides(1).Shapes(1).Tags(PPT_TAG_AUTO)), "a marca foi gravada"
+    AssertEqual "inteira" & vbLf & PPT_MSG_AUTO_OLDCORE, PptTqq_LastMsg()
+    f.Calls = ""
+    PptTqq_Sync p, True
+    AssertEqual "inteira", PptTqq_LastMsg(), "sincronizacao da apresentacao: API 1 basta"
+    AssertTrue InStr(f.Calls, "Core_PptSyncPresentation") > 0, f.Calls
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Ligar o automatico ja atualiza uma vez so as formas dadas (Core_PptSyncShapes); desligar so tira a marca (nenhuma chamada ao Excel).
+Public Sub Test_PptTqq_ToggleAuto_OnSyncsOff_NoExcel()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String, c As New Collection
+    Set p = NewTagged()
+    On Error GoTo Cleanup
+    Set f = NewFakeXl(2)
+    PptTqq_ResetTestHooks
+    PptTqq_SetExcelForTest f, ""
+    c.Add p.Slides(1).Shapes(1)
+    PptTqq_ToggleAuto c, True
+    AssertTrue PptTqq_ShapesAuto(c)
+    AssertEqual PptTqq_EntriesOf(c), f.LastEntries
+    AssertEqual "selecionados", PptTqq_LastMsg()
+    f.Calls = "": PptTqq_ClearLastMsg
+    PptTqq_ToggleAuto c, False
+    AssertFalse PptTqq_ShapesAuto(c)
+    AssertEqual "", f.Calls, "desligar nao chama o Excel"
+    AssertEqual "", PptTqq_LastMsg()
+    AssertEqual "", CStr(p.Tags(PPT_TAG_INDEX))
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Faixa sem selecao (o PowerPoint do teste nao tem janela): botoes desligados, toggle solto, clique avisa para selecionar.
+Public Sub Test_PptRx_ElemCallbacks_NoSelection()
+    Dim en As Variant, pr As Variant
+    AssertEqual 0, PptTqq_SelectedTagged().Count
+    PptRx_GetElemEnabled Nothing, en
+    AssertFalse CBool(en)
+    PptRx_GetAuto Nothing, pr
+    AssertFalse CBool(pr)
+    PptTqq_ClearLastMsg
+    PptRx_OnUpdateSel Nothing
+    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg()
+    PptTqq_ClearLastMsg
+    PptRx_OnAuto Nothing, True
+    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg()
+    PptRx_InvalidateElem
+End Sub
