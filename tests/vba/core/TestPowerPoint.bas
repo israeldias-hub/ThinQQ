@@ -1,5 +1,7 @@
 Attribute VB_Name = "TestPowerPoint"
 Option Explicit
+' True so no teste com duble (janelas falsas): o pulo nao vai ao log, onde o run-tests conta os testes de PowerPoint real pulados.
+Private mFakeWindows As Boolean
 
 Private Sub Teardown(wb As Workbook)
     Watchers_Stop
@@ -101,6 +103,7 @@ End Sub
 ' dele). Contagem ilegivel: na duvida, e do usuario.
 Public Sub Test_Ppt_ScratchHelpers_RespectProtectedView()
     Dim app As Object, keep As TestPptFake, own As Collection
+    mFakeWindows = True
     Set keep = New TestPptFake
     Set keep.Windows = New Collection: Set keep.Presentations = New Collection
     Set keep.ProtectedViewWindows = New Collection: keep.ProtectedViewWindows.Add New TestPptFake
@@ -121,6 +124,7 @@ Public Sub Test_Ppt_ScratchHelpers_RespectProtectedView()
     Set own = New Collection
     StopScratchPowerPoint app, own
     AssertTrue keep.QuitCalled, "sem janelas nem apresentacoes: encerra"
+    mFakeWindows = False
 End Sub
 
 ' Onda B (B1.3): CreateObject anexa a um PowerPoint ja aberto que a ROT nao ve (aberto so para incorporacao, sem apresentacoes): so e "nosso"
@@ -261,6 +265,7 @@ End Sub
 
 Private Function StartScratchPowerPoint() As Object
     Dim app As Object
+    mFakeWindows = False
     Ppt_ResetTestHooks
     If Ppt_IsRunning() Then Errors_Log "TestPowerPoint: pulado (ha um PowerPoint aberto)": Exit Function
     If PowerPointProcessCount() > 0 Then Errors_Log "TestPowerPoint: pulado (processo POWERPNT existente)": Exit Function
@@ -282,7 +287,7 @@ Private Function UserWindowAppeared(app As Object) As Boolean
     npv = app.ProtectedViewWindows.Count
     On Error GoTo 0
     UserWindowAppeared = (n <> 0 Or npv <> 0)
-    If UserWindowAppeared Then Errors_Log "TestPowerPoint: resto do teste pulado (uma janela apareceu na instancia do teste: PowerPoint do usuario)"
+    If UserWindowAppeared And Not mFakeWindows Then Errors_Log "TestPowerPoint: resto do teste pulado (uma janela apareceu na instancia do teste: PowerPoint do usuario)"
 End Function
 
 ' True se ha uma apresentacao aberta com esse nome na instancia.
