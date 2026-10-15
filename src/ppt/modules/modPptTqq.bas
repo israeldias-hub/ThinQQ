@@ -17,6 +17,8 @@ Public Const PPT_MSG_DATA_ONLY As String = "O ThinQQ não está instalado no Exc
 Public Const PPT_MSG_OLD_CORE As String = "Atualize o ThinQQ no Excel para atualizar também as setas."
 Public Const PPT_MSG_BUSY As String = "O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e use ThinQQ > Atualizar gráficos."
 Public Const PPT_MAX_SOURCES_SHOWN As Long = 5                ' pastas de origem listadas na pergunta ao abrir (depois, "...")
+Public Const PPT_MAX_PATH_SHOWN As Long = 150                 ' caracteres de cada pasta na pergunta (cortada no meio)
+Public Const PPT_MAX_ASK_LEN As Long = 900                    ' tamanho maximo da pergunta (o MsgBox corta perto de 1024)
 Public Const PPT_REQUIRED_API As Long = 1                   ' Core_PptApiVersion minima (spec 4.9); core sem ela ou menor = so os dados
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
 Private Const RPC_E_RETRYLATER As Long = -2147417846
@@ -153,30 +155,68 @@ Public Function PptTqq_OnOpenAction(mode As String, isReadOnly As Boolean, nTagg
     If mode = "always" And Not hasRemoteSource Then PptTqq_OnOpenAction = "sync" Else PptTqq_OnOpenAction = "ask"
 End Function
 
-' Pergunta ao abrir. sources (opcional): as pastas de origem distintas (caminho completo), listadas antes da dica: no maximo
-' PPT_MAX_SOURCES_SHOWN e "..." se houver mais.
+' Pergunta ao abrir. sources (opcional): as pastas de origem distintas, listadas antes da dica (PptTqq_SourcesText: remotas primeiro, no
+' maximo PPT_MAX_SOURCES_SHOWN, cada uma limpa e com no maximo PPT_MAX_PATH_SHOWN caracteres). A pergunta inteira fica em
+' PPT_MAX_ASK_LEN caracteres (o MsgBox corta perto de 1024): a frase da pergunta e a dica sempre aparecem.
 Public Function PptTqq_AskText(n As Long, Optional sources As Collection) As String
-    PptTqq_AskText = "Esta apresentação tem " & n & " gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?" & PptTqq_SourcesText(sources) & vbLf & vbLf & "Para não perguntar mais: aba ThinQQ > Ao abrir."
+    Dim head As String, tail As String
+    head = "Esta apresentação tem " & n & " gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?"
+    tail = vbLf & vbLf & "Para não perguntar mais: aba ThinQQ > Ao abrir."
+    PptTqq_AskText = head & PptTqq_SourcesText(sources, PPT_MAX_ASK_LEN - Len(head) - Len(tail)) & tail
 End Function
 
-' Bloco "Pastas de origem:" da pergunta (vazio sem pastas). Pura.
-Private Function PptTqq_SourcesText(sources As Collection) As String
-    Dim i As Long, s As String
+' Bloco "Pastas de origem:" da pergunta (vazio sem pastas): remotas primeiro (na ordem em que aparecem), depois as locais; para no
+' PPT_MAX_SOURCES_SHOWN-esimo caminho ou quando o proximo passaria do limite budget, com "..." se sobrou alguma. Pura.
+Private Function PptTqq_SourcesText(sources As Collection, budget As Long) As String
+    Dim ordered As New Collection, v As Variant, s As String, ln As String, k As Long, pass As Long
     If sources Is Nothing Then Exit Function
     If sources.Count = 0 Then Exit Function
+    For pass = 1 To 2
+        For Each v In sources
+            If PptTqq_IsRemotePath(CStr(v)) = (pass = 1) Then ordered.Add PptTqq_CleanPath(CStr(v))
+        Next
+    Next
     s = vbLf & vbLf & "Pastas de origem:"
-    For i = 1 To sources.Count
-        If i > PPT_MAX_SOURCES_SHOWN Then s = s & vbLf & "...": Exit For
-        s = s & vbLf & CStr(sources(i))
+    For Each v In ordered
+        ln = vbLf & CStr(v)
+        If k >= PPT_MAX_SOURCES_SHOWN Or Len(s) + Len(ln) + 4 > budget Then s = s & vbLf & "...": Exit For
+        s = s & ln
+        k = k + 1
     Next
     PptTqq_SourcesText = s
 End Function
 
-' Caminho de rede (\\servidor\...) ou endereco http(s). Pura.
+' Caminho para exibir: cada caractere de controle (codigo < 32 ou 127) vira espaco, espacos repetidos viram um, e acima de
+' PPT_MAX_PATH_SHOWN caracteres fica o comeco e o fim com "..." no meio. Pura.
+Public Function PptTqq_CleanPath(p As String) As String
+    Dim i As Long, c As Long, s As String, keepHead As Long
+    s = p
+    For i = 1 To Len(s)
+        c = AscW(Mid$(s, i, 1))
+        If (c >= 0 And c < 32) Or c = 127 Then Mid$(s, i, 1) = " "
+    Next
+    Do While InStr(s, "  ") > 0
+        s = Replace(s, "  ", " ")
+    Loop
+    s = Trim$(s)
+    If Len(s) > PPT_MAX_PATH_SHOWN Then
+        keepHead = (PPT_MAX_PATH_SHOWN - 3) \ 2
+        s = Left$(s, keepHead) & "..." & Right$(s, PPT_MAX_PATH_SHOWN - 3 - keepHead)
+    End If
+    PptTqq_CleanPath = s
+End Function
+
+' Origem remota: caminho de rede (\\servidor\..., inclusive \\?\UNC\ e WebDAV \\servidor@SSL\DavWWWRoot\), com barras normais ou
+' mistas (//servidor/...), endereco http(s) ou URL file: (sempre remota, por cautela). \\?\C:\ (unidade local com prefixo longo) e
+' letras de unidade sao locais: uma unidade de rede mapeada (Z:\) nao e distinguivel aqui (limite documentado). Pura.
 Public Function PptTqq_IsRemotePath(p As String) As Boolean
     Dim t As String
-    t = LCase$(Trim$(p))
-    PptTqq_IsRemotePath = (Left$(t, 2) = "\\" Or Left$(t, 7) = "http://" Or Left$(t, 8) = "https://")
+    t = Replace(LCase$(Trim$(p)), "/", "\")
+    If Left$(t, 5) = "file:" Or Left$(t, 7) = "http:\\" Or Left$(t, 8) = "https:\\" Then PptTqq_IsRemotePath = True: Exit Function
+    If Left$(t, 2) <> "\\" Then Exit Function
+    If Left$(t, 8) = "\\?\unc\" Then PptTqq_IsRemotePath = True: Exit Function
+    If (Left$(t, 4) = "\\?\" Or Left$(t, 4) = "\\.\") And Mid$(t, 6, 1) = ":" Then Exit Function    ' \\?\C:\ ou \\.\C:\: unidade local
+    PptTqq_IsRemotePath = True
 End Function
 
 ' Alguma pasta de origem remota que nao esta entre as abertas no Excel (names: FullName das pastas abertas). Pura.

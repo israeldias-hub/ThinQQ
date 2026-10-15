@@ -204,7 +204,12 @@ Critérios das fases anteriores: (1) gráfico nativo e correto sem o ThinQQ; (2)
   ao clicar "Habilitar Edição", que não dispara a abertura de novo; cada apresentação é tratada **uma vez enquanto a apresentação está aberta; esquecida ao fechar** (`PresentationCloseFinal`), pelo caminho: reabrir pergunta de novo, e "Salvar como" com outro nome ou pasta pode perguntar mais uma vez).
 - **Decisão ao abrir (`PptTqq_OnOpenAction`, pura):** nada sem gráficos marcados, já vista, somente leitura ou modo "nunca"; "sync" no modo
   "sempre"; "ask" no modo "perguntar" (padrão): "Esta apresentação tem N gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os
-  dados atuais?" (Sim/Não). O modo fica em `HKCU\Software\VB and VBA Program Settings\ThinQQ\PowerPoint\OpenMode` (`ask|always|never`),
+  dados atuais?" (Sim/Não), seguida de "Pastas de origem:" (as pastas distintas, caminho completo; as remotas primeiro; no máximo 5 e "...";
+  caracteres de controle viram espaço; cada caminho com até 150 caracteres, cortado no meio; a pergunta inteira com até 900 caracteres, para a
+  dica "Para não perguntar mais" sempre aparecer). **Revisão de segurança:** no modo "sempre", uma pasta de origem remota (`\\servidor\...`,
+  `//servidor/...`, `\\?\UNC\`, WebDAV, `http(s)` ou `file:`) que ainda não está aberta no Excel faz o suplemento perguntar mesmo assim
+  (`hasRemoteSource`); letras de unidade mapeadas não são detectáveis. A sincronização abre as pastas de origem somente leitura e com as macros
+  desligadas (`AutomationSecurity` = 3 durante o `Open`) e as fecha com os eventos desligados. O modo fica em `HKCU\Software\VB and VBA Program Settings\ThinQQ\PowerPoint\OpenMode` (`ask|always|never`),
   apagado pelo desinstalador junto com o resto de `ThinQQ`.
 - **Qual Excel.** (1) o Excel já aberto (`GetObject`) **se** ele tem o core do ThinQQ (`Core_Ping` responde "pong") — usa as pastas abertas
   do usuário, com as alterações não salvas, que é o que o vínculo nativo também lê; (2) senão uma instância **nova e invisível**

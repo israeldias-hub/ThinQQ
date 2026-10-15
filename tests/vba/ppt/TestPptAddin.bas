@@ -310,3 +310,56 @@ Cleanup:
     ClosePres p
     If en <> 0 Then Err.Raise en, "TestPptAddin", ed
 End Sub
+
+' Re-revisao (I1): barras normais e mistas, file:, \\?\UNC\ e WebDAV contam como remotas; \\?\C:\ (unidade local com prefixo longo) e
+' letra de unidade (inclusive mapeada, que nao da para distinguir) contam como locais. Pura.
+Public Sub Test_PptTqq_IsRemotePath_Variants()
+    AssertTrue PptTqq_IsRemotePath("//srv/share/x.xlsx"), "barras normais"
+    AssertTrue PptTqq_IsRemotePath("\/srv\share\x.xlsx"), "barras mistas"
+    AssertTrue PptTqq_IsRemotePath("/\srv/share/x.xlsx"), "barras mistas (2)"
+    AssertTrue PptTqq_IsRemotePath("file://srv/share/x.xlsx"), "file: com servidor"
+    AssertTrue PptTqq_IsRemotePath("FILE:///C:/dados/x.xlsx"), "file: (sempre remota: conservador)"
+    AssertTrue PptTqq_IsRemotePath("\\?\UNC\srv\share\x.xlsx"), "\\?\UNC\"
+    AssertTrue PptTqq_IsRemotePath("\\srv@SSL\DavWWWRoot\x.xlsx"), "WebDAV"
+    AssertTrue PptTqq_IsRemotePath("https://contoso.sharepoint.com/x.xlsx"), "https"
+    AssertTrue PptTqq_IsRemotePath("http:\\intranet\x.xlsx"), "http com barras invertidas"
+    AssertTrue PptTqq_IsRemotePath("  \\srv\x.xlsx"), "espacos antes"
+    AssertFalse PptTqq_IsRemotePath("\\?\C:\dados\x.xlsx"), "\\?\C:\ e unidade local"
+    AssertFalse PptTqq_IsRemotePath("C:/dados/x.xlsx"), "letra de unidade com barras normais"
+    AssertFalse PptTqq_IsRemotePath("Z:\mapeada\x.xlsx"), "unidade mapeada: indistinguivel (limite documentado)"
+End Sub
+
+' Caracteres de controle no caminho viram espaco (nunca criam linha nova na pergunta); repetidos colapsam.
+Public Sub Test_PptTqq_AskText_SanitizesControlChars()
+    Dim c As New Collection, s As String
+    c.Add "C:\a" & vbLf & "Sim, atualize" & vbCr & vbTab & Chr$(127) & ".xlsx"
+    s = PptTqq_AskText(1, c)
+    AssertEqual 5, Len(s) - Len(Replace(s, vbLf, "")), "so as quebras da propria pergunta (2 antes da lista, 1 do caminho, 2 antes da dica): " & s
+    AssertTrue InStr(s, "C:\a Sim, atualize .xlsx") > 0, s
+    AssertEqual 0, InStr(s, vbCr), "sem CR"
+End Sub
+
+' Caminho muito longo: cortado no meio (inicio e fim, no maximo 150), remoto listado primeiro, a dica e a frase da pergunta sempre ficam e
+' a pergunta inteira cabe em 900 caracteres (o MsgBox corta perto de 1024).
+Public Sub Test_PptTqq_AskText_LongPathsKeepRemoteAndHint()
+    Dim c As New Collection, s As String, i As Long, ln As Variant, longest As Long
+    c.Add "C:\" & String$(400, "a") & "\fim.xlsx"
+    c.Add "\\srv\dados\remota.xlsx"
+    s = PptTqq_AskText(2, c)
+    AssertTrue InStr(s, "Pastas de origem:" & vbLf & "\\srv\dados\remota.xlsx") > 0, "remota primeiro: " & s
+    AssertTrue InStr(s, "Para não perguntar mais: aba ThinQQ > Ao abrir.") > 0, "dica"
+    AssertTrue InStr(s, " gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?") > 0, "frase da pergunta"
+    AssertTrue InStr(s, "\fim.xlsx") > 0 And InStr(s, "C:\aaa") > 0 And InStr(s, "...") > 0, "comeco e fim do caminho longo, com reticencias"
+    For Each ln In Split(s, vbLf)
+        If Len(ln) > longest Then longest = Len(ln)
+    Next
+    AssertTrue longest <= 150, "nenhuma linha passa de 150 (" & longest & ")"
+    Set c = New Collection
+    For i = 1 To 5
+        c.Add "C:\" & i & String$(246, "b") & ".xlsx"
+    Next
+    s = PptTqq_AskText(5, c)
+    AssertTrue InStr(s, "Para não perguntar mais: aba ThinQQ > Ao abrir.") > 0, "5 caminhos de 250: dica fica"
+    AssertTrue Len(s) <= 900, "cabe em 900 (" & Len(s) & ")"
+    AssertTrue Right$(s, Len("Para não perguntar mais: aba ThinQQ > Ao abrir.")) = "Para não perguntar mais: aba ThinQQ > Ao abrir.", "a dica fecha a pergunta"
+End Sub

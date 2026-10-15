@@ -608,6 +608,7 @@ $mustDocument = [ordered]@{
     'PowerPoint: abre as pastas da apresentação sem macros; Atualizar sempre só com fontes confiáveis' = @('both', 'abre, somente leitura e com as macros desligadas, as pastas de trabalho para as quais a apresentação aponta')
     'PowerPoint: Atualizar sempre pergunta com origem de rede ou da web não aberta' = @('both', 'pergunta assim mesmo')
     'PowerPoint: a pergunta lista as pastas de origem'               = @('tutorial', 'Pastas de origem:')
+    'PowerPoint: letras de unidade mapeadas não são detectadas como rede' = @('both', 'letras de unidade mapeadas')
     'comparativa: elipses das setas se sobrepõem em gráfico estreito' = @('both', 'elipses das setas podem se sobrepor')
     'comparativa: sem recalibração com menos de 92 pt'               = @('both', '92 pt')
     'comparativa: Mesma escala pode cortar as setas do topo'         = @('both', 'cortar as setas do topo')

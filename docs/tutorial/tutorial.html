@@ -1519,8 +1519,8 @@ figure.gx figcaption span { display: block; margin-top: 3px; }
     <tbody>
       <tr><td><span class="ui">Atualizar gráficos</span></td><td>Atualiza agora, na apresentação ativa, os dados e as setas de todos os gráficos do ThinQQ vinculados, mesmo os que não mudaram, e mostra o resumo. Atualiza também uma apresentação somente leitura (só na memória).</td></tr>
       <tr><td><span class="ui">Ao abrir</span></td><td>O que fazer quando você abre uma apresentação com gráficos do ThinQQ vinculados. A escolha vale para todas as suas apresentações e na hora.</td></tr>
-      <tr><td><span class="ui">Perguntar</span></td><td>O padrão: o suplemento pergunta "Atualizar agora com os dados atuais?", com a lista das pastas de origem (até 5) (Sim atualiza; Não deixa como está).</td></tr>
-      <tr><td><span class="ui">Atualizar sempre</span></td><td>Atualiza sem perguntar. Se alguma pasta de origem estiver numa pasta de rede (<code>\\servidor\...</code>) ou num endereço da web e ainda não estiver aberta no Excel, pergunta assim mesmo, mostrando o caminho. Use só com apresentações de fontes confiáveis.</td></tr>
+      <tr><td><span class="ui">Perguntar</span></td><td>O padrão: o suplemento pergunta "Atualizar agora com os dados atuais?", com a lista das pastas de origem (até 5, as de rede ou da web primeiro; caminhos muito longos aparecem cortados no meio) (Sim atualiza; Não deixa como está).</td></tr>
+      <tr><td><span class="ui">Atualizar sempre</span></td><td>Atualiza sem perguntar. Se alguma pasta de origem estiver num endereço de rede (<code>\\servidor\...</code>) ou da web (<code>http</code>) e ainda não estiver aberta no Excel, pergunta assim mesmo, mostrando o caminho; letras de unidade mapeadas (como <code>Z:\</code>) não são detectadas como rede. Use só com apresentações de fontes confiáveis.</td></tr>
       <tr><td><span class="ui">Não atualizar</span></td><td>Não pergunta nem atualiza ao abrir (o botão <span class="ui">Atualizar gráficos</span> continua valendo).</td></tr>
       <tr><td><span class="ui">Sobre</span></td><td>Mostra a versão do suplemento.</td></tr>
     </tbody>
