@@ -362,6 +362,7 @@ Check ($cl.IndexOf('## [Não lançado]') -ge 0 -and $cl.IndexOf('## [Não lança
 function Test-DeltaChangelogSection([string]$text) {
     $t = $text -replace "`r`n", "`n"
     if ($t -notmatch '(?m)^## \[1\.4\.0\]') { return 'inerte' }
+    if ($t -match '(?m)^## \[1\.5\.0\]') { return 'inerte' }   # 1.5.0 ja publicada: as linhas Delta (1.5.0) pertencem a [1.5.0], nao ha mais o que guardar
     $un = [regex]::Match($t, '(?ms)^## \[Não lançado\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
     $v14 = [regex]::Match($t, '(?ms)^## \[1\.4\.0\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
     if (-not $un.Contains('Delta (1.5.0)')) { return 'as linhas Delta (1.5.0) não estão em [Não lançado]' }
