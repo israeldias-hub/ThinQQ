@@ -619,6 +619,9 @@ $prazo = '60 s sem clique, contados do último clique aceito'
 Check ($html.Contains($prazo)) "tutorial: '$prazo'"
 Check (([regex]::Matches($readme, [regex]::Escape($prazo))).Count -ge 2) "README (limitações e item manual 58): '$prazo'"
 Check ($specDelta.Contains($prazo)) "especificação do delta: '$prazo'"
+$undoDelta = 'Inserir ou alternar o texto do delta limpa o Desfazer do Excel (como as demais setas)'
+Check ($html.Contains($undoDelta) -and $readme.Contains($undoDelta)) "tutorial (#delta, Editar, atualizar e apagar) e README (Limitações): '$undoDelta'"
+Check ($mvDelta.Contains('ao fechar o Excel pode perguntar se quer salvar (o marcador de origem é removido ao fechar)')) 'README item manual 58: Ctrl+S com o modo armado - o Excel pode perguntar se quer salvar ao fechar'
 foreach ($velho in 'os cliques não o renovam', 'um clique não o renova', 'conta a partir de quando o modo é armado', 'conta de quando o modo é armado', '60 s depois de armado') {
     Check (-not $html.Contains($velho) -and -not $readme.Contains($velho) -and -not $specDelta.Contains($velho)) "prazo do delta: nenhum documento diz '$velho'"
 }
