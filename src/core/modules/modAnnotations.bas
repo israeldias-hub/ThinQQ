@@ -603,12 +603,15 @@ Private Sub Ann_DrawDelta(cht As Chart, rec As Variant)
     If Not lbl Is Nothing Then Ann_ClampShape cht, lbl
 End Sub
 
-' Formas de delta orfas (perna ou rotulo cuja linha principal foi apagada a mao) sao apagadas.
+' Formas de delta orfas (perna ou rotulo cuja linha principal foi apagada a mao) sao apagadas; e a moldura do delta por cliques
+' (tqq_pickmark) de um grafico que nao esta armado (pasta salva/fechada com o modo armado).
 Private Sub Ann_DeltaCleanup(cht As Chart)
     Dim i As Long, nm As String, k As String
     For i = cht.Shapes.Count To 1 Step -1
         nm = cht.Shapes(i).Name
-        If Left$(nm, Len(ANN_DELTA)) = ANN_DELTA Then
+        If nm = DELTAPICK_MARK Then
+            If Not DeltaPick_IsArmedFor(cht) Then cht.Shapes(i).Delete
+        ElseIf Left$(nm, Len(ANN_DELTA)) = ANN_DELTA Then
             k = Ann_ParseParam(cht.Shapes(i).AlternativeText, "kind")
             If k = "deltaleg" Or k = "label" Then
                 If Ann_Shape(cht, Ann_ParseParam(cht.Shapes(i).AlternativeText, "owner")) Is Nothing Then cht.Shapes(i).Delete

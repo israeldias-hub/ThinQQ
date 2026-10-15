@@ -50,6 +50,7 @@ End Sub
 
 Public Sub Core_OnUnload()
     On Error Resume Next
+    DeltaPick_Disarm ""                  ' Esc e OnTime nunca ficam presos ao core descarregado (o OnTime reabriria o core)
     Watchers_Stop
     Set mMismatchSeen = Nothing
     Set mClipSeen = Nothing
@@ -547,6 +548,25 @@ Fail:
     Else
         Errors_Handle "Core_AddDelta"
     End If
+End Sub
+
+' Botao "Delta clicando nas barras": arma o modo de dois cliques no grafico ativo (ou cancela, se ja estava armado nele). Grafico ainda sem
+' observador (colado/copiado: Watchers so religa na troca de planilha) e religado antes, senao os cliques nao chegariam. Nunca propaga.
+Public Sub Core_DeltaPick()
+    Dim c As Chart, refusal As String
+    On Error GoTo Fail
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Core_Notify "Selecione um gráfico do ThinQQ antes de inserir o delta.", vbInformation: Exit Sub
+    If DeltaPick_IsArmedFor(c) Then DeltaPick_Disarm DELTAPICK_MSG_CANCEL: Exit Sub
+    refusal = Ann_RefusalText(c, "delta")
+    If Len(refusal) > 0 Then Core_Notify refusal, vbInformation: Exit Sub
+    If TypeName(c.Parent) <> "ChartObject" Then Core_Notify ANN_DELTA_REFUSAL, vbInformation: Exit Sub
+    If c.Parent.Parent.ProtectDrawingObjects Then Core_Notify DELTAPICK_MSG_PROTECTED, vbExclamation: Exit Sub
+    If Not Watchers_IsWatched(c) Then Watchers_Rehook
+    DeltaPick_Arm c
+    Exit Sub
+Fail:
+    Errors_Handle "Core_DeltaPick"          ' DeltaPick_Arm tem tratador proprio (desarma); antes dele nada foi mexido
 End Sub
 
 ' Abre o formulário de categorias (allowSame: o colchete aceita a mesma atividade nas duas pontas). Nunca abre em build de teste (modal

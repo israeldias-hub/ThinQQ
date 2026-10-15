@@ -63,6 +63,21 @@ Public Function Watchers_LoaderName() As String
     Watchers_LoaderName = mLoaderName
 End Function
 
+' True se o grafico (pelo nome do ChartObject, da planilha e da pasta) tem observador. Nunca propaga erro.
+Public Function Watchers_IsWatched(cht As Chart) As Boolean
+    Dim w As clsChartWatcher, key As String
+    On Error Resume Next
+    If mWatchers Is Nothing Then Exit Function
+    key = cht.Parent.Parent.Parent.Name & "|" & cht.Parent.Parent.Name & "|" & cht.Parent.Name
+    If Err.Number <> 0 Then Exit Function
+    For Each w In mWatchers
+        If w.Cht.Parent.Parent.Parent.Name & "|" & w.Cht.Parent.Parent.Name & "|" & w.Cht.Parent.Name = key Then
+            If Err.Number = 0 Then Watchers_IsWatched = True: Exit Function
+        End If
+        Err.Clear
+    Next
+End Function
+
 Public Function Watchers_Count() As Long
     If mWatchers Is Nothing Then Exit Function
     Watchers_Count = mWatchers.Count
