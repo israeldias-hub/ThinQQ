@@ -50,6 +50,7 @@ End Sub
 
 Public Sub Core_OnUnload()
     On Error Resume Next
+    DeltaPick_Disarm ""                  ' Esc e OnTime nunca ficam presos ao core descarregado (o OnTime reabriria o core)
     Watchers_Stop
     Set mMismatchSeen = Nothing
     Set mClipSeen = Nothing
@@ -528,6 +529,66 @@ Fail:
         Errors_Handle "Core_AddAnnotation(" & kind & ")"
     End If
 End Sub
+
+' Delta entre duas barras (Parte B): referencias "k:c" (modDelta). Chamado pelo modo de dois cliques (com o grafico) e pelo gerador da
+' demonstracao (Application.Run, grafico ativo). Recusas 7001 (tipo) e 7003 (mesma barra/referencia invalida) viram aviso. Nunca propaga.
+Public Sub Core_AddDelta(fromRef As String, toRef As String, Optional fmt As String = "both", Optional cht As Chart = Nothing)
+    Dim c As Chart
+    On Error GoTo Fail
+    If cht Is Nothing Then Set c = Core_ActiveChart() Else Set c = cht
+    If c Is Nothing Then Exit Sub
+    If fmt <> "abs" And fmt <> "pct" Then fmt = "both"
+    Ann_AddDelta c, fromRef, toRef, fmt
+    Core_SafeRefresh c                       ' quem insere sem desenhar (gerador da demonstracao) termina com o refresh completo...
+    Ann_EnsureRoomAfterChange c              ' ...que pode mudar escalas (combinacao: a faixa da linha acima dos totais): a sala do delta de novo
+    Exit Sub
+Fail:
+    If Err.Number = vbObjectError + 7001 Or Err.Number = vbObjectError + 7003 Then
+        Core_Notify Err.Description, vbInformation
+    Else
+        Errors_Handle "Core_AddDelta"
+    End If
+End Sub
+
+' Botao "Delta clicando nas barras": arma o modo de dois cliques no grafico ativo (ou cancela, se ja estava armado nele). Grafico ainda sem
+' observador (colado/copiado: Watchers so religa na troca de planilha) e religado antes, senao os cliques nao chegariam. Nunca propaga.
+Public Sub Core_DeltaPick()
+    Dim c As Chart, refusal As String
+    On Error GoTo Fail
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Core_Notify "Selecione um gráfico do ThinQQ antes de inserir o delta.", vbInformation: Exit Sub
+    If DeltaPick_IsArmedFor(c) Then DeltaPick_Disarm DELTAPICK_MSG_CANCEL: Exit Sub
+    refusal = Ann_RefusalText(c, "delta")
+    If Len(refusal) > 0 Then Core_Notify refusal, vbInformation: Exit Sub
+    If TypeName(c.Parent) <> "ChartObject" Then Core_Notify ANN_DELTA_REFUSAL, vbInformation: Exit Sub
+    If c.Parent.Parent.ProtectDrawingObjects Then Core_Notify DELTAPICK_MSG_PROTECTED, vbExclamation: Exit Sub
+    If Not Watchers_IsWatched(c) Then Watchers_Rehook
+    DeltaPick_Arm c
+    Exit Sub
+Fail:
+    Errors_Handle "Core_DeltaPick"          ' DeltaPick_Arm tem tratador proprio (desarma); antes dele nada foi mexido
+End Sub
+
+' Botao "Delta: valor / % / ambos": alterna o texto da seta de delta selecionada (ou de todas do grafico). Sem grafico do ThinQQ ou numa
+' planilha protegida (as setas nao podem mudar), avisa. Nunca propaga.
+Public Sub Core_DeltaCycleFormat()
+    Dim c As Chart
+    On Error GoTo Fail
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Core_Notify DELTA_MSG_NOCHART_FMT, vbInformation: Exit Sub
+    If Core_DrawingsProtected(c) Then Core_Notify DELTAPICK_MSG_PROTECTED, vbExclamation: Exit Sub
+    If Ann_CycleDeltaFormat(c, Ann_SelectedDeltaName()) = 0 Then Core_Notify DELTA_NONE, vbInformation
+    Exit Sub
+Fail:
+    Errors_Handle "Core_DeltaCycleFormat"
+End Sub
+
+' True se o grafico esta numa planilha com os objetos de desenho protegidos (folha de grafico ou duvida: False). Nunca propaga.
+Private Function Core_DrawingsProtected(c As Chart) As Boolean
+    On Error Resume Next
+    If TypeName(c.Parent) = "ChartObject" Then Core_DrawingsProtected = c.Parent.Parent.ProtectDrawingObjects
+    Err.Clear
+End Function
 
 ' Abre o formulário de categorias (allowSame: o colchete aceita a mesma atividade nas duas pontas). Nunca abre em build de teste (modal
 ' travaria o Excel invisível).

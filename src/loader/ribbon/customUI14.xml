@@ -158,11 +158,17 @@
           </menu>
           <!-- Setas: o menu so exige um grafico (sem tag); cada seta consulta a matriz pela propria tag. -->
           <menu id="mnuArrows" label="Setas" image="tqq_arrows16" getEnabled="Rx_GetEnabled"
-                screentip="Setas e colchetes" supertip="Seta de CAGR e de diferença entre duas categorias; colchete sobre atividades do Gantt; setas de variação da cascata comparativa.">
+                screentip="Setas e colchetes" supertip="Seta de CAGR e de diferença entre duas categorias; delta entre duas barras escolhidas com o mouse; colchete sobre atividades do Gantt; setas de variação da cascata comparativa.">
             <button id="btnCagr" label="Seta CAGR" imageMso="ArrowsMore" tag="cagr" onAction="Rx_OnAnnotation"
                     getEnabled="Rx_GetEnabled" screentip="Seta de crescimento anual composto entre duas categorias"/>
             <button id="btnDiff" label="Seta diferença" imageMso="ShapeUpArrow" tag="diff" onAction="Rx_OnAnnotation"
                     getEnabled="Rx_GetEnabled" screentip="Seta com a diferença absoluta e relativa entre dois totais"/>
+            <button id="btnDelta" label="Delta clicando nas barras" image="tqq_arrows16" tag="delta" onAction="Rx_OnDelta"
+                    getEnabled="Rx_GetEnabled" screentip="Delta clicando nas barras"
+                    supertip="Clique aqui e depois em duas barras do gráfico (origem e destino): a seta mostra a diferença em valor e em % entre elas. Esc ou um clique numa célula cancela."/>
+            <button id="btnDeltaFmt" label="Delta: valor / % / ambos" image="tqq_arrows16" tag="delta" onAction="Rx_OnDeltaFormat"
+                    getEnabled="Rx_GetEnabled" screentip="Texto do delta"
+                    supertip="Alterna o texto da seta de delta selecionada (ou de todas do gráfico, sem nenhuma selecionada): valor e %, só o valor, só o %."/>
             <button id="btnBracket" label="Colchete (Gantt)" imageMso="ShapeRightBrace" tag="bracket" onAction="Rx_OnAnnotation"
                     getEnabled="Rx_GetEnabled" screentip="Colchete sobre uma ou mais atividades do Gantt, com o seu período"/>
             <toggleButton id="tglPairDiff" label="Setas de variação" image="tqq_arrows16" tag="pairdiff"

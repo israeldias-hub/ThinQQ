@@ -11,10 +11,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - Excel: PowerPoint > Atualizar gráficos no PowerPoint (atualiza dados e setas dos gráficos vinculados das apresentações abertas; funciona sem o suplemento do PowerPoint).
 - Atualização: o Excel também atualiza o suplemento do PowerPoint (com o PowerPoint aberto, quando ele fechar), só para quem o instalou pelo ZIP; opção "Atualizar também o suplemento do PowerPoint" na janela de atualização e em ThinQQ > Configurações.
 - Instalação: o instalador do ZIP instala o `ThinQQ.ppam` (registro `PowerPoint\AddIns\ThinQQ` e Local Confiável `LocationThinQQ` do PowerPoint; o desinstalador os remove); um ZIP anterior à 1.4.0, sem o `.ppam`, continua instalando só o Excel. O release passa a publicar 6 assets (inclui `ThinQQ.ppam`) e a assinar o `.ppam` com os `.xlam`.
+- Delta (1.5.0): Delta entre barras: Setas > Delta clicando nas barras insere uma seta com a diferença (valor e %) entre quaisquer duas barras, escolhidas com dois cliques; Delta: valor / % / ambos alterna o texto.
 
 ### Alterado
 - Faixa do Excel: o menu PowerPoint fica sempre ativo (só os dois itens de copiar exigem um gráfico selecionado).
 - Documentação: tutorial (seção Copiar para o PowerPoint reescrita, atualizações, instalação, problemas e limitações), README (instalação, verificações manuais 43 a 54, limitações) e `installer/LEIA-ME.txt` (instalação manual do suplemento e requisito do PowerPoint 16.0); `Test-Docs` confere os rótulos da faixa do PowerPoint, as mensagens e os arquivos da release.
+- Delta (1.5.0): faixa do Excel: o menu Setas ganha Delta clicando nas barras e Delta: valor / % / ambos (ativos nos tipos que aceitam o delta; coluna Delta na tabela do tutorial).
+- Delta (1.5.0): exemplos: o exemplo 3 de ThinQQ > Exemplos (colunas agrupadas) e o E02 da pasta de demonstração (com a imagem na galeria do tutorial) ganham um delta; as contagens de exemplos não mudam.
+- Delta (1.5.0): documentação: tutorial (seção Delta entre barras, mensagens e limitações), README (recursos, verificações manuais 55 a 60, limitações) e a especificação (regra do lado de baixo na seção 5.3); o Test-Docs confere as mensagens e os limites novos.
 
 ### Corrigido
 - Copiar como gráfico vinculado: as setas e rótulos de seta não ficam mais esticados e fora do lugar quando o PowerPoint ajusta o gráfico ao slide.

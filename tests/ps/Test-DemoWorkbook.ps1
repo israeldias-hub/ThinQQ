@@ -160,6 +160,7 @@ try {
             'palette'      = { param($i, $co, $ws) $i.Opt['palette'] -eq 'cinza' }
             'cagr'         = { param($i, $co, $ws) Test-HasShape $co 'tqq_ann_cagr_' }
             'diff'         = { param($i, $co, $ws) Test-HasShape $co 'tqq_ann_diff_' }
+            'delta'        = { param($i, $co, $ws) Test-HasShape $co 'tqq_ann_delta_' }
             'bracket'      = { param($i, $co, $ws) Test-HasShape $co 'tqq_ann_bracket_' }
             'vline'        = { param($i, $co, $ws) $i.Opt['vline'] -eq '1' }
             'ind100'       = { param($i, $co, $ws) $i.Opt['ind100'] -eq '1' -and (Test-HasShape $co 'tqq_ann_ind') }

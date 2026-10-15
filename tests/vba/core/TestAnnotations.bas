@@ -85,6 +85,25 @@ Public Sub Test_Ann_AddDifference_LabelText()
     CloseTemp wb
 End Sub
 
+' Seta de diferenca com os formatos de escala: "mil" e "mi" (virgulas finais do Excel) dividem o valor como o rotulo das colunas mostra.
+Public Sub Test_Ann_Difference_ScaledFormats()
+    Dim wb As Workbook, cht As Chart, ws As Worksheet, d As clsChartData
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Ano", "Sul", "Norte")
+    ws.Range("A2:C2").Value = Array(2022, 1000000, 500000)
+    ws.Range("A3:C3").Value = Array(2023, 2500000, 1000000)
+    Set d = ChartData_FromRange(ws.Range("A1:C3"))
+    Set cht = Stacked_Insert(ws, d, "stacked").Chart
+    Ann_AddDifference cht, 1, 2                                     ' 1.500.000 -> 3.500.000: +2.000.000 (+133%)
+    Registry_SetOption cht, "numfmt", "mil"
+    Ann_Refresh cht
+    AssertEqual "+" & Format$(2000, "#,##0") & " (+133%)", cht.Shapes("tqq_ann_diff_1_lbl").TextFrame2.TextRange.Text, "milhares"
+    Registry_SetOption cht, "numfmt", "mi"
+    Ann_Refresh cht
+    AssertEqual "+" & Format$(2, "0.0") & " (+133%)", cht.Shapes("tqq_ann_diff_1_lbl").TextFrame2.TextRange.Text, "milhoes"
+    CloseTemp wb
+End Sub
+
 Public Sub Test_Ann_Refresh_FollowsData()
     Dim wb As Workbook, cht As Chart, lbl As Shape
     Set wb = NewTempWorkbook(): Set cht = StackedFixture(wb)

@@ -34,6 +34,34 @@ foreach ($d in 'src\core', 'src\loader', 'tests\vba\core', 'tests\vba\loader') {
 }
 $regLit | ForEach-Object { Write-Host "  nome fixo do registro: $_" }
 Check ($regLit.Count -eq 0) 'registro do atualizador sem nome fixo "ThinQQ" (build Test usa ThinQQ.Test)'
+# Nenhum fonte VBA (core, loader e testes) inicia processo filho (powershell/cmd/wscript..., Shell(), .Exec): o antivirus/EDR da maquina
+# trata "Excel que salvou/vinculou uma pasta e depois roda powershell.exe" como documento malicioso e encerra o Excel (a suite completa do
+# core morria com 0x800706BE no Test_Wfp_Connectors_SavedXml_HoldsErrBarsOnBlock). Linhas de comentario sao ignoradas.
+# Shell() e VBA.Shell(); .Run com um executavel literal (.exe/.bat/.cmd/.ps1/.vbs/.js: WScript.Shell.Run); Application.Run de macro passa.
+$spawnRx = '(?i)("\s*(powershell|pwsh|cmd|wscript|cscript|mshta|rundll32|regsvr32)(\.exe)?(\s|"))|((^|[^\w])(VBA\.)?Shell\s*\()|(\.Exec\s*[("])|(\.Run\s*\(?\s*"+[^"]*\.(exe|bat|cmd|ps1|vbs|js)\b)'
+function Find-VbaSpawn([string[]]$Lines, [string]$Name) {
+    $hits = @()
+    for ($i = 0; $i -lt $Lines.Count; $i++) {
+        $l = $Lines[$i].TrimStart()
+        if ($l.StartsWith("'")) { continue }
+        if ($l -match $spawnRx) { $hits += "$($Name):$($i + 1)" }
+    }
+    return , $hits
+}
+Check ((Find-VbaSpawn @('    sh.Run "powershell.exe -NoProfile -File " & q & p & q, 0, True') 'x.bas').Count -eq 1) 'pega processo filho (powershell)'
+Check ((Find-VbaSpawn @('    x = Shell("cmd /c dir")', '    CreateObject("WScript.Shell").Exec("x")') 'y.bas').Count -eq 2) 'pega Shell() e .Exec'
+Check ((Find-VbaSpawn @("    ' le o XML sem PowerShell", '    v = CreateObject("WScript.Shell").RegRead(k)', '    Application.Run "x"', '    Set sh = CreateObject("Shell.Application")') 'z.bas').Count -eq 0) 'ignora comentario, RegRead, Application.Run e Shell.Application'
+Check ((Find-VbaSpawn @('    pid = VBA.Shell("notepad.exe " & f, vbHide)', '    VBA.Shell ("x")') 'v.bas').Count -eq 2) 'pega VBA.Shell('
+Check ((Find-VbaSpawn @('    sh.Run "C:\ferramentas\atualiza.exe", 0, True', '    sh.Run("setup.bat")', '    o.Run "x.ps1 -a"', '    sh.Run """C:\a b\c.vbs"""') 'w.bas').Count -eq 4) 'pega .Run com executavel literal (.exe/.bat/.ps1/.vbs)'
+Check ((Find-VbaSpawn @('    Application.Run "''" & wb.Name & "''!modX.Proc"', '    Application.Run "Pasta1.xlsm!Macro", 1', '    xl.Run("ThinQQ.core.xlam!Core_Refresh")') 'u.bas').Count -eq 0) 'ignora Application.Run de macro (sem executavel)'
+$spawn = @()
+foreach ($d in 'src\core', 'src\loader', 'src\ppt', 'tests\vba') {
+    Get-ChildItem -LiteralPath (Join-Path $RepoRoot $d) -Recurse -File -Include '*.bas', '*.cls', '*.vba' | ForEach-Object {
+        $spawn += Find-VbaSpawn @(Get-Content -LiteralPath $_.FullName -Encoding utf8) $_.FullName
+    }
+}
+$spawn | ForEach-Object { Write-Host "  processo filho no VBA: $_" }
+Check ($spawn.Count -eq 0) 'nenhum fonte VBA inicia processo filho (o EDR encerra o Excel da suite)'
 $real = Test-VbaLint $RepoRoot
 $real | ForEach-Object { Write-Host $_ }
 Check ($real.Count -eq 0) 'fontes reais sem erros de continuacao de linha'

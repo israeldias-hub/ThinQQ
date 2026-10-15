@@ -66,6 +66,9 @@ Private Sub CheckSheet1Create(wb As Workbook)
     AssertTrue InStr(kinds, "stacked100;") > 0, kinds
     AssertTrue Not ws.ChartObjects(1).Chart.Shapes("tqq_ann_cagr_1") Is Nothing
     AssertTrue Not ws.ChartObjects(1).Chart.Shapes("tqq_ann_diff_1") Is Nothing
+    AssertEqual "clustered", Registry_ChartType(ws.ChartObjects(3).Chart), "3: colunas agrupadas"
+    AssertTrue HasShape(ws.ChartObjects(3).Chart, "tqq_ann_delta_1"), "3: o exemplo de colunas agrupadas tem um delta"
+    AssertEqual "kind=delta;v=1;from=1:1;to=2:4;fmt=both", ws.ChartObjects(3).Chart.Shapes("tqq_ann_delta_1").AlternativeText, "3: delta da Loja T1 ao Online T4"
     AssertTrue HasDiffArrow(ws.ChartObjects(2).Chart, 1, 6), "2: a cascata tem a seta de diferenca da primeira a ultima barra"
     AssertFalse HasDiffArrow(ws.ChartObjects(6).Chart, 1, 6), "6: a outra cascata nao tem seta"
     AssertEqual "e", LCase$(ws.Range("B27").Value)

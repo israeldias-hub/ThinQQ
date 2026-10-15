@@ -14,9 +14,15 @@ Private Const ANN_BRACKET_Y0 As Double = 25     ' linha do 1o colchete: 25 pt ac
 Private Const ANN_BRACKET_STEP As Double = 20   ' cada colchete a mais sobe 20 pt: os tiques do de cima (5 pt) ficam acima do rotulo do de baixo (13,1 pt)
 Private Const ANN_BRACKET_ROOM As Double = 42   ' folga (pt) acima da area interna com um colchete: 25 + rotulo de 13,1 + respiro; +20 por colchete
 Private Const ANN_BRACKET_MAX_FRACTION As Double = 0.4  ' teto da folga dos colchetes: 40% da altura do grafico (com muitos colchetes o passo encolhe)
+Private Const ANN_DELTA As String = "tqq_ann_delta_"      ' prefixo das setas de delta (linha principal nm; pernas nm_t1/nm_t2; rotulo nm_lbl)
+Private Const ANN_DELTA_MIN_PLOT As Double = 0.3          ' a sala do delta nunca deixa a area interna menor que 30% do grafico no sentido dos valores
+Private mDeltaOutLo As Double       ' extensao das setas de delta postas no ultimo Ann_LayoutDeltas, no sentido dos valores (pt): menor e maior
+Private mDeltaOutHi As Double       ' coordenada ocupada (linha principal +- meia espessura do rotulo); mDeltaPlaced = 0 sem seta visivel
+Private mDeltaPlaced As Long
 Public Const ANN_BRACKET_REFUSAL As String = "O colchete só está disponível em gráficos Gantt."
+Public Const ANN_DELTA_REFUSAL As String = "O delta entre barras não está disponível para este tipo de gráfico."
 
-' Texto da recusa (erro 7001) de uma anotação ("cagr", "diff" ou "bracket") pela matriz de tipos; "" quando o gráfico a suporta. Fonte única
+' Texto da recusa (erro 7001) de uma anotação ("cagr", "diff", "bracket" ou "delta") pela matriz de tipos; "" quando o gráfico a suporta. Fonte única
 ' das mensagens: Ann_AddCagr/Ann_AddDifference/Ann_AddBracket as levantam e Core_AddAnnotation a consulta ANTES de qualquer outra verificação
 ' (formulário de categorias, mínimo de categorias), para uma pizza ou um Gantt de uma linha receberem a mensagem do tipo.
 Public Function Ann_RefusalText(cht As Chart, kind As String) As String
@@ -34,6 +40,8 @@ Public Function Ann_RefusalText(cht As Chart, kind As String) As String
             End If
         Case "bracket"
             Ann_RefusalText = ANN_BRACKET_REFUSAL
+        Case "delta"
+            Ann_RefusalText = ANN_DELTA_REFUSAL
     End Select
 End Function
 
@@ -221,12 +229,16 @@ Private Sub Ann_EnsureRoom(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Ann_EnsureRoom" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
 
-' Reexecuta a folga das setas depois de uma mudança posterior à criação (legenda, formato numérico dos rótulos, tamanho do
-' gráfico): Ann_EnsureRoom só roda ao inserir a seta, e a legenda ligada depois, um rótulo de total mais largo ou um gráfico
-' redimensionado podem deixar a seta e o rótulo sob a legenda ou fora da folga. Só reduz a área de plotagem. Sem setas não faz nada.
+' Reexecuta a folga das setas depois de uma mudança posterior à criação (legenda, formato numérico dos rótulos, decorações, corte de
+' eixo; chamada por Chart_EnsureRoomAfterChange): Ann_EnsureRoom só roda ao inserir a seta, e a legenda ligada depois ou um rótulo de
+' total mais largo podem deixar a seta e o rótulo sob a legenda ou fora da folga. NÃO roda ao redimensionar o gráfico à mão (Cht_Resize
+' só reposiciona as setas). Só reduz a área de plotagem. Sem setas não faz nada.
 Public Sub Ann_EnsureRoomAfterChange(cht As Chart)
-    If Ann_CountPrefix(cht, ANN_PREFIX & "cagr_") + Ann_CountPrefix(cht, ANN_PREFIX & "diff_") + Ann_CountPrefix(cht, ANN_BRACKET) = 0 Then Exit Sub
+    Dim nDelta As Long
+    nDelta = Ann_CountPrefix(cht, ANN_DELTA)
+    If Ann_CountPrefix(cht, ANN_PREFIX & "cagr_") + Ann_CountPrefix(cht, ANN_PREFIX & "diff_") + Ann_CountPrefix(cht, ANN_BRACKET) + nDelta = 0 Then Exit Sub
     Ann_EnsureRoom cht
+    If nDelta > 0 Then Ann_EnsureDeltaRoom cht
 End Sub
 
 ' Afastamento extra da seta de CAGR quando os totais estão ligados (definição única: layout e folga usam a mesma).
@@ -361,6 +373,408 @@ Public Function Ann_AddBracket(cht As Chart, fromIdx As Long, toIdx As Long) As 
     Set Ann_AddBracket = ln
 End Function
 
+' Delta entre duas barras (Parte B): linha principal nm (kind=delta;v=1;from;to;fmt), pernas nm_t1 (da origem) e nm_t2 (com a ponta no
+' destino; kind=deltaleg;owner=nm) e o rotulo nm_lbl. Ann_LayoutDeltas posiciona; Ann_EnsureDeltaRoom abre a sala. Recusas: 7001 (matriz),
+' 7003 (mesma barra ou referencia inexistente). Transacional: falha no meio apaga as formas criadas.
+Public Function Ann_AddDelta(cht As Chart, fromRef As String, toRef As String, Optional fmt As String = "both") As Shape
+    Dim nm As String, ln As Shape, t As Shape, sfx As Variant, refusal As String, v As Double, lo As Double, hi As Double, en As Long, ed As String
+    refusal = Ann_RefusalText(cht, "delta")
+    If Len(refusal) > 0 Then Err.Raise vbObjectError + 7001, "Ann_AddDelta", refusal
+    If fromRef = toRef Then Err.Raise vbObjectError + 7003, "Ann_AddDelta", DELTA_BAD_PICK
+    If Not Delta_Extent(cht, fromRef, v, lo, hi) Then Err.Raise vbObjectError + 7003, "Ann_AddDelta", DELTA_BAD_PICK
+    If Not Delta_Extent(cht, toRef, v, lo, hi) Then Err.Raise vbObjectError + 7003, "Ann_AddDelta", DELTA_BAD_PICK
+    nm = Ann_NewName(cht, "delta")
+    On Error GoTo Fail
+    Set ln = cht.Shapes.AddLine(0, 0, 10, 0)
+    ln.Name = nm
+    ln.AlternativeText = "kind=delta;v=1;from=" & fromRef & ";to=" & toRef & ";fmt=" & fmt
+    Ann_StyleDeltaLine ln, False
+    For Each sfx In Array("_t1", "_t2")
+        Set t = cht.Shapes.AddLine(0, 0, 0, 10)
+        t.Name = nm & sfx
+        t.AlternativeText = "kind=deltaleg;owner=" & nm
+        Ann_StyleDeltaLine t, (sfx = "_t2")
+    Next
+    Ann_AddLabel cht, nm
+    If BUILD_CONFIG = "Test" Then
+        If Util_FailThinSyncForTest = "delta-add:1" Then Util_FailThinSyncForTest = "": Err.Raise vbObjectError + 9993, "Ann_AddDelta", "falha simulada (teste)"
+    End If
+    Ann_Refresh cht
+    Ann_EnsureDeltaRoom cht
+    Set Ann_AddDelta = ln
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    For Each sfx In Array("_lbl", "_t2", "_t1", "")
+        cht.Shapes(nm & sfx).Delete
+    Next
+    On Error GoTo 0
+    Err.Raise en, "Ann_AddDelta", ed
+End Function
+
+' Alterna o texto (ambos -> valor -> % -> ambos) da seta onlyName ou, com "", de todas as setas de delta do grafico. Devolve quantas mudou.
+Public Function Ann_CycleDeltaFormat(cht As Chart, onlyName As String) As Long
+    Dim i As Long, shp As Shape
+    For i = 1 To cht.Shapes.Count
+        Set shp = cht.Shapes(i)
+        If Left$(shp.Name, Len(ANN_DELTA)) = ANN_DELTA Then
+            If Ann_ParseParam(shp.AlternativeText, "kind") = "delta" And (Len(onlyName) = 0 Or shp.Name = onlyName) Then
+                shp.AlternativeText = Ann_SetParam(shp.AlternativeText, "fmt", Delta_NextFormat(Ann_ParseParam(shp.AlternativeText, "fmt")))
+                Ann_CycleDeltaFormat = Ann_CycleDeltaFormat + 1
+            End If
+        End If
+    Next
+    If Ann_CycleDeltaFormat > 0 Then
+        Ann_Refresh cht
+        Ann_EnsureDeltaRoom cht
+    End If
+End Function
+
+' Nome da seta de delta selecionada (linha, perna ou rotulo dentro do grafico ativo); "" se a selecao nao e uma delas.
+Public Function Ann_SelectedDeltaName() As String
+    Dim nm As String, sfx As Variant
+    On Error Resume Next
+    nm = CStr(Selection.Name)
+    If Err.Number <> 0 Then Exit Function
+    On Error GoTo 0
+    If Left$(nm, Len(ANN_DELTA)) <> ANN_DELTA Then Exit Function
+    For Each sfx In Array("_lbl", "_t1", "_t2")
+        If Right$(nm, Len(sfx)) = sfx Then nm = Left$(nm, Len(nm) - Len(sfx)): Exit For
+    Next
+    Ann_SelectedDeltaName = nm
+End Function
+
+Private Sub Ann_StyleDeltaLine(ln As Shape, withHead As Boolean)
+    With ln.Line
+        .ForeColor.RGB = RGB(89, 89, 89)
+        .Weight = 1
+        If withHead Then
+            .EndArrowheadStyle = msoArrowheadTriangle
+            .EndArrowheadLength = msoArrowheadShort
+            .EndArrowheadWidth = msoArrowheadNarrow
+        End If
+    End With
+End Sub
+
+' Troca (ou acrescenta) o valor de uma chave do texto alternativo "k=v;k=v". Pura.
+Private Function Ann_SetParam(altText As String, key As String, value As String) As String
+    Dim parts() As String, i As Long, found As Boolean
+    parts = Split(altText, ";")
+    For i = LBound(parts) To UBound(parts)
+        If Left$(parts(i), Len(key) + 1) = key & "=" Then parts(i) = key & "=" & value: found = True
+    Next
+    Ann_SetParam = Join(parts, ";")
+    If Not found Then Ann_SetParam = Ann_SetParam & ";" & key & "=" & value
+End Function
+
+Private Function Ann_Overlap(a1 As Double, a2 As Double, b1 As Double, b2 As Double, margin As Double) As Boolean
+    Dim loA As Double, hiA As Double, loB As Double, hiB As Double
+    If a1 < a2 Then loA = a1: hiA = a2 Else loA = a2: hiA = a1
+    If b1 < b2 Then loB = b1: hiB = b2 Else loB = b2: hiB = b1
+    Ann_Overlap = (loA <= hiB + margin And loB <= hiA + margin)
+End Function
+
+' Duas setas de delta disputam a mesma faixa quando o que ocupam no sentido das categorias se sobrepoe (2 pt de margem): o trecho entre
+' as pernas E o rotulo centrado (meio +- rec(8)), que pode ser mais largo que o trecho (delta dentro de uma categoria).
+Private Function Ann_DeltaOverlap(a As Variant, b As Variant) As Boolean
+    Dim loA As Double, hiA As Double, loB As Double, hiB As Double
+    Ann_DeltaExtentCat a, loA, hiA
+    Ann_DeltaExtentCat b, loB, hiB
+    Ann_DeltaOverlap = Ann_Overlap(loA, hiA, loB, hiB, 2)
+End Function
+
+Private Sub Ann_DeltaExtentCat(r As Variant, ByRef lo As Double, ByRef hi As Double)
+    Dim c1 As Double, c2 As Double, m As Double, h As Double
+    c1 = r(1): c2 = r(2): m = (c1 + c2) / 2: h = r(8)
+    lo = c1: hi = c1
+    If c2 < lo Then lo = c2
+    If c2 > hi Then hi = c2
+    If m - h < lo Then lo = m - h
+    If m + h > hi Then hi = m + h
+End Sub
+
+' Uma seta de delta pronta para o layout (rec): 0 nome, 1 centro da origem e 2 do destino (sentido das categorias, pt), 3 e 4 ancoras da
+' origem e do destino (sentido dos valores, pt; 3 pt para fora da borda), 5 sentido para fora (-1 ou +1, em pt no sentido dos valores),
+' 6 linha principal (pt; a altura base, ajustada pelas faixas), 7 meia espessura do rotulo no sentido dos valores, 8 meia extensao do
+' rotulo no sentido das categorias (o rotulo pode ser mais largo que o trecho: Ann_DeltaOverlap). False = oculta.
+' Ancoras e borda pela regra de tres do eixo de cada serie (Delta_ValCoord: a linha da combinacao no eixo secundario); na comparativa com as
+' setas de variacao ligadas a altura base tambem passa a elipse delas (Delta_PairArrowEdgeCoord, sem a folga dos rotulos).
+Private Function Ann_DeltaPrepare(cht As Chart, ln As Shape, fmt As String, ByRef rec As Variant) As Boolean
+    Dim fromRef As String, toRef As String, mode As String, vA As Double, loA As Double, hiA As Double, vB As Double, loB As Double, hiB As Double
+    Dim above As Boolean, horiz As Boolean, dirn As Double, edgeP As Double, half As Double, lbl As Shape, extra As Double, aA As Double, aB As Double
+    Dim txt As String, base As Double, pdEdge As Double, ia As Long, ib As Long, halfCat As Double, pA As Double, pB As Double
+    If Not Kinds_Supports(Registry_ChartType(cht), "delta") Then Exit Function
+    fromRef = Ann_ParseParam(ln.AlternativeText, "from"): toRef = Ann_ParseParam(ln.AlternativeText, "to")
+    mode = Ann_ParseParam(ln.AlternativeText, "fmt")
+    If fromRef = toRef Then Exit Function
+    If Not Delta_Extent(cht, fromRef, vA, loA, hiA) Then Exit Function
+    If Not Delta_Extent(cht, toRef, vB, loB, hiB) Then Exit Function
+    horiz = Geom_ChartIsHorizontal(cht)
+    above = Not (hiA <= 0 And hiB <= 0 And (loA < 0 Or loB < 0))
+    If horiz Then dirn = 1 Else dirn = -1
+    If Not above Then dirn = -dirn
+    Set lbl = Ann_Shape(cht, ln.Name & "_lbl")
+    If Not lbl Is Nothing Then
+        txt = Delta_Text(vA, vB, mode, fmt)
+        If lbl.TextFrame2.TextRange.Text <> txt Then lbl.TextFrame2.TextRange.Text = txt
+        If horiz Then half = lbl.Width / 2 Else half = lbl.Height / 2
+    End If
+    ia = Delta_AxisIndex(cht, fromRef): ib = Delta_AxisIndex(cht, toRef)
+    If Registry_GetOption(cht, "labels", "1") = "1" Or Registry_GetOption(cht, "totals", "0") = "1" Then
+        extra = DELTA_LABEL_ROOM
+        If horiz Then extra = Ann_DeltaBarsLabelRoom(cht, ia, ib, fmt)
+    End If
+    edgeP = Delta_SpanEdgeCoord(cht, ia, ib, above, dirn)
+    base = edgeP + dirn * (DELTA_GAP + extra + half)
+    If Delta_PairArrowEdgeCoord(cht, ia, ib, above, pdEdge) Then
+        If dirn * (pdEdge + dirn * (DELTA_GAP + half)) > dirn * base Then base = pdEdge + dirn * (DELTA_GAP + half)
+    End If
+    If above Then aA = hiA: aB = hiB Else aA = loA: aB = loB
+    If Not lbl Is Nothing Then
+        If horiz Then halfCat = lbl.Height / 2 Else halfCat = lbl.Width / 2
+    End If
+    pA = Delta_ValCoord(cht, fromRef, aA) + dirn * Ann_DeltaEndOffset(cht, fromRef, vA, aA, above, horiz, fmt)
+    pB = Delta_ValCoord(cht, toRef, aB) + dirn * Ann_DeltaEndOffset(cht, toRef, vB, aB, above, horiz, fmt)
+    rec = Array(ln.Name, Delta_CatCenter(cht, fromRef), Delta_CatCenter(cht, toRef), pA, pB, dirn, base, half, halfCat)
+    Ann_DeltaPrepare = True
+End Function
+
+' Afastamento (pt) da ponta da perna a partir da borda da barra (emenda da spec 5.3, revisao B2): 3 pt; com o rotulo de valor POR FORA
+' da barra (Rotulos ligados: pontos das agrupadas e da linha, a linha da combinacao; Totais ligados: o segmento de cima de uma pilha
+' positiva; seta para baixo: o de baixo de uma pilha toda negativa, Delta_IsStackBottomNeg) e a ancora no FIM da barra (valor diferente
+' de zero), a perna comeca depois do rotulo: 3 + 18 pt nas colunas (a linha, simples ou da combinacao, so com a seta para CIMA: o rotulo do
+' ponto fica acima dele), 3 + max(18,
+' largura estimada do rotulo + 6) nas barras (o rotulo fica ~6 pt depois do fim; Labels_EstimateWidth, como Ann_TotalsExtra). Cascatas e
+' comparativa: onde o bloco poe o rotulo de fora na ponta (Delta_WaterfallOutsideLabel: barras grandes; na cascata de uma serie tambem os
+' degraus). Rotulos centrados (segmentos das empilhadas, degraus da comparativa) e ancoras no zero ficam nos 3 pt. Estimativa conservadora: nao le a geometria dos rotulos.
+Private Function Ann_DeltaEndOffset(cht As Chart, ref As String, v As Double, anchor As Double, above As Boolean, horiz As Boolean, fmt As String) As Double
+    Dim kind As String, k As Long, c As Long, s As Long, outside As Boolean, isTotal As Boolean, w As Double, lblTxt As String
+    Ann_DeltaEndOffset = 3
+    If anchor = 0 Then Exit Function
+    If Not Delta_ParseRef(ref, k, c) Then Exit Function
+    kind = Registry_ChartType(cht)
+    Select Case kind
+        Case "clustered", "barclustered"
+            outside = (Registry_GetOption(cht, "labels", "1") = "1")                 ' fora da ponta: acima (positivo) ou abaixo (negativo)
+        Case "line"
+            outside = (Registry_GetOption(cht, "labels", "1") = "1") And above       ' o rotulo fica ACIMA do ponto: com a seta para baixo nao ha o que desviar
+        Case "stacked", "barstacked", "combo"
+            s = Delta_SeriesIndex(cht, k)
+            If s = 0 Then Exit Function
+            If Not Delta_IsColumnSeries(cht.SeriesCollection(s)) Then
+                outside = (Registry_GetOption(cht, "labels", "1") = "1") And above   ' a linha da combinacao: rotulo ACIMA do ponto
+            ElseIf Registry_GetOption(cht, "totals", "0") = "1" Then
+                ' o rotulo do total fica depois do segmento de cima (positivo) ou, numa pilha toda negativa, abaixo/a esquerda do de baixo
+                If above Then isTotal = Delta_IsStackTop(cht, ref) Else isTotal = Delta_IsStackBottomNeg(cht, ref)
+                outside = isTotal
+            End If
+        Case "waterfall", "barwaterfall", "waterfallpair"
+            ' cascatas (revisao B2, 2a rodada): o rotulo de fora so onde o bloco o poe na ponta da seta (barras grandes; numa cascata de uma
+            ' serie tambem os degraus positivos); o texto real do rotulo da a largura nas barras
+            If Registry_GetOption(cht, "labels", "1") = "1" Then outside = Delta_WaterfallOutsideLabel(cht, ref, anchor, above, fmt, lblTxt)
+    End Select
+    If Not outside Then Exit Function
+    If horiz Then
+        If isTotal Then
+            w = Labels_MaxTotalWidth(cht)
+        ElseIf Len(lblTxt) > 0 Then
+            w = Labels_EstimateWidth(lblTxt)
+        Else
+            w = Labels_EstimateWidth(Delta_FormatPlain(v, fmt))
+        End If
+        w = w + 6
+        If w < DELTA_LABEL_ROOM Then w = DELTA_LABEL_ROOM
+        Ann_DeltaEndOffset = 3 + w
+    Else
+        Ann_DeltaEndOffset = 3 + DELTA_LABEL_ROOM
+    End If
+End Function
+
+' Folga dos rotulos para a linha principal nas barras horizontais: max(18, maior largura estimada + 6) entre os rotulos de valor do trecho
+' (Rotulos ligados) e os totais (Totais ligados).
+Private Function Ann_DeltaBarsLabelRoom(cht As Chart, ia As Long, ib As Long, fmt As String) As Double
+    Dim a As Long, k As Long, fam As String, v As Double, lo As Double, hi As Double, w As Double, best As Double, ref As String, nK As Long, txt As String
+    fam = Kinds_Family(Registry_ChartType(cht))
+    If fam = "waterfall" Then nK = 1 Else nK = Delta_DataSeriesCount(cht)     ' cascata: a barra da categoria ("0:c")
+    If Registry_GetOption(cht, "labels", "1") = "1" Then
+        For a = Application.WorksheetFunction.Min(ia, ib) To Application.WorksheetFunction.Max(ia, ib)
+            For k = 1 To nK
+                If fam = "waterfall" Then ref = "0:" & a Else ref = k & ":" & a
+                If Delta_Extent(cht, ref, v, lo, hi) Then
+                    If fam = "waterfall" Then
+                        txt = ""                                    ' cascata: o texto do rotulo de fora no fim da barra (se houver)
+                        If Delta_WaterfallOutsideLabel(cht, ref, hi, True, fmt, txt) Then w = Labels_EstimateWidth(txt) Else w = 0
+                    Else
+                        w = Labels_EstimateWidth(Delta_FormatPlain(v, fmt))
+                    End If
+                    If w > best Then best = w
+                End If
+            Next
+        Next
+    End If
+    If Registry_GetOption(cht, "totals", "0") = "1" Then
+        w = Labels_MaxTotalWidth(cht)
+        If w > best Then best = w
+    End If
+    Ann_DeltaBarsLabelRoom = best + 6
+    If Ann_DeltaBarsLabelRoom < DELTA_LABEL_ROOM Then Ann_DeltaBarsLabelRoom = DELTA_LABEL_ROOM
+End Function
+
+' Pernas, linha principal e rotulo de uma seta ja com a linha principal decidida (rec(6)).
+Private Sub Ann_DrawDelta(cht As Chart, rec As Variant)
+    Dim nm As String, ln As Shape, t1 As Shape, t2 As Shape, lbl As Shape, cA As Double, cB As Double, aA As Double, aB As Double, lv As Double
+    nm = rec(0): cA = rec(1): cB = rec(2): aA = rec(3): aB = rec(4): lv = rec(6)
+    Set ln = Ann_Shape(cht, nm): Set t1 = Ann_Shape(cht, nm & "_t1"): Set t2 = Ann_Shape(cht, nm & "_t2"): Set lbl = Ann_Shape(cht, nm & "_lbl")
+    If Geom_ChartIsHorizontal(cht) Then
+        If Not t1 Is Nothing Then Ann_MoveLineIfMoved t1, aA, cA, lv, cA
+        If Not ln Is Nothing Then Ann_MoveLineIfMoved ln, lv, cA, lv, cB
+        If Not t2 Is Nothing Then Ann_MoveLineIfMoved t2, lv, cB, aB, cB
+        If Not lbl Is Nothing Then lbl.Left = lv - lbl.Width / 2: lbl.Top = (cA + cB) / 2 - lbl.Height / 2
+    Else
+        If Not t1 Is Nothing Then Ann_MoveLineIfMoved t1, cA, aA, cA, lv
+        If Not ln Is Nothing Then Ann_MoveLineIfMoved ln, cA, lv, cB, lv
+        If Not t2 Is Nothing Then Ann_MoveLineIfMoved t2, cB, lv, cB, aB
+        If Not lbl Is Nothing Then lbl.Left = (cA + cB) / 2 - lbl.Width / 2: lbl.Top = lv - lbl.Height / 2
+    End If
+    If Not lbl Is Nothing Then Ann_ClampShape cht, lbl
+End Sub
+
+' Formas de delta orfas (perna ou rotulo cuja linha principal foi apagada a mao) sao apagadas; e a moldura do delta por cliques
+' (tqq_pickmark) de um grafico que nao esta armado (pasta salva/fechada com o modo armado).
+Private Sub Ann_DeltaCleanup(cht As Chart)
+    Dim i As Long, nm As String, k As String
+    For i = cht.Shapes.Count To 1 Step -1
+        nm = cht.Shapes(i).Name
+        If nm = DELTAPICK_MARK Then
+            If Not DeltaPick_IsArmedFor(cht) Then cht.Shapes(i).Delete
+        ElseIf Left$(nm, Len(ANN_DELTA)) = ANN_DELTA Then
+            k = Ann_ParseParam(cht.Shapes(i).AlternativeText, "kind")
+            If k = "deltaleg" Or k = "label" Then
+                If Ann_Shape(cht, Ann_ParseParam(cht.Shapes(i).AlternativeText, "owner")) Is Nothing Then cht.Shapes(i).Delete
+            End If
+        End If
+    Next
+End Sub
+
+' Todas as setas de delta juntas (spec 5.3): ordem pela largura do trecho (menor primeiro); cada uma comeca na altura base e se afasta das ja
+' postas do mesmo lado cujo trecho se sobrepoe (2 pt de margem) ate ficar a (meia espessura dela + da outra + 6 pt). Erro numa seta: oculta.
+' Guarda a extensao ocupada (mDeltaOutLo..mDeltaOutHi) para a sala (Ann_EnsureDeltaRoom), medida pelas contas e nao pelas formas (o rotulo e
+' preso dentro do grafico por Ann_ClampShape, o que esconderia o deficit).
+Private Sub Ann_LayoutDeltas(cht As Chart)
+    Dim i As Long, j As Long, k As Long, tmp As Long, shp As Shape, recs As Collection, rec As Variant, p As Variant, fmt As String
+    Dim order() As Long, w() As Double, placed() As Variant, nPlaced As Long, lineV As Double, stp As Double, moved As Boolean, passes As Long, valid As Boolean
+    mDeltaPlaced = 0: mDeltaOutLo = 0: mDeltaOutHi = 0
+    Ann_DeltaCleanup cht
+    Set recs = New Collection
+    fmt = Style_NumberFormat(Registry_GetOption(cht, "numfmt", "int"))
+    For i = 1 To cht.Shapes.Count
+        Set shp = cht.Shapes(i)
+        If Left$(shp.Name, Len(ANN_DELTA)) = ANN_DELTA Then
+            If Ann_ParseParam(shp.AlternativeText, "kind") = "delta" Then
+                valid = False
+                On Error Resume Next
+                valid = Ann_DeltaPrepare(cht, shp, fmt, rec)
+                If Err.Number <> 0 Then
+                    valid = False
+                    mLastError = "Ann_LayoutDeltas " & shp.Name & " " & Err.Number & " " & Err.Description
+                    Errors_Log mLastError
+                End If
+                Err.Clear
+                On Error GoTo 0
+                Ann_SetShapeVisible cht, shp.Name, valid
+                If valid Then recs.Add rec
+            End If
+        End If
+    Next
+    If recs.Count = 0 Then Exit Sub
+    ReDim order(1 To recs.Count): ReDim w(1 To recs.Count): ReDim placed(1 To recs.Count)
+    For i = 1 To recs.Count
+        order(i) = i: w(i) = Abs(recs(i)(2) - recs(i)(1))
+    Next
+    For i = 2 To recs.Count                                   ' insercao: menor largura primeiro (estavel)
+        j = i
+        Do While j > 1
+            If w(order(j)) < w(order(j - 1)) Then
+                tmp = order(j): order(j) = order(j - 1): order(j - 1) = tmp: j = j - 1
+            Else
+                Exit Do
+            End If
+        Loop
+    Next
+    For k = 1 To recs.Count
+        rec = recs(order(k))
+        lineV = rec(6)
+        passes = 0
+        Do
+            moved = False
+            For j = 1 To nPlaced
+                p = placed(j)
+                If p(5) = rec(5) And Ann_DeltaOverlap(rec, p) Then
+                    stp = p(7) + rec(7) + 6
+                    If Abs(lineV - p(6)) < stp - 0.001 Then
+                        lineV = p(6) + rec(5) * stp
+                        moved = True
+                    End If
+                End If
+            Next
+            passes = passes + 1
+        Loop While moved And passes <= nPlaced + 1
+        rec(6) = lineV
+        nPlaced = nPlaced + 1
+        placed(nPlaced) = rec
+        On Error Resume Next
+        Ann_DrawDelta cht, rec
+        If Err.Number <> 0 Then
+            mLastError = "Ann_LayoutDeltas " & rec(0) & " " & Err.Number & " " & Err.Description
+            Errors_Log mLastError
+            Ann_SetShapeVisible cht, CStr(rec(0)), False
+        Else
+            If mDeltaPlaced = 0 Or lineV - rec(7) < mDeltaOutLo Then mDeltaOutLo = lineV - rec(7)
+            If mDeltaPlaced = 0 Or lineV + rec(7) > mDeltaOutHi Then mDeltaOutHi = lineV + rec(7)
+            mDeltaPlaced = mDeltaPlaced + 1
+        End If
+        Err.Clear
+        On Error GoTo 0
+    Next
+End Sub
+
+' Sala das setas de delta (spec 5.3): refaz o layout e, se a extensao ocupada passa da borda livre (2 pt do topo; da borda de baixo ou da
+' legenda embaixo; nas barras, da borda direita ou da legenda a direita, e da esquerda), a area de plotagem encolhe pelo deficit e o layout
+' e refeito; ate 3 passadas (o eixo automatico pode mudar). Nunca deixa a area interna abaixo de ANN_DELTA_MIN_PLOT do grafico. Nunca propaga.
+Private Sub Ann_EnsureDeltaRoom(cht As Chart)
+    Dim k As Long, d As Double, dLo As Double, dHi As Double, room As Double
+    On Error GoTo Done
+    For k = 1 To 3
+        Ann_Refresh cht
+        If mDeltaPlaced = 0 Then Exit Sub
+        If Geom_ChartIsHorizontal(cht) Then
+            dLo = 2 - mDeltaOutLo: dHi = mDeltaOutHi - (Geom_ChartRightEdge(cht) - 2)
+            room = cht.PlotArea.InsideWidth - ANN_DELTA_MIN_PLOT * cht.ChartArea.Width
+        Else
+            dLo = 2 - mDeltaOutLo: dHi = mDeltaOutHi - (Ann_BottomEdge(cht) - 2)
+            room = cht.PlotArea.InsideHeight - ANN_DELTA_MIN_PLOT * cht.ChartArea.Height
+        End If
+        If dLo < 0 Then dLo = 0
+        If dHi < 0 Then dHi = 0
+        If dLo + dHi <= 0.01 Then Exit Sub
+        If room <= 0.01 Then Exit Sub
+        If dLo + dHi > room Then d = room / (dLo + dHi): dLo = dLo * d: dHi = dHi * d
+        If Geom_ChartIsHorizontal(cht) Then
+            If dLo > 0 Then cht.PlotArea.Width = cht.PlotArea.Width - dLo: cht.PlotArea.Left = cht.PlotArea.Left + dLo
+            If dHi > 0 Then cht.PlotArea.Width = cht.PlotArea.Width - dHi
+        Else
+            If dLo > 0 Then cht.PlotArea.Height = cht.PlotArea.Height - dLo: cht.PlotArea.Top = cht.PlotArea.Top + dLo
+            If dHi > 0 Then cht.PlotArea.Height = cht.PlotArea.Height - dHi
+        End If
+    Next
+    Ann_Refresh cht
+    Exit Sub
+Done:
+    Errors_Log "Ann_EnsureDeltaRoom" & vbTab & Err.Number & vbTab & Err.Description
+End Sub
+
 Public Sub Ann_SetWaterfallConnectors(cht As Chart, turnOn As Boolean)
     Dim n As Long, i As Long, shp As Shape
     For i = cht.Shapes.Count To 1 Step -1
@@ -439,6 +853,7 @@ Public Sub Ann_Refresh(cht As Chart)
     Dim fmt As String, fromIdx As Long, toIdx As Long, valid As Boolean, chartKind As String, nm As String
     If mRefreshing Then Exit Sub
     mRefreshing = True
+    mDeltaPlaced = 0                    ' numeros da sala do delta valem so para ESTE grafico (saidas cedo nao deixam os de outro); um aninhado barrado acima nao zera os do externo
     On Error GoTo Done
     n = Geom_ChartCategoryCount(cht)
     If n = 0 Then GoTo Done
@@ -525,6 +940,11 @@ Public Sub Ann_Refresh(cht As Chart)
         End If
 NextShape:
     Next
+    ' delta entre barras: todas juntas (faixas), depois das demais anotacoes; erro isolado
+    On Error Resume Next
+    Ann_LayoutDeltas cht
+    If Err.Number <> 0 Then mLastError = "Ann_Refresh delta " & Err.Number & " " & Err.Description: Errors_Log mLastError
+    Err.Clear
 Done:
     mRefreshing = False
 End Sub
@@ -617,12 +1037,6 @@ Private Sub Ann_MoveLineIfMoved(ln As Shape, x1 As Double, y1 As Double, x2 As D
     Ann_MoveLine ln, x1, y1, x2, y2
 End Sub
 
-Private Function Ann_SignedFormat(fmt As String) As String
-    Dim sec As String
-    sec = Split(fmt & ";", ";")(0)
-    Ann_SignedFormat = "+" & sec & ";-" & sec & ";0"
-End Function
-
 Private Sub Ann_LayoutCagr(cht As Chart, ln As Shape, fromIdx As Long, toIdx As Long, values() As Double, tops() As Double, fmt As String)
     Dim x1 As Double, x2 As Double, y1 As Double, y2 As Double, lbl As Shape, rate As Double, txt As String
     Dim body As Range, periods As Double, extra As Double, xMax As Double
@@ -688,7 +1102,7 @@ Private Sub Ann_LayoutDiff(cht As Chart, ln As Shape, fromIdx As Long, toIdx As 
         Ann_MoveLine ln, xArrow, yFrom, xArrow, yTo
     End If
     diff = values(toIdx) - values(fromIdx)
-    txt = Format$(diff, Ann_SignedFormat(fmt))
+    txt = Delta_FormatSigned(diff, fmt)
     If values(fromIdx) <> 0 Then txt = txt & " (" & Format$(diff / Abs(values(fromIdx)), "+0%;-0%;0%") & ")"
     Set lbl = Ann_Shape(cht, ln.Name & "_lbl")
     If lbl Is Nothing Then Exit Sub

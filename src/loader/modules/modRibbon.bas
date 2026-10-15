@@ -173,6 +173,17 @@ Public Sub Rx_OnAnnotation(control As IRibbonControl)
     If CoreOrWarn() Then Loader_RunCore "Core_AddAnnotation", control.Tag
 End Sub
 
+' Delta clicando nas barras (Parte B): arma o modo de dois cliques no core; core anterior: aviso de atualizar.
+Public Sub Rx_OnDelta(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_DeltaPick"
+End Sub
+
+Public Sub Rx_OnDeltaFormat(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_DeltaCycleFormat"
+End Sub
+
 Public Sub Rx_OnRemoveAnnotations(control As IRibbonControl)
     On Error Resume Next
     If CoreOrWarn() Then Loader_RunCore "Core_RemoveAnnotations"

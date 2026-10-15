@@ -30,3 +30,14 @@ Private Sub Cht_Resize()
     On Error Resume Next
     Core_SafeRefresh Cht
 End Sub
+
+' Delta clicando nas barras (Parte B): so age com o modo armado (modDeltaPick sai na primeira linha quando desarmado).
+Private Sub Cht_Select(ByVal ElementID As Long, ByVal Arg1 As Long, ByVal Arg2 As Long)
+    On Error Resume Next
+    DeltaPick_OnSelect Cht, ElementID, Arg1, Arg2
+End Sub
+
+Private Sub Cht_MouseUp(ByVal Button As Long, ByVal Shift As Long, ByVal x As Long, ByVal y As Long)
+    On Error Resume Next
+    DeltaPick_OnMouseUp Cht, x, y
+End Sub
