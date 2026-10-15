@@ -589,31 +589,53 @@ Fail:
 End Sub
 
 ' O arquivo salvo guarda a barra de erro dos conectores citando a faixa do bloco (c:errBars/c:plus/c:numRef com a planilha _ThinQQ), nao uma
-' constante (c:numLit): a prova de que continuam vivos sem o ThinQQ. Salva uma copia na pasta temporaria do teste e le o XML do grafico com o
-' PowerShell (System.IO.Compression), sem tocar na pasta do usuario.
+' constante (c:numLit): a prova de que continuam vivos sem o ThinQQ. Salva uma copia na pasta temporaria do teste e extrai o XML do grafico
+' pela pasta compactada do Windows (Shell.Application, dentro do proprio Excel), sem tocar na pasta do usuario. NUNCA inicia processo filho
+' (PowerShell/cmd): o antivirus/EDR da maquina le "Excel que salvou/vinculou uma pasta .xlsx e depois roda powershell.exe" como documento
+' malicioso e ENCERRA o Excel da suite (0x800706BE na execucao completa do core; o Test-VbaLint barra a volta).
 Public Sub Test_Wfp_Connectors_SavedXml_HoldsErrBarsOnBlock()
-    Dim wb As Workbook, d As clsChartData, cht As Chart, dir As String, xlsx As String, ps1 As String, outTxt As String, xml As String, pos As Long, endPos As Long
-    Dim fso As Object, ts As Object, sh As Object, barXml As String, k As Long, q As String
+    Dim wb As Workbook, d As clsChartData, cht As Chart, dir As String, xlsx As String, zip As String, outDir As String, xml As String, pos As Long, endPos As Long
+    Dim fso As Object, ts As Object, sh As Object, src As Object, it As Object, f As Object, barXml As String, k As Long, q As String
+    Dim n As Long, want As Double, got As Double, t0 As Single
     Set wb = NewTempWorkbook(): Set d = Fixture(wb)
     Set cht = Wfp_Insert(d.Source.Worksheet, d).Chart
-    dir = TempDir(): xlsx = dir & "\copia.xlsx": ps1 = dir & "\le.ps1": outTxt = dir & "\chart.txt"
+    dir = TempDir(): xlsx = dir & "\copia.xlsx": zip = dir & "\copia.zip": outDir = dir & "\xml"
     wb.SaveCopyAs xlsx
     CloseTemp wb
     q = Chr$(34)
     Set fso = CreateObject("Scripting.FileSystemObject")
-    Set ts = fso.CreateTextFile(ps1, True)
-    ts.WriteLine "Add-Type -AssemblyName System.IO.Compression.FileSystem"
-    ts.WriteLine "$z = [IO.Compression.ZipFile]::OpenRead('" & xlsx & "')"
-    ts.WriteLine "$o = foreach ($e in $z.Entries) { if ($e.FullName -like 'xl/charts/chart*.xml') { $r = New-Object IO.StreamReader($e.Open()); $r.ReadToEnd(); $r.Close() } }"
-    ts.WriteLine "$z.Dispose()"
-    ts.WriteLine "[IO.File]::WriteAllText('" & outTxt & "', ($o -join ''), (New-Object Text.UTF8Encoding($false)))"
-    ts.Close
-    Set sh = CreateObject("WScript.Shell")
-    sh.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -File " & q & ps1 & q, 0, True
-    AssertTrue fso.FileExists(outTxt), "o PowerShell leu o XML do grafico"
-    Set ts = fso.OpenTextFile(outTxt, 1, False, 0)
-    If Not ts.AtEndOfStream Then xml = ts.ReadAll
-    ts.Close
+    fso.CopyFile xlsx, zip                               ' a pasta compactada do Windows so abre pela extensao .zip
+    fso.CreateFolder outDir
+    Set sh = CreateObject("Shell.Application")
+    Set src = sh.Namespace(CVar(zip & "\xl\charts"))
+    AssertTrue Not src Is Nothing, "pasta xl\charts do arquivo salvo"
+    For Each it In src.Items
+        If Not it.IsFolder Then
+            If LCase$(fso.GetFileName(it.Path)) Like "chart*.xml" Then
+                want = want + it.Size
+                n = n + 1
+                sh.Namespace(CVar(outDir)).CopyHere it, 4 + 16 + 512 + 1024     ' sem progresso, sim para tudo, sem perguntas nem erro na tela
+            End If
+        End If
+    Next
+    AssertTrue n > 0, "XML do grafico no arquivo salvo"
+    ' CopyHere e assincrono: espera os n arquivos com o tamanho descompactado completo (teto de 15 s)
+    t0 = Timer
+    Do
+        got = 0
+        For Each f In fso.GetFolder(outDir).Files
+            got = got + f.Size
+        Next
+        If fso.GetFolder(outDir).Files.Count >= n And got >= want Then Exit Do
+        If Abs(Timer - t0) > 15 Then Exit Do
+        DoEvents
+    Loop
+    AssertEqual n, fso.GetFolder(outDir).Files.Count, "XML do grafico extraido"
+    For Each f In fso.GetFolder(outDir).Files
+        Set ts = fso.OpenTextFile(f.Path, 1, False, 0)
+        If Not ts.AtEndOfStream Then xml = xml & ts.ReadAll
+        ts.Close
+    Next
     AssertTrue Len(xml) > 1000, "XML do grafico lido"
     pos = 1
     Do
