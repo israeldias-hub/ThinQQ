@@ -14,9 +14,6 @@ try {
     Check ((Get-Item $path).Length -lt 3MB) "tamanho < 3 MB ($((Get-Item $path).Length) bytes)"
     $cov = @(Get-TqqDemoCoverage)
     $feats = @(Get-TqqDemoFeatures)
-    # TEMPORARIO (Tarefa B0 do delta por cliques, 1.5.0): recurso da matriz que ainda nao tem exemplo na demonstracao; a Tarefa B5 gera o exemplo
-    # e remove esta lista (e o "if" da linha dos recursos da matriz)
-    $pendingDemo = @('delta')
     $kindsSrc = [IO.File]::ReadAllText((Join-Path $RepoRoot 'src\core\modules\modChartKinds.bas'))
     $allKinds = @(([regex]::Match($kindsSrc, 'Private Const KINDS As String = "(?<k>[^"]+)"').Groups['k'].Value).Trim(',').Split(','))
     Check ($allKinds.Count -ge 20) "tipos lidos de modChartKinds.bas ($($allKinds.Count))"
@@ -25,7 +22,7 @@ try {
     # um recurso conta coberto por um item com o mesmo nome ou com o prefixo "<recurso>-" (legend -> legend-none)
     $matrixFeatures = @([regex]::Matches($kindsSrc, 'Case "(?<f>[a-z0-9]+)":\s*list =') | ForEach-Object { $_.Groups['f'].Value })
     Check ($matrixFeatures.Count -ge 20) "recursos da matriz lidos de modChartKinds.bas ($($matrixFeatures.Count))"
-    foreach ($f in $matrixFeatures) { if ($pendingDemo -contains $f) { Write-Host "ok - cobertura do recurso '$f' # SKIP pendente (Tarefa B5)"; continue }; Check (@($cov | Where-Object { $_.Features -contains $f -or @($_.Features | Where-Object { $_ -like "$f-*" }).Count -gt 0 }).Count -ge 1) "cobertura tem o recurso da matriz '$f'" }
+    foreach ($f in $matrixFeatures) { Check (@($cov | Where-Object { $_.Features -contains $f -or @($_.Features | Where-Object { $_ -like "$f-*" }).Count -gt 0 }).Count -ge 1) "cobertura tem o recurso da matriz '$f'" }
     foreach ($f in $feats) { Check (@($cov | Where-Object { $_.Features -contains $f }).Count -ge 1) "cobertura tem o recurso '$f'" }
     Check (@($cov | ForEach-Object { $_.Sheet } | Sort-Object -Unique).Count -eq $cov.Count) 'planilhas da cobertura sem repeticao'
     # privacidade do binario (o Test-Privacy pula arquivo com byte NUL): docProps sem autor nem empresa e nenhuma parte XML com id, caminho de
@@ -163,6 +160,7 @@ try {
             'palette'      = { param($i, $co, $ws) $i.Opt['palette'] -eq 'cinza' }
             'cagr'         = { param($i, $co, $ws) Test-HasShape $co 'tqq_ann_cagr_' }
             'diff'         = { param($i, $co, $ws) Test-HasShape $co 'tqq_ann_diff_' }
+            'delta'        = { param($i, $co, $ws) Test-HasShape $co 'tqq_ann_delta_' }
             'bracket'      = { param($i, $co, $ws) Test-HasShape $co 'tqq_ann_bracket_' }
             'vline'        = { param($i, $co, $ws) $i.Opt['vline'] -eq '1' }
             'ind100'       = { param($i, $co, $ws) $i.Opt['ind100'] -eq '1' -and (Test-HasShape $co 'tqq_ann_ind') }

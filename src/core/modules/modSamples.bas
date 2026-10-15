@@ -261,7 +261,8 @@ Public Function Samples_Create() As Workbook
     WriteTable ws.Range("A44"), Array(Array("Trimestre", "Loja", "Online"), Array("T1", 420, 180), _
                                       Array("T2", 455, 230), Array("T3", 430, 290), Array("T4", 510, 360))
     Set d = ChartData_FromRange(ws.Range("A44:C48"))
-    Stacked_Insert ws, d, "clustered"
+    Set co = Stacked_Insert(ws, d, "clustered")
+    Ann_AddDelta co.Chart, "1:1", "2:4"       ' Loja T1 -> Online T4: delta entre series e trimestres diferentes
 
     WriteTitle ws, 64, "4) Linha"
     WriteTable ws.Range("A65"), Array(Array("Mês", "Clientes ativos (mil)"), Array("jan", 48), Array("fev", 51), _

@@ -4,7 +4,7 @@
 
 # Recursos visiveis que a demonstracao tem de mostrar (alem dos tipos): o teste confere que cada um aparece em Features de algum item.
 function Get-TqqDemoFeatures {
-    return @('totals', 'labels', 'legend-none', 'lineend', 'numfmt', 'gap', 'palette', 'cagr', 'diff', 'bracket', 'vline', 'ind100', 'samescale',
+    return @('totals', 'labels', 'legend-none', 'lineend', 'numfmt', 'gap', 'palette', 'cagr', 'diff', 'delta', 'bracket', 'vline', 'ind100', 'samescale',
              'secondary', 'pieout', 'gantt-weeks', 'gantt-months', 'roundsum', 'roundrange', 'break', 'trend', 'quad', 'connectors',
              'pairdiff', 'pairabs', 'inbar')
 }
@@ -29,10 +29,10 @@ function Get-TqqDemoCoverage {
            Menu = 'Inserir gráfico > Colunas > Colunas empilhadas (Totais e Rótulos já vêm ligados)'
            Title = 'Vendas 2025 por departamento e canal (colunas empilhadas, totais e rótulos)'
            Desc = 'O total de cada coluna fica acima dela e os rótulos dos segmentos acompanham as células. A tabela soma a planilha Dados (SOMASES): mude um valor em Dados e o gráfico muda junto.' }
-        @{ Num = 2;  Kind = 'clustered';     Features = @('gap')
-           Menu = 'Inserir gráfico > Colunas > Colunas agrupadas; Gráfico selecionado > Espaço > Muito largo (120%)'
-           Title = 'Vendas por loja, 2024 x 2025 (colunas agrupadas, espaço muito largo)'
-           Desc = 'O espaço entre os grupos de colunas foi alargado para 120% (as agrupadas nascem com 80%).' }
+        @{ Num = 2;  Kind = 'clustered';     Features = @('gap', 'delta')
+           Menu = 'Inserir gráfico > Colunas > Colunas agrupadas; Gráfico selecionado > Espaço > Muito largo (120%); Setas > Delta clicando nas barras (clique na 1.ª e na última barra)'
+           Title = 'Vendas por loja, 2024 x 2025 (colunas agrupadas, espaço muito largo e delta entre barras)'
+           Desc = 'O espaço entre os grupos de colunas foi alargado para 120% (as agrupadas nascem com 80%). A seta no alto é um delta: ele compara duas barras quaisquer, aqui a de 2024 da primeira loja com a de 2025 da última (séries e lojas diferentes), e mostra a diferença em valor e em %. Os dois cliques nas barras escolhem as duas pontas; o delta é desenhado pelo ThinQQ e, sem ele instalado, fica como está se os números mudarem.' }
         @{ Num = 3;  Kind = 'stacked100';    Features = @('ind100')
            Menu = 'Inserir gráfico > Colunas > Colunas 100% (o Indicador 100% já vem ligado; Mais opções > Indicador 100% liga e desliga)'
            Title = 'Mix de canais B2C/B2B por região (colunas 100% e indicador 100%)'

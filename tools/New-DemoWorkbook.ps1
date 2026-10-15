@@ -332,7 +332,9 @@ try {
             2  { $rng = Write-Table $ws 'A6' @('Loja', '2024', '2025') $storeYearMiBody '#,##0.0'; $co = Add-Chart $ws $rng 'clustered'
                  Invoke-CoreQuiet 'E02' 'Core_SetOption' 'gap' '120' | Out-Null
                  Invoke-CoreQuiet 'E02' 'Core_SetOption' 'numfmt' 'dec1' | Out-Null      # a tabela tem 1 casa: no padrão (inteiro) 8,7 e 9,4 viravam 9 e 9
-                 Set-ChartBox $ws $co 620 300 }
+                 Set-ChartBox $ws $co 620 300
+                 Invoke-CoreQuiet 'E02' 'Core_AddDelta' '1:1' ('2:' + $storeYearMiBody.Count) | Out-Null       # 2024 da 1a loja -> 2025 da ultima: delta entre séries e lojas diferentes
+                 Invoke-CoreQuiet 'E02' 'Core_Refresh' | Out-Null }       # o x das colunas agrupadas pode estar uma renderização atrasada: refresh completo depois do delta
             3  { $rng = Write-Table $ws 'A6' @('Região', 'B2C', 'B2B') $regionChannelBody; $co = Add-Chart $ws $rng 'stacked100' }   # o indicador 100% nasce ligado nos 100%
             4  { $rng = Write-Table $ws 'A6' @('Mês', 'Vendas', 'Custo') $store1MonthBody; Set-MonthFormat $ws.Range('A7:A18')
                  $co = Add-Chart $ws $rng 'line'; Invoke-CoreQuiet 'E04' 'Core_SetOption' 'legend' 'lineend' | Out-Null }
@@ -451,7 +453,7 @@ try {
     $idx.Range("A${hdrRow}:E${hdrRow}").Value2 = [object[]]('Nº', 'Exemplo (clique para abrir)', 'Tipo de gráfico', 'Recursos em destaque', 'Como criar no ThinQQ')
     $h = $idx.Range("A${hdrRow}:E${hdrRow}"); $h.Font.Bold = $true; $h.Font.Color = 0xFFFFFF; $h.Interior.Color = 0x79531F
     $featNames = @{ totals = 'Totais'; labels = 'Rótulos'; 'legend-none' = 'Legenda: nenhuma'; lineend = 'Legenda: nome no fim da linha'; numfmt = 'Formato (milhares)'
-                    gap = 'Espaço (muito largo)'; palette = 'Paleta (tons de cinza)'; cagr = 'Seta CAGR'; diff = 'Seta diferença'; bracket = 'Colchete'
+                    gap = 'Espaço (muito largo)'; palette = 'Paleta (tons de cinza)'; cagr = 'Seta CAGR'; diff = 'Seta diferença'; delta = 'Delta entre barras'; bracket = 'Colchete'
                     vline = 'Linha de valor (média)'; ind100 = 'Indicador 100%'; samescale = 'Mesma escala'; secondary = 'Eixo secundário'; pieout = 'Rótulos fora da pizza'
                     'gantt-weeks' = 'Escala em semanas'; 'gantt-months' = 'Escala em meses'; roundsum = 'Rótulos com soma consistente'; roundrange = 'Arredondar intervalo'
                     break = 'Corte de eixo'; trend = 'Linha de tendência'; quad = 'Quadrantes (médias)'; connectors = 'Conectores'
