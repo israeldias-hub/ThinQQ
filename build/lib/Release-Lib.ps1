@@ -5,7 +5,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 # Marcadores que nunca podem aparecer num artefato Release (nomes de modulos de teste).
 # Os nomes ficam em texto puro no stream PROJECT e, em UTF-16, no diretorio OLE do vbaProject.bin.
-$script:TestMarkerRegex = 'modTestDispatch|modTestRunner|modAssert|Module=Test[A-Za-z]+|Class=Test[A-Za-z]+'
+$script:TestMarkerRegex = 'modTestDispatch|modTestRunner|modAssert|modPptTestRunner|modPptAssert|Module=Test[A-Za-z]+|Class=Test[A-Za-z]+'
 
 function Get-TestMarkersInBytes([byte[]]$Bytes) {
     $text = [Text.Encoding]::GetEncoding(28591).GetString($Bytes).Replace([string][char]0, '')

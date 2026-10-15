@@ -35,10 +35,14 @@ try {
         $z.Dispose()
     }
     New-FakePpam (Join-Path $tmp 'clean.ppam') $clean
-    New-FakePpam (Join-Path $tmp 'dirty.ppam') $dirty16
+    # o .ppam de teste leva os modulos proprios do PowerPoint (modPptTestRunner/modPptAssert), nao os do Excel
+    $dirtyPpt16 = [Text.Encoding]::Unicode.GetBytes('Root Entry modPptTestRunner')
+    New-FakePpam (Join-Path $tmp 'dirty.ppam') $dirtyPpt16
+    New-FakePpam (Join-Path $tmp 'dirtyAssert.ppam') ([Text.Encoding]::Unicode.GetBytes('Root Entry modPptAssert'))
+    Assert (@(Get-TestMarkersInXlam (Join-Path $tmp 'dirtyAssert.ppam')) -contains 'modPptAssert') '.ppam com modPptAssert e recusado'
     New-FakePpam (Join-Path $tmp 'sem-bin.ppam') $clean ''
     Assert (@(Get-TestMarkersInXlam (Join-Path $tmp 'clean.ppam')).Count -eq 0) '.ppam limpo sem marcadores'
-    Assert (@(Get-TestMarkersInXlam (Join-Path $tmp 'dirty.ppam')) -contains 'modTestRunner') '.ppam com modulo de teste (ppt/vbaProject.bin) e recusado'
+    Assert (@(Get-TestMarkersInXlam (Join-Path $tmp 'dirty.ppam')) -contains 'modPptTestRunner') '.ppam com modulo de teste (ppt/vbaProject.bin) e recusado'
     $threw = $false; $ppamMsg = ''
     try { [void](Get-TestMarkersInXlam (Join-Path $tmp 'sem-bin.ppam')) } catch { $threw = $true; $ppamMsg = $_.Exception.Message }
     Assert ($threw -and $ppamMsg -match 'vbaProject\.bin ausente') ".ppam sem vbaProject.bin: erro claro ($ppamMsg)"
@@ -46,12 +50,15 @@ try {
     $z = [IO.Compression.ZipFile]::Open($zipP, 'Create')
     [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($z, (Join-Path $tmp 'dirty.ppam'), 'ThinQQ.ppam')
     $z.Dispose()
-    Assert ((@(Get-TestMarkersInZip $zipP) -join ' ') -match 'ThinQQ\.ppam: modTestRunner') 'detecta modulo de teste no .ppam dentro do zip'
+    Assert ((@(Get-TestMarkersInZip $zipP) -join ' ') -match 'ThinQQ\.ppam: modPptTestRunner') 'detecta modulo de teste no .ppam dentro do zip'
 
     # artefatos reais, se existirem (build Test deve falhar na verificacao; Release deve passar)
     $found = 0
     foreach ($f in (Get-ChildItem $dist -Filter '*.test.xlam' -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '~$*' })) {
         Assert (@(Get-TestMarkersInXlam $f.FullName).Count -gt 0) "build de teste $($f.Name) deveria ser reprovado"; $found++
+    }
+    foreach ($f in (Get-ChildItem $dist -Filter '*.pptm' -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '~$*' })) {
+        Assert (@(Get-TestMarkersInXlam $f.FullName).Count -gt 0) "build de teste do PowerPoint $($f.Name) deveria ser reprovado"; $found++
     }
     foreach ($n in @('ThinQQ.xlam', 'ThinQQ.core.xlam', 'ThinQQ.ppam')) {
         $p = Join-Path $dist $n
