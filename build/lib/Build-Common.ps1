@@ -329,6 +329,49 @@ function Write-ExcelTimeout($wd) {
     Write-Host 'TIMEOUT: o Excel não terminou (provável erro de compilação VBA ou diálogo modal)' -ForegroundColor Red
 }
 
+# ---- PowerPoint antes/depois da suite (run-tests). O PowerPoint que os testes do core abrem e criado pelo COM a pedido do Excel de teste
+# (pai = o servico DcomLaunch, nao o Excel: nao ha como provar pelo PID/pai que e do teste); por isso o script NUNCA encerra POWERPNT aqui:
+# so registra antes/depois e avisa com PID, pai e argumentos. Sobra de automacao (-Embedding) conta como falha (teste vazou o PowerPoint).
+function Get-PptProcessSnapshot {
+    $list = @()
+    try {
+        $list = @(Get-CimInstance Win32_Process -Filter "Name = 'POWERPNT.EXE'" -ErrorAction Stop | ForEach-Object {
+            [pscustomobject]@{ Id = [int]$_.ProcessId; ParentId = [int]$_.ParentProcessId; CommandLine = [string]$_.CommandLine } })
+    } catch {
+        $list = @(Get-Process POWERPNT -ErrorAction SilentlyContinue | ForEach-Object { [pscustomobject]@{ Id = [int]$_.Id; ParentId = 0; CommandLine = '' } })
+    }
+    return $list
+}
+function Get-PptLeftovers([object[]]$Before = @(), [object[]]$After = @()) {
+    $ids = @(@($Before) | Where-Object { $null -ne $_ } | ForEach-Object { [int]$_.Id })
+    return @(@($After) | Where-Object { $null -ne $_ -and $ids -notcontains [int]$_.Id })
+}
+function Test-PptAutomationProcess($Proc) { return ($null -ne $Proc -and [string]$Proc.CommandLine -match '(?i)[-/]Embedding') }
+function Format-PptLeftover($Proc) {
+    $kind = if (Test-PptAutomationProcess $Proc) { 'automação (provável órfão de teste)' } else { 'aberto com janela (provável do usuário)' }
+    return "POWERPNT PID $($Proc.Id) (pai $($Proc.ParentId)), $kind; argumentos: $($Proc.CommandLine)"
+}
+# Testes do core com PowerPoint real (TestPowerPoint/TestPptSync) que pularam: cada pulo grava "TestX: ... pulado/pulada" no log de teste.
+function Get-PptSkipCount([string[]]$LogLines = @()) {
+    return @(@($LogLines) | Where-Object { $_ -match 'Test(PowerPoint|PptSync): .*\bpulad[oa]\b' }).Count
+}
+function Get-FileLengthOrZero([string]$Path) {
+    if (Test-Path -LiteralPath $Path -PathType Leaf) { return [long](Get-Item -LiteralPath $Path).Length }
+    return [long]0
+}
+# Linhas gravadas no log depois do deslocamento $Offset (bytes; o log do VBA e ANSI). Log ausente ou menor que o deslocamento = do inicio.
+function Read-LogTail([string]$Path, [long]$Offset) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+    $fs = New-Object IO.FileStream($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+    try {
+        if ($Offset -gt $fs.Length) { $Offset = 0 }
+        [void]$fs.Seek($Offset, [IO.SeekOrigin]::Begin)
+        $sr = New-Object IO.StreamReader($fs, [Text.Encoding]::GetEncoding(1252))
+        $text = $sr.ReadToEnd()
+    } finally { $fs.Dispose() }
+    return @($text -split "`r?`n" | Where-Object { $_ -ne '' })
+}
+
 # Gera modTestDispatch com chamadas DIRETAS a cada Test_* (Select Case). Application.Run abre diálogo modal
 # em erro não tratado no Excel invisível; chamada direta respeita o On Error do modTestRunner.
 function Write-TestDispatchModule([string[]]$TestFiles, [string]$OutPath) {

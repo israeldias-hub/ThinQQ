@@ -298,7 +298,7 @@ linhas com o marcador •; vão para o campo `notes` do manifesto e para o texto
 Opções (o `.bat` repassa ao PowerShell): `-DryRun` (ou `set DRYRUN=1`) confere as pré-condições locais e mostra o que faria, sem gravar,
 construir, enviar, ler o token nem chamar a API; `-Draft` termina a etapa 3 com a release em rascunho (publique-a depois pela página dela; se
 editar o texto do rascunho no GitHub, publique por lá, sem rodar a etapa de novo); `-NoBrowser` não abre o navegador; `-RunTests` roda a
-suíte completa (`build/run-tests.ps1 -Target all -LoaderSwap -TimeoutSec 900`) na cópia antes de construir; `-AllowMainChanges` deixa a
+suíte completa (`build/run-tests.ps1 -Target all -LoaderSwap -TimeoutSec 1200`) na cópia antes de construir; `-AllowMainChanges` deixa a
 etapa 3 publicar mesmo com a `origin/main` alterada depois da preparação (a tag fica na `origin/main` atual); `-Repo` (padrão
 `israeldias-hub/ThinQQ`) e `-NotesFile` (padrão `release/notes.txt`). `set NOPAUSE=1` dispensa a pausa no fim. Códigos de saída: 0 ok,
 1 falha (a mensagem diz o que ficou feito e como retomar), 2 pré-condição recusada (nada mudou). Exemplo de ensaio completo:

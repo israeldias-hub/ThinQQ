@@ -4,10 +4,30 @@ param(
     [switch]$LoaderSwap,     # tambem roda tests/ps/Test-LoaderSwap.ps1 (Excel real; monta Release em dist; ~30 s)
     [switch]$Ppt,            # tambem monta ThinQQ.ppt.test.pptm e roda tests/ps/Test-PptAddin.ps1 (PowerPoint proprio; so sem POWERPNT aberto)
     [string]$Filter = '',    # so roda testes cujo 'Modulo.Teste' contem este texto (iteracao rapida; pula as suites PowerShell)
-    [int]$TimeoutSec = 600   # watchdog da execução no Excel: mata o Excel iniciado aqui se não terminar (saída 2)
+    [int]$TimeoutSec = 1200  # watchdog da execução no Excel: mata o Excel iniciado aqui se não terminar (saída 2); a suite completa leva 620-830 s
 )
 . "$PSScriptRoot\lib\Build-Common.ps1"
 $swTotal = [System.Diagnostics.Stopwatch]::StartNew()
+# PowerPoint antes da suite: com um POWERPNT aberto os testes do core com PowerPoint real PULAM (verde falso nessa parte); nada e encerrado.
+$pptBefore = @(Get-PptProcessSnapshot)
+Write-Host "PowerPoint antes da suite: $($pptBefore.Count) processo(s) POWERPNT"
+foreach ($p in $pptBefore) { Write-Host "  $(Format-PptLeftover $p)" -ForegroundColor Yellow }
+if ($pptBefore.Count -gt 0) { Write-Host 'AVISO: com um PowerPoint aberto os testes com PowerPoint real são pulados (feche-o para testá-los).' -ForegroundColor Yellow }
+$testLog = Join-Path $env:TEMP 'ThinQQ-test-logs\thinqq.log'   # Errors_LogDir do build Test
+$testLogOffset = Get-FileLengthOrZero $testLog
+# PowerPoint depois da suite: um POWERPNT que nao existia antes e sobra (orfao de um teste/watchdog ou aberto pelo usuario durante a
+# execucao). Nunca e encerrado aqui (o pai e o DcomLaunch, nao o Excel do teste): o aviso traz PID e argumentos. Devolve 1 se sobrou
+# um PowerPoint de automacao (falha), senao 0.
+function Test-PptAfterSuite {
+    $after = @(Get-PptProcessSnapshot)
+    $bad = 0
+    Write-Host "PowerPoint depois da suite: $($after.Count) processo(s) POWERPNT"
+    foreach ($p in @(Get-PptLeftovers -Before $pptBefore -After $after)) {
+        Write-Host "AVISO: sobrou um PowerPoint que não existia antes: $(Format-PptLeftover $p). Nada foi encerrado." -ForegroundColor Yellow
+        if (Test-PptAutomationProcess $p) { Write-Host 'FALHOU: PowerPoint de automação órfão (um teste não o fechou); os testes seguintes com PowerPoint pulariam.' -ForegroundColor Red; $bad = 1 }
+    }
+    return $bad
+}
 
 # Limpeza conservadora do %TEMP%: só pastas thinqq_test_* com mais de 1 dia e modBuildInfo_*.bas
 $cut = (Get-Date).AddDays(-1)
@@ -111,8 +131,14 @@ try {
     if ($server) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
     Clear-TqqTestRegBranch
 }
+if ($targets -contains 'core') {
+    $pptSkipped = Get-PptSkipCount @(Read-LogTail $testLog $testLogOffset)
+    $skipColor = if ($pptSkipped -gt 0) { 'Yellow' } else { 'Gray' }
+    Write-Host "PowerPoint: $pptSkipped teste(s) do core com PowerPoint real pulado(s) (TestPowerPoint/TestPptSync; detalhes em $testLog)" -ForegroundColor $skipColor
+}
 if ($Filter) {
     Write-Host "Filtro '$Filter' ativo: suites PowerShell puladas"
+    $totalFailed += Test-PptAfterSuite
     if ($compileFailed) { exit 3 }
     if ($timedOut) { exit 2 }
     if ($totalFailed -gt 0) { exit 1 } else { exit 0 }
@@ -191,6 +217,7 @@ if (-not $timedOut -and $LoaderSwap) {
     if ($LASTEXITCODE -eq 0) { & (Join-Path $RepoRoot 'tests\ps\Test-LoaderSwap.ps1') -RepoRoot $RepoRoot }
     if ($LASTEXITCODE -ne 0) { $totalFailed += 1 }
 }
+$totalFailed += Test-PptAfterSuite
 $elapsed = '{0:N1}s' -f $swTotal.Elapsed.TotalSeconds
 if ($compileFailed) { Write-Host "Tempo: $elapsed"; exit 3 }
 if ($timedOut) { Write-ExcelTimeout $wd; Write-Host "Tempo: $elapsed"; exit 2 }

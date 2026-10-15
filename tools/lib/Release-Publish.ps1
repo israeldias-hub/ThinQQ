@@ -770,7 +770,7 @@ $script:RpDefaultBuild = {
         if ($Ctx.RunTests) {
             Write-Host "Rodando a suite completa na copia (pode levar alguns minutos)..."
             $global:LASTEXITCODE = 0
-            & $pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $copy 'build\run-tests.ps1') -Target all -LoaderSwap -TimeoutSec 900
+            & $pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $copy 'build\run-tests.ps1') -Target all -LoaderSwap -TimeoutSec 1200
             if ($LASTEXITCODE -ne 0) { throw (New-RpError "A suite de testes falhou na copia (codigo $LASTEXITCODE): nada foi publicado." 'falha') }
         }
         Write-Host "Construindo o release na copia $copy (o build usa um Excel e um PowerPoint proprios e invisiveis; feche o PowerPoint antes)..."

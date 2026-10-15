@@ -224,4 +224,31 @@ Check ($p3.Closed -and $fb.QuitCalled) 'Close-PptApp: sobra sem janela (do codig
 $fc = New-FakePpt @() 1
 Close-PptApp $fc -WaitSec 1 6>$null
 Check (-not $fc.QuitCalled) 'Close-PptApp: janela do Modo de Exibicao Protegido aberta: sem Quit'
+# ---- run-tests: POWERPNT antes/depois (so avisa: nunca encerra um PowerPoint que o script nao criou) e testes de PowerPoint pulados
+$snapA = @([pscustomobject]@{ Id = 10; ParentId = 1; CommandLine = 'POWERPNT.EXE' })
+$snapB = @($snapA[0], [pscustomobject]@{ Id = 20; ParentId = 900; CommandLine = '"POWERPNT.EXE" /AUTOMATION -Embedding' }, [pscustomobject]@{ Id = 30; ParentId = 5; CommandLine = '"POWERPNT.EXE" "C:\x\a.pptx"' })
+$left = @(Get-PptLeftovers -Before $snapA -After $snapB)
+Check ($left.Count -eq 2 -and ($left | ForEach-Object Id) -join ',' -eq '20,30') 'run-tests: sobra = POWERPNT que nao existia antes (o do usuario aberto antes nao conta)'
+Check (@(Get-PptLeftovers -Before @() -After @()).Count -eq 0) 'run-tests: sem PowerPoint antes nem depois = nenhuma sobra'
+Check ((Test-PptAutomationProcess $snapB[1]) -and -not (Test-PptAutomationProcess $snapB[2]) -and -not (Test-PptAutomationProcess $snapA[0])) 'run-tests: so -Embedding e PowerPoint de automacao (orfao de teste); o aberto pelo usuario nao'
+$msgL = Format-PptLeftover $snapB[1]
+Check ($msgL -match 'PID 20' -and $msgL -match 'pai 900' -and $msgL -match 'Embedding') "run-tests: aviso da sobra traz PID, pai e argumentos ($msgL)"
+$logLines = @("2026-10-14 10:00:00`tcore`tTestPowerPoint: pulado (ha um PowerPoint aberto)", "2026-10-14 10:00:01`tcore`tTestPptSync: pulado (processo POWERPNT existente ou contagem indisponivel: 1)",
+    "2026-10-14 10:00:02`tcore`tTestPptSync: colagem pulada (area de transferencia indisponivel)", "2026-10-14 10:00:03`tcore`tTestPowerPoint: resto do teste pulado (uma janela apareceu)", "2026-10-14 10:00:04`tcore`tCore_Insert`t5`toutro erro")
+Check ((Get-PptSkipCount $logLines) -eq 4) 'run-tests: conta os testes de PowerPoint pulados pelas linhas do log de teste'
+Check ((Get-PptSkipCount @()) -eq 0) 'run-tests: log vazio = 0 pulados'
+$tmpLog = Join-Path ([IO.Path]::GetTempPath()) ('tqq_log_' + [guid]::NewGuid().ToString('N') + '.log')
+try {
+    Check ((Get-FileLengthOrZero $tmpLog) -eq 0) 'run-tests: log ausente = tamanho 0'
+    [IO.File]::WriteAllText($tmpLog, "antigo`r`n", [Text.Encoding]::ASCII); $off = Get-FileLengthOrZero $tmpLog
+    [IO.File]::AppendAllText($tmpLog, "novo1`r`nnovo2`r`n", [Text.Encoding]::ASCII)
+    $tail = @(Read-LogTail $tmpLog $off)
+    Check ($tail.Count -eq 2 -and $tail[0] -eq 'novo1' -and $tail[1] -eq 'novo2') "run-tests: le so as linhas do log gravadas durante a execucao ($($tail -join '|'))"
+    Check (@(Read-LogTail (Join-Path ([IO.Path]::GetTempPath()) 'tqq_nao_existe.log') 0).Count -eq 0) 'run-tests: log ausente = nenhuma linha'
+} finally { Remove-Item -LiteralPath $tmpLog -Force -ErrorAction SilentlyContinue }
+$rt = [IO.File]::ReadAllText((Join-Path $RepoRoot 'build\run-tests.ps1'))
+Check ($rt -match '\[int\]\$TimeoutSec = 1200') 'run-tests: -TimeoutSec padrao 1200 (a suite completa passa de 800 s)'
+Check (([IO.File]::ReadAllText((Join-Path $RepoRoot 'tools\lib\Release-Publish.ps1'))) -match 'run-tests\.ps1''\) -Target all -LoaderSwap -TimeoutSec 1200') 'publicar-release -RunTests: suite com -TimeoutSec 1200'
+Check ($rt -match 'Get-PptProcessSnapshot' -and $rt -match 'Get-PptLeftovers' -and $rt -match 'Get-PptSkipCount') 'run-tests: registra POWERPNT antes/depois e conta os testes de PowerPoint pulados'
+Check ($rt -notmatch 'Stop-Process[^\r\n]*(left|Leftover|POWERPNT)') 'run-tests: nunca encerra POWERPNT (so avisa)'
 if ($script:fail -gt 0) { Write-Host "FALHAS ribbon-pacote: $script:fail"; exit 1 }
