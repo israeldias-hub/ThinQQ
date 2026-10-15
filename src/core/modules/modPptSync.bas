@@ -417,15 +417,19 @@ End Function
 ' atualizar vinculos, sem MRU e com eventos desligados durante a abertura (registrada em opened para fechar no fim). Nothing se nao abre
 ' (registrado). Pasta protegida por senha: Open mostraria uma caixa modal INVISIVEL (DisplayAlerts = False nao a evita) e travaria o
 ' Application.Run; uma Password ficticia faz a senha errada levantar o erro 1004 em vez de perguntar (ignorada em pasta sem senha). A
-' recomendacao "somente leitura" e a notificacao de arquivo em uso tambem nao perguntam.
+' recomendacao "somente leitura" e a notificacao de arquivo em uso tambem nao perguntam. SEGURANCA: o caminho vem da apresentacao (de quem a
+' fez): a pasta e aberta com as macros DESLIGADAS (AutomationSecurity = 3, msoAutomationSecurityForceDisable, so durante o Open e restaurada
+' em todo caminho), entao nenhuma macro dela roda nem ao abrir nem ao fechar.
 Private Function PptSync_OpenBook(path As String, opened As Collection) As Workbook
-    Dim w As Workbook, prevAlerts As Boolean, prevEvents As Boolean, en As Long, ed As String
+    Dim w As Workbook, prevAlerts As Boolean, prevEvents As Boolean, en As Long, ed As String, prevSec As Long
     For Each w In Application.Workbooks
         If StrComp(w.FullName, path, vbTextCompare) = 0 Then Set PptSync_OpenBook = w: Exit Function
     Next
     prevAlerts = Application.DisplayAlerts: prevEvents = Application.EnableEvents
     Application.DisplayAlerts = False: Application.EnableEvents = False
     On Error Resume Next
+    prevSec = Application.AutomationSecurity
+    Application.AutomationSecurity = 3                          ' msoAutomationSecurityForceDisable: macros da pasta de origem nunca rodam
     Set w = Application.Workbooks.Open(Filename:=path, UpdateLinks:=0, ReadOnly:=True, Password:="x", IgnoreReadOnlyRecommended:=True, Notify:=False, AddToMru:=False)
     If Err.Number <> 0 Then
         en = Err.Number: ed = Err.Description
@@ -433,18 +437,23 @@ Private Function PptSync_OpenBook(path As String, opened As Collection) As Workb
         Err.Clear
         Errors_Log "PptSync_OpenBook" & vbTab & en & vbTab & ed & vbTab & path
     End If
+    Application.AutomationSecurity = prevSec
     On Error GoTo 0
     Application.DisplayAlerts = prevAlerts: Application.EnableEvents = prevEvents
     If Not w Is Nothing Then opened.Add w
     Set PptSync_OpenBook = w
 End Function
 
+' Fecha sem salvar as pastas abertas pela sincronizacao, com os eventos desligados (restaurados ao fim; nunca propaga erro).
 Private Sub PptSync_CloseOpened(opened As Collection)
-    Dim w As Variant
+    Dim w As Variant, prevEvents As Boolean
     On Error Resume Next
+    prevEvents = Application.EnableEvents
+    Application.EnableEvents = False
     For Each w In opened
         w.Close SaveChanges:=False
     Next
+    Application.EnableEvents = prevEvents
 End Sub
 
 ' O que fazer com uma forma marcada antes de olhar a pasta de origem (pura): linkState de Ppt_LinkState (1 vinculado, 0 sem vinculo, -1

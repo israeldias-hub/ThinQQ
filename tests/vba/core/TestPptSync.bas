@@ -530,7 +530,7 @@ End Sub
 ' Review Focus 2: pasta fechada com dado novo salvo: aberta somente leitura, sincronizada e fechada (nenhuma pasta a mais aberta no fim).
 Public Sub Test_PptSync_ClosedSource_OpenedReadOnlyAndClosed_WhenAvailable()
     Dim wb As Workbook, rng As Range, app As Object, pres As Object, shp As Object, own As New Collection, en As Long, ed As String
-    Dim s As String, n0 As Long
+    Dim s As String, n0 As Long, sec0 As Long
     Set app = StartScratchPowerPoint()
     If app Is Nothing Then Exit Sub
     On Error GoTo Cleanup
@@ -543,10 +543,12 @@ Public Sub Test_PptSync_ClosedSource_OpenedReadOnlyAndClosed_WhenAvailable()
     Watchers_Stop
     CloseTemp wb: Set wb = Nothing
     n0 = Application.Workbooks.Count
+    sec0 = Application.AutomationSecurity
     s = PptSync_Presentation(pres, True)
     AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 1.") = 1, s
     AssertAlmost 33, PptSeriesValue(shp.Chart, "Sul", 1), 0.0001, "dado novo da pasta fechada"
     AssertEqual n0, Application.Workbooks.Count, "a pasta aberta pela sincronizacao foi fechada"
+    AssertEqual sec0, CLng(Application.AutomationSecurity), "AutomationSecurity restaurada depois de abrir a pasta"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
@@ -602,6 +604,47 @@ Public Sub Test_PptSync_FileExists()
     AssertFalse PptSync_FileExists("https://contoso.sharepoint.com/sites/x/Documentos/nao-aberta.xlsx"), "https nao aberto: nao provavel"
     AssertFalse PptSync_FileExists(""), "vazio"
     Teardown wb
+End Sub
+
+' Revisao final (C1, seguranca): a pasta de origem vem da apresentacao (de quem a fez). Aberta pela sincronizacao, ela nunca roda macros: uma
+' .xlsm com Workbook_BeforeClose que grava um arquivo marcador, citada por uma forma marcada (TQQ_BOOK = ela, TQQ_CHART desconhecido) numa
+' apresentacao falsa, e aberta e fechada (com os eventos ligados) sem o marcador aparecer; a AutomationSecurity do Excel volta ao valor anterior.
+Public Sub Test_PptSync_HostileSourceMacros_NeverRun_Fake()
+    Dim wb As Workbook, dir_ As String, xlsm As String, marker As String, cm As Object, pres As TestPptFake, sl As TestPptFake, shp As TestPptFake
+    Dim ch As TestPptFake, cd As TestPptFake, tags As Object, sec0 As Long, prevEv As Boolean, s As String, n0 As Long, code As String
+    dir_ = TempDir()
+    xlsm = dir_ & "\pptsync-hostil.xlsm": marker = dir_ & "\marcador.txt"
+    Set wb = NewTempWorkbook()
+    code = "Private Sub Workbook_BeforeClose(Cancel As Boolean)" & vbCrLf
+    code = code & "    Dim f As Integer: f = FreeFile: Open """ & marker & """ For Output As #f: Print #f, ""macro rodou"": Close #f" & vbCrLf
+    code = code & "End Sub"
+    Set cm = wb.VBProject.VBComponents(wb.CodeName).CodeModule
+    cm.AddFromString code
+    Set cm = Nothing
+    wb.SaveAs xlsm, 52                                              ' xlOpenXMLWorkbookMacroEnabled
+    prevEv = Application.EnableEvents: Application.EnableEvents = False
+    wb.Close SaveChanges:=False                                     ' o proprio teste fecha sem disparar o BeforeClose
+    Application.EnableEvents = prevEv
+    Set wb = Nothing
+    If Len(Dir(marker)) > 0 Then Kill marker
+    AssertTrue Len(Dir(xlsm)) > 0, "a .xlsm hostil foi gravada"
+    Set cd = New TestPptFake: cd.IsLinked = True
+    Set ch = New TestPptFake: Set ch.ChartData = cd
+    Set tags = CreateObject("Scripting.Dictionary")
+    tags.Add PPTSYNC_TAG_CHART, "tqq_nao_existe"
+    tags.Add PPTSYNC_TAG_BOOK, xlsm
+    Set shp = New TestPptFake: shp.Width = 400: shp.Height = 300: Set shp.Chart = ch: Set shp.Tags = tags
+    Set sl = New TestPptFake: Set sl.Shapes = New Collection: sl.Shapes.Add shp
+    Set pres = New TestPptFake: Set pres.Slides = New Collection: pres.Slides.Add sl
+    Application.EnableEvents = True
+    sec0 = Application.AutomationSecurity
+    n0 = Application.Workbooks.Count
+    s = PptSync_Presentation(pres, True)
+    Application.EnableEvents = prevEv
+    AssertEqual 0, Len(Dir(marker)), "a macro da pasta de origem NAO rodou (" & s & ")"
+    AssertEqual sec0, CLng(Application.AutomationSecurity), "AutomationSecurity restaurada"
+    AssertEqual n0, Application.Workbooks.Count, "a pasta aberta pela sincronizacao foi fechada"
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 0.") = 1, s
 End Sub
 
 ' Re-revisao da A1: o resultado "Update ignorado por origem inalcancavel" e visivel a quem chama (updateSkipped); com a pasta alcancavel ou
