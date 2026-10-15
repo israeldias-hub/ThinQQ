@@ -12,6 +12,9 @@ Private mTestPin As Object                      ' gancho de teste: slide fixo de
 Private mTestForceNew As Boolean                ' gancho de teste: sempre uma apresentacao nova (nunca janela nem Presentations(1))
 Private mTestLastNew As Object                  ' gancho de teste: a ultima apresentacao criada por Ppt_TargetSlide (e o nome dela)
 Private mTestLastNewName As String
+Private mOpDepth As Long                        ' operacoes do core com o PowerPoint em andamento (Ppt_BeginOp/Ppt_EndOp)
+Private mOpSince As Date                        ' quando a operacao mais externa comecou
+Private Const PPT_OP_STALE_S As Long = 120      ' marca de operacao mais velha que isto e considerada esquecida
 Private Const PPT_LAYOUT_BLANK As Long = 12     ' ppLayoutBlank
 Private Const PPT_FIT As Double = 0.8           ' fracao do slide que o grafico ocupa (largura ou altura, a que limitar)
 Private Const PPT_CLIPBRD_E_CANT_OPEN As Long = -2147221040     ' 0x800401D0: a area de transferencia esta aberta por outro programa
@@ -105,9 +108,35 @@ Public Function Ppt_CreatedByUs(procsBefore As Long, app As Object) As Boolean
     Ppt_CreatedByUs = (procsBefore = 0)
 End Function
 
+' Operacao do core com o PowerPoint em andamento (colagem, sincronizacao pedida pelo usuario ou pelo .ppam): o ciclo automatico
+' (PptAuto_Tick) espera. Contador (as entradas se aninham: Core_PptSyncOpen chama Core_PptSyncPresentation); quem abre fecha em todo caminho.
+Public Sub Ppt_BeginOp()
+    If mOpDepth = 0 Then mOpSince = Now
+    mOpDepth = mOpDepth + 1
+End Sub
+
+Public Sub Ppt_EndOp()
+    If mOpDepth > 0 Then mOpDepth = mOpDepth - 1
+End Sub
+
+' True durante uma operacao do core com o PowerPoint. Uma marca esquecida (aberta ha mais de PPT_OP_STALE_S) e descartada e registrada,
+' para o ciclo automatico nunca ficar adiado para sempre. Nunca propaga erro.
+Public Function Ppt_InOperation() As Boolean
+    On Error Resume Next
+    If mOpDepth = 0 Then Exit Function
+    If Now - mOpSince > TimeSerial(0, 0, PPT_OP_STALE_S) Then
+        Errors_Log "Ppt_InOperation: marca de operacao esquecida descartada (" & mOpDepth & ")"
+        mOpDepth = 0
+        Exit Function
+    End If
+    Ppt_InOperation = True
+End Function
+
+' create = False: so um PowerPoint ja aberto (GetObject), sem mexer no indicador de "aberto por nos" (Ppt_AppWasCreated) de uma colagem em
+' andamento; create = True: abre um se nao houver e registra se foi aberto por esta chamada.
 Public Function Ppt_GetApp(create As Boolean) As Object
     Dim o As Object, procs As Long
-    mCreatedApp = False
+    If create Then mCreatedApp = False
     If BUILD_CONFIG = "Test" Then Set Ppt_GetApp = mTestApp: Exit Function     ' testes: so a instancia injetada (sem ela, Nothing): nunca o PowerPoint do usuario
     On Error Resume Next
     Set o = GetObject(, "PowerPoint.Application")

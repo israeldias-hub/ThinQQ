@@ -1337,7 +1337,9 @@ End Sub
 ' criou (forma colada, apresentacao nova, PowerPoint aberto por nos). A colagem usa a area de transferencia do Windows.
 Public Sub Core_CopyToPowerPoint(mode As String)
     On Error Resume Next
+    Ppt_BeginOp                                      ' o ciclo automatico (PptAuto_Tick) nao roda no meio da colagem
     CopyToPowerPointImpl mode
+    Ppt_EndOp
     Ppt_SetFailForTest ""                            ' gancho de teste: desarmado em toda saida (inclusive as antecipadas); o destino fixo e
                                                      ' desarmado pelo teste (Ppt_ResetTestHooks), pois vale para varias chamadas
 End Sub
@@ -1436,12 +1438,15 @@ End Sub
 Public Function Core_PptSyncPresentation(pres As Object, Optional force As Boolean = False) As String
     Dim en As Long, ed As String
     On Error GoTo Fail
+    Ppt_BeginOp                                             ' o ciclo automatico espera (fechada em todo caminho)
     Core_PptSyncPresentation = PptSync_Presentation(pres, force)
+    Ppt_EndOp
     Exit Function
 Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
+    Ppt_EndOp
     Errors_Log "Core_PptSyncPresentation" & vbTab & en & vbTab & ed
     If Ppt_IsBusyError(en) Then Core_PptSyncPresentation = PPT_ERR_BUSY Else Core_PptSyncPresentation = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
 End Function
@@ -1457,14 +1462,20 @@ End Function
 Public Function Core_PptSyncShapes(pres As Object, entries As String, Optional force As Boolean = True) As String
     Dim items As Collection, en As Long, ed As String
     On Error GoTo Fail
+    Ppt_BeginOp                                             ' o ciclo automatico espera (fechada em todo caminho)
     Set items = PptSync_ResolveEntries(pres, entries)
-    If items.Count = 0 Then Core_PptSyncShapes = PPTSYNC_NONE: Exit Function
-    Core_PptSyncShapes = PptSync_Items(items, force)
+    If items.Count = 0 Then
+        Core_PptSyncShapes = PPTSYNC_NONE
+    Else
+        Core_PptSyncShapes = PptSync_Items(items, force)
+    End If
+    Ppt_EndOp
     Exit Function
 Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
+    Ppt_EndOp
     Errors_Log "Core_PptSyncShapes" & vbTab & en & vbTab & ed
     If Ppt_IsBusyError(en) Then Core_PptSyncShapes = PPT_ERR_BUSY Else Core_PptSyncShapes = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
 End Function
@@ -1493,11 +1504,17 @@ End Sub
 Public Sub Core_PptSyncOpen()
     Dim app As Object, pres As Object, msg As String, en As Long, ed As String
     On Error GoTo Fail
+    Ppt_BeginOp                                             ' o ciclo automatico espera (fechada em todo caminho, antes do aviso)
     Set app = Ppt_GetApp(False)
-    If app Is Nothing Then Core_Notify PPTSYNC_NO_PPT, vbInformation: Exit Sub
+    If app Is Nothing Then
+        Ppt_EndOp
+        Core_Notify PPTSYNC_NO_PPT, vbInformation
+        Exit Sub
+    End If
     For Each pres In app.Presentations
         msg = msg & IIf(Len(msg) > 0, vbLf & vbLf, "") & "'" & PptSyncPresName(pres) & "': " & Core_PptSyncPresentation(pres, True)
     Next
+    Ppt_EndOp
     If Len(msg) = 0 Then msg = PPTSYNC_NO_PPT
     Core_Notify msg, vbInformation
     Exit Sub
@@ -1505,6 +1522,7 @@ Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
+    Ppt_EndOp
     Application.StatusBar = False
     If Ppt_IsKnownFailure(en) Then
         Core_Notify Ppt_ErrorText(en, ed), vbExclamation

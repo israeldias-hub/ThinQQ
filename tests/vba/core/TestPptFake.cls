@@ -12,7 +12,8 @@ Option Explicit
 ' de aplicativo, janela, modo de exibicao, selecao, apresentacao, slide e forma; membro sem valor (Nothing) faz a leitura falhar como no
 ' PowerPoint (erro 91). SlideIndex so existe num slide (SlideIndexValue > 0): mestre e layout nao tem (erro 438).
 Public Windows As Collection
-Public ActiveWindow As Object
+Private mActiveWindow As Object
+Public ActiveWindowReads As Long                ' aplicativo: quantas vezes ActiveWindow foi lido (chamadas ao PowerPoint do usuario)
 Public Presentations As Collection
 Public View As Object
 Public Slide As Object
@@ -36,6 +37,15 @@ Public UpdateCount As Long                      ' quantas vezes Update foi chama
 Public Shapes As Object                         ' slide: as formas (Collection; For Each)
 Public Tags As Object                           ' forma: as etiquetas (Scripting.Dictionary; Tags.Item(nome))
 Public ReadOnly As Long                         ' apresentacao: 0 = editavel (msoFalse)
+
+Public Property Get ActiveWindow() As Object
+    ActiveWindowReads = ActiveWindowReads + 1
+    Set ActiveWindow = mActiveWindow
+End Property
+
+Public Property Set ActiveWindow(v As Object)
+    Set mActiveWindow = v
+End Property
 
 Public Property Get SlideIndex() As Long
     If SlideIndexValue <= 0 Then Err.Raise 438, "TestPptFake", "nao e um slide"

@@ -2,6 +2,7 @@ Attribute VB_Name = "TestPptSync"
 Option Explicit
 ' Parte A (1.4.0): motor de sincronizacao dos graficos ThinQQ colados no PowerPoint (modPptSync). Os testes com PowerPoint real so rodam sem
 ' nenhum POWERPNT aberto (aplicativo de instancia unica: CreateObject anexaria ao do usuario); senao saem verdes registrando o motivo.
+Private mAutoWasActive As Boolean               ' AutoBegin/AutoEnd: os eventos do Excel estavam ligados antes do teste do motor automatico
 
 Private Sub Teardown(wb As Workbook)
     PptSync_ResetTestHooks
@@ -1285,12 +1286,26 @@ End Sub
 
 ' ---- Parte C2: motor automatico ----
 
-' Estado limpo do motor: nada agendado, fila vazia, opcoes padrao, sem OnTime real (o teste chama PptAuto_Tick) e sem os eventos do Excel.
+' Estado limpo do motor: nada agendado, fila vazia, opcoes e relogio padrao, sem OnTime real (o teste chama PptAuto_Tick).
 Private Sub AutoReset()
     PptAuto_Cancel
     PptAuto_ResetTestHooks
     PptAuto_SetNoTimerForTest True
+End Sub
+
+' Comeco de um teste do motor: guarda se os eventos do Excel estavam ligados (outro modulo pode te-los ligado) e os desliga, para nenhum
+' evento marcar a pasta sem o teste pedir; AutoEnd devolve o estado de antes.
+Private Sub AutoBegin()
+    mAutoWasActive = Watchers_IsActive()
     Watchers_Stop
+    AutoReset
+End Sub
+
+Private Sub AutoEnd()
+    AutoReset
+    Watchers_Stop
+    If mAutoWasActive Then Watchers_Start
+    mAutoWasActive = False
 End Sub
 
 ' Pasta SALVA com grafico do ThinQQ (planilha _ThinQQ). Devolve a pasta; rng = dados.
@@ -1315,10 +1330,18 @@ Private Function FakeAutoPres(shp As TestPptFake, book As String) As TestPptFake
     Set FakeAutoPres = pres
 End Function
 
+' Duble do aplicativo com as apresentacoes dadas (sem janela ativa).
+Private Function FakeApp(pres As TestPptFake) As TestPptFake
+    Dim app As TestPptFake
+    Set app = New TestPptFake: Set app.Presentations = New Collection
+    If Not pres Is Nothing Then app.Presentations.Add pres
+    Set FakeApp = app
+End Function
+
 ' So pastas SALVAS com graficos do ThinQQ (_ThinQQ) agendam; desligado nada agenda.
 Public Sub Test_PptAuto_OnChange_Filters()
     Dim wb As Workbook, wb2 As Workbook, rng As Range
-    AutoReset
+    AutoBegin
     Set wb2 = NewTempWorkbook()
     PptAuto_OnChange wb2
     AssertEqual 0, PptAuto_PendingCountForTest(), "pasta nova sem ThinQQ e sem arquivo"
@@ -1345,12 +1368,13 @@ Public Sub Test_PptAuto_OnChange_Filters()
     AssertEqual 0, PptAuto_PendingCountForTest()
     CloseTemp wb2
     Teardown wb
+    AutoEnd
 End Sub
 
 ' Eventos reais do Excel: digitar na pasta salva agenda o ciclo.
 Public Sub Test_PptAuto_SheetChangeEvent_Schedules()
     Dim wb As Workbook, rng As Range
-    AutoReset
+    AutoBegin
     Set wb = AutoBook("pptauto-evt.xlsx", rng)
     Watchers_Start
     PptAuto_Cancel: PptAuto_SetNoTimerForTest True
@@ -1360,13 +1384,14 @@ Public Sub Test_PptAuto_SheetChangeEvent_Schedules()
     AutoReset
     AssertFalse PptAuto_IsScheduledForTest()
     Teardown wb
+    AutoEnd
 End Sub
 
 ' Sem PowerPoint injetado (build Test: Ppt_GetApp devolve so a instancia injetada) o ciclo esvazia a fila sem erro; opcao desligada
 ' depois da mudanca: o ciclo so esvazia a fila.
 Public Sub Test_PptAuto_Tick_NoPowerPoint_ClearsQueue()
     Dim wb As Workbook, rng As Range
-    AutoReset
+    AutoBegin
     Ppt_ResetTestHooks
     Set wb = AutoBook("pptauto-noppt.xlsx", rng)
     PptAuto_OnChange wb
@@ -1379,14 +1404,14 @@ Public Sub Test_PptAuto_Tick_NoPowerPoint_ClearsQueue()
     PptAuto_Tick
     AssertEqual 0, PptAuto_PendingCountForTest(), "desligado no meio: fila esvaziada"
     AssertFalse PptAuto_IsScheduledForTest()
-    AutoReset
     Teardown wb
+    AutoEnd
 End Sub
 
 ' PowerPoint ocupado (gancho): nova tentativa agendada, fila mantida; depois de PPTAUTO_MAX_RETRIES desiste e esvazia.
 Public Sub Test_PptAuto_Busy_Retries()
     Dim wb As Workbook, rng As Range, i As Long
-    AutoReset
+    AutoBegin
     Set wb = AutoBook("pptauto-busy.xlsx", rng)
     PptAuto_OnChange wb
     PptAuto_SetBusyForTest 99
@@ -1400,15 +1425,16 @@ Public Sub Test_PptAuto_Busy_Retries()
     AssertEqual 0, PptAuto_PendingCountForTest(), "desistiu"
     AssertEqual 0, PptAuto_RetriesForTest()
     AssertFalse PptAuto_IsScheduledForTest(), "depois de desistir nada fica agendado"
-    AutoReset
     Teardown wb
+    AutoEnd
 End Sub
 
 ' Review Focus 1: eventos durante o ciclo (o proprio refresh) nao marcam a pasta; um disparo durante o ciclo nao entra e deixa o ciclo
-' reagendado (a marca nunca fica sem OnTime).
+' reagendado (a marca nunca fica sem OnTime). O "ciclo em andamento" e simulado pelo gancho PptAuto_SetInTickForTest (o mesmo indicador
+' que PptAuto_Tick liga); o caminho real (refresh do proprio ciclo) e coberto por Test_PptAuto_Tick_UpdatesOnlyAutoShapes_WhenAvailable.
 Public Sub Test_PptAuto_NoReentryDuringTick()
     Dim wb As Workbook, rng As Range
-    AutoReset
+    AutoBegin
     Set wb = AutoBook("pptauto-reentry.xlsx", rng)
     PptAuto_SetInTickForTest True
     PptAuto_OnChange wb
@@ -1421,33 +1447,53 @@ Public Sub Test_PptAuto_NoReentryDuringTick()
     AssertEqual 1, PptAuto_PendingCountForTest(), "ciclo em andamento: o segundo disparo nao entra"
     AssertTrue PptAuto_IsScheduledForTest(), "e a marca continua agendada"
     PptAuto_SetInTickForTest False
-    AutoReset
     Teardown wb
+    AutoEnd
 End Sub
 
-' OnTime REAL (opcao do teste): cada mudanca cancela o OnTime vivo pelo MESMO horario e agenda outro (nada empilha: um cancelamento que nao
-' acha o OnTime falha e conta); Core_OnUnload desagenda (o OnTime reabriria o core descarregado). Nada fica pendente depois do teste.
-Public Sub Test_PptAuto_RealTimer_RescheduleAndUnload()
-    Dim wb As Workbook, rng As Range, en As Long, ed As String
+' OnTime REAL (opcao do teste): reagendar em outro segundo cancela o OnTime antigo (cancelar o horario antigo de novo falha: nada empilhou)
+' e deixa UM OnTime vivo (o cancelamento do horario vivo da certo uma vez e a segunda falha); Core_OnUnload cancela o OnTime real (o
+' OnTime reabriria o core descarregado). Nada fica pendente depois do teste.
+Public Sub Test_PptAuto_RealTimer_NoStacking_AndUnload()
+    Dim wb As Workbook, rng As Range, en As Long, ed As String, d1 As Date, d2 As Date, d3 As Date, d4 As Date, s0 As Date, t As Single
     On Error GoTo Cleanup
-    AutoReset
+    AutoBegin
     Set wb = AutoBook("pptauto-timer.xlsx", rng)
     PptAuto_SetNoTimerForTest False
     PptAuto_OnChange wb
-    AssertTrue PptAuto_IsScheduledForTest()
+    d1 = PptAuto_DueForTest()
+    AssertTrue d1 <> 0, "agendado"
+    s0 = Now: t = Timer
+    Do While Now <= s0                                      ' proximo segundo do relogio (o OnTime vence em 2 s: nao dispara aqui)
+        If Timer < t Or Timer - t > 1.5 Then Exit Do
+        DoEvents
+    Loop
     PptAuto_OnChange wb
+    d2 = PptAuto_DueForTest()
+    AssertTrue d2 > d1, "o horario novo e de outro segundo"
     PptAuto_OnChange wb
+    d3 = PptAuto_DueForTest()
     AssertEqual 0, PptAuto_TimerFailuresForTest(), "reagendar cancelou o OnTime vivo"
+    AssertFalse PptAuto_CancelAtForTest(d1), "o OnTime antigo ja tinha sido cancelado (nada empilhou)"
+    If d3 <> d2 Then AssertFalse PptAuto_CancelAtForTest(d2), "o do meio tambem"
+    AssertTrue PptAuto_CancelAtForTest(d3), "o OnTime vivo existe"
+    AssertFalse PptAuto_CancelAtForTest(d3), "uma vez so"
+    PptAuto_SetNoTimerForTest False
+    PptAuto_OnChange wb
+    d4 = PptAuto_DueForTest()
+    AssertTrue d4 <> 0
     Core_OnUnload
     AssertFalse PptAuto_IsScheduledForTest(), "Core_OnUnload desagenda"
     AssertEqual 0, PptAuto_PendingCountForTest()
     AssertEqual 0, PptAuto_TimerFailuresForTest(), "cancelamento pelo mesmo horario"
+    AssertFalse PptAuto_CancelAtForTest(d4), "o OnTime real foi cancelado pelo Core_OnUnload"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
     AutoReset
     If Not wb Is Nothing Then Teardown wb
+    AutoEnd
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub
@@ -1474,20 +1520,51 @@ Public Sub Test_PptAuto_ItemsFor_OnlyDirtyBooks_Fake()
     AssertEqual 0, PptAuto_ItemsFor(pres, d).Count, "sem TQQ_AUTO"
 End Sub
 
+' Leitura recusada pelo PowerPoint ocupado (gancho com o numero do erro) no indice, na TQQ_AUTO ou no vinculo da forma: sobe como ocupado
+' (nova tentativa), nunca vira "entrada velha" nem "pasta de outra origem".
+Public Sub Test_PptAuto_ItemsFor_BusyReads_Raise_Fake()
+    Dim shp As TestPptFake, pres As TestPptFake, d As Object, pts As Variant, i As Long, n As Long, en As Long, ed As String
+    On Error GoTo Cleanup
+    Set shp = FakeLinkedShape("tqq_x", "C:\t\a.xlsx")
+    Set pres = FakeAutoPres(shp, "C:\t\a.xlsx")
+    Set d = CreateObject("Scripting.Dictionary"): d.CompareMode = 1
+    d.Add "C:\t\a.xlsx", True
+    pts = Array("autoidx", "autotag", "autobook")
+    For i = 0 To 2
+        PptSync_SetFailNumberForTest CStr(pts(i)), -2147418111
+        On Error Resume Next
+        n = PptAuto_ItemsFor(pres, d).Count
+        en = Err.Number
+        On Error GoTo Cleanup
+        AssertEqual -2147418111, en, "ocupado sobe (" & pts(i) & ")"
+        AssertTrue InStr(PptSync_Tag(pres, PPTSYNC_TAG_INDEX), "tqq_x") > 0, "a entrada continua no indice (" & pts(i) & ")"
+    Next
+    PptSync_ResetTestHooks
+    AssertEqual 1, PptAuto_ItemsFor(pres, d).Count, "sem gancho: a forma entra"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptSync_ResetTestHooks
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
 ' Review Focus 5: o ciclo nunca abre pasta. Com a pasta aberta o ciclo chega a forma; fechada depois da mudanca, sai da fila sem ser aberta.
 Public Sub Test_PptAuto_Tick_NeverOpensClosedBook_Fake()
     Dim wb As Workbook, rng As Range, p As String, shp As TestPptFake, pres As TestPptFake, app As TestPptFake, n0 As Long, en As Long, ed As String
     On Error GoTo Cleanup
-    AutoReset
+    AutoBegin
     Set wb = AutoBook("pptauto-closed.xlsx", rng)
     p = wb.FullName
     Set shp = FakeLinkedShape("tqq_x", p)
     Set pres = FakeAutoPres(shp, p)
-    Set app = New TestPptFake: Set app.Presentations = New Collection: app.Presentations.Add pres
+    Set app = FakeApp(pres)
     Ppt_SetAppForTest app
     PptAuto_OnChange wb
     PptAuto_Tick
     AssertTrue InStr(PptAuto_LastResultForTest(), "Gráficos do ThinQQ atualizados: 0.") = 1, "pasta aberta: o ciclo chegou a forma (" & PptAuto_LastResultForTest() & ")"
+    AssertEqual 1, PptAuto_LogCountForTest(), "grafico nao encontrado: registrado"
     PptAuto_OnChange wb
     wb.Close SaveChanges:=False
     Set wb = Nothing
@@ -1505,8 +1582,178 @@ Cleanup:
     PptSync_ResetTestHooks
     Application.StatusBar = False
     If Not wb Is Nothing Then Teardown wb
+    AutoEnd
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Importante 1 (revisao): PowerPoint aberto sem nenhuma forma automatica: o ciclo so le ReadOnly e TQQ_AUTOIDX das apresentacoes; nenhuma
+' leitura da janela (guarda de texto em edicao), nenhuma nova tentativa nem registro, fila esvaziada. Controle: com uma forma automatica da
+' pasta e texto "em edicao" (a selecao do duble e um grafico do Excel: Type = 3), a guarda roda e adia.
+Public Sub Test_PptAuto_Tick_NoAutoShapes_NoPptWindowCalls_Fake()
+    Dim wb As Workbook, rng As Range, s As Shape, sel As Shape, win As TestPptFake, presNo As TestPptFake, presIdx As TestPptFake, app As TestPptFake
+    Dim shp As TestPptFake, en As Long, ed As String
+    On Error GoTo Cleanup
+    AutoBegin
+    Set wb = AutoBook("pptauto-noidx.xlsx", rng)
+    For Each s In rng.Worksheet.Shapes
+        If s.Type = 3 Then Set sel = s: Exit For
+    Next
+    AssertTrue Not sel Is Nothing, "grafico do Excel como selecao do duble"
+    Set win = New TestPptFake: Set win.Selection = sel
+    Set presNo = New TestPptFake: Set presNo.Tags = CreateObject("Scripting.Dictionary")
+    Set app = FakeApp(presNo): Set app.ActiveWindow = win
+    app.ActiveWindowReads = 0
+    Ppt_SetAppForTest app
+    PptAuto_OnChange wb
+    PptAuto_Tick
+    AssertEqual 0, app.ActiveWindowReads, "sem formas automaticas: nenhuma leitura da janela do PowerPoint"
+    AssertEqual 0, PptAuto_RetriesForTest(), "nenhuma nova tentativa"
+    AssertEqual 0, PptAuto_PendingCountForTest(), "fila esvaziada"
+    AssertFalse PptAuto_IsScheduledForTest()
+    AssertEqual 0, PptAuto_LogCountForTest(), "nada registrado"
+    Set shp = FakeLinkedShape("tqq_x", wb.FullName)
+    Set presIdx = FakeAutoPres(shp, wb.FullName)
+    app.Presentations.Add presIdx
+    PptAuto_OnChange wb
+    PptAuto_Tick
+    AssertTrue app.ActiveWindowReads > 0, "com forma automatica a guarda de texto em edicao roda"
+    AssertEqual 1, PptAuto_RetriesForTest(), "texto em edicao: nova tentativa"
+    AssertEqual 1, PptAuto_PendingCountForTest()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    AutoReset
+    Ppt_ResetTestHooks
+    Set win = Nothing: Set sel = Nothing: Set s = Nothing
+    If Not wb Is Nothing Then Teardown wb
+    AutoEnd
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Menor 2 (revisao): pasta que recalcula sem parar (uma mudanca por "segundo" do relogio do gancho durante 25 s, como RTD): o ciclo dispara
+' mesmo assim, uns 10 s depois da primeira marca (o OnTime vivo deixa de ser adiado). Mesmo segundo: nenhum cancelamento/agendamento novo.
+Public Sub Test_PptAuto_Storm_CycleStillRuns()
+    Dim wb As Workbook, rng As Range, t0 As Date, now_ As Date, s As Long, fired As Long, d As Date
+    AutoBegin
+    Ppt_ResetTestHooks
+    Set wb = AutoBook("pptauto-storm.xlsx", rng)
+    t0 = DateSerial(2026, 1, 5) + TimeSerial(9, 0, 0)
+    fired = -1
+    For s = 0 To 25
+        now_ = t0 + TimeSerial(0, 0, s)
+        PptAuto_SetNowForTest now_
+        If PptAuto_IsScheduledForTest() Then
+            If DateDiff("s", PptAuto_DueForTest(), now_) >= 0 Then
+                PptAuto_Tick
+                If fired < 0 Then fired = s
+            End If
+        End If
+        PptAuto_OnChange wb
+    Next
+    AssertTrue fired >= 10 And fired <= 12, "o ciclo disparou em " & fired & " s"
+    PptAuto_SetNowForTest t0
+    PptAuto_Cancel: PptAuto_SetNoTimerForTest True
+    PptAuto_SetNowForTest t0
+    PptAuto_OnChange wb
+    d = PptAuto_DueForTest()
+    PptAuto_OnChange wb
+    AssertEqual CDbl(d), CDbl(PptAuto_DueForTest()), "mesmo segundo: o horario vivo fica"
+    Teardown wb
+    AutoEnd
+End Sub
+
+' Menor 3 (revisao): o texto que outro recurso pos na barra de status volta depois do ciclo que sincronizou.
+Public Sub Test_PptAuto_Tick_RestoresOtherStatusText_Fake()
+    Dim wb As Workbook, rng As Range, shp As TestPptFake, pres As TestPptFake, en As Long, ed As String, v As Variant
+    On Error GoTo Cleanup
+    AutoBegin
+    Set wb = AutoBook("pptauto-status.xlsx", rng)
+    Set shp = FakeLinkedShape("tqq_x", wb.FullName)
+    Set pres = FakeAutoPres(shp, wb.FullName)
+    Ppt_SetAppForTest FakeApp(pres)
+    Application.StatusBar = "outro recurso (teste)"
+    PptAuto_OnChange wb
+    PptAuto_Tick
+    AssertTrue Len(PptAuto_LastResultForTest()) > 0, "o ciclo sincronizou"
+    AssertEqual "outro recurso (teste)", CStr(Application.StatusBar), "texto de outro recurso devolvido"
+    Application.StatusBar = False
+    PptAuto_OnChange wb
+    PptAuto_Tick
+    v = Application.StatusBar                           ' o Excel invisivel do teste le False como o texto "FALSE" (TestDeltaPick)
+    AssertTrue VarType(v) = vbBoolean Or CStr(v) = "FALSE", "sem texto antes: a barra volta ao Excel (" & CStr(v) & ")"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Application.StatusBar = False
+    AutoReset
+    Ppt_ResetTestHooks
+    PptSync_ResetTestHooks
+    If Not wb Is Nothing Then Teardown wb
+    AutoEnd
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Menor 5 (revisao): PptSync_Items com noOpen nunca abre a pasta: fechada, ela entra no aviso de pasta nao encontrada; sem noOpen (padrao) a
+' pasta e aberta somente leitura (o grafico do duble nao existe nela).
+Public Sub Test_PptSync_Items_NoOpen_ListsMissing_Fake()
+    Dim wb As Workbook, p As String, items As New Collection, n0 As Long, s As String, en As Long, ed As String
+    On Error GoTo Cleanup
+    p = TempDir() & "\pptauto-noopen.xlsx"
+    Set wb = NewTempWorkbook()
+    wb.SaveAs p, xlOpenXMLWorkbook
+    wb.Close SaveChanges:=False
+    Set wb = Nothing
+    items.Add FakeLinkedShape("tqq_x", p)
+    n0 = Application.Workbooks.Count
+    s = PptSync_Items(items, False, True)
+    AssertTrue InStr(s, "Pasta de origem não encontrada") > 0 And InStr(s, "pptauto-noopen.xlsx") > 0, s
+    AssertEqual n0, Application.Workbooks.Count
+    s = PptSync_Items(items, False)
+    AssertTrue InStr(s, "Gráfico não encontrado") > 0, "padrao: abriu a pasta (" & s & ")"
+    AssertEqual n0, Application.Workbooks.Count, "e fechou"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Application.StatusBar = False
+    PptSync_ResetTestHooks
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Menor 7 (revisao): o ciclo nao roda no meio de uma operacao do core com o PowerPoint (colagem, sincronizacao pedida): reagenda. As
+' entradas do core fecham a marca em todo caminho.
+Public Sub Test_PptAuto_Tick_DuringCoreOperation_Reschedules()
+    Dim wb As Workbook, rng As Range, pres As TestPptFake
+    AutoBegin
+    Ppt_ResetTestHooks
+    Set wb = AutoBook("pptauto-op.xlsx", rng)
+    PptAuto_OnChange wb
+    Ppt_BeginOp
+    PptAuto_Tick
+    AssertEqual 1, PptAuto_PendingCountForTest(), "operacao em andamento: o ciclo espera"
+    AssertTrue PptAuto_IsScheduledForTest(), "e fica agendado"
+    Ppt_EndOp
+    AssertFalse Ppt_InOperation()
+    PptAuto_Tick
+    AssertEqual 0, PptAuto_PendingCountForTest()
+    rng.Worksheet.Range("E10").Select
+    Core_CopyToPowerPoint "chart"
+    AssertFalse Ppt_InOperation(), "colagem sem grafico ativo: marca fechada"
+    Core_PptSyncOpen
+    AssertFalse Ppt_InOperation(), "Atualizar graficos sem PowerPoint: marca fechada"
+    Set pres = New TestPptFake
+    Core_PptSyncPresentation pres, True
+    AssertFalse Ppt_InOperation(), "API 1 com erro: marca fechada"
+    Core_PptSyncShapes pres, PptIdx_Entry(256, "x", ""), True
+    AssertFalse Ppt_InOperation(), "API 2 com erro: marca fechada"
+    Teardown wb
+    AutoEnd
 End Sub
 
 ' Review Focus 1: so a forma automatica muda; entrada de forma apagada sai do indice; o refresh do proprio ciclo nao reagenda.
@@ -1516,7 +1763,7 @@ Public Sub Test_PptAuto_Tick_UpdatesOnlyAutoShapes_WhenAvailable()
     Set app = StartScratchPowerPoint()
     If app Is Nothing Then Exit Sub
     On Error GoTo Cleanup
-    AutoReset
+    AutoBegin
     Set pres = app.Presentations.Add(0): own.Add pres
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
     If UserWindowAppeared(app) Then GoTo Cleanup
@@ -1538,6 +1785,7 @@ Public Sub Test_PptAuto_Tick_UpdatesOnlyAutoShapes_WhenAvailable()
     AssertEqual 0, PptAuto_PendingCountForTest(), "o refresh do proprio ciclo nao marcou a pasta de novo"
     AssertFalse PptAuto_IsScheduledForTest(), "nada agendado depois do ciclo"
     AssertTrue InStr(PptAuto_LastResultForTest(), "Gráficos do ThinQQ atualizados: 1.") = 1, PptAuto_LastResultForTest()
+    AssertEqual 1, PptAuto_LogCountForTest(), "atualizacao registrada"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
@@ -1546,17 +1794,18 @@ Cleanup:
     Set s1 = Nothing: Set s2 = Nothing: Set s3 = Nothing: Set pres = Nothing
     StopScratchPowerPoint app, own
     If Not wb Is Nothing Then Teardown wb
+    AutoEnd
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub
 
-' Sem mudanca nos dados (so recalculo): a impressao digital pula; nada reescrito.
+' Sem mudanca nos dados (so recalculo): a impressao digital pula; nada reescrito e nada registrado (menor 6).
 Public Sub Test_PptAuto_Tick_SkipsUnchanged_WhenAvailable()
     Dim wb As Workbook, rng As Range, app As Object, pres As Object, s1 As Object, own As New Collection, en As Long, ed As String
     Set app = StartScratchPowerPoint()
     If app Is Nothing Then Exit Sub
     On Error GoTo Cleanup
-    AutoReset
+    AutoBegin
     Set pres = app.Presentations.Add(0): own.Add pres
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
     If UserWindowAppeared(app) Then GoTo Cleanup
@@ -1568,6 +1817,7 @@ Public Sub Test_PptAuto_Tick_SkipsUnchanged_WhenAvailable()
     PptAuto_Tick
     AssertTrue InStr(PptAuto_LastResultForTest(), "Sem mudança: 1.") > 0, PptAuto_LastResultForTest()
     AssertEqual 0, PptSync_UpdateCountForTest(), "nenhum LinkFormat.Update"
+    AssertEqual 0, PptAuto_LogCountForTest(), "sem mudanca: nada registrado"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
@@ -1576,6 +1826,7 @@ Cleanup:
     Set s1 = Nothing: Set pres = Nothing
     StopScratchPowerPoint app, own
     If Not wb Is Nothing Then Teardown wb
+    AutoEnd
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub

@@ -10,9 +10,18 @@ Private Const PPTAUTO_SECTION As String = "PowerPoint"
 ' (o OnTime reabriria o core descarregado). No build Test o OnTime real so existe quando o teste pede (PptAuto_SetNoTimerForTest False).
 Public Const PPTAUTO_DEBOUNCE_S As Long = 2                 ' espera depois da ULTIMA mudanca (cada evento reagenda)
 Public Const PPTAUTO_MAX_RETRIES As Long = 5                ' PowerPoint ocupado: novas tentativas antes de desistir
+Public Const PPTAUTO_MAX_WAIT_S As Long = 10                ' pasta que nunca para de mudar (RTD): o OnTime vivo deixa de ser adiado
 Private Const PPTAUTO_ERR_BUSY As Long = -2147418111        ' 0x80010001 (RPC_E_CALL_REJECTED): adiar como PowerPoint ocupado
+Private Const PPTAUTO_HALF_S As Double = 0.5 / 86400        ' meio segundo em Date: horarios iguais "no segundo"
+Private Const PPTAUTO_PROGRESS As String = "ThinQQ: atualizando gráfico "     ' inicio do texto de progresso de PptSync_Items
+Private Const PPTAUTO_SUM_NONE As String = "Gráficos do ThinQQ atualizados: 0."  ' inicio do resumo sem nada atualizado
 Private mTestEnabled As Variant                 ' gancho: Empty = padrao
 Private mTestNewAuto As Variant
+Private mDirtySince As Date                                 ' horario da primeira marca desde que a fila esvaziou (0 = fila vazia)
+Private mSbSaved As Boolean                                 ' o ciclo guardou a barra de status (mSbPrev) antes de sincronizar
+Private mSbPrev As Variant
+Private mLogCount As Long                                   ' linhas registradas pelo motor (lido so pelos testes)
+Private mTestNow As Date                                    ' gancho: relogio do motor (0 = Now)
 Private mDue As Date                                        ' horario do OnTime agendado (0 = nenhum): o cancelamento exige o mesmo valor
 Private mDueReal As Boolean                                 ' mDue tem um Application.OnTime de verdade (senao so o horario, gancho de teste)
 Private mDirty As Object                                    ' Scripting.Dictionary (texto): FullName das pastas que mudaram
@@ -34,6 +43,8 @@ Public Sub PptAuto_ResetTestHooks()
     mTestNewAuto = Empty
     mTestBusy = 0
     mTimerFailures = 0
+    mLogCount = 0
+    mTestNow = 0
 End Sub
 
 Public Function PptAuto_Enabled() As Boolean
@@ -84,6 +95,23 @@ Public Sub PptAuto_SetInTickForTest(v As Boolean)
     mInTick = v
 End Sub
 
+' Relogio do motor (0 = o relogio real). So no build Test.
+Public Sub PptAuto_SetNowForTest(d As Date)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestNow = d
+End Sub
+
+' Cancela de verdade um OnTime do ciclo no horario at; True = ele existia. Se era o vivo, o motor o esquece. Nao conta como falha. So no
+' build Test (prova que nada empilhou).
+Public Function PptAuto_CancelAtForTest(at As Date) As Boolean
+    If BUILD_CONFIG <> "Test" Then Exit Function
+    On Error Resume Next
+    Application.OnTime at, PptAuto_Proc(), , False
+    PptAuto_CancelAtForTest = (Err.Number = 0)
+    Err.Clear
+    If PptAuto_CancelAtForTest And Abs(at - mDue) < PPTAUTO_HALF_S Then mDue = 0: mDueReal = False
+End Function
+
 Public Function PptAuto_PendingCountForTest() As Long
     If mDirty Is Nothing Then Exit Function
     PptAuto_PendingCountForTest = mDirty.Count
@@ -91,6 +119,10 @@ End Function
 
 Public Function PptAuto_IsScheduledForTest() As Boolean
     PptAuto_IsScheduledForTest = (mDue <> 0)
+End Function
+
+Public Function PptAuto_DueForTest() As Date
+    PptAuto_DueForTest = mDue
 End Function
 
 Public Function PptAuto_LastResultForTest() As String
@@ -105,6 +137,22 @@ Public Function PptAuto_TimerFailuresForTest() As Long
     PptAuto_TimerFailuresForTest = mTimerFailures
 End Function
 
+Public Function PptAuto_LogCountForTest() As Long
+    PptAuto_LogCountForTest = mLogCount
+End Function
+
+Private Function PptAuto_Now() As Date
+    PptAuto_Now = Now
+    If BUILD_CONFIG = "Test" Then
+        If mTestNow <> 0 Then PptAuto_Now = mTestNow
+    End If
+End Function
+
+Private Sub PptAuto_Log(msg As String)
+    mLogCount = mLogCount + 1
+    Errors_Log msg
+End Sub
+
 ' Pasta que pode ter elementos no PowerPoint: salva (o vinculo aponta para o arquivo) e com a planilha _ThinQQ (graficos do ThinQQ). As
 ' versoes 1.8.0/1.9.0 acrescentam os nomes definidos TQQ_X_/TQQ_T_. Nunca propaga erro.
 Public Function PptAuto_IsCandidate(wb As Workbook) As Boolean
@@ -118,9 +166,11 @@ Public Function PptAuto_IsCandidate(wb As Workbook) As Boolean
 End Function
 
 ' Eventos do Excel (SheetChange, SheetCalculate, WorkbookAfterSave): marca a pasta e (re)agenda o ciclo para daqui a PPTAUTO_DEBOUNCE_S.
-' Barato quando nada se aplica (pasta sem arquivo ou sem ThinQQ sai antes de ler a opcao). Ignora os eventos do proprio ciclo. Nunca
+' Barato quando nada se aplica (pasta sem arquivo ou sem ThinQQ sai antes de ler a opcao). Ignora os eventos do proprio ciclo. Pasta que
+' nunca para de mudar: passados PPTAUTO_MAX_WAIT_S desde a primeira marca, o OnTime vivo nao e mais adiado (o ciclo acontece). Nunca
 ' propaga erro.
 Public Sub PptAuto_OnChange(wb As Workbook)
+    Dim t As Date
     On Error GoTo Done
     If mInTick Then Exit Sub
     If Not PptAuto_IsCandidate(wb) Then Exit Sub
@@ -129,7 +179,10 @@ Public Sub PptAuto_OnChange(wb As Workbook)
         Set mDirty = CreateObject("Scripting.Dictionary")
         mDirty.CompareMode = 1
     End If
+    t = PptAuto_Now()
+    If mDirty.Count = 0 Or mDirtySince = 0 Then mDirtySince = t
     mDirty(wb.FullName) = True
+    If mDue <> 0 And DateDiff("s", mDirtySince, t) >= PPTAUTO_MAX_WAIT_S Then Exit Sub
     mRetries = 0
     PptAuto_Schedule PPTAUTO_DEBOUNCE_S
 Done:
@@ -139,12 +192,15 @@ Private Function PptAuto_Proc() As String
     PptAuto_Proc = "'" & Replace(ThisWorkbook.Name, "'", "''") & "'!PptAuto_Tick"
 End Function
 
-' Agenda o ciclo para daqui a secs, cancelando antes o OnTime vivo (um so de cada vez). Sem OnTime possivel: registra e fica sem agenda (a
-' proxima mudanca tenta de novo). Nunca propaga erro.
+' Agenda o ciclo para daqui a secs, cancelando antes o OnTime vivo (um so de cada vez). Now tem resolucao de 1 s: a espera real fica entre
+' secs - 1 e secs segundos, e um novo horario igual ao vivo (mesmo segundo) nao cancela nem agenda nada. Sem OnTime possivel: registra e
+' fica sem agenda (a proxima mudanca tenta de novo). Nunca propaga erro.
 Private Sub PptAuto_Schedule(secs As Long)
-    Dim real_ As Boolean
+    Dim real_ As Boolean, due As Date
+    due = PptAuto_Now() + TimeSerial(0, 0, secs)
+    If mDue <> 0 And Abs(due - mDue) < PPTAUTO_HALF_S Then Exit Sub
     PptAuto_CancelTimer
-    mDue = Now + TimeSerial(0, 0, secs)
+    mDue = due
     real_ = True
     If BUILD_CONFIG = "Test" Then real_ = mTestRealTimer
     If Not real_ Then Exit Sub
@@ -152,7 +208,7 @@ Private Sub PptAuto_Schedule(secs As Long)
     Application.OnTime mDue, PptAuto_Proc()
     If Err.Number <> 0 Then
         mTimerFailures = mTimerFailures + 1
-        Errors_Log "PptAuto_Schedule" & vbTab & Err.Number & vbTab & Err.Description
+        PptAuto_Log "PptAuto_Schedule" & vbTab & Err.Number & vbTab & Err.Description
         mDue = 0
     Else
         mDueReal = True
@@ -166,11 +222,18 @@ Private Sub PptAuto_CancelTimer()
     If mDueReal Then
         On Error Resume Next
         Application.OnTime mDue, PptAuto_Proc(), , False
-        If Err.Number <> 0 Then mTimerFailures = mTimerFailures + 1: Errors_Log "PptAuto_CancelTimer" & vbTab & Err.Number & vbTab & Err.Description
+        If Err.Number <> 0 Then mTimerFailures = mTimerFailures + 1: PptAuto_Log "PptAuto_CancelTimer" & vbTab & Err.Number & vbTab & Err.Description
         Err.Clear
     End If
     mDue = 0
     mDueReal = False
+End Sub
+
+' Fila vazia (o ciclo terminou ou desistiu).
+Private Sub PptAuto_ClearQueue()
+    If Not mDirty Is Nothing Then mDirty.RemoveAll
+    mRetries = 0
+    mDirtySince = 0
 End Sub
 
 ' Desliga tudo (Core_OnUnload, testes): desagenda e esvazia a fila. Nunca propaga erro.
@@ -179,9 +242,12 @@ Public Sub PptAuto_Cancel()
     PptAuto_CancelTimer
     Set mDirty = Nothing
     mRetries = 0
+    mDirtySince = 0
     mInTick = False
+    mSbSaved = False: mSbPrev = Empty
     mTestBusy = 0
     mTestRealTimer = False
+    mTestNow = 0
     mLastResult = ""
 End Sub
 
@@ -208,14 +274,40 @@ Private Sub PptAuto_KeepOpenBooks(d As Object)
     Err.Clear
 End Sub
 
+' Etiqueta lida SEM engolir o PowerPoint ocupado (PptSync_Tag devolve "" em qualquer erro): ocupado sobe (uma leitura recusada vira nova
+' tentativa, nunca "entrada velha"); outro erro ou etiqueta ausente = "". hookPoint: ponto de falha injetada (build Test).
+Private Function PptAuto_TagStrict(o As Object, key As String, hookPoint As String) As String
+    Dim v As Variant, en As Long, ed As String
+    On Error Resume Next
+    PptSync_TestPoint hookPoint
+    If Err.Number = 0 Then v = o.Tags.Item(key)
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    If Ppt_IsBusyError(en) Then Err.Raise en, "PptAuto_TagStrict", ed
+    If en = 0 And Not IsNull(v) And Not IsObject(v) Then PptAuto_TagStrict = CStr(v)
+End Function
+
+' Pasta de origem da forma (como PptSync_ItemBook: vinculo nativo ou TQQ_BOOK), sem engolir o PowerPoint ocupado.
+Private Function PptAuto_BookStrict(shp As Object) As String
+    Dim lk As String, en As Long, ed As String
+    On Error Resume Next
+    PptSync_TestPoint "autobook"
+    If Err.Number = 0 Then lk = CStr(shp.LinkFormat.SourceFullName)
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    If Ppt_IsBusyError(en) Then Err.Raise en, "PptAuto_BookStrict", ed
+    If en <> 0 Then lk = ""
+    PptAuto_BookStrict = PptSync_SourcePath(lk, PptAuto_TagStrict(shp, PPTSYNC_TAG_BOOK, ""))
+End Function
+
 ' Formas automaticas de pres cuja pasta de origem esta em dirty, pelo indice TQQ_AUTOIDX (nunca varre todas as formas). A pasta da entrada
-' so pre-filtra: a forma entra se o vinculo REAL dela (PptSync_ItemBook) aponta para uma pasta de dirty; a mesma forma entra uma vez so.
-' Entradas velhas (slide ou forma apagados, TQQ_AUTO ausente) saem do indice. PowerPoint ocupado sobe.
+' so pre-filtra: a forma entra se o vinculo REAL dela aponta para uma pasta de dirty; a mesma forma entra uma vez so. Entradas velhas (slide
+' ou forma apagados, TQQ_AUTO ausente) saem do indice. PowerPoint ocupado sobe (inclusive nas leituras de etiqueta e de vinculo).
 Public Function PptAuto_ItemsFor(pres As Object, dirty As Object) As Collection
     Dim out As New Collection, keep As New Collection, e As Variant, sl As Object, shp As Object, stale As Boolean, idx As String, en As Long
     Dim seen As Object, k As String
     Set PptAuto_ItemsFor = out
-    idx = PptSync_Tag(pres, PPTSYNC_TAG_INDEX)
+    idx = PptAuto_TagStrict(pres, PPTSYNC_TAG_INDEX, "autoidx")
     If Len(idx) = 0 Then Exit Function
     Set seen = CreateObject("Scripting.Dictionary")
     For Each e In PptIdx_Parse(idx)
@@ -229,12 +321,12 @@ Public Function PptAuto_ItemsFor(pres As Object, dirty As Object) As Collection
         If Ppt_IsBusyError(en) Then Err.Raise en, "PptAuto_ItemsFor", "PowerPoint ocupado"
         If shp Is Nothing Then
             stale = True
-        ElseIf PptSync_Tag(shp, PPTSYNC_TAG_AUTO) <> "1" Then
+        ElseIf PptAuto_TagStrict(shp, PPTSYNC_TAG_AUTO, "autotag") <> "1" Then
             stale = True
         Else
             keep.Add e
             If dirty.Exists(CStr(e(2))) Then
-                If dirty.Exists(PptSync_ItemBook(shp)) Then
+                If dirty.Exists(PptAuto_BookStrict(shp)) Then
                     k = PptAuto_ShapeKey(CLng(e(0)), shp, CStr(e(1)))
                     If Not seen.Exists(k) Then seen.Add k, True: out.Add shp
                 End If
@@ -264,32 +356,82 @@ Private Function PptAuto_PresName(pres As Object) As String
     Err.Clear
 End Function
 
-' Uma apresentacao do ciclo: somente leitura e pulada; erro comum e registrado e a apresentacao pulada (as outras seguem); PowerPoint
-' ocupado sobe para o ciclo tentar de novo.
-Private Sub PptAuto_SyncPres(pres As Object)
-    Dim items As Collection, s As String, en As Long, ed As String
+' 1a passada do ciclo, numa apresentacao: so ReadOnly, TQQ_AUTOIDX e (havendo entradas da pasta suja) as formas do indice. Somente leitura
+' e pulada; com formas a sincronizar acrescenta Array(pres, items) a work. Erro comum: registrado e a apresentacao pulada (as outras
+' seguem); PowerPoint ocupado sobe para o ciclo tentar de novo.
+Private Sub PptAuto_Collect(pres As Object, work As Collection)
+    Dim items As Collection, en As Long, ed As String
     On Error GoTo Fail
     If CLng(pres.ReadOnly) <> 0 Then Exit Sub
     Set items = PptAuto_ItemsFor(pres, mDirty)
-    If items.Count = 0 Then Exit Sub
-    s = PptSync_Items(items, False)
-    mLastResult = s
-    Errors_Log "PptAuto" & vbTab & PptAuto_PresName(pres) & vbTab & Replace(s, vbLf, " | ")
+    If items.Count > 0 Then work.Add Array(pres, items)
     Exit Sub
 Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error GoTo 0                                 ' sem isto o GoTo -1 deixa o Fail armado e o Raise voltaria para ca (laco)
-    If Ppt_IsBusyError(en) Then Err.Raise en, "PptAuto_SyncPres", ed
-    Errors_Log "PptAuto: apresentacao pulada" & vbTab & PptAuto_PresName(pres) & vbTab & en & vbTab & ed
+    If Ppt_IsBusyError(en) Then Err.Raise en, "PptAuto_Collect", ed
+    PptAuto_Log "PptAuto: apresentacao pulada" & vbTab & PptAuto_PresName(pres) & vbTab & en & vbTab & ed
+End Sub
+
+' 2a passada: sincroniza as formas de uma apresentacao (sem forcar; pasta nao aberta nunca e aberta). Registra so quando algo foi atualizado
+' ou ha falha/aviso (nao uma linha "sem mudanca" por ciclo). Erro comum: registrado; ocupado sobe.
+Private Sub PptAuto_SyncWork(ByVal pres As Object, ByVal items As Collection)
+    Dim s As String, en As Long, ed As String
+    On Error GoTo Fail
+    s = PptSync_Items(items, False, True)
+    mLastResult = s
+    If Left$(s, Len(PPTAUTO_SUM_NONE)) <> PPTAUTO_SUM_NONE Or InStr(s, vbLf) > 0 Then
+        PptAuto_Log "PptAuto" & vbTab & PptAuto_PresName(pres) & vbTab & Replace(s, vbLf, " | ")
+    End If
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error GoTo 0                                 ' idem: sem laco no Raise
+    If Ppt_IsBusyError(en) Then Err.Raise en, "PptAuto_SyncWork", ed
+    PptAuto_Log "PptAuto: apresentacao pulada" & vbTab & PptAuto_PresName(pres) & vbTab & en & vbTab & ed
+End Sub
+
+' Guarda o texto da barra de status antes da sincronizacao (PptSync_Items escreve o progresso e devolve a barra ao Excel ao terminar).
+Private Sub PptAuto_StatusSave()
+    On Error Resume Next
+    mSbPrev = Application.StatusBar
+    mSbSaved = (Err.Number = 0)
+    Err.Clear
+End Sub
+
+' Barra de status com o Excel (ninguem escreveu): False, ou o texto "FALSE" que o Excel invisivel devolve (medido em TestDeltaPick).
+Private Function PptAuto_StatusIsExcel(v As Variant) As Boolean
+    If IsEmpty(v) Or VarType(v) = vbBoolean Then PptAuto_StatusIsExcel = True: Exit Function
+    PptAuto_StatusIsExcel = (CStr(v) = "FALSE")
+End Function
+
+' Devolve o texto guardado so se a barra esta com o Excel (False) ou com o progresso da sincronizacao: texto escrito por outro recurso
+' durante o ciclo fica. Nunca propaga erro.
+Private Sub PptAuto_StatusRestore()
+    Dim cur As Variant
+    If Not mSbSaved Then Exit Sub
+    mSbSaved = False
+    On Error Resume Next
+    cur = Application.StatusBar
+    If Not PptAuto_StatusIsExcel(cur) Then
+        If Left$(CStr(cur), Len(PPTAUTO_PROGRESS)) <> PPTAUTO_PROGRESS Then mSbPrev = Empty: Exit Sub
+    End If
+    If PptAuto_StatusIsExcel(mSbPrev) Then Application.StatusBar = False Else Application.StatusBar = CStr(mSbPrev)
+    mSbPrev = Empty
+    Err.Clear
 End Sub
 
 ' Alvo do OnTime: sincroniza, nas apresentacoes editaveis do PowerPoint JA aberto, as formas automaticas das pastas que mudaram e continuam
-' abertas (sem forcar: a impressao digital pula o que nao mudou). Sem PowerPoint ou opcao desligada: esvazia a fila. Ocupado (ou texto em
-' edicao no PowerPoint): nova tentativa em PPTAUTO_DEBOUNCE_S * (n + 1) s, ate PPTAUTO_MAX_RETRIES. Um disparo velho (um cancelamento que
-' falhou) antes do horario vivo e ignorado sem esquecer o OnTime vivo. Sem caixa de mensagem (so log e barra de status). Nunca propaga erro.
+' abertas (sem forcar: a impressao digital pula o que nao mudou). Duas passadas: a 1a so le ReadOnly/TQQ_AUTOIDX (e as formas do indice da
+' pasta suja); sem nada a sincronizar a fila esvazia sem mais nenhuma chamada ao PowerPoint (nem a guarda de texto em edicao, nem novas
+' tentativas, nem registro). Sem PowerPoint ou opcao desligada: esvazia a fila. Operacao do core com o PowerPoint em andamento (colagem,
+' sincronizacao pedida) ou ciclo em andamento: reagenda. Ocupado (ou texto em edicao): nova tentativa em PPTAUTO_DEBOUNCE_S * (n + 1) s,
+' ate PPTAUTO_MAX_RETRIES. Um disparo velho (cancelamento que falhou) antes do horario vivo e ignorado sem esquecer o OnTime vivo. Sem caixa
+' de mensagem (so log e barra de status, devolvida como estava). Nunca propaga erro.
 Public Sub PptAuto_Tick()
-    Dim app As Object, pres As Object, en As Long, ed As String
+    Dim app As Object, pres As Object, work As Collection, w As Variant, en As Long, ed As String
     On Error GoTo Fail
     If mDueReal Then
         If Now < mDue - TimeSerial(0, 0, 1) Then Errors_Log "PptAuto: OnTime velho ignorado": Exit Sub
@@ -297,38 +439,46 @@ Public Sub PptAuto_Tick()
     mDue = 0: mDueReal = False
     If mDirty Is Nothing Then Exit Sub
     If mDirty.Count = 0 Then Exit Sub
-    If mInTick Then PptAuto_Schedule PPTAUTO_DEBOUNCE_S: Exit Sub
+    If mInTick Or Ppt_InOperation() Then PptAuto_Schedule PPTAUTO_DEBOUNCE_S: Exit Sub
     mLastResult = ""
-    If Not PptAuto_Enabled() Then mDirty.RemoveAll: mRetries = 0: Exit Sub
+    If Not PptAuto_Enabled() Then PptAuto_ClearQueue: Exit Sub
     PptAuto_KeepOpenBooks mDirty
-    If mDirty.Count = 0 Then mRetries = 0: Exit Sub
+    If mDirty.Count = 0 Then PptAuto_ClearQueue: Exit Sub
     mInTick = True
     If BUILD_CONFIG = "Test" And mTestBusy > 0 Then mTestBusy = mTestBusy - 1: Err.Raise PPTAUTO_ERR_BUSY, "PptAuto_Tick", "ocupado (teste)"
     Set app = Ppt_GetApp(False)
     If Not app Is Nothing Then
-        If PptAuto_PptEditingText(app) Then Err.Raise PPTAUTO_ERR_BUSY, "PptAuto_Tick", "texto em edicao no PowerPoint"
+        Set work = New Collection
         For Each pres In app.Presentations
-            PptAuto_SyncPres pres
+            PptAuto_Collect pres, work
         Next
+        Set pres = Nothing
+        If work.Count > 0 Then
+            If PptAuto_PptEditingText(app) Then Err.Raise PPTAUTO_ERR_BUSY, "PptAuto_Tick", "texto em edicao no PowerPoint"
+            PptAuto_StatusSave
+            For Each w In work
+                PptAuto_SyncWork w(0), w(1)
+            Next
+            PptAuto_StatusRestore
+        End If
     End If
-    Set pres = Nothing: Set app = Nothing
-    mDirty.RemoveAll
-    mRetries = 0
+    w = Empty: Set work = Nothing: Set app = Nothing
+    PptAuto_ClearQueue
     mInTick = False
     Exit Sub
 Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
-    Set pres = Nothing: Set app = Nothing
+    w = Empty: Set work = Nothing: Set pres = Nothing: Set app = Nothing
+    PptAuto_StatusRestore
     mInTick = False
     If Ppt_IsBusyError(en) And mRetries < PPTAUTO_MAX_RETRIES Then
         mRetries = mRetries + 1
-        Errors_Log "PptAuto: PowerPoint ocupado (" & ed & "); nova tentativa " & mRetries
+        PptAuto_Log "PptAuto: PowerPoint ocupado (" & ed & "); nova tentativa " & mRetries
         PptAuto_Schedule PPTAUTO_DEBOUNCE_S * (mRetries + 1)
     Else
-        Errors_Log "PptAuto: desistiu" & vbTab & en & vbTab & ed
-        If Not mDirty Is Nothing Then mDirty.RemoveAll
-        mRetries = 0
+        PptAuto_Log "PptAuto: desistiu" & vbTab & en & vbTab & ed
+        PptAuto_ClearQueue
     End If
 End Sub

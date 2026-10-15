@@ -107,6 +107,12 @@ Private Sub PptSync_Hook(point As String)
     Err.Raise n, "modPptSync", "falha injetada (" & point & ")"
 End Sub
 
+' Ponto de falha injetada para outros modulos (modPptAuto: leituras de etiqueta). "" = nenhum. Inerte fora do build Test.
+Public Sub PptSync_TestPoint(point As String)
+    If Len(point) = 0 Then Exit Sub
+    PptSync_Hook point
+End Sub
+
 ' Gancho de teste "unreachable" (uso unico): faz PptSync_SyncShape ver a origem como inalcancavel (a pasta sumiu entre a conferencia de
 ' PptSync_Presentation e o Update). Nao levanta erro. Sempre False fora do build Test.
 Private Function PptSync_TakeUnreachableHook() As Boolean
@@ -653,6 +659,14 @@ Private Function PptSync_OpenBook(path As String, opened As Collection) As Workb
     Set PptSync_OpenBook = w
 End Function
 
+' A pasta ja aberta neste Excel com esse FullName (sem diferenciar maiusculas); Nothing se nao esta aberta. Nunca abre nada.
+Private Function PptSync_FindOpenBook(path As String) As Workbook
+    Dim w As Workbook
+    For Each w In Application.Workbooks
+        If StrComp(w.FullName, path, vbTextCompare) = 0 Then Set PptSync_FindOpenBook = w: Exit Function
+    Next
+End Function
+
 ' Fecha sem salvar as pastas abertas pela sincronizacao, com os eventos desligados (restaurados ao fim; nunca propaga erro).
 Private Sub PptSync_CloseOpened(opened As Collection)
     Dim w As Variant, prevEvents As Boolean
@@ -774,8 +788,9 @@ End Function
 ' fica como esta e a pasta entra no aviso (NUNCA LinkFormat.Update com a origem ausente: travaria o PowerPoint). Update ignorado por origem
 ' inalcancavel: nao conta como atualizado e a TQQ_FP nao e gravada. Forma sem vinculo ou com estado ilegivel nunca e sincronizada. Pastas
 ' abertas por esta chamada sao fechadas sem salvar, com a tela congelada (restaurada em todo caminho). Erro de um elemento e contado
-' (PptSync_SyncOne); PowerPoint ocupado e falha estrutural sobem.
-Public Function PptSync_Items(items As Collection, force As Boolean) As String
+' (PptSync_SyncOne); PowerPoint ocupado e falha estrutural sobem. noOpen (ciclo automatico): uma pasta que nao esta aberta neste Excel nunca
+' e aberta; entra no aviso de pasta nao encontrada.
+Public Function PptSync_Items(items As Collection, force As Boolean, Optional noOpen As Boolean = False) As String
     Dim shp As Object, opened As Collection, books As Object, missingSet As Object, path As String, k As Long
     Dim wb As Workbook, missing As String, en As Long, ed As String, prevSU As Boolean, ls As Long
     Dim nOk As Long, nSame As Long, nNoChart As Long, nUnlinked As Long, nFail As Long
@@ -804,7 +819,11 @@ Public Function PptSync_Items(items As Collection, force As Boolean) As String
             Case Else
                 If Not books.Exists(path) Then
                     Set wb = Nothing
-                    If PptSync_FileExists(path) Then Set wb = PptSync_OpenBook(path, opened)
+                    If noOpen Then
+                        Set wb = PptSync_FindOpenBook(path)
+                    ElseIf PptSync_FileExists(path) Then
+                        Set wb = PptSync_OpenBook(path, opened)
+                    End If
                     If wb Is Nothing Then missingSet(path) = True
                     books.Add path, wb
                 End If
