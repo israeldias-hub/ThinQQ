@@ -14,6 +14,7 @@ $readmePath = Join-Path $RepoRoot 'README.md'
 $changelogPath = Join-Path $RepoRoot 'CHANGELOG.md'
 $leiamePath = Join-Path $RepoRoot 'installer\LEIA-ME.txt'
 $ribbonPath = Join-Path $RepoRoot 'src\loader\ribbon\customUI14.xml'
+$pptRibbonPath = Join-Path $RepoRoot 'src\ppt\ribbon\customUI14.xml'
 $allowedLinks = @('https://github.com/israeldias-hub/ThinQQ', 'https://israeldias-hub.github.io/ThinQQ/')
 
 # ---- rótulos conhecidos: faixa de opções + formulários (loader e core)
@@ -21,6 +22,11 @@ $known = New-Object 'System.Collections.Generic.HashSet[string]'
 $ribbon = New-Object Xml.XmlDocument
 $ribbon.LoadXml((Read-Utf8 $ribbonPath))
 foreach ($n in $ribbon.SelectNodes('//*[@label]')) { [void]$known.Add($n.GetAttribute('label')) }
+# faixa do suplemento do PowerPoint (ThinQQ.ppam): os rótulos também são "conhecidos" (o tutorial e o README os citam), mas a regra
+# "todo controle da faixa aparece no tutorial" abaixo vale só para a faixa do Excel; a do PowerPoint tem a regra própria, na seção #powerpoint
+$pptRibbon = New-Object Xml.XmlDocument
+$pptRibbon.LoadXml((Read-Utf8 $pptRibbonPath))
+foreach ($n in $pptRibbon.SelectNodes('//*[@label]')) { [void]$known.Add($n.GetAttribute('label')) }
 function Add-Captions($node) {
     if ($node -is [System.Management.Automation.PSCustomObject]) {
         foreach ($p in $node.PSObject.Properties) {
@@ -36,6 +42,7 @@ foreach ($f in @('src\loader\forms\frmUpdate.json', 'src\core\forms\frmAnnotatio
 }
 Check ($known.Count -ge 60) "rótulos conhecidos carregados ($($known.Count))"
 Check ($known.Contains('Colunas empilhadas') -and $known.Contains('Pular esta versão') -and $known.Contains('OK')) 'faixa e formulários presentes no conjunto'
+Check ($known.Contains('Ao abrir') -and $known.Contains('Atualizar sempre') -and $known.Contains('Gráficos do Excel')) 'faixa do PowerPoint presente no conjunto'
 
 # ---- tutorial
 Check (Test-Path $tutorialPath) 'tutorial.html existe'
@@ -67,6 +74,19 @@ if ($parsed) {
         $l = $n.GetAttribute('label')
         Check ($ui -contains $l) "tutorial documenta o controle '$l'"
     }
+    # Faixa do suplemento do PowerPoint (src\ppt\ribbon\customUI14.xml): a aba, o grupo, os botões, a lista "Ao abrir" e cada item dela são citados,
+    # com o rótulo exato, DENTRO da seção #powerpoint (e não só em qualquer parte do tutorial); o botão do Excel (btnPptSync) também.
+    $pptSec = $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']")
+    $pptUi = @()
+    if ($pptSec) { $pptUi = @($pptSec.SelectNodes(".//*[contains(concat(' ', normalize-space(@class), ' '), ' ui ')]") | ForEach-Object { ($_.InnerText -replace '\s+', ' ').Trim() } | Sort-Object -Unique) }
+    $pptCtl = @($pptRibbon.SelectNodes("//*[local-name()='tab' or local-name()='group' or local-name()='button' or local-name()='dropDown' or local-name()='item']"))
+    Check ($pptCtl.Count -eq 8) "faixa do PowerPoint: 8 controles (aba, grupo, 2 botões, lista e 3 itens: $($pptCtl.Count))"
+    foreach ($n in $pptCtl) {
+        $l = $n.GetAttribute('label')
+        Check ($pptUi -contains $l) "#powerpoint cita o controle da faixa do PowerPoint '$l'"
+    }
+    $xlSync = $ribbon.SelectSingleNode("//*[@id='btnPptSync']")
+    Check ($null -ne $xlSync -and $pptUi -contains $xlSync.GetAttribute('label')) '#powerpoint cita o botão do Excel btnPptSync com o rótulo da faixa'
     # Recursos externos
     $bad = @()
     foreach ($n in $xml.SelectNodes('//*[@src or @href]')) {
@@ -392,7 +412,7 @@ $messages = @(
     'ficaria quase invisível (menos de um quarto dele abaixo do corte).',
     'O PowerPoint não está instalado neste computador (ou não pôde ser iniciado).',
     'Salve a pasta de trabalho antes de copiar o gráfico vinculado: o vínculo aponta para o arquivo salvo.',
-    'A pasta tem alterações não salvas: o PowerPoint lê o arquivo salvo nas atualizações do vínculo.',
+    'A pasta tem alterações não salvas: enquanto ela estiver aberta no Excel o vínculo lê esses valores; fechada, o PowerPoint lê o arquivo salvo.',
     'A área de transferência do Windows não está disponível (outro programa a mantém aberta). Tente novamente em instantes.',
     'O PowerPoint está ocupado (uma caixa de diálogo aberta ou um texto em edição). Termine o que está fazendo nele e tente de novo.',
     'Selecione uma única coluna ou linha só com números (pelo menos 2).',
@@ -406,6 +426,10 @@ $messages = @(
     'A cascata comparativa compara exatamente 2 séries; a tabela tem ',
     ' colunas de valores. Selecione a coluna das etapas e só as duas colunas a comparar.'
 )
+# a nota da colagem e o tutorial nao podem voltar a dizer que o vinculo so le o arquivo salvo (a sonda mediu: com a pasta ABERTA no Excel,
+# LinkFormat.Update le os valores nao salvos)
+Check ($html -notmatch [regex]::Escape('o PowerPoint lê o arquivo salvo nas atualizações do vínculo')) 'tutorial sem a nota antiga da colagem (pasta aberta le os valores nao salvos)'
+Check ($html -notmatch [regex]::Escape('Atualizar Dados</strong> relê o arquivo salvo')) 'tutorial: Atualizar Dados qualificado (pasta aberta x fechada)'
 foreach ($msg in $messages) {
     Check ($html -match [regex]::Escape($msg)) "tutorial cita a mensagem '$msg'"
     Check ($coreSrc -match [regex]::Escape($msg)) "o core emite a mensagem '$msg'"
@@ -416,6 +440,121 @@ $loaderSrc = (Get-ChildItem (Join-Path $RepoRoot 'src\loader') -Recurse -Include
 $updMsg = 'Atualize o ThinQQ para usar este recurso.'
 Check ($html -match [regex]::Escape($updMsg)) "tutorial cita a mensagem '$updMsg'"
 Check ($loaderSrc -match [regex]::Escape($updMsg)) "o loader emite a mensagem '$updMsg'"
+
+# ---- PowerPoint (Parte A, 1.4.0): cada mensagem que o usuário vê (suplemento do PowerPoint, motor do core e atualizador do loader) precisa
+# estar no código que a emite (na fonte certa: um texto movido de lugar ou reescrito derruba o teste) E dentro da seção do tutorial onde é
+# explicada (#powerpoint para a atualização dos gráficos, #atualizar para o suplemento do PowerPoint): o texto da seção é o decodificado
+# (sem tags nem entidades), com os espaços normalizados.
+$pptSrc = (Get-ChildItem (Join-Path $RepoRoot 'src\ppt') -Recurse -Include '*.bas', '*.cls' | ForEach-Object { Read-Utf8 $_.FullName }) -join "`n"
+$srcByTag = @{ core = $coreSrc; loader = $loaderSrc; ppt = $pptSrc }
+function Get-SectionText([string]$id) {
+    $n = $xml.SelectSingleNode("//*[local-name()='section'][@id='$id']")
+    if ($null -eq $n) { return '' }
+    return (($n.InnerText -replace '\s+', ' ').Trim())
+}
+$pptMessages = @(
+    # suplemento do PowerPoint (modPptTqq.bas)
+    @('ppt', 'powerpoint', 'Esta apresentação não tem gráficos do ThinQQ vinculados.'),
+    @('ppt', 'powerpoint', 'Abra uma apresentação primeiro.'),
+    @('ppt', 'powerpoint', ' gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?'),
+    @('ppt', 'powerpoint', 'Para não perguntar mais: aba ThinQQ > Ao abrir.'),
+    @('ppt', 'powerpoint', 'O Excel não está instalado (ou não pôde ser iniciado): os gráficos do ThinQQ não foram atualizados.'),
+    @('ppt', 'powerpoint', 'O ThinQQ não está instalado no Excel deste computador: só os dados foram atualizados; setas e outras anotações do ThinQQ ficaram como estavam.'),
+    @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para atualizar também as setas.'),
+    @('ppt', 'powerpoint', 'O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e use ThinQQ > Atualizar gráficos.'),
+    @('ppt', 'powerpoint', 'Dados atualizados em '),
+    @('ppt', 'powerpoint', ' sem a pasta de origem (ficaram como estavam)'),
+    # motor do core (modPptSync.bas, modCoreApi.bas): o resumo
+    @('core', 'powerpoint', "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."),
+    @('core', 'powerpoint', "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."),
+    @('core', 'powerpoint', 'Gráficos do ThinQQ atualizados: '),
+    @('core', 'powerpoint', ' Sem mudança: '),
+    @('core', 'powerpoint', 'Pasta de origem não encontrada ou sem acesso (o gráfico ficou como estava): '),
+    @('core', 'powerpoint', 'Se ela foi movida ou renomeada, use no PowerPoint Arquivo > Informações > Editar Links para Arquivos > Alterar Origem.'),
+    @('core', 'powerpoint', 'Gráfico não encontrado na pasta de origem (apagado ou recriado): '),
+    @('core', 'powerpoint', 'Sem vínculo com o Excel (Quebrar Vínculo no PowerPoint): '),
+    @('core', 'powerpoint', ' (veja o log do ThinQQ).'),
+    @('core', 'powerpoint', 'Não foi possível atualizar os gráficos do ThinQQ: '),
+    # atualizador do loader (modUpdater.bas: Updater_PpamStatusText; modRibbon.bas: a pergunta de ThinQQ > Configurações)
+    @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado.'),
+    @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado: feche e abra o PowerPoint para usar a versão nova.'),
+    @('loader', 'atualizar', 'O suplemento do PowerPoint será atualizado automaticamente quando o PowerPoint for fechado (o Excel tenta de novo a cada 10 minutos e na próxima abertura).'),
+    @('loader', 'atualizar', 'O suplemento do PowerPoint não foi atualizado agora; nova tentativa na próxima verificação.'),
+    @('loader', 'atualizar', 'Atualizar também o suplemento do PowerPoint automaticamente?'),
+    @('loader', 'atualizar', 'Atualizar também o suplemento do PowerPoint (feche o PowerPoint para aplicar na hora)')
+)
+foreach ($m in $pptMessages) {
+    $tag = $m[0]; $sec = $m[1]; $msg = $m[2]
+    $codeText = $srcByTag[$tag]
+    if ($tag -eq 'loader') { $codeText = $codeText + "`n" + (Read-Utf8 (Join-Path $RepoRoot 'src\loader\forms\frmUpdate.json')) }
+    Check ($codeText.Contains($msg)) "o código ($tag) emite a mensagem '$msg'"
+    Check ((Get-SectionText $sec).Contains($msg)) "a seção #$sec do tutorial cita a mensagem '$msg'"
+}
+$pptMsgNoLoader = (Get-SectionText 'atualizar')
+Check ($pptMsgNoLoader -cmatch 'suplemento do PowerPoint é atualizado automaticamente' -and $pptMsgNoLoader.Contains('Atualizar também o suplemento do PowerPoint')) '#atualizar explica a atualização automática do suplemento do PowerPoint e a opção que a desliga'
+
+# ---- PowerPoint: instalação e publicação do ThinQQ.ppam documentadas nos lugares certos (3 arquivos, 6 assets, 9 arquivos soltos no ZIP)
+$ppamNames = @((Read-Utf8 (Join-Path $RepoRoot 'tools\lib\Release-Publish.ps1')) -split "`n" | Where-Object { $_ -match 'return @\("ThinQQ-\$Version\.zip"' } | ForEach-Object { [regex]::Matches($_, "'([^']+)'") | ForEach-Object { $_.Groups[1].Value } })
+Check ($ppamNames.Count -eq 5 -and $ppamNames -contains 'ThinQQ.ppam') "Get-ReleaseAssetNames lido do código: ZIP + 5 arquivos soltos ($($ppamNames -join ', '))"
+$topFiles = @([regex]::Matches((Read-Utf8 (Join-Path $RepoRoot 'build\lib\Release-Lib.ps1')), "function Get-ReleaseTopFiles \{ return @\((?<l>[^)]*)\)"))
+Check ($topFiles.Count -eq 1 -and ([regex]::Matches($topFiles[0].Groups['l'].Value, "'[^']+'")).Count -eq 5) 'Get-ReleaseTopFiles: 5 arquivos + os 4 do instalador = 9 soltos no ZIP'
+$relReadmeText = ($relReadme -replace '\s+', ' ')
+$readmeText = ($readme -replace '\s+', ' ')
+foreach ($n in $ppamNames) {
+    Check ($relReadmeText.Contains($n)) "release/README.md cita o arquivo da release '$n'"
+}
+Check ($relReadmeText -cmatch 'guarda os 6 arquivos' -and $relReadmeText -cnotmatch 'guarda os 5 arquivos') 'release/README.md: o fluxo automático guarda os 6 arquivos (ZIP + 5)'
+Check ($relReadmeText -cmatch '\.xlam`? e o `?\.ppam`? não vêm assinados') 'release/README.md: .xlam e .ppam não vêm assinados'
+Check ($readmeText -cmatch 'envia os 6 assets' -and $readmeText -cnotmatch 'envia os 5 assets') 'README: a etapa 3 envia os 6 assets'
+foreach ($n in $ppamNames) { Check ($readmeText.Contains($n)) "README cita o arquivo da release '$n'" }
+Check ((Read-Utf8 (Join-Path $RepoRoot 'build\lib\Release-Lib.ps1')) -match "function Get-ReleaseInstallerFiles \{ return @\('install\.ps1', 'uninstall\.ps1', 'Instalar-ThinQQ\.cmd', 'LEIA-ME\.txt'\) \}") 'Get-ReleaseInstallerFiles: 4 arquivos do instalador'
+Check ($readmeText -cmatch 'Assinar os dois `\.xlam` e o `\.ppam`') 'README (TI): a assinatura cobre os dois .xlam e o .ppam'
+Check ($readmeText -cmatch '9 arquivos soltos') 'README: o ZIP traz 9 arquivos soltos na raiz'
+$signSrc = Read-Utf8 (Join-Path $RepoRoot 'tools\Sign-ThinQQ.ps1')
+Check ($signSrc -match "(?s)\[string\[\]\]\`$Files = @\([^\r\n]*ThinQQ\.ppam") 'Sign-ThinQQ.ps1: o -Files padrão inclui dist\ThinQQ.ppam'
+Check ($signSrc -match '(?s)<#.*\.SYNOPSIS[^\r\n]*\.ppam') 'Sign-ThinQQ.ps1: o .SYNOPSIS cita o .ppam'
+$tutInstalar = Get-SectionText 'instalar'
+Check ($tutInstalar.Contains('ThinQQ.xlam') -and $tutInstalar.Contains('ThinQQ.core.xlam') -and $tutInstalar.Contains('ThinQQ.ppam') -and $tutInstalar -cmatch 'três arquivos') '#instalar: a instalação tem três arquivos (ThinQQ.xlam, ThinQQ.core.xlam, ThinQQ.ppam)'
+Check ($tutInstalar -cmatch 'Feche o Excel e o PowerPoint|feche o Excel e o PowerPoint') '#instalar: pede para fechar o Excel e o PowerPoint'
+Check ($tutInstalar.Contains('PowerPoint\AddIns\ThinQQ') -and $tutInstalar.Contains('PowerPoint\Security\Trusted Locations')) '#instalar: "O que o instalador altera" cita as chaves do PowerPoint'
+Check ($readmeText.Contains('PowerPoint\AddIns\ThinQQ') -and $readmeText.Contains('PowerPoint\Security\Trusted Locations\LocationThinQQ')) 'README: "O que o instalador altera" cita as chaves do PowerPoint (AddIns\ThinQQ e LocationThinQQ)'
+$leiameText = Read-Utf8 $leiamePath
+$leiameBlocks = @{}
+foreach ($b in ($leiameText -split '(?m)^(?=[A-ZÀ-Ú]{4,}[A-ZÀ-Ú ]*( \(.*\))?\r?$)')) { $t = ($b -split "\r?\n")[0].Trim(); if ($t.Length -gt 0) { $leiameBlocks[$t] = $b } }
+$lmManual = ''; foreach ($k in $leiameBlocks.Keys) { if ($k -like 'INSTALAÇÃO MANUAL*') { $lmManual = $leiameBlocks[$k] } }
+$lmPpt = ''; foreach ($k in $leiameBlocks.Keys) { if ($k -like 'POWERPOINT*') { $lmPpt = $leiameBlocks[$k] } }
+$lmReq = ''; foreach ($k in $leiameBlocks.Keys) { if ($k -like 'REQUISITOS*') { $lmReq = $leiameBlocks[$k] } }
+Check ($lmManual -match 'ThinQQ\.ppam' -and $lmManual -match 'Subpastas também são confiáveis' -and $lmManual -match '(?s)faça o mesmo no PowerPoint \(Arquivo > Opções > Central de Confiabilidade >\s+Configurações > Locais Confiáveis > Adicionar novo local: %LOCALAPPDATA%\\ThinQQ, com as subpastas\)') 'LEIA-ME: a INSTALAÇÃO MANUAL copia o ThinQQ.ppam, desbloqueia e cria o Local Confiável do PowerPoint (com subpastas), na linha do PowerPoint'
+# polimento da revisao da A8: assinatura cita o .ppam; afirmacoes sem exagero; notas com 1 a 8 linhas
+Check ($leiameText -match '(?s)A TI pode assinar os dois \.xlam\s+e o ThinQQ\.ppam' -and $leiameText -match 'os \.xlam e o \.ppam assinados pela TI') 'LEIA-ME: a TI assina os dois .xlam e o .ppam (SEGURANÇA e Central de Confiabilidade)'
+Check ($html.Contains('a TI assina os dois <code>.xlam</code> e o <code>.ppam</code>')) 'tutorial: a TI assina os dois .xlam e o .ppam'
+Check ($signSrc -match '\.xlam no Excel e o \.ppam no PowerPoint') 'Sign-ThinQQ.ps1 (.NOTES): o .ppam se confere abrindo no PowerPoint'
+Check (-not $html.Contains('saem sempre na mesma versão') -and -not $html.Contains('O núcleo foi atualizado normalmente')) 'tutorial: núcleo e suplemento normalmente na mesma versão; a falha do suplemento não afeta o núcleo'
+Check ($html -match 'só é gravada ao clicar <span class="ui">Atualizar agora</span>') 'tutorial: a caixa do suplemento só é gravada ao clicar Atualizar agora'
+Check ($readme -notmatch 'de 6 a 8' -and (Read-Utf8 (Join-Path $RepoRoot 'tools\lib\Release-Publish.ps1')) -notmatch 'de 6 a 8') 'README e publicar-release: notas de 1 a 8 linhas'
+Check ($readme -match 'run-tests\.ps1 -Ppt' -and $readme -match 'tests/ps/Test-PptAddin\.ps1') 'README (comandos): run-tests.ps1 -Ppt e tests/ps/Test-PptAddin.ps1'
+Check ((Read-Utf8 (Join-Path $RepoRoot 'release\notes.txt')) -match 'quem instalou o suplemento do PowerPoint pelo ZIP') 'notes.txt: a atualização do suplemento vale para quem o instalou pelo ZIP'
+# o intervalo da nova tentativa do suplemento (PPAM_RETRY_MINUTES) e o mesmo no aviso do loader, no tutorial e no README
+$updSrc = Read-Utf8 (Join-Path $RepoRoot 'src\loader\modules\modUpdater.bas')
+$retryMin = [regex]::Match($updSrc, 'Private Const PPAM_RETRY_MINUTES As Long = (\d+)').Groups[1].Value
+Check ($retryMin -ne '' -and $updSrc.Contains("a cada $retryMin minutos") -and (Get-SectionText 'atualizar').Contains("a cada $retryMin minutos") -and $readme.Contains("em até $retryMin minutos")) "PPAM_RETRY_MINUTES ($retryMin) citado no aviso, no tutorial (#atualizar) e no README"
+Check (@(($lmManual -split "\r?\n") | Where-Object { $_ -match 'Desbloquear' -and $_ -match 'ThinQQ\.ppam' }).Count -ge 1 -or $lmManual -match '(?s)Em cada arquivo[^\r\n]*\.ppam') 'LEIA-ME: a INSTALAÇÃO MANUAL manda desbloquear também o .ppam'
+Check ($lmPpt -match 'macros dessa pasta rodam sem aviso' -and $lmPpt -match '16\.0') 'LEIA-ME: o item POWERPOINT diz que as macros da pasta rodam sem aviso e cita o PowerPoint 16.0'
+Check ($lmReq -match 'PowerPoint' -and $lmReq -match '16\.0') 'LEIA-ME: REQUISITOS cita o PowerPoint 16.0'
+Check ($leiameText -match '(?s)A aba ThinQQ não aparece no PowerPoint:.{0,200}16\.0') 'LEIA-ME: PROBLEMAS COMUNS: "A aba ThinQQ não aparece no PowerPoint" cita o PowerPoint do Office 16.0'
+
+# ---- README: a lista numerada "Verificações manuais" é contínua (1..N, sem buraco nem repetição) e traz os itens do PowerPoint (Parte A)
+$mvBlock = [regex]::Match($readme, '(?s)## Verificações manuais no Excel real(?<b>.*?)## Limitações conhecidas').Groups['b'].Value
+$mvNums = @([regex]::Matches($mvBlock, '(?m)^(\d+)\. ') | ForEach-Object { [int]$_.Groups[1].Value })
+$mvSeq = ($mvNums.Count -gt 0) -and (@(for ($i = 0; $i -lt $mvNums.Count; $i++) { if ($mvNums[$i] -ne $i + 1) { $i } }).Count -eq 0)
+Check $mvSeq "README: a lista de verificações manuais é numerada de 1 a $($mvNums.Count) sem buracos"
+# os itens novos (a partir do 43, depois do último de antes da Parte A) cobrem o roteiro manual da especificação (§4.7): sem o corte pelo
+# número, os itens antigos do PowerPoint (32 a 36, que também citam "PowerPoint fechado") fariam o teste passar sem os itens novos
+$mvNew = (($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 43 }) -join "`n"
+Check ($mvNums.Count -ge 54) "README: a lista de verificações manuais tem os itens novos do PowerPoint (a partir do 43; total $($mvNums.Count))"
+foreach ($t in 'Perguntar.*Atualizar sempre.*Não atualizar', 'Habilitar Edição', 'pasta movida|Alterar Origem', 'pasta em rede', '30 gráficos', 'Excel aberto', 'sem o ThinQQ no Excel', 'aba ThinQQ no PowerPoint', 'PowerPoint fechado', 'somente leitura', 'Desfazer', 'protegida por senha', 'não verificado em PowerPoint real', 'Assinatura do suplemento do PowerPoint[^\r\n]*ThinQQ\.ppam', 'Instalação manual do suplemento do PowerPoint[^\r\n]*Adicionar novo') {
+    Check ($mvNew -match $t) "README (verificações manuais 43 em diante): cobre '$t'"
+}
 
 # ---- o limite do Arredondar intervalo vem do código (ROUND_MAX_CELLS) e a documentação cita o mesmo número
 $rndSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modRounding.bas')
@@ -466,6 +605,10 @@ $mustDocument = [ordered]@{
     'comparativa: afastamento das setas só com o ThinQQ'             = @('both', 'afastamento das setas')
     'comparativa: sem cálculo de trás para frente'                   = @('tutorial', 'não calcula para trás')
     'comparativa: no máximo 2 séries'                                = @('both', 'mais de 2 séries')
+    'PowerPoint: abre as pastas da apresentação sem macros; Atualizar sempre só com fontes confiáveis' = @('both', 'abre, somente leitura e com as macros desligadas, as pastas de trabalho para as quais a apresentação aponta')
+    'PowerPoint: Atualizar sempre pergunta com origem de rede ou da web não aberta' = @('both', 'pergunta assim mesmo')
+    'PowerPoint: a pergunta lista as pastas de origem'               = @('tutorial', 'Pastas de origem:')
+    'PowerPoint: letras de unidade mapeadas não são detectadas como rede' = @('both', 'letras de unidade mapeadas')
     'comparativa: elipses das setas se sobrepõem em gráfico estreito' = @('both', 'elipses das setas podem se sobrepor')
     'comparativa: sem recalibração com menos de 92 pt'               = @('both', '92 pt')
     'comparativa: Mesma escala pode cortar as setas do topo'         = @('both', 'cortar as setas do topo')
@@ -473,6 +616,21 @@ $mustDocument = [ordered]@{
     'comparativa: o percentual dos totais volta ao alargar'          = @('tutorial', 'volta sozinho')
     'comparativa: o percentual dos totais some sozinho se os rótulos se tocam' = @('both', 'some sozinho quando os dois rótulos de total')
     'comparativa: rótulos de total vizinhos podem se sobrepor'       = @('both', 'ou alargue o gráfico')
+    # PowerPoint atualizado ao reabrir (Parte A, 1.4.0)
+    'powerpoint: sem o suplemento so os dados atualizam'             = @('both', 'sem o suplemento do PowerPoint')
+    'powerpoint: grafico dentro de grupo fica de fora'               = @('tutorial', 'dentro de um grupo')
+    'powerpoint: Modo de Exibicao Protegido'                         = @('both', 'Habilitar Edição')
+    'powerpoint: pasta movida'                                       = @('both', 'Alterar Origem')
+    'powerpoint: apresentacao somente leitura so atualiza na memoria' = @('both', 'somente na memória')
+    'powerpoint: a atualizacao pergunta se quer salvar ao fechar'    = @('both', 'se quer salvar ao fechar')
+    'powerpoint: o Desfazer do Excel e limpo'                        = @('both', 'Desfazer do Excel')
+    'powerpoint: atualizacao nao e transacional'                     = @('both', 'parcialmente atualizado')
+    'powerpoint: pasta protegida por senha vai para sem acesso'      = @('both', 'protegida por senha')
+    'powerpoint: Salvar como pode perguntar mais uma vez'            = @('tutorial', 'Salvar como')
+    'powerpoint: Excel travado nao tem tempo limite'                 = @('both', 'sem tempo limite')
+    'powerpoint: formatacao feita no PowerPoint fica; legenda desalinha as setas' = @('tutorial', 'desalinhar as setas')
+    'powerpoint: pasta do OneDrive/SharePoint so com a pasta aberta no Excel' = @('tutorial', 'aberta no Excel')
+    'powerpoint: o instalador cria o local confiavel do PowerPoint'  = @('both', 'PowerPoint\Security\Trusted Locations\LocationThinQQ')
 }
 foreach ($k in $mustDocument.Keys) {
     $scope = $mustDocument[$k][0]; $phrase = $mustDocument[$k][1]

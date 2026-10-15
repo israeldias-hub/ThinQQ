@@ -111,7 +111,7 @@ Public Sub Test_Ribbon_Xml_HasAllCallbacks()
     names = Array("Rx_OnLoad", "Rx_OnInsert", "Rx_GetEnabled", "Rx_OnToggle", "Rx_GetPressed", "Rx_OnDropdown", _
                   "Rx_GetSelectedId", "Rx_OnAnnotation", "Rx_OnRemoveAnnotations", "Rx_OnRefresh", "Rx_OnChangeSource", _
                   "Rx_OnSamples", "Rx_OnTutorial", "Rx_OnCheckUpdates", "Rx_OnSettings", "Rx_OnAbout", "Rx_OnSameScale", "Rx_OnResetScale", _
-                  "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart")
+                  "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart", "Rx_OnPptSync")
     For i = LBound(names) To UBound(names)
         AssertTrue InStr(xml, names(i)) > 0, "callback ausente no XML: " & names(i)
     Next
@@ -253,9 +253,14 @@ Public Sub Test_Ribbon_Menus_Structure()
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnBreakOff'][@tag='breakoff'][@onAction='Rx_OnAxisBreakOff']") Is Nothing
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnRoundRange'][@onAction='Rx_OnRoundRange']") Is Nothing
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnRoundRange']/@getEnabled") Is Nothing, "Arredondar intervalo age sobre celulas: sempre ativo"
-    AssertEqual "Rx_GetEnabled", d.SelectSingleNode("//u:menu[@id='mnuPpt']").Attributes.getNamedItem("getEnabled").Text
-    AssertTrue d.SelectSingleNode("//u:menu[@id='mnuPpt']/@tag") Is Nothing, "PowerPoint so exige um grafico (sem tag)"
-    AssertEqual 2, d.SelectNodes("//u:menu[@id='mnuPpt']/u:button").Length
+    AssertTrue d.SelectSingleNode("//u:menu[@id='mnuPpt']/@getEnabled") Is Nothing, "PowerPoint sempre ativo: Atualizar graficos no PowerPoint nao exige grafico"
+    AssertTrue d.SelectSingleNode("//u:menu[@id='mnuPpt']/@tag") Is Nothing
+    AssertEqual 3, d.SelectNodes("//u:menu[@id='mnuPpt']/u:button").Length
+    AssertEqual "Rx_GetEnabled", AttrText(d.SelectSingleNode("//u:button[@id='btnPptImage']"), "getEnabled"), "copiar exige grafico"
+    AssertEqual "Rx_GetEnabled", AttrText(d.SelectSingleNode("//u:button[@id='btnPptChart']"), "getEnabled")
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptSync'][@onAction='Rx_OnPptSync']") Is Nothing
+    AssertTrue d.SelectSingleNode("//u:button[@id='btnPptSync']/@getEnabled") Is Nothing, "Atualizar graficos no PowerPoint: sempre ativo"
+    AssertEqual "msepPpt", AttrText(d.SelectSingleNode("//u:button[@id='btnPptChart']/following-sibling::*[1]"), "id")
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptImage'][@onAction='Rx_OnPptImage']") Is Nothing
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptChart'][@onAction='Rx_OnPptChart']") Is Nothing
     ' ordem do grupo: ... Mais opcoes, Setas, PowerPoint, separador, Atualizar
@@ -307,7 +312,7 @@ Public Sub Test_Ribbon_Phase3_LabelsAndTips()
         AssertEqual p(2), AttrText(n, "tag"), "tag de " & p(0)
         If p(0) <> "btnBreakOff" And p(0) <> "mnuPpt" Then AssertTrue Len(AttrText(n, "supertip")) > 20, "sem supertip: " & p(0)
     Next
-    AssertEqual "Copiar para o PowerPoint", AttrText(d.SelectSingleNode("//*[@id='mnuPpt']"), "screentip")
+    AssertEqual "PowerPoint", AttrText(d.SelectSingleNode("//*[@id='mnuPpt']"), "screentip")
     AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='btnSameScale']"), "supertip"), "corte de eixo") > 0, "Mesma escala: o supertip diz que grafico com corte de eixo nao entra"
     AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='tglRoundSum']"), "supertip"), "maior resto") > 0
 End Sub
@@ -384,13 +389,13 @@ End Sub
 ' Atualizar (btnRefresh) e "Mais opcoes" (mnuMore: contem Mesma escala, Escala automatica e Arredondar intervalo, sempre ativos) ficam
 ' sempre habilitados de proposito; os demais controles do grupo "Grafico selecionado" dependem do grafico selecionado. Dentro de mnuMore,
 ' os 7 toggles e os 2 botoes de corte de eixo tem getEnabled; os 2 botoes de escala e o Arredondar intervalo (age sobre celulas) nao.
-' PowerPoint e os seus 2 itens exigem um grafico.
+' O menu PowerPoint e "Atualizar graficos no PowerPoint" ficam sempre ativos; so os 2 itens de copiar exigem um grafico.
 Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
     Dim d As Object, n As Object, c As Long, id As String
     Set d = LoadRibbon()
     For Each n In d.SelectNodes("//u:group[@id='grpChart']/*[not(self::u:separator)]")
         id = n.Attributes.getNamedItem("id").Text
-        If id = "btnRefresh" Or id = "mnuMore" Then
+        If id = "btnRefresh" Or id = "mnuMore" Or id = "mnuPpt" Then
             AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, id & " deve ficar sempre habilitado"
         Else
             AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "sem getEnabled: " & id
@@ -419,10 +424,12 @@ Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
     For Each n In d.SelectNodes("//u:menu[@id='mnuArrows']/u:button")
         AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "seta sem getEnabled: " & NodeId(n)
     Next
-    ' PowerPoint: o menu e os itens so exigem um grafico (sem tag)
+    ' PowerPoint: o menu e Atualizar graficos no PowerPoint ficam sempre ativos; copiar (imagem/grafico) so exige um grafico (sem tag)
+    AssertTrue d.SelectSingleNode("//u:menu[@id='mnuPpt']/@getEnabled") Is Nothing, "o menu PowerPoint fica sempre ativo"
     For Each n In d.SelectNodes("//u:menu[@id='mnuPpt'] | //u:menu[@id='mnuPpt']/u:button")
-        AssertEqual "Rx_GetEnabled", AttrText(n, "getEnabled"), "PowerPoint sem getEnabled: " & NodeId(n)
         AssertEqual "", AttrText(n, "tag"), "PowerPoint nao consulta a matriz: " & NodeId(n)
+        If NodeId(n) = "btnPptImage" Or NodeId(n) = "btnPptChart" Then AssertEqual "Rx_GetEnabled", AttrText(n, "getEnabled"), "copiar exige grafico: " & NodeId(n)
+        If NodeId(n) = "btnPptSync" Then AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "Atualizar graficos no PowerPoint: sempre ativo"
     Next
 End Sub
 
@@ -723,6 +730,7 @@ Public Sub Test_Ribbon_PptButtons_ReachCore()
     code = RibbonModuleCode()
     AssertTrue InStr(code, "RunCoreFeature ""Core_CopyToPowerPoint"", ""image""") > 0, "Rx_OnPptImage passa o modo image"
     AssertTrue InStr(code, "RunCoreFeature ""Core_CopyToPowerPoint"", ""chart""") > 0, "Rx_OnPptChart passa o modo chart"
+    AssertTrue InStr(code, "RunCoreFeature ""Core_PptSyncOpen""") > 0, "Rx_OnPptSync chama Core_PptSyncOpen (sem exigir grafico)"
     ws.Range("A1").Select
     Loader_InvalidateRibbon
     AssertFalse Rx_IsEnabledFor(""), "PowerPoint: cinza sem grafico"
@@ -797,6 +805,9 @@ Public Sub Test_Ribbon_FeatureWithOlderCore_AsksToUpdate()
     Loader_LastMsg = ""
     Rx_OnPptChart Nothing
     AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "PowerPoint (grafico vinculado)"
+    Loader_LastMsg = ""
+    Rx_OnPptSync Nothing
+    AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "PowerPoint (atualizar graficos)"
     Rx_TestSetFeatureProcSuffix ""
     Loader_LastMsg = ""
     Rx_OnPptImage Nothing                                       ' core atual, sem grafico ativo: nada (o core decide), sem o aviso
@@ -806,4 +817,14 @@ Cleanup:
     en = Err.Number: ed = Err.Description
     Rx_TestSetFeatureProcSuffix ""
     If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+Public Sub Test_Ribbon_PptSync_LabelAndTip()
+    Dim d As Object, n As Object
+    Set d = LoadRibbon()
+    Set n = d.SelectSingleNode("//*[@id='btnPptSync']")
+    AssertTrue Not n Is Nothing
+    AssertEqual "Atualizar gráficos no PowerPoint", AttrText(n, "label")
+    AssertEqual "Refresh", AttrText(n, "imageMso")
+    AssertTrue InStr(AttrText(n, "supertip"), "ao abrir a apresentação") > 0, "o supertip cita a atualizacao ao abrir"
 End Sub

@@ -21,6 +21,7 @@ if ($RegistryRoot -ne 'HKCU:\Software' -and $RegistryRoot -notmatch '^HKCU:\\Sof
 }
 if (-not $SkipExcelCheck) {
     if (Get-Process excel -ErrorAction SilentlyContinue) { throw 'Feche o Excel antes de instalar o ThinQQ.' }
+    if ((Test-Path -LiteralPath (Join-Path $PackageDir 'ThinQQ.ppam')) -and (Get-Process powerpnt -ErrorAction SilentlyContinue)) { throw 'Feche o PowerPoint antes de instalar o ThinQQ (o suplemento do PowerPoint é atualizado junto).' }
 }
 
 # --- Validacao do pacote (nada e copiado antes de tudo conferir) ---
@@ -42,6 +43,26 @@ function Test-PackageHash([string]$FileName, [string]$Field) {
 }
 Test-PackageHash 'ThinQQ.core.xlam' 'coreSha256'
 Test-PackageHash 'ThinQQ.xlam' 'loaderSha256'
+
+# Suplemento do PowerPoint (opcional: ZIPs anteriores a 1.4.0 nao tem). Manifesto que o cita exige o arquivo e o SHA-256.
+$ppamSrc = Join-Path $PackageDir 'ThinQQ.ppam'
+$hasPpamField = $manifest.PSObject.Properties['pptAddinSha256'] -and ([string]$manifest.pptAddinSha256).Trim()
+$withPpam = Test-Path -LiteralPath $ppamSrc
+if ($hasPpamField -and -not $withPpam) { throw "Arquivo 'ThinQQ.ppam' não encontrado em $PackageDir. Descompacte o ZIP inteiro antes de instalar." }
+if ($withPpam) {
+    if (-not $hasPpamField) { throw 'manifest.json sem pptAddinSha256; o suplemento do PowerPoint não pode ser verificado.' }
+    $exp = ([string]$manifest.pptAddinSha256).Trim().ToLower()
+    $act = (Get-FileHash -LiteralPath $ppamSrc -Algorithm SHA256).Hash.ToLower()
+    if ($act -ne $exp) { throw 'Pacote corrompido ou adulterado: o SHA-256 de ThinQQ.ppam não confere com o manifest.json. Baixe o ZIP novamente.' }
+}
+$ppamDest = Join-Path $Root 'ThinQQ.ppam'
+$hadPpam = Test-Path -LiteralPath $ppamDest
+$ppamMoved = $false
+# Copia/troca do .ppam: se o arquivo instalado estiver em uso (PowerPoint aberto), a falha vira uma orientacao clara (o desfazer restaura o
+# resto), com a mensagem interna no fim (outra causa, como permissao ou disco cheio, fica visivel)
+function Invoke-PpamStep([scriptblock]$Step) {
+    try { & $Step } catch { throw ('Feche o PowerPoint (o suplemento ThinQQ está em uso) e rode o instalador de novo. Detalhe: ' + $_.Exception.Message) }
+}
 
 # Versao do loader gravada no arquivo (propriedade Comentarios: "ThinQQ loader x.y.z (Release)"); $null se ilegivel
 function Get-LoaderFileVersion([string]$Path) {
@@ -88,7 +109,7 @@ $undoDir = Join-Path $stage '_undo'
 try {
     if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
     New-Item -ItemType Directory -Path $stage -Force | Out-Null
-    foreach ($f in @('ThinQQ.xlam', 'ThinQQ.core.xlam', 'tutorial.html')) {
+    foreach ($f in @('ThinQQ.xlam', 'ThinQQ.core.xlam', 'tutorial.html', 'ThinQQ.ppam')) {
         if (Test-Path -LiteralPath (Join-Path $PackageDir $f)) {
             Copy-Item -LiteralPath (Join-Path $PackageDir $f) -Destination $stage -Force
             Unblock-File -LiteralPath (Join-Path $stage $f) -ErrorAction SilentlyContinue
@@ -96,7 +117,9 @@ try {
     }
     foreach ($d in @($verDir, (Join-Path $Root 'logs'), $undoDir)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
 
-    # guarda copias para o desfazer; o loader antigo vira ThinQQ.xlam.bak (so o ultimo e mantido)
+    # guarda copias para o desfazer; o loader antigo vira ThinQQ.xlam.bak (so o ultimo e mantido). O .ppam vem PRIMEIRO: em uso (ilegivel),
+    # aborta antes de tocar em qualquer arquivo instalado (inclusive o .bak)
+    if ($hadPpam) { Invoke-PpamStep { Copy-Item -LiteralPath $ppamDest -Destination (Join-Path $undoDir 'ppam') -Force } }
     if ($hadLoader) { Copy-Item -LiteralPath $loaderDest -Destination (Join-Path $undoDir 'loader') -Force; Copy-Item -LiteralPath $loaderDest -Destination $bak -Force }
     if ($hadCore) { Copy-Item -LiteralPath (Join-Path $verDir 'ThinQQ.core.xlam') -Destination (Join-Path $undoDir 'core') -Force }
     if ($hadTut) { Copy-Item -LiteralPath (Join-Path $verDir 'tutorial.html') -Destination (Join-Path $undoDir 'tut') -Force }
@@ -104,7 +127,7 @@ try {
     Move-Item -LiteralPath (Join-Path $stage 'ThinQQ.xlam') -Destination $loaderDest -Force; $loaderMoved = $true
     Move-Item -LiteralPath (Join-Path $stage 'ThinQQ.core.xlam') -Destination $verDir -Force; $coreMoved = $true
     if (Test-Path -LiteralPath (Join-Path $stage 'tutorial.html')) { Move-Item -LiteralPath (Join-Path $stage 'tutorial.html') -Destination $verDir -Force; $tutMoved = $true }
-    if ($SimulateFailureForTest) { throw 'Falha simulada (teste).' }
+    if ($withPpam) { Invoke-PpamStep { Move-Item -LiteralPath (Join-Path $stage 'ThinQQ.ppam') -Destination $ppamDest -Force }; $ppamMoved = $true }
 
     # --- Local confiavel (macros permitidas sem aviso) ---
     $tl = Join-Path $RegistryRoot 'Microsoft\Office\16.0\Excel\Security\Trusted Locations\LocationThinQQ'
@@ -115,6 +138,40 @@ try {
     Set-ItemProperty -LiteralPath $tl -Name Path -Value ($Root + '\')
     Set-ItemProperty -LiteralPath $tl -Name AllowSubfolders -Value 1 -Type DWord
     Set-ItemProperty -LiteralPath $tl -Name Description -Value 'ThinQQ add-in'
+
+    # --- PowerPoint: local confiavel e registro do suplemento (AddIns\ThinQQ: Path, AutoLoad) ---
+    if ($withPpam) {
+        $ptl = Join-Path $RegistryRoot 'Microsoft\Office\16.0\PowerPoint\Security\Trusted Locations\LocationThinQQ'
+        if (-not (Test-Path -LiteralPath $ptl)) {
+            Initialize-RegKey $ptl
+            [void]$undo.Add({ Remove-Item -LiteralPath $ptl -Recurse -Force -ErrorAction SilentlyContinue }.GetNewClosure())
+        }
+        Set-ItemProperty -LiteralPath $ptl -Name Path -Value ($Root + '\')
+        Set-ItemProperty -LiteralPath $ptl -Name AllowSubfolders -Value 1 -Type DWord
+        Set-ItemProperty -LiteralPath $ptl -Name Description -Value 'ThinQQ add-in'
+        $pak = Join-Path $RegistryRoot 'Microsoft\Office\16.0\PowerPoint\AddIns\ThinQQ'
+        if (-not (Test-Path -LiteralPath $pak)) {
+            Initialize-RegKey $pak
+            [void]$undo.Add({ Remove-Item -LiteralPath $pak -Recurse -Force -ErrorAction SilentlyContinue }.GetNewClosure())
+        }
+        Set-ItemProperty -LiteralPath $pak -Name Path -Value $ppamDest
+        Set-ItemProperty -LiteralPath $pak -Name AutoLoad -Value 1 -Type DWord
+        # versao instalada do suplemento (spec 4.9: o atualizador do Excel compara com pptAddinVersion e so atualiza quem ja tem o .ppam)
+        $ppVer = [string]$manifest.pptAddinVersion
+        if ($ppVer -notmatch '^\d+\.\d+\.\d+$') { $ppVer = $coreVer }
+        $upk = Join-Path $RegistryRoot 'VB and VBA Program Settings\ThinQQ\Updater'
+        Initialize-RegKey $upk
+        $oldPpVer = (Get-ItemProperty -LiteralPath $upk).PSObject.Properties['PpamVersion']
+        $oldPpVal = $null; if ($oldPpVer) { $oldPpVal = [string]$oldPpVer.Value }
+        Set-ItemProperty -LiteralPath $upk -Name PpamVersion -Value $ppVer
+        [void]$undo.Add({ if ($null -ne $oldPpVal) { Set-ItemProperty -LiteralPath $upk -Name PpamVersion -Value $oldPpVal } else { Remove-ItemProperty -LiteralPath $upk -Name PpamVersion -ErrorAction SilentlyContinue } }.GetNewClosure())
+        # pendencia antiga do atualizador (ThinQQ.ppam.new) perde o sentido: o ZIP acabou de instalar a versao dele
+        foreach ($n in @('PendingPpam', 'PendingPpamSha256', 'PendingPpamVersion')) { Remove-ItemProperty -LiteralPath $upk -Name $n -ErrorAction SilentlyContinue }
+        Remove-Item -LiteralPath ($ppamDest + '.new') -Force -ErrorAction SilentlyContinue
+        # sobra de troca interrompida do atualizador (ThinQQ.ppam.old)
+        Remove-Item -LiteralPath ($ppamDest + '.old') -Force -ErrorAction SilentlyContinue
+    }
+    if ($SimulateFailureForTest) { throw 'Falha simulada (teste).' }
 
     # --- Registro do suplemento: OPEN, OPEN1, OPEN2... (sem lacunas, sem duplicar) ---
     $opt = Join-Path $RegistryRoot 'Microsoft\Office\16.0\Excel\Options'
@@ -174,6 +231,10 @@ try {
             if ($hadTut) { Copy-Item -LiteralPath (Join-Path $undoDir 'tut') -Destination (Join-Path $verDir 'tutorial.html') -Force }
             else { Remove-Item -LiteralPath (Join-Path $verDir 'tutorial.html') -Force -ErrorAction SilentlyContinue }
         }
+        if ($ppamMoved) {
+            if ($hadPpam) { Copy-Item -LiteralPath (Join-Path $undoDir 'ppam') -Destination $ppamDest -Force }
+            else { Remove-Item -LiteralPath $ppamDest -Force -ErrorAction SilentlyContinue }
+        }
         if (-not $hadLoader) { Remove-Item -LiteralPath $bak -Force -ErrorAction SilentlyContinue }
         if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
         if ($verDirCreated -and (Test-Path -LiteralPath $verDir) -and -not (Get-ChildItem -LiteralPath $verDir -Force)) { Remove-Item -LiteralPath $verDir -Force -ErrorAction SilentlyContinue }
@@ -183,3 +244,4 @@ try {
 }
 if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
 Write-Host "ThinQQ $coreVer instalado em $Root. Abra o Excel e procure a aba 'ThinQQ'."
+if ($withPpam) { Write-Host "Suplemento do PowerPoint instalado: abra o PowerPoint e procure a aba 'ThinQQ'." }

@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 
 $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $script:DistDir  = Join-Path $script:RepoRoot 'dist'
+$script:PptPid   = @()   # PID do PowerPoint criado por New-PptApp (encerrado por Close-PptApp)
 . "$PSScriptRoot\Ribbon-Icons.ps1"
 
 function Assert-VbomTrusted {
@@ -12,6 +13,90 @@ function Assert-VbomTrusted {
     if ($v -ne 1) {
         throw "Habilite 'Confiar no acesso ao modelo de objeto do projeto VBA' (Arquivo > Opções > Central de Confiabilidade > Configurações de Macro) ou execute: Set-ItemProperty '$key' AccessVBOM 1"
     }
+}
+
+function Test-PptVbomTrusted {
+    $v = (Get-ItemProperty 'HKCU:\Software\Microsoft\Office\16.0\PowerPoint\Security' -ErrorAction SilentlyContinue).AccessVBOM
+    return ($v -eq 1)
+}
+function Assert-PptVbomTrusted {
+    if (-not (Test-PptVbomTrusted)) {
+        throw "Habilite no POWERPOINT 'Confiar no acesso ao modelo de objeto do projeto VBA' (Arquivo > Opções > Central de Confiabilidade > Configurações de Macro). Sem isso o suplemento ThinQQ.ppam não pode ser montado."
+    }
+}
+# Pre-condicao do release (antes de alterar qualquer arquivo): o build do ThinQQ.ppam usa um PowerPoint proprio (instancia unica: com um
+# PowerPoint aberto ele nao pode ser criado) e precisa do VBOM do PowerPoint habilitado.
+function Assert-PptBuildReady {
+    if (Get-Process POWERPNT -ErrorAction SilentlyContinue) { throw 'Feche o PowerPoint antes de gerar o release: o build do suplemento ThinQQ.ppam usa um PowerPoint próprio (o PowerPoint é de instância única).' }
+    Assert-PptVbomTrusted
+}
+
+# PowerPoint e de instancia unica: so cria se NENHUM POWERPNT estiver em execucao (senao CreateObject anexaria ao do usuario).
+# O PID criado fica em $script:PptPid; o processo tem que ser de automacao (linha de comando com -Embedding), senao nao e nosso.
+function New-PptApp {
+    if (Get-Process POWERPNT -ErrorAction SilentlyContinue) { throw 'Há um PowerPoint aberto. Feche-o para montar/testar o suplemento (o PowerPoint é de instância única).' }
+    $script:PptPid = @()
+    $app = New-Object -ComObject PowerPoint.Application
+    $ids = @(Get-Process POWERPNT -ErrorAction SilentlyContinue | ForEach-Object Id)
+    $cmd = ''
+    if ($ids.Count -eq 1) { try { $cmd = [string](Get-CimInstance Win32_Process -Filter "ProcessId = $($ids[0])" -ErrorAction Stop).CommandLine } catch { $cmd = '' } }
+    if ($ids.Count -ne 1 -or $cmd -notmatch 'Embedding') {
+        # Nao chama Quit nem encerra: pode ser um PowerPoint do usuario aberto no mesmo instante.
+        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($app) } catch { }
+        throw "PowerPoint do build não identificado ($($ids.Count) processos; linha de comando '$cmd'); nada foi encerrado."
+    }
+    $script:PptPid = $ids
+    $app.DisplayAlerts = 1          # ppAlertsNone
+    return $app
+}
+# Fecha o PowerPoint criado por New-PptApp. Fecha as apresentacoes que o script abriu ($Owned) e as que ficaram SEM janela (o PowerPoint do
+# script e invisivel: so codigo cria apresentacao sem janela). Se sobrar apresentacao COM janela ou janela do Modo de Exibicao Protegido (o
+# usuario abriu um arquivo nesta instancia: o PowerPoint e de instancia unica), nao da Quit nem encerra: avisa e so solta o objeto. Senao
+# Quit e, se o processo (PID registrado) nao terminar em $WaitSec s, encerra esse PID (tambem quando o PowerPoint ja nao responde).
+function Close-PptApp($app, [object[]]$Owned = @(), [int]$WaitSec = 15) {
+    $rcw = [System.Runtime.InteropServices.Marshal]
+    $foreign = 0
+    if ($null -ne $app) {
+        foreach ($o in @($Owned)) {
+            if ($null -eq $o) { continue }
+            try { $o.Saved = -1; $o.Close() } catch { }
+            try { [void]$rcw::ReleaseComObject($o) } catch { }
+        }
+        $o = $null
+        # Pelo indice, soltando cada objeto (enumerar a colecao com foreach deixa referencias que impedem o Quit: medido).
+        $col = $null; $p = $null; $responds = $true
+        try {
+            $col = $app.Presentations
+            for ($i = [int]$col.Count; $i -ge 1; $i--) {
+                $p = $col.Item($i)
+                try { if ([int]$p.Windows.Count -eq 0) { $p.Saved = -1; $p.Close() } else { $foreign++ } } finally { try { [void]$rcw::ReleaseComObject($p) } catch { }; $p = $null }
+            }
+            $pv = $app.ProtectedViewWindows; $foreign += [int]$pv.Count; try { [void]$rcw::ReleaseComObject($pv) } catch { }; $pv = $null
+        } catch { $responds = $false } finally { if ($null -ne $col) { try { [void]$rcw::ReleaseComObject($col) } catch { } }; $col = $null }
+        [GC]::Collect(); [GC]::WaitForPendingFinalizers()
+        if ($foreign -gt 0) {
+            Write-Host "AVISO: o PowerPoint (PID $(@($script:PptPid) -join ',')) tem $foreign apresentação(ões)/janela(s) que não são deste script: não foi fechado nem encerrado." -ForegroundColor Yellow
+            try { [void]$rcw::ReleaseComObject($app) } catch { }
+            [GC]::Collect(); [GC]::WaitForPendingFinalizers()
+            $script:PptPid = @()
+            return
+        }
+        if ($responds) { try { $app.Quit() } catch { } }
+        try { [void]$rcw::ReleaseComObject($app) } catch { }
+    }
+    [GC]::Collect(); [GC]::WaitForPendingFinalizers(); [GC]::Collect()
+    foreach ($id in @($script:PptPid)) {
+        if (-not $id) { continue }
+        $proc = Get-Process -Id $id -ErrorAction SilentlyContinue
+        # Dispose: um handle aberto deixa o processo que ja saiu ainda listado por Get-Process (contagem falsa logo depois)
+        if ($proc) { try { [void]$proc.WaitForExit($WaitSec * 1000) } catch { } finally { $proc.Dispose(); $proc = $null } }
+        if (Get-Process -Id $id -ErrorAction SilentlyContinue) {
+            Write-Host "PowerPoint (PID $id) não fechou em $WaitSec s: encerrado pelo PID." -ForegroundColor Yellow
+            Stop-Process -Id $id -Force -ErrorAction SilentlyContinue
+            for ($i = 0; $i -lt 50 -and (Get-Process -Id $id -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 200 }
+        }
+    }
+    $script:PptPid = @()
 }
 
 function New-ExcelApp {
@@ -164,6 +249,45 @@ function Add-RibbonToPackage([string]$PackagePath, [string]$RibbonXmlPath, [Vali
     } finally { $zip.Dispose(); if ($iconDir) { Remove-Item $iconDir -Recurse -Force -ErrorAction SilentlyContinue } }
 }
 
+# Garante docProps/core.xml com dc:description = $Description (o "Comments" do Office) no pacote. O PowerPoint grava o .ppam so com
+# ppt/presentation.xml e ppt/vbaProject.bin, sem propriedades do documento (medido): o carimbo de versao lido sem abrir o arquivo
+# (como o do loader, docProps/core.xml) e inserido aqui, com o content type e a relacao core-properties. Pacote que ja tem core.xml:
+# troca (ou acrescenta) so o dc:description.
+function Set-PackageDescription([string]$PackagePath, [string]$Description, [string]$Title = 'ThinQQ') {
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $esc = [Security.SecurityElement]::Escape($Description)
+    $zip = [System.IO.Compression.ZipFile]::Open($PackagePath, [System.IO.Compression.ZipArchiveMode]::Update)
+    try {
+        function Get-ZipText($zip, [string]$name) { $e = $zip.GetEntry($name); if (-not $e) { return $null }; $r = New-Object System.IO.StreamReader($e.Open()); try { return $r.ReadToEnd() } finally { $r.Dispose() } }
+        function Set-ZipText($zip, [string]$name, [string]$text) {
+            $old = $zip.GetEntry($name); if ($old) { $old.Delete() }
+            $e = $zip.CreateEntry($name); $w = New-Object System.IO.StreamWriter($e.Open(), (New-Object System.Text.UTF8Encoding($false))); $w.Write($text); $w.Dispose()
+        }
+        $core = Get-ZipText $zip 'docProps/core.xml'
+        if ($null -ne $core) {
+            if ($core -match '<dc:description>[^<]*</dc:description>') { $core = $core -replace '<dc:description>[^<]*</dc:description>', "<dc:description>$esc</dc:description>" }
+            elseif ($core -match '<dc:description\s*/>') { $core = $core -replace '<dc:description\s*/>', "<dc:description>$esc</dc:description>" }
+            else { $core = $core -replace '</cp:coreProperties>', "<dc:description>$esc</dc:description></cp:coreProperties>" }
+            Set-ZipText $zip 'docProps/core.xml' $core
+        } else {
+            $t = [Security.SecurityElement]::Escape($Title)
+            $core = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+                '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
+                "<dc:title>$t</dc:title><dc:description>$esc</dc:description></cp:coreProperties>"
+            Set-ZipText $zip 'docProps/core.xml' $core
+            $ct = Get-ZipText $zip '[Content_Types].xml'
+            if ($ct -notmatch 'PartName="/docProps/core\.xml"') {
+                Set-ZipText $zip '[Content_Types].xml' ($ct -replace '</Types>', '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>')
+            }
+            $rels = Get-ZipText $zip '_rels/.rels'
+            if ($rels -notmatch 'metadata/core-properties') {
+                Set-ZipText $zip '_rels/.rels' ($rels -replace '</Relationships>', '<Relationship Id="rIdThinQQCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>')
+            }
+        }
+    } finally { $zip.Dispose() }
+}
+
 # ---- Watchdog do Excel -------------------------------------------------------
 # Erro de compilação VBA ou diálogo modal trava a chamada COM para sempre. Um processo pwsh
 # separado mata SOMENTE o Excel que este script iniciou (PID obtido via $xl.Hwnd) após o timeout;
@@ -212,6 +336,49 @@ function Write-ExcelTimeout($wd) {
     Write-Host 'TIMEOUT: o Excel não terminou (provável erro de compilação VBA ou diálogo modal)' -ForegroundColor Red
 }
 
+# ---- PowerPoint antes/depois da suite (run-tests). O PowerPoint que os testes do core abrem e criado pelo COM a pedido do Excel de teste
+# (pai = o servico DcomLaunch, nao o Excel: nao ha como provar pelo PID/pai que e do teste); por isso o script NUNCA encerra POWERPNT aqui:
+# so registra antes/depois e avisa com PID, pai e argumentos. Sobra de automacao (-Embedding) conta como falha (teste vazou o PowerPoint).
+function Get-PptProcessSnapshot {
+    $list = @()
+    try {
+        $list = @(Get-CimInstance Win32_Process -Filter "Name = 'POWERPNT.EXE'" -ErrorAction Stop | ForEach-Object {
+            [pscustomobject]@{ Id = [int]$_.ProcessId; ParentId = [int]$_.ParentProcessId; CommandLine = [string]$_.CommandLine } })
+    } catch {
+        $list = @(Get-Process POWERPNT -ErrorAction SilentlyContinue | ForEach-Object { [pscustomobject]@{ Id = [int]$_.Id; ParentId = 0; CommandLine = '' } })
+    }
+    return $list
+}
+function Get-PptLeftovers([object[]]$Before = @(), [object[]]$After = @()) {
+    $ids = @(@($Before) | Where-Object { $null -ne $_ } | ForEach-Object { [int]$_.Id })
+    return @(@($After) | Where-Object { $null -ne $_ -and $ids -notcontains [int]$_.Id })
+}
+function Test-PptAutomationProcess($Proc) { return ($null -ne $Proc -and [string]$Proc.CommandLine -match '(?i)[-/]Embedding') }
+function Format-PptLeftover($Proc) {
+    $kind = if (Test-PptAutomationProcess $Proc) { 'automação (provável órfão de teste)' } else { 'aberto com janela (provável do usuário)' }
+    return "POWERPNT PID $($Proc.Id) (pai $($Proc.ParentId)), $kind; argumentos: $($Proc.CommandLine)"
+}
+# Testes do core com PowerPoint real (TestPowerPoint/TestPptSync) que pularam: cada pulo grava "TestX: ... pulado/pulada" no log de teste.
+function Get-PptSkipCount([string[]]$LogLines = @()) {
+    return @(@($LogLines) | Where-Object { $_ -match 'Test(PowerPoint|PptSync): .*\bpulad[oa]\b' }).Count
+}
+function Get-FileLengthOrZero([string]$Path) {
+    if (Test-Path -LiteralPath $Path -PathType Leaf) { return [long](Get-Item -LiteralPath $Path).Length }
+    return [long]0
+}
+# Linhas gravadas no log depois do deslocamento $Offset (bytes; o log do VBA e ANSI). Log ausente ou menor que o deslocamento = do inicio.
+function Read-LogTail([string]$Path, [long]$Offset) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+    $fs = New-Object IO.FileStream($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+    try {
+        if ($Offset -gt $fs.Length) { $Offset = 0 }
+        [void]$fs.Seek($Offset, [IO.SeekOrigin]::Begin)
+        $sr = New-Object IO.StreamReader($fs, [Text.Encoding]::GetEncoding(1252))
+        $text = $sr.ReadToEnd()
+    } finally { $fs.Dispose() }
+    return @($text -split "`r?`n" | Where-Object { $_ -ne '' })
+}
+
 # Gera modTestDispatch com chamadas DIRETAS a cada Test_* (Select Case). Application.Run abre diálogo modal
 # em erro não tratado no Excel invisível; chamada direta respeita o On Error do modTestRunner.
 function Write-TestDispatchModule([string[]]$TestFiles, [string]$OutPath) {
@@ -228,6 +395,8 @@ function Write-TestDispatchModule([string[]]$TestFiles, [string]$OutPath) {
         }
     }
     $body = ($cases -join "`r`n")
+    $names = @($cases | ForEach-Object { if ($_ -match 'Case "([^"]+)"') { '    s = s & "' + $Matches[1] + '|"' } })
+    $list = ($names -join "`r`n")
     $content = @"
 Attribute VB_Name = "modTestDispatch"
 ' Gerado pelo build - nao editar
@@ -239,6 +408,12 @@ $body
         Case Else: Err.Raise vbObjectError + 514, "Dispatch", "teste nao despachado: " & qualifiedName
     End Select
 End Sub
+
+Public Function AllTests() As String
+    Dim s As String
+$list
+    AllTests = s
+End Function
 "@
     Set-Content -Path $OutPath -Value $content -Encoding ascii
 }

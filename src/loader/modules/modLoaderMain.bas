@@ -259,6 +259,7 @@ Public Sub Loader_Startup()
     On Error GoTo Fail
     Dim ver As String
     Loader_EnsureFolders
+    Updater_ApplyPendingPpam            ' suplemento do PowerPoint pendente (arquivo estava em uso): com o PowerPoint fechado, entra agora
     If Loader_FindNewestCoreVersion(Loader_VersionsDir()) = "" Then
         Loader_Log "core não encontrado em " & Loader_VersionsDir()
         If Loader_Msg("O ThinQQ está instalado, mas o módulo principal (core) não foi encontrado." & vbLf & _
@@ -307,5 +308,6 @@ Public Sub Loader_Shutdown()
         Application.OnTime mStartupCheckAt, "'" & ThisWorkbook.Name & "'!Updater_StartupCheck", , False
         mStartupCheckAt = 0
     End If
+    Updater_CancelPpamRetry             ' nova tentativa do suplemento do PowerPoint: um OnTime pendente reabriria o loader fechado
     If Loader_ShouldCloseCoreOnShutdown() Then Loader_CloseCore
 End Sub

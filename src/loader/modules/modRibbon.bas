@@ -30,7 +30,7 @@ Public Sub Rx_TestSetSupportsProc(procName As String)
     ResetRibbonCaches
 End Sub
 
-' Gancho de teste: sufixo acrescentado ao nome dos procedimentos dos recursos sempre ativos (Arredondar intervalo, PowerPoint) para simular
+' Gancho de teste: sufixo acrescentado ao nome dos procedimentos dos recursos sempre ativos (Arredondar intervalo, PowerPoint, Core_PptSyncOpen) para simular
 ' um core anterior que nao os tem ("" desarma). So existe no build de Teste.
 Public Sub Rx_TestSetFeatureProcSuffix(suffix As String)
     If BUILD_CONFIG <> "Test" Then Exit Sub
@@ -235,6 +235,12 @@ Public Sub Rx_OnPptChart(control As IRibbonControl)
     If CoreOrWarn() Then RunCoreFeature "Core_CopyToPowerPoint", "chart"
 End Sub
 
+' Atualizar graficos no PowerPoint (Parte A): nao exige grafico selecionado; core anterior: aviso de atualizar.
+Public Sub Rx_OnPptSync(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_PptSyncOpen"
+End Sub
+
 Public Sub Rx_OnSamples(control As IRibbonControl)
     On Error GoTo Fail
     If Not CoreOrWarn() Then Exit Sub
@@ -286,6 +292,13 @@ Public Sub Rx_OnSettings(control As IRibbonControl)
         Settings_Delete KEY_UPDATE_SOURCE
     Else
         Settings_Set KEY_UPDATE_SOURCE, Trim$(CStr(nv))
+    End If
+    If Updater_PpamInstalled() Then                      ' so para quem tem o suplemento do PowerPoint instalado
+        If Loader_Msg("Atualizar também o suplemento do PowerPoint automaticamente?", vbYesNo + vbQuestion) = vbYes Then
+            Settings_Set KEY_PPAM_AUTO, "1"
+        Else
+            Settings_Set KEY_PPAM_AUTO, "0"
+        End If
     End If
     RxMsg "Fonte de atualização: " & Settings_UpdateSource(), vbInformation
     Exit Sub

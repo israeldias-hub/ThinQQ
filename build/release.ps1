@@ -1,5 +1,5 @@
 ﻿<#
-.SYNOPSIS  Gera um release: version.json, build Release, manifest.json, zip (com o Excel de demonstração em exemplos/) e (opcional) publicação em pasta.
+.SYNOPSIS  Gera um release: version.json, build Release (xlam e ppam do PowerPoint), manifest.json, zip (com o Excel de demonstração em exemplos/) e (opcional) publicação em pasta.
 .EXAMPLE   pwsh build/release.ps1 -Version 1.0.0 -BaseUrl https://github.com/israeldias-hub/ThinQQ/releases/download/v1.0.0
 .EXAMPLE   pwsh build/release.ps1 -Version 1.0.0 -BaseUrl '\\servidor\ThinQQ' -PublishTo '\\servidor\ThinQQ'
 .PARAMETER ManifestUrl  Fonte de atualizacao gravada no manifesto (o que um usuario que instala pelo ZIP consulta). Padrao: com BaseUrl
@@ -38,6 +38,8 @@ $demoSource = Join-Path $RepoRoot "exemplos\$(Get-ReleaseDemoName)"
 if (-not (Test-Path -LiteralPath $demoSource)) { throw "Arquivo de demonstracao ausente: exemplos\$(Get-ReleaseDemoName). Gere-o com tools/New-DemoWorkbook.ps1 antes do release." }
 if (Test-XlsxHasMacros $demoSource) { throw "exemplos\$(Get-ReleaseDemoName) contem macros (vbaProject): a demonstracao deve ser .xlsx sem macros." }
 if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot 'installer\LEIA-ME-exemplos.txt'))) { throw 'Arquivo ausente: installer\LEIA-ME-exemplos.txt (vai no ZIP como exemplos\LEIA-ME.txt).' }
+# PowerPoint fechado e VBOM do PowerPoint habilitado (o build do .ppam precisa dos dois): falha aqui, antes de gravar o version.json
+Assert-PptBuildReady
 
 # version.json: gravado antes do build (o build le dele); restaurado se qualquer etapa falhar
 $versionPath = Join-Path $RepoRoot 'version.json'
@@ -53,18 +55,24 @@ try {
     $global:LASTEXITCODE = 0
     & "$PSScriptRoot\build.ps1" -Target all -Configuration Release
     if ($global:LASTEXITCODE -ne 0) { throw "Build Release falhou (código $global:LASTEXITCODE)." }
-    foreach ($f in @('ThinQQ.xlam', 'ThinQQ.core.xlam')) {
+    # Suplemento do PowerPoint (ThinQQ.ppam): o build usa um PowerPoint proprio (VBOM habilitado e PowerPoint fechado). Falhou = nada de release parcial.
+    Remove-Item -LiteralPath (Join-Path $DistDir 'ThinQQ.ppam') -Force -ErrorAction SilentlyContinue   # um .ppam de uma execucao anterior nunca pode passar por novo
+    $global:LASTEXITCODE = 0
+    try { & "$PSScriptRoot\build.ps1" -Target ppt -Configuration Release }
+    catch { throw "Build do suplemento do PowerPoint falhou ($($_.Exception.Message)). Habilite o VBOM do PowerPoint e feche o PowerPoint." }
+    if ($global:LASTEXITCODE -ne 0) { throw "Build do suplemento do PowerPoint falhou (código $global:LASTEXITCODE). Habilite o VBOM do PowerPoint e feche o PowerPoint." }
+    foreach ($f in @('ThinQQ.xlam', 'ThinQQ.core.xlam', 'ThinQQ.ppam')) {
         $p = Join-Path $DistDir $f
         if (-not (Test-Path $p)) { throw "Build não gerou dist\$f" }
         $bad = @(Get-TestMarkersInXlam $p)
         if ($bad.Count -gt 0) { throw "O artefato Release dist\$f contém módulos de teste ($($bad -join ', ')). Release cancelado." }
     }
 
-    # assinatura opcional dos projetos VBA (signtool + Office SIPs); ANTES dos SHA-256 do manifesto, que cobrem os arquivos ja assinados
+    # assinatura opcional dos projetos VBA dos .xlam e do .ppam (signtool + Office SIPs); ANTES dos SHA-256 do manifesto, que cobrem os arquivos ja assinados
     if ($SignPfx) {
         $global:LASTEXITCODE = 0
-        & "$PSScriptRoot\..\tools\Sign-ThinQQ.ps1" -Files @((Join-Path $DistDir 'ThinQQ.xlam'), (Join-Path $DistDir 'ThinQQ.core.xlam')) -PfxPath $SignPfx -PfxPassword $SignPassword -TimestampUrl $SignTimestampUrl
-        if ($global:LASTEXITCODE -ne 0) { throw "Assinatura dos .xlam falhou (código $global:LASTEXITCODE): o release não foi gerado. Veja tools/Sign-ThinQQ.ps1." }
+        & "$PSScriptRoot\..\tools\Sign-ThinQQ.ps1" -Files @((Join-Path $DistDir 'ThinQQ.xlam'), (Join-Path $DistDir 'ThinQQ.core.xlam'), (Join-Path $DistDir 'ThinQQ.ppam')) -PfxPath $SignPfx -PfxPassword $SignPassword -TimestampUrl $SignTimestampUrl
+        if ($global:LASTEXITCODE -ne 0) { throw "Assinatura dos .xlam e do .ppam falhou (código $global:LASTEXITCODE): o release não foi gerado. Veja tools/Sign-ThinQQ.ps1." }
     }
 
     $notes = ''
@@ -72,6 +80,7 @@ try {
     $manifest = New-ReleaseManifest -CoreVersion $versions.core -LoaderVersion $versions.loader -BaseUrl $BaseUrl `
         -CoreSha (Get-FileHash (Join-Path $DistDir 'ThinQQ.core.xlam') -Algorithm SHA256).Hash.ToLower() `
         -LoaderSha (Get-FileHash (Join-Path $DistDir 'ThinQQ.xlam') -Algorithm SHA256).Hash.ToLower() `
+        -PptSha (Get-FileHash (Join-Path $DistDir 'ThinQQ.ppam') -Algorithm SHA256).Hash.ToLower() `
         -Notes $notes -PublishedAt (Get-Date -Format 'yyyy-MM-dd') -ManifestUrl $ManifestUrl
     [IO.File]::WriteAllText((Join-Path $DistDir 'manifest.json'), (($manifest | ConvertTo-Json) + "`n"), (New-Object Text.UTF8Encoding($false)))
     Copy-Item $tutorial $DistDir -Force

@@ -28,13 +28,39 @@ try {
     [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($z, (Join-Path $tmp 'dirty16.xlam'), 'ThinQQ.core.xlam')
     $z.Dispose()
     Assert (@(Get-TestMarkersInZip $zipPath).Count -gt 0) 'detecta modulo de teste dentro do zip'
+    # suplemento do PowerPoint (.ppam): zip com ppt/vbaProject.bin (e nao xl/); o mesmo teste de marcadores vale
+    function New-FakePpam([string]$path, [byte[]]$bin, [string]$entry = 'ppt/vbaProject.bin') {
+        $z = [IO.Compression.ZipFile]::Open($path, 'Create')
+        if ($entry) { $e = $z.CreateEntry($entry); $s = $e.Open(); $s.Write($bin, 0, $bin.Length); $s.Dispose() }
+        $z.Dispose()
+    }
+    New-FakePpam (Join-Path $tmp 'clean.ppam') $clean
+    # o .ppam de teste leva os modulos proprios do PowerPoint (modPptTestRunner/modPptAssert), nao os do Excel
+    $dirtyPpt16 = [Text.Encoding]::Unicode.GetBytes('Root Entry modPptTestRunner')
+    New-FakePpam (Join-Path $tmp 'dirty.ppam') $dirtyPpt16
+    New-FakePpam (Join-Path $tmp 'dirtyAssert.ppam') ([Text.Encoding]::Unicode.GetBytes('Root Entry modPptAssert'))
+    Assert (@(Get-TestMarkersInXlam (Join-Path $tmp 'dirtyAssert.ppam')) -contains 'modPptAssert') '.ppam com modPptAssert e recusado'
+    New-FakePpam (Join-Path $tmp 'sem-bin.ppam') $clean ''
+    Assert (@(Get-TestMarkersInXlam (Join-Path $tmp 'clean.ppam')).Count -eq 0) '.ppam limpo sem marcadores'
+    Assert (@(Get-TestMarkersInXlam (Join-Path $tmp 'dirty.ppam')) -contains 'modPptTestRunner') '.ppam com modulo de teste (ppt/vbaProject.bin) e recusado'
+    $threw = $false; $ppamMsg = ''
+    try { [void](Get-TestMarkersInXlam (Join-Path $tmp 'sem-bin.ppam')) } catch { $threw = $true; $ppamMsg = $_.Exception.Message }
+    Assert ($threw -and $ppamMsg -match 'vbaProject\.bin ausente') ".ppam sem vbaProject.bin: erro claro ($ppamMsg)"
+    $zipP = Join-Path $tmp 'rel-ppam.zip'
+    $z = [IO.Compression.ZipFile]::Open($zipP, 'Create')
+    [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($z, (Join-Path $tmp 'dirty.ppam'), 'ThinQQ.ppam')
+    $z.Dispose()
+    Assert ((@(Get-TestMarkersInZip $zipP) -join ' ') -match 'ThinQQ\.ppam: modPptTestRunner') 'detecta modulo de teste no .ppam dentro do zip'
 
     # artefatos reais, se existirem (build Test deve falhar na verificacao; Release deve passar)
     $found = 0
     foreach ($f in (Get-ChildItem $dist -Filter '*.test.xlam' -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '~$*' })) {
         Assert (@(Get-TestMarkersInXlam $f.FullName).Count -gt 0) "build de teste $($f.Name) deveria ser reprovado"; $found++
     }
-    foreach ($n in @('ThinQQ.xlam', 'ThinQQ.core.xlam')) {
+    foreach ($f in (Get-ChildItem $dist -Filter '*.pptm' -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '~$*' })) {
+        Assert (@(Get-TestMarkersInXlam $f.FullName).Count -gt 0) "build de teste do PowerPoint $($f.Name) deveria ser reprovado"; $found++
+    }
+    foreach ($n in @('ThinQQ.xlam', 'ThinQQ.core.xlam', 'ThinQQ.ppam')) {
         $p = Join-Path $dist $n
         if (Test-Path $p) { Assert (@(Get-TestMarkersInXlam $p).Count -eq 0) "release $n nao pode ter modulos de teste"; $found++ }
     }
@@ -65,6 +91,23 @@ try {
     $l = New-ReleaseManifest -CoreVersion '1.0.0' -LoaderVersion '1.0.0' -BaseUrl 'C:\temp\ensaio' -CoreSha ('a' * 64) -LoaderSha ('b' * 64) -Notes '' -PublishedAt '2026-10-10'
     Assert ($l.manifestUrl -ceq 'C:\temp\ensaio\manifest.json') "pasta local: $($l.manifestUrl)"
 
+    # suplemento do PowerPoint no manifesto (spec 4.9): pptAddinVersion = coreVersion (saem juntos), Url do asset, SHA-256; sem -PptSha os TRES campos somem
+    $pm = New-ReleaseManifest -CoreVersion '1.2.3' -LoaderVersion '1.0.0' -BaseUrl 'https://x.y/z/' -CoreSha ('a' * 64) -LoaderSha ('b' * 64) -PptSha ('c' * 64) -Notes '' -PublishedAt '2026-10-10'
+    $pb = ($pm | ConvertTo-Json) | ConvertFrom-Json
+    Assert ($pb.pptAddinVersion -ceq '1.2.3' -and $pb.pptAddinVersion -ceq $pb.coreVersion) "pptAddinVersion = coreVersion ($($pb.pptAddinVersion))"
+    Assert ($pb.pptAddinUrl -ceq 'https://x.y/z/ThinQQ.ppam' -and $pb.pptAddinUrl.EndsWith('/ThinQQ.ppam')) "pptAddinUrl ($($pb.pptAddinUrl))"
+    Assert ($pb.pptAddinSha256 -ceq ('c' * 64)) 'pptAddinSha256'
+    Assert ($pb.coreSha256 -ceq ('a' * 64) -and $pb.loaderSha256 -ceq ('b' * 64) -and $pb.schemaVersion -eq 1) 'com o suplemento, os demais campos continuam'
+    $pk = @($pm.Keys); $iL = $pk.IndexOf('loaderSha256')
+    Assert ($pk.IndexOf('pptAddinVersion') -eq ($iL + 1) -and $pk.IndexOf('pptAddinUrl') -eq ($iL + 2) -and $pk.IndexOf('pptAddinSha256') -eq ($iL + 3)) 'os campos do suplemento vem logo depois de loaderSha256'
+    $pu = New-ReleaseManifest -CoreVersion '1.2.3' -LoaderVersion '1.0.0' -BaseUrl '\\servidor\ThinQQ' -CoreSha ('a' * 64) -LoaderSha ('b' * 64) -PptSha ('c' * 64) -Notes '' -PublishedAt '2026-10-10'
+    Assert ($pu.pptAddinUrl -ceq '\\servidor\ThinQQ\ThinQQ.ppam') "pptAddinUrl em pasta de rede ($($pu.pptAddinUrl))"
+    $mNames = @((($m | ConvertTo-Json) | ConvertFrom-Json).PSObject.Properties.Name)
+    foreach ($k in 'pptAddinVersion', 'pptAddinUrl', 'pptAddinSha256') {
+        Assert (-not $m.Contains($k) -and -not $h.Contains($k)) "sem -PptSha: $k nao aparece (manifesto de uma release sem o suplemento)"
+        Assert ($mNames -cnotcontains $k) "sem -PptSha: $k ausente do JSON"
+    }
+
     # stub do tutorial
     $stub = Join-Path $tmp 'stub.html'; Set-Content $stub ('x' * 5000 + '<!-- THINQQ-TUTORIAL-STUB -->')
     Assert (Test-TutorialIsStub $stub) 'marcador => stub'
@@ -77,7 +120,7 @@ try {
     $demoName = Get-ReleaseDemoName
     Assert ($demoName -ceq 'ThinQQ-Demonstracao-Materiais-Construcao.xlsx') "nome do arquivo de demonstracao: $demoName"
     $top = @(Get-ReleaseTopFiles)
-    foreach ($n in 'ThinQQ.xlam', 'ThinQQ.core.xlam', 'manifest.json', 'tutorial.html', 'install.ps1', 'uninstall.ps1', 'Instalar-ThinQQ.cmd', 'LEIA-ME.txt') { Assert ($top -contains $n) "o ZIP leva $n" }
+    foreach ($n in 'ThinQQ.xlam', 'ThinQQ.core.xlam', 'ThinQQ.ppam', 'manifest.json', 'tutorial.html', 'install.ps1', 'uninstall.ps1', 'Instalar-ThinQQ.cmd', 'LEIA-ME.txt') { Assert ($top -contains $n) "o ZIP leva $n" }
     function New-FakeXlsx([string]$path, [string]$marker, [switch]$WithMacros) {
         $z = [IO.Compression.ZipFile]::Open($path, 'Create')
         $names = @('[Content_Types].xml', 'xl/workbook.xml'); if ($WithMacros) { $names += 'xl/vbaProject.bin' }
@@ -117,6 +160,10 @@ try {
     Assert ((@(Test-ReleaseZipContent $zipMacro $macro) -join ' ') -match 'vbaProject') 'xlsx com macros: reprovado'
     $lay = New-Layout $demoSrc; $lay.Remove('ThinQQ.core.xlam'); $zipNoCore = Join-Path $tmp 'nocore.zip'; New-ReleaseZip $zipNoCore $lay
     Assert ((@(Test-ReleaseZipContent $zipNoCore $demoSrc) -join ' ') -match 'ThinQQ\.core\.xlam') 'falta de um arquivo do pacote: reprovado'
+    $lay = New-Layout $demoSrc; $lay.Remove('ThinQQ.ppam'); $zipNoPpam = Join-Path $tmp 'noppam.zip'; New-ReleaseZip $zipNoPpam $lay
+    Assert ((@(Test-ReleaseZipContent $zipNoPpam $demoSrc) -join ' ') -match 'ausente no ZIP: ThinQQ\.ppam') 'ZIP sem o ThinQQ.ppam: reprovado ("ausente no ZIP: ThinQQ.ppam")'
+    $loose = @($names | Where-Object { $_ -notlike 'exemplos/*' })
+    Assert ($top.Count -eq 9 -and $loose.Count -eq 9 -and $loose -contains 'ThinQQ.ppam') "o ZIP leva 9 arquivos soltos na raiz, com o ThinQQ.ppam ($($loose.Count))"
     $zb = [IO.Compression.ZipFile]::Open((Join-Path $tmp 'bs.zip'), 'Create'); [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zb, $demoSrc, "exemplos\$demoName"); $zb.Dispose()
     Assert ((@(Test-ReleaseZipContent (Join-Path $tmp 'bs.zip') $demoSrc) -join ' ') -match 'barra invertida') 'nome com barra invertida: reprovado'
     # o arquivo de demonstracao do repositorio: existe, sem macros (a guarda do ZIP o compara com ele) e com o LEIA-ME de exemplos ao lado
@@ -134,5 +181,23 @@ try {
         Assert ($rp.Count -eq 0) "ZIP real $curVer passa na guarda: $($rp -join '; ')"
         Write-Host "ZIP real verificado: $realZip"
     }
+    # release.ps1 (NAO e executado aqui: o build do .ppam usa o PowerPoint): confere no texto que cada etapa do suplemento esta no lugar e na ordem
+    $relText = [IO.File]::ReadAllText((Join-Path $repo 'build\release.ps1'))
+    $iAll = $relText.IndexOf('-Target all -Configuration Release'); $iPpt = $relText.IndexOf('-Target ppt -Configuration Release')
+    Assert ($iAll -ge 0 -and $iPpt -gt $iAll) 'release.ps1 constroi o .ppam (-Target ppt -Configuration Release) depois do build all'
+    Assert ($relText -match 'Build do suplemento do PowerPoint falhou' -and $relText -match 'VBOM') 'release.ps1: falha do build do .ppam aborta com mensagem clara (VBOM)'
+    # PowerPoint aberto ou VBOM do PowerPoint desligado: o release para ANTES de gravar o version.json ou construir (nada de meio release)
+    $iReady = $relText.IndexOf('Assert-PptBuildReady'); $iVer = $relText.IndexOf('$versionPath = ')
+    Assert ($iReady -ge 0 -and $iReady -lt $iVer -and $iReady -lt $iAll) 'release.ps1: confere o PowerPoint (fechado e com VBOM) antes de alterar qualquer coisa'
+    $bcText = [IO.File]::ReadAllText((Join-Path $repo 'build\lib\Build-Common.ps1'))
+    $fnReady = [regex]::Match($bcText, '(?s)function Assert-PptBuildReady \{.*?\n\}').Value
+    Assert ($fnReady -match 'POWERPNT' -and $fnReady -match 'Feche o PowerPoint' -and $fnReady -match 'Assert-PptVbomTrusted') 'Build-Common: Assert-PptBuildReady recusa PowerPoint aberto (mensagem clara) e reusa Assert-PptVbomTrusted'
+    $rpText = [IO.File]::ReadAllText((Join-Path $repo 'tools\lib\Release-Publish.ps1'))
+    $chk = [regex]::Match($rpText, '(?s)\$script:RpDefaultChecks = \{.*?\n\}').Value
+    Assert ($chk -match 'POWERPNT' -and $chk -match 'AccessVBOM') 'publicar-release (Preparar): as verificacoes de pre-condicao recusam PowerPoint aberto e VBOM do PowerPoint desligado'
+    Assert ($relText.Contains("@('ThinQQ.xlam', 'ThinQQ.core.xlam', 'ThinQQ.ppam')")) 'release.ps1: o .ppam entra na conferencia de marcadores de teste'
+    $signLine = @($relText -split "`r?`n" | Where-Object { $_.Contains('Sign-ThinQQ.ps1') -and $_.Contains('-Files') })
+    Assert ($signLine.Count -eq 1 -and $signLine[0].Contains("(Join-Path `$DistDir 'ThinQQ.ppam')")) 'release.ps1: assina tambem o .ppam'
+    Assert ($relText.IndexOf('Sign-ThinQQ.ps1') -lt $relText.IndexOf('-PptSha') -and $relText.Contains("-PptSha (Get-FileHash (Join-Path `$DistDir 'ThinQQ.ppam') -Algorithm SHA256).Hash.ToLower()")) 'release.ps1: o SHA-256 do .ppam entra no manifesto, depois da assinatura'
     Write-Host "Test-ReleaseGuard: OK (PowerShell $($PSVersionTable.PSVersion))" -ForegroundColor Green
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }

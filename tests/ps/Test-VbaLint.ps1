@@ -23,6 +23,17 @@ Check ((Test-VbaTwinFiles $tw).Count -eq 0) 'gemeos identicos passam'
 Set-Content (Join-Path $tw 'src\core\modules\modSha256.bas') 'y'
 Check ((Test-VbaTwinFiles $tw).Count -eq 1) 'gemeos divergentes falham'
 Remove-Item -LiteralPath $tw -Recurse -Force
+# Registro do atualizador: nenhum fonte VBA (core, loader e testes) escreve o nome fixo "ThinQQ" no GetSetting/SaveSetting/DeleteSetting;
+# todos passam por Settings_AppName (loader) / Util_UpdaterRegApp (core), que no build Test devolvem "ThinQQ.Test".
+$regLit = @()
+foreach ($d in 'src\core', 'src\loader', 'tests\vba\core', 'tests\vba\loader') {
+    Get-ChildItem -LiteralPath (Join-Path $RepoRoot $d) -Recurse -File -Include '*.bas', '*.cls', '*.vba' | ForEach-Object {
+        $f = $_.FullName
+        Select-String -LiteralPath $f -Pattern '(GetSetting|SaveSetting|DeleteSetting)\s*\(?\s*"ThinQQ"' | ForEach-Object { $regLit += "$($f):$($_.LineNumber)" }
+    }
+}
+$regLit | ForEach-Object { Write-Host "  nome fixo do registro: $_" }
+Check ($regLit.Count -eq 0) 'registro do atualizador sem nome fixo "ThinQQ" (build Test usa ThinQQ.Test)'
 $real = Test-VbaLint $RepoRoot
 $real | ForEach-Object { Write-Host $_ }
 Check ($real.Count -eq 0) 'fontes reais sem erros de continuacao de linha'

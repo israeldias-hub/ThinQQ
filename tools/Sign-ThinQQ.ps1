@@ -1,5 +1,5 @@
 <#
-.SYNOPSIS  Assina os projetos VBA dos .xlam por linha de comando (SignTool do Windows SDK + Office Subject Interface Packages) ou so diagnostica (-WhatIf).
+.SYNOPSIS  Assina os projetos VBA dos .xlam e do .ppam por linha de comando (SignTool do Windows SDK + Office Subject Interface Packages) ou so diagnostica (-WhatIf).
 .EXAMPLE   pwsh tools/Sign-ThinQQ.ps1 -Thumbprint <thumbprint do certificado em Cert:\CurrentUser\My> -TimestampUrl http://timestamp.digicert.com
 .EXAMPLE   pwsh tools/Sign-ThinQQ.ps1 -PfxPath .\dist\cert\ThinQQ-signing.pfx -PfxPassword ... -SkipVerify
 .NOTES     Pre-requisitos (uma vez, com administrador): Windows SDK (signtool.exe) e o pacote "Office Subject Interface Packages for Digitally
@@ -7,7 +7,7 @@
            codigo 2 e nada e assinado. O VBE (Ferramentas > Assinatura Digital) continua sendo o caminho manual.
            ESTADO DE VERIFICACAO: so o diagnostico e o caminho de saida com codigo 2 foram exercitados (maquina sem o Windows SDK nem as SIPs).
            O ramo que chama signtool (sign e verify) NAO foi executado ponta a ponta numa maquina com SDK e SIPs: confira o resultado abrindo o
-           .xlam no Excel (a assinatura de projeto VBA e a do Office) antes de distribuir.
+           .xlam no Excel e o .ppam no PowerPoint (a assinatura de projeto VBA e a do Office) antes de distribuir.
            Prefira -Thumbprint (certificado em Cert:\CurrentUser\My, sem senha na linha de comando) a -PfxPath/-PfxPassword: uma senha em
            texto puro fica no historico do shell e e visivel a outros processos do usuario enquanto o signtool roda.
            VERIFICACAO (`signtool verify /pa`): ela monta a cadeia ate uma raiz confiavel. Um certificado autoassinado confiado so como Editor
@@ -16,7 +16,7 @@
            certificado de uma CA corporativa. -SkipVerify pula a verificacao.
 #>
 param(
-    [string[]]$Files = @((Join-Path $PSScriptRoot '..\dist\ThinQQ.xlam'), (Join-Path $PSScriptRoot '..\dist\ThinQQ.core.xlam')),
+    [string[]]$Files = @((Join-Path $PSScriptRoot '..\dist\ThinQQ.xlam'), (Join-Path $PSScriptRoot '..\dist\ThinQQ.core.xlam'), (Join-Path $PSScriptRoot '..\dist\ThinQQ.ppam')),
     [string]$PfxPath = '',
     [string]$PfxPassword = '',
     [string]$Thumbprint = '',

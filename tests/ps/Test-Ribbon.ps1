@@ -164,4 +164,93 @@ try {
 }
 Check (-not $PSDefaultParameterValues.ContainsKey('Add-RibbonToPackage:IconTempRoot')) 'padrao de IconTempRoot removido da sessao'
 Check (-not (Test-Path -LiteralPath $tmpP)) 'pasta tqq_pkg_* do teste removida'
+# ---- Faixa do suplemento do PowerPoint (src/ppt/ribbon/customUI14.xml): bem formada, so imageMso, ids e callbacks esperados
+$pptXmlPath = Join-Path $RepoRoot 'src\ppt\ribbon\customUI14.xml'
+[xml]$px = [IO.File]::ReadAllText($pptXmlPath, (New-Object Text.UTF8Encoding($false)))
+$pns = New-Object Xml.XmlNamespaceManager($px.NameTable); $pns.AddNamespace('u', 'http://schemas.microsoft.com/office/2009/07/customui')
+Check ($px.customUI.onLoad -eq 'PptRx_OnLoad') 'ppt: onLoad PptRx_OnLoad'
+Check ($null -eq $px.SelectSingleNode('//u:*[@image]', $pns)) 'ppt: nenhum image= (so imageMso)'
+Check ($null -ne $px.SelectSingleNode("//u:button[@id='btnPptSyncNow'][@onAction='PptRx_OnSync']", $pns)) 'ppt: Atualizar gráficos'
+Check ((@($px.SelectNodes("//u:dropDown[@id='ddOpenMode']/u:item", $pns) | ForEach-Object { $_.id }) -join ',') -eq 'modeask,modealways,modenever') 'ppt: itens de Ao abrir'
+# ---- Carimbo do .ppam (Set-PackageDescription): o PowerPoint grava o suplemento sem docProps; pacotes sinteticos, sem Office
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$tmpD = Join-Path ([IO.Path]::GetTempPath()) ("tqq_pkgd_" + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Force $tmpD | Out-Null
+try {
+    function New-SynPkg([string]$path, [hashtable]$parts) {
+        $z = [System.IO.Compression.ZipFile]::Open($path, [System.IO.Compression.ZipArchiveMode]::Create)
+        try { foreach ($k in $parts.Keys) { $e = $z.CreateEntry($k); $w = New-Object IO.StreamWriter($e.Open(), (New-Object Text.UTF8Encoding($false))); $w.Write($parts[$k]); $w.Dispose() } } finally { $z.Dispose() }
+    }
+    function Read-PkgText([string]$path, [string]$name) { $z = [System.IO.Compression.ZipFile]::OpenRead($path); try { $b = Read-Entry $z $name; if ($null -eq $b) { return $null }; return [Text.Encoding]::UTF8.GetString($b) } finally { $z.Dispose() } }
+    $ctBare = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>'
+    $relBare = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/></Relationships>'
+    $a = Join-Path $tmpD 'a.ppam'
+    New-SynPkg $a @{ '[Content_Types].xml' = $ctBare; '_rels/.rels' = $relBare; 'ppt/presentation.xml' = '' }
+    Set-PackageDescription -PackagePath $a -Description 'ThinQQ ppt 9.8.7 (Release)'
+    Set-PackageDescription -PackagePath $a -Description 'ThinQQ ppt 9.8.7 (Release)'   # repetir nao duplica
+    $core = Read-PkgText $a 'docProps/core.xml'
+    Check ($null -ne $core -and ([xml]$core).coreProperties.description -eq 'ThinQQ ppt 9.8.7 (Release)') 'carimbo: pacote sem docProps ganha core.xml com dc:description'
+    Check ($core -match 'ThinQQ ppt (\d+\.\d+\.\d+)' -and $Matches[1] -eq '9.8.7') 'carimbo: versao legivel pela mesma regex do instalador'
+    $ctA = Read-PkgText $a '[Content_Types].xml'; $relA = Read-PkgText $a '_rels/.rels'
+    Check (([regex]::Matches($ctA, 'PartName="/docProps/core\.xml" ContentType="application/vnd\.openxmlformats-package\.core-properties\+xml"')).Count -eq 1) 'carimbo: content type de core.xml (uma vez)'
+    Check (([regex]::Matches($relA, 'relationships/metadata/core-properties" Target="docProps/core\.xml"')).Count -eq 1) 'carimbo: relacao core-properties (uma vez)'
+    Check ($null -ne ([xml]$ctA) -and $null -ne ([xml]$relA)) 'carimbo: [Content_Types].xml e _rels/.rels continuam XML valido'
+    $b = Join-Path $tmpD 'b.pptm'
+    New-SynPkg $b @{ '[Content_Types].xml' = $ctBare; '_rels/.rels' = $relBare; 'docProps/core.xml' = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>X</dc:title><dc:description>velho</dc:description></cp:coreProperties>' }
+    Set-PackageDescription -PackagePath $b -Description 'ThinQQ ppt 1.2.3 (Test)'
+    $coreB = Read-PkgText $b 'docProps/core.xml'
+    Check (([xml]$coreB).coreProperties.description -eq 'ThinQQ ppt 1.2.3 (Test)' -and ([xml]$coreB).coreProperties.title -eq 'X') 'carimbo: core.xml existente troca so o dc:description'
+    Check ((Read-PkgText $b '[Content_Types].xml') -eq $ctBare) 'carimbo: core.xml existente nao mexe no content type'
+} finally { Remove-Item -LiteralPath $tmpD -Recurse -Force -ErrorAction SilentlyContinue }
+Check (-not (Test-Path -LiteralPath $tmpD)) 'pasta tqq_pkgd_* do teste removida'
+# ---- Close-PptApp com duble (sem PowerPoint): fecha as do script e as sem janela; com apresentacao de janela ou Modo Protegido nao da Quit
+function New-FakePres([int]$w) { $o = [pscustomobject]@{ Closed = $false; Saved = 0; Windows = [pscustomobject]@{ Count = $w } }; $o | Add-Member -MemberType ScriptMethod -Name Close -Value { $this.Closed = $true }; return $o }
+function New-FakePpt([object[]]$pres, [int]$pv = 0) {
+    $col = [pscustomobject]@{ L = [System.Collections.ArrayList]::new(@($pres)) }
+    $col | Add-Member -MemberType ScriptProperty -Name Count -Value { $this.L.Count }
+    $col | Add-Member -MemberType ScriptMethod -Name Item -Value { param($i) $this.L[$i - 1] }
+    $a = [pscustomobject]@{ Presentations = $col; ProtectedViewWindows = [pscustomobject]@{ Count = $pv }; QuitCalled = $false }
+    $a | Add-Member -MemberType ScriptMethod -Name Quit -Value { $this.QuitCalled = $true }
+    return $a
+}
+$script:PptPid = @()
+$p1 = New-FakePres 0; $p2 = New-FakePres 1; $fa = New-FakePpt @($p1, $p2)
+Close-PptApp $fa -Owned @($p1) -WaitSec 1 6>$null
+Check ($p1.Closed -and -not $p2.Closed -and -not $fa.QuitCalled) 'Close-PptApp: apresentacao com janela (do usuario) fica aberta e o PowerPoint nao recebe Quit'
+$p3 = New-FakePres 0; $fb = New-FakePpt @($p3)
+Close-PptApp $fb -WaitSec 1
+Check ($p3.Closed -and $fb.QuitCalled) 'Close-PptApp: sobra sem janela (do codigo) e fechada e o PowerPoint recebe Quit'
+$fc = New-FakePpt @() 1
+Close-PptApp $fc -WaitSec 1 6>$null
+Check (-not $fc.QuitCalled) 'Close-PptApp: janela do Modo de Exibicao Protegido aberta: sem Quit'
+# ---- run-tests: POWERPNT antes/depois (so avisa: nunca encerra um PowerPoint que o script nao criou) e testes de PowerPoint pulados
+$snapA = @([pscustomobject]@{ Id = 10; ParentId = 1; CommandLine = 'POWERPNT.EXE' })
+$snapB = @($snapA[0], [pscustomobject]@{ Id = 20; ParentId = 900; CommandLine = '"POWERPNT.EXE" /AUTOMATION -Embedding' }, [pscustomobject]@{ Id = 30; ParentId = 5; CommandLine = '"POWERPNT.EXE" "C:\x\a.pptx"' })
+$left = @(Get-PptLeftovers -Before $snapA -After $snapB)
+Check ($left.Count -eq 2 -and ($left | ForEach-Object Id) -join ',' -eq '20,30') 'run-tests: sobra = POWERPNT que nao existia antes (o do usuario aberto antes nao conta)'
+Check (@(Get-PptLeftovers -Before @() -After @()).Count -eq 0) 'run-tests: sem PowerPoint antes nem depois = nenhuma sobra'
+Check ((Test-PptAutomationProcess $snapB[1]) -and -not (Test-PptAutomationProcess $snapB[2]) -and -not (Test-PptAutomationProcess $snapA[0])) 'run-tests: so -Embedding e PowerPoint de automacao (orfao de teste); o aberto pelo usuario nao'
+$msgL = Format-PptLeftover $snapB[1]
+Check ($msgL -match 'PID 20' -and $msgL -match 'pai 900' -and $msgL -match 'Embedding') "run-tests: aviso da sobra traz PID, pai e argumentos ($msgL)"
+$logLines = @("2026-10-14 10:00:00`tcore`tTestPowerPoint: pulado (ha um PowerPoint aberto)", "2026-10-14 10:00:01`tcore`tTestPptSync: pulado (processo POWERPNT existente ou contagem indisponivel: 1)",
+    "2026-10-14 10:00:02`tcore`tTestPptSync: colagem pulada (area de transferencia indisponivel)", "2026-10-14 10:00:03`tcore`tTestPowerPoint: resto do teste pulado (uma janela apareceu)", "2026-10-14 10:00:04`tcore`tCore_Insert`t5`toutro erro")
+Check ((Get-PptSkipCount $logLines) -eq 4) 'run-tests: conta os testes de PowerPoint pulados pelas linhas do log de teste'
+Check ((Get-PptSkipCount @()) -eq 0) 'run-tests: log vazio = 0 pulados'
+$tmpLog = Join-Path ([IO.Path]::GetTempPath()) ('tqq_log_' + [guid]::NewGuid().ToString('N') + '.log')
+try {
+    Check ((Get-FileLengthOrZero $tmpLog) -eq 0) 'run-tests: log ausente = tamanho 0'
+    [IO.File]::WriteAllText($tmpLog, "antigo`r`n", [Text.Encoding]::ASCII); $off = Get-FileLengthOrZero $tmpLog
+    [IO.File]::AppendAllText($tmpLog, "novo1`r`nnovo2`r`n", [Text.Encoding]::ASCII)
+    $tail = @(Read-LogTail $tmpLog $off)
+    Check ($tail.Count -eq 2 -and $tail[0] -eq 'novo1' -and $tail[1] -eq 'novo2') "run-tests: le so as linhas do log gravadas durante a execucao ($($tail -join '|'))"
+    Check (@(Read-LogTail (Join-Path ([IO.Path]::GetTempPath()) 'tqq_nao_existe.log') 0).Count -eq 0) 'run-tests: log ausente = nenhuma linha'
+} finally { Remove-Item -LiteralPath $tmpLog -Force -ErrorAction SilentlyContinue }
+$rt = [IO.File]::ReadAllText((Join-Path $RepoRoot 'build\run-tests.ps1'))
+Check ($rt -match '\[int\]\$TimeoutSec = 1200') 'run-tests: -TimeoutSec padrao 1200 (a suite completa passa de 800 s)'
+Check (([IO.File]::ReadAllText((Join-Path $RepoRoot 'tools\lib\Release-Publish.ps1'))) -match 'run-tests\.ps1''\) -Target all -LoaderSwap -TimeoutSec 1200') 'publicar-release -RunTests: suite com -TimeoutSec 1200'
+Check ($rt -match 'Get-PptProcessSnapshot' -and $rt -match 'Get-PptLeftovers' -and $rt -match 'Get-PptSkipCount') 'run-tests: registra POWERPNT antes/depois e conta os testes de PowerPoint pulados'
+Check ($rt -notmatch 'Stop-Process[^\r\n]*(left|Leftover|POWERPNT)') 'run-tests: nunca encerra POWERPNT (so avisa)'
+$fin = [regex]::Match($rt, '(?s)\} finally \{\s*\r?\n\s*Stop-ExcelWatchdog \$wd.*?\r?\n\}').Value
+Check ($fin -match 'Test-PptAfterSuite') 'run-tests: o aviso de PowerPoint orfao sai tambem quando o bloco VBA lanca (0x800706BE): Test-PptAfterSuite no finally'
 if ($script:fail -gt 0) { Write-Host "FALHAS ribbon-pacote: $script:fail"; exit 1 }

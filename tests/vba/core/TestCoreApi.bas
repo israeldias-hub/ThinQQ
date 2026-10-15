@@ -473,21 +473,21 @@ End Sub
 
 
 Private Sub PendingSetup()
-    mSavedPending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
-    mSavedPendingSha = GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", "")
+    mSavedPending = GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", "")
+    mSavedPendingSha = GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", "")
     mSavedLoaderPath = Core_LoaderPath()
-    mSavedSwap = GetSetting("ThinQQ", "Updater", "SwapInProgress", "")
-    mSavedFailNotified = GetSetting("ThinQQ", "Updater", "PendingLoaderFailNotified", "")
+    mSavedSwap = GetSetting(Util_UpdaterRegApp(), "Updater", "SwapInProgress", "")
+    mSavedFailNotified = GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderFailNotified", "")
     PutSetting "SwapInProgress", ""
     PutSetting "PendingLoaderFailNotified", ""
 End Sub
 
 Private Sub PutSetting(key As String, value As String)
     If Len(value) > 0 Then
-        SaveSetting "ThinQQ", "Updater", key, value
+        SaveSetting Util_UpdaterRegApp(), "Updater", key, value
     Else
         On Error Resume Next
-        DeleteSetting "ThinQQ", "Updater", key
+        DeleteSetting Util_UpdaterRegApp(), "Updater", key
         On Error GoTo 0
     End If
 End Sub
@@ -540,15 +540,15 @@ Public Sub Test_Core_ApplyPendingLoader_ReplacesTargetAndClearsSetting()
     WriteText target, "conteudo antigo do loader"
     AssertTrue FileLen(target) <> pendLen, "pré-condição: alvo difere do pendente"
     Core_RegisterLoader "", target
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", UCase$(Util_Sha256File(pend))     ' maiusculas: comparacao case-insensitive
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", pend
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", UCase$(Util_Sha256File(pend))     ' maiusculas: comparacao case-insensitive
     Core_ApplyPendingLoader
     AssertEqual pendLen, FileLen(target), "alvo deve ter o conteúdo do pendente"
     AssertEqual 0, Len(Dir(pend)), "pendente deve ser apagado"
     AssertEqual 0, Len(Dir(target & ".new")) + Len(Dir(target & ".bak")), "sem sobras .new/.bak"
-    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderPath", ""), "configuração deve ser limpa"
-    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", "")
-    AssertEqual "", GetSetting("ThinQQ", "Updater", "SwapInProgress", ""), "flag de troca limpa no sucesso"
+    AssertEqual "", GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", ""), "configuração deve ser limpa"
+    AssertEqual "", GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", "")
+    AssertEqual "", GetSetting(Util_UpdaterRegApp(), "Updater", "SwapInProgress", ""), "flag de troca limpa no sucesso"
     PendingRestore
     Exit Sub
 Fail:
@@ -565,16 +565,16 @@ Public Sub Test_Core_ApplyPendingLoader_ShaMismatch_DiscardsAndKeepsTarget()
     WriteText target, "intacto"
     oldLen = FileLen(target)
     Core_RegisterLoader "", target
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", "0000000000000000000000000000000000000000000000000000000000000000"
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", pend
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", "0000000000000000000000000000000000000000000000000000000000000000"
     Core_ApplyPendingLoader
     AssertEqual oldLen, FileLen(target), "alvo intacto"
     AssertEqual 0, Len(Dir(pend)), "arquivo adulterado deve ser apagado"
-    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
-    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", "")
+    AssertEqual "", GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", "")
+    AssertEqual "", GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", "")
     ' sem SHA registrado: tambem recusa
     MakeAddinFile pend
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", pend
     PutSetting "PendingLoaderSha256", ""
     Core_ApplyPendingLoader
     AssertEqual oldLen, FileLen(target)
@@ -594,21 +594,21 @@ Public Sub Test_Core_ApplyPendingLoader_ReloadFails_RestoresOldAndKeepsPending()
     WriteText pend, "isto nao e um xlam valido"
     WriteText target, "loader antigo"
     Core_RegisterLoader "", target
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", Util_Sha256File(pend)
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", pend
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", Util_Sha256File(pend)
     Core_ApplyPendingLoader
     AssertEqual "loader antigo", Replace(Replace(ReadText(target), vbCr, ""), vbLf, ""), "loader antigo restaurado"
     AssertTrue Len(Dir(pend)) > 0, "pendente mantido"
-    AssertEqual pend, GetSetting("ThinQQ", "Updater", "PendingLoaderPath", ""), "pendente continua registrado"
+    AssertEqual pend, GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", ""), "pendente continua registrado"
     AssertEqual 0, Len(Dir(target & ".new")) + Len(Dir(target & ".bak")), "sem sobras .new/.bak"
-    AssertEqual "", GetSetting("ThinQQ", "Updater", "SwapInProgress", ""), "flag de troca limpa na falha"
-    AssertTrue Len(GetSetting("ThinQQ", "Updater", "PendingLoaderFailNotified", "")) > 0, "falha registrada para o aviso 1x/24 h"
+    AssertEqual "", GetSetting(Util_UpdaterRegApp(), "Updater", "SwapInProgress", ""), "flag de troca limpa na falha"
+    AssertTrue Len(GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderFailNotified", "")) > 0, "falha registrada para o aviso 1x/24 h"
     ' segunda falha em menos de 24 h: o carimbo do aviso nao muda
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderFailNotified", Format$(Now - 1 / 24, "yyyy-mm-dd hh:nn:ss")
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderFailNotified", Format$(Now - 1 / 24, "yyyy-mm-dd hh:nn:ss")
     Dim stamp As String
-    stamp = GetSetting("ThinQQ", "Updater", "PendingLoaderFailNotified", "")
+    stamp = GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderFailNotified", "")
     Core_ApplyPendingLoader
-    AssertEqual stamp, GetSetting("ThinQQ", "Updater", "PendingLoaderFailNotified", ""), "aviso limitado a 1x por 24 h"
+    AssertEqual stamp, GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderFailNotified", ""), "aviso limitado a 1x por 24 h"
     PendingRestore
     Exit Sub
 Fail:
@@ -623,9 +623,9 @@ Public Sub Test_Core_ApplyPendingLoader_MissingPendingFile_ClearsSettingAndKeeps
     target = d & "\ThinQQ.xlam"
     WriteText target, "intacto"
     Core_RegisterLoader "", target
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", d & "\nao-existe.xlam"
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", d & "\nao-existe.xlam"
     Core_ApplyPendingLoader
-    AssertEqual "", GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    AssertEqual "", GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", "")
     AssertTrue Len(Dir(target)) > 0 And FileLen(target) > 0, "alvo intacto"
     PendingRestore
     Exit Sub
@@ -641,12 +641,12 @@ Public Sub Test_Core_ApplyPendingLoader_NoLoaderRegistered_IsNoOpAndNeverRaises(
     pend = d & "\p.xlam"
     WriteText pend, "x"
     Core_RegisterLoader "", ""
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", pend
     Core_ApplyPendingLoader
     AssertTrue Len(Dir(pend)) > 0, "sem loader registrado nada é feito"
-    AssertEqual pend, GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    AssertEqual pend, GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", "")
     ' alvo em pasta inexistente + SHA valido: o erro e contido, nunca propaga
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", Util_Sha256File(pend)
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", Util_Sha256File(pend)
     Core_RegisterLoader "", d & "\sem-pasta\ThinQQ.xlam"
     Core_ApplyPendingLoader
     PendingRestore
@@ -684,12 +684,12 @@ Public Sub Test_Core_ApplyPendingLoader_BusyGuard_SkipsReentrantCall()
     MakeAddinFile pend
     WriteText target, "intacto"
     Core_RegisterLoader "", target
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", pend
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", Util_Sha256File(pend)
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", pend
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", Util_Sha256File(pend)
     Core_TestSetApplyBusy True
     Core_ApplyPendingLoader
     AssertTrue Len(Dir(pend)) > 0, "chamada reentrante não faz nada"
-    AssertEqual pend, GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    AssertEqual pend, GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", "")
     AssertEqual "intacto", ReadText(target)
     Core_TestSetApplyBusy False
     Core_ApplyPendingLoader
@@ -1754,3 +1754,8 @@ Private Function InsertedNumFmt(ws As Worksheet, kind As String) As String
     ws.ChartObjects(1).Delete
     CalcSheet_Cleanup ws.Parent
 End Function
+
+' O build Test usa o ramo proprio do registro do atualizador (ThinQQ.Test), o mesmo do loader.
+Public Sub Test_Core_UpdaterRegApp_IsTestBranch()
+    AssertEqual "ThinQQ.Test", Util_UpdaterRegApp()
+End Sub

@@ -222,13 +222,14 @@ function New-ReleaseBody([string]$NotesText) {
 # ---------------------------------------------------------------------------------------------------------------------------------------
 # Assets
 function Get-ReleaseAssetNames([string]$Version) {
-    return @("ThinQQ-$Version.zip", 'ThinQQ.xlam', 'ThinQQ.core.xlam', 'manifest.json', 'tutorial.html')
+    return @("ThinQQ-$Version.zip", 'ThinQQ.xlam', 'ThinQQ.core.xlam', 'ThinQQ.ppam', 'manifest.json', 'tutorial.html')
 }
 
 function Get-AssetContentType([string]$Name) {
     switch -regex ($Name.ToLowerInvariant()) {
         '\.zip$' { return 'application/zip' }
         '\.xlam$' { return 'application/vnd.ms-excel.addin.macroEnabled.12' }
+        '\.ppam$' { return 'application/vnd.ms-powerpoint.addin.macroEnabled.12' }
         '\.json$' { return 'application/json' }
         '\.html?$' { return 'text/html' }
         default { return 'application/octet-stream' }
@@ -253,7 +254,7 @@ function Test-RepoName([string]$Repo) {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------------------------
-# state.json: versao, SHA-256 e tamanho dos 5 arquivos, commit de preparacao e a main de origem. Nunca guarda segredo.
+# state.json: versao, SHA-256 e tamanho dos 6 arquivos, commit de preparacao e a main de origem. Nunca guarda segredo.
 function New-ReleaseState([string]$Version, [string]$Repo, [string]$StateDir, [string]$PrepareCommit, [string]$SourceMain, [string]$CreatedAt = '') {
     if (-not $CreatedAt) { $CreatedAt = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ssK') }
     $files = @()
@@ -277,7 +278,7 @@ function Write-ReleaseState($State, [string]$StateDir) {
     Write-RpText (Join-Path $StateDir 'state.json') ((ConvertTo-Json -InputObject $State -Depth 6) + "`n")
 }
 
-# Le e confere o state.json: a versao, o commit e os 5 arquivos (tamanho e SHA-256). Recusa (precondicao) com a lista do que nao confere.
+# Le e confere o state.json: a versao, o commit e os 6 arquivos (tamanho e SHA-256). Recusa (precondicao) com a lista do que nao confere.
 function Read-ReleaseState([string]$StateDir, [string]$Version) {
     $path = Join-Path $StateDir 'state.json'
     if (-not (Test-Path -LiteralPath $path)) {
@@ -616,7 +617,7 @@ function Invoke-GitHubApi {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------------------------
-# Release no GitHub: rascunho -> 5 assets -> conferencia (tamanho e SHA-256) -> publica (sem -Draft).
+# Release no GitHub: rascunho -> 6 assets -> conferencia (tamanho e SHA-256) -> publica (sem -Draft).
 # Retomada: um RASCUNHO anterior da mesma tag com o nome "ThinQQ <versao>" (deixado por uma execucao que falhou) e APAGADO e recriado do zero
 # (assets enviados de novo); rascunho com outro nome, release publicada ou tag existente => recusa.
 # Todas as releases (rascunhos inclusive), pagina a pagina (100 por pagina, ate 50 paginas)
@@ -717,7 +718,7 @@ function Publish-GitHubRelease {
     if ($problems.Count -gt 0) {
         throw (New-RpError ("A conferencia dos arquivos enviados falhou: " + ($problems -join '; ') + ". $resume") 'falha')
     }
-    & $Log ("Conferencia: os 5 arquivos batem com o state.json (tamanho e SHA-256; " + (($checked | ForEach-Object { "$($_.Name) por $($_.Method)" }) -join ', ') + ').')
+    & $Log ("Conferencia: os 6 arquivos batem com o state.json (tamanho e SHA-256; " + (($checked | ForEach-Object { "$($_.Name) por $($_.Method)" }) -join ', ') + ').')
 
     # 5. publicar
     $htmlUrl = [string]$rel.html_url
@@ -740,6 +741,10 @@ function Get-RpPwsh {
 $script:RpDefaultChecks = {
     param([string]$RepoRoot)
     $fails = @()
+    # o build do suplemento do PowerPoint (ThinQQ.ppam) na copia usa um PowerPoint proprio: PowerPoint fechado e VBOM do PowerPoint ligado
+    if (Get-Process POWERPNT -ErrorAction SilentlyContinue) { $fails += 'PowerPoint aberto: feche-o (o build do suplemento ThinQQ.ppam usa um PowerPoint proprio; o PowerPoint e de instancia unica).' }
+    $vbom = (Get-ItemProperty 'HKCU:\Software\Microsoft\Office\16.0\PowerPoint\Security' -ErrorAction SilentlyContinue).AccessVBOM
+    if ($vbom -ne 1) { $fails += "PowerPoint sem 'Confiar no acesso ao modelo de objeto do projeto VBA' (AccessVBOM): habilite em Arquivo > Opcoes > Central de Confiabilidade > Configuracoes de Macro do PowerPoint." }
     $exe = Get-RpPwsh
     if (-not $exe) { $exe = (Get-Process -Id $PID).Path }
     foreach ($t in 'Test-Docs.ps1', 'Test-Privacy.ps1') {
@@ -753,7 +758,7 @@ $script:RpDefaultChecks = {
 }
 
 # Constroi numa copia em <WorkRoot>\tqq-release-<versao> (robocopy sem .git, .superpowers e dist: o Excel do usuario pode travar dist\),
-# roda (opcional) a suite e o build\release.ps1 com o pwsh e copia os 5 arquivos para $Ctx.OutDir. Apaga SO a copia que criou.
+# roda (opcional) a suite e o build\release.ps1 com o pwsh e copia os 6 arquivos (ZIP, xlam, core, ppam, manifesto, tutorial) para $Ctx.OutDir. Apaga SO a copia que criou.
 $script:RpDefaultBuild = {
     param($Ctx)
     $copy = Join-Path $Ctx.WorkRoot ("tqq-release-" + $Ctx.Version)
@@ -769,10 +774,10 @@ $script:RpDefaultBuild = {
         if ($Ctx.RunTests) {
             Write-Host "Rodando a suite completa na copia (pode levar alguns minutos)..."
             $global:LASTEXITCODE = 0
-            & $pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $copy 'build\run-tests.ps1') -Target all -LoaderSwap -TimeoutSec 900
+            & $pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $copy 'build\run-tests.ps1') -Target all -LoaderSwap -TimeoutSec 1200
             if ($LASTEXITCODE -ne 0) { throw (New-RpError "A suite de testes falhou na copia (codigo $LASTEXITCODE): nada foi publicado." 'falha') }
         }
-        Write-Host "Construindo o release na copia $copy (o build usa um Excel proprio e invisivel)..."
+        Write-Host "Construindo o release na copia $copy (o build usa um Excel e um PowerPoint proprios e invisiveis; feche o PowerPoint antes)..."
         $global:LASTEXITCODE = 0
         & $pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $copy 'build\release.ps1') -Version $Ctx.Version -BaseUrl $Ctx.BaseUrl
         if ($LASTEXITCODE -ne 0) { throw (New-RpError "O build\release.ps1 falhou (codigo $LASTEXITCODE)." 'falha') }
@@ -865,7 +870,7 @@ function Invoke-ReleasePrepare {
     if ($lastTag) {
         $old = Invoke-RpGit $RepoRoot @('show', "${lastTag}:$notesRel")
         if ($old.Code -eq 0 -and (Get-TextSha256 $old.Output) -ceq (Get-TextSha256 $notesText)) {
-            throw (New-RpError "$notesRel nao mudou desde a ultima versao ($lastTag): escreva as notas da versao $Version (de 6 a 8 linhas com o marcador), faca o commit na main e rode de novo." $pre)
+            throw (New-RpError "$notesRel nao mudou desde a ultima versao ($lastTag): escreva as notas da versao $Version (de 1 a 8 linhas com o marcador), faca o commit na main e rode de novo." $pre)
         }
         Write-Host "Notas: $notesRel mudou desde $lastTag."
     } else { Write-Host "Notas: nenhuma tag v* anterior; $notesRel nao foi comparado." }

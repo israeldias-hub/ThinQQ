@@ -17,7 +17,7 @@ Para quem vai **usar** o ThinQQ: não precisa saber programar nem ser administra
 
 ### Requisitos
 
-- Windows com o **Excel do Office 16.0 para desktop**: Excel 2016, 2019, 2021 ou Microsoft 365 (o aplicativo instalado). Não funciona no Mac nem no Excel na web.
+- Windows com o **Excel do Office 16.0 para desktop**: Excel 2016, 2019, 2021 ou Microsoft 365 (o aplicativo instalado). Não funciona no Mac nem no Excel na web. O suplemento do PowerPoint (atualiza os gráficos colados nos slides) precisa do **PowerPoint do Office 16.0** (o instalador o registra em `...\Office\16.0\PowerPoint`); sem o PowerPoint, o resto do ThinQQ funciona normalmente.
 - Não precisa de administrador: tudo é instalado só para o seu usuário do Windows.
 - Os testes automatizados rodaram só no Excel 2019 de 32 bits; o 2016, o 2021 e o Microsoft 365 são esperados, não testados. O código não faz chamadas à API do Windows (nenhuma instrução `Declare`), então deve servir em 32 e 64 bits por construção.
 - Acesso à página de [Releases](https://github.com/israeldias-hub/ThinQQ/releases) do repositório, que hoje é público (veja "Visibilidade do repositório", abaixo).
@@ -26,9 +26,9 @@ Para quem vai **usar** o ThinQQ: não precisa saber programar nem ser administra
 
 1. **Baixe o ZIP.** Na página de [Releases](https://github.com/israeldias-hub/ThinQQ/releases), abra a versão mais nova e, em "Assets", baixe `ThinQQ-x.y.z.zip` (por exemplo `ThinQQ-1.2.0.zip`).
 2. **Descompacte a pasta inteira:** botão direito no ZIP > **Extrair tudo...**. Não execute o instalador de dentro do ZIP e não separe os arquivos: o instalador precisa de todos eles na mesma pasta. Se o ZIP veio da internet, antes de extrair clique nele com o botão direito > Propriedades e marque **Desbloquear** (se a opção aparecer) > OK: isso evita avisos de segurança.
-3. **Feche o Excel** (todas as janelas).
+3. **Feche o Excel e o PowerPoint** (todas as janelas de cada um; o instalador também instala o suplemento do PowerPoint e recusa seguir com o PowerPoint aberto).
 4. **Dê dois cliques em `Instalar-ThinQQ.cmd`.** Se o Windows perguntar se quer executar, clique em **Executar**; se aparecer "O Windows protegeu o computador", clique em **Mais informações** > **Executar assim mesmo**. Uma janela mostra o andamento e termina com "INSTALACAO CONCLUIDA".
-5. **Abra o Excel e procure a aba ThinQQ**, ao lado de Inserir. Para ver o ThinQQ funcionando, abra `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` (vem no ZIP, na pasta `exemplos`; no GitHub: [exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx](exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx)): a primeira aba é um índice; clique no nome do exemplo para ir ao gráfico. Os gráficos também funcionam sem o ThinQQ instalado, mas setas, colchetes e marcas de corte só se recalculam com ele. ThinQQ > Exemplos e ThinQQ > Tutorial também estão na aba.
+5. **Abra o Excel e procure a aba ThinQQ**, ao lado de Inserir. Para ver o ThinQQ funcionando, abra `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` (vem no ZIP, na pasta `exemplos`; no GitHub: [exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx](exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx)): a primeira aba é um índice; clique no nome do exemplo para ir ao gráfico. Os gráficos também funcionam sem o ThinQQ instalado, mas setas, colchetes e marcas de corte só se recalculam com ele. ThinQQ > Exemplos e ThinQQ > Tutorial também estão na aba. Abra também o PowerPoint: a aba **ThinQQ**, com o grupo **Gráficos do Excel**, é o suplemento do PowerPoint (não verificado em PowerPoint real). Um ZIP anterior à 1.4.0 não traz o `ThinQQ.ppam` e instala só o Excel.
 
 ### Visibilidade do repositório: quem consegue baixar
 
@@ -48,51 +48,55 @@ Quem recebeu o ZIP por outro caminho (e-mail, Teams, pasta de rede) instala norm
 - ThinQQ > Verificar atualizações consulta na hora e diz também quando você já está na versão mais recente.
 - O download tenta primeiro o mesmo caminho do Windows (proxy e script de configuração automática); se ele falhar na conexão, como no redirecionamento do GitHub para outro domínio, tenta de novo por um segundo caminho que usa só o proxy fixo do Windows (sem script PAC). O log (`%LOCALAPPDATA%\ThinQQ\logs\thinqq.log`) registra qual caminho baixou.
 - Os arquivos baixados são conferidos pelo SHA-256 do manifesto antes de serem instalados. O núcleo é trocado na hora, sem reiniciar o Excel; se a versão traz um loader novo, ele é trocado logo em seguida, também sem reiniciar.
+- **O suplemento do PowerPoint** (`ThinQQ.ppam`) é atualizado automaticamente pelo Excel junto com o ThinQQ, **só para quem o instalou pelo ZIP** (o atualizador nunca o instala). Com o PowerPoint fechado a troca é imediata; com o PowerPoint aberto, se o arquivo estiver em uso, a troca espera o PowerPoint fechar (o Excel tenta de novo a cada 10 minutos e na próxima abertura do Excel; se o arquivo estava livre, basta fechar e abrir o PowerPoint). A caixa "Atualizar também o suplemento do PowerPoint" da janela de atualização e a pergunta de ThinQQ > Configurações ligam e desligam isso (ligado por padrão). Um núcleo mais antigo que o suplemento faz o suplemento atualizar só os dados.
 - A fonte (um endereço `https://...` ou uma pasta ou arquivo de rede) pode ser trocada em ThinQQ > Configurações. Se o repositório voltar a ser privado, quem não tem acesso deixa de receber as atualizações (veja "Visibilidade do repositório", acima).
 
 ### Desinstalar
 
-Feche o Excel e abra o PowerShell na pasta onde você descompactou o ZIP (**guarde essa pasta**: o desinstalador só existe no ZIP): no Explorador de Arquivos, clique na barra de endereços, digite `powershell` e tecle Enter. Na janela que abrir, execute:
+Feche o Excel e o PowerPoint e abra o PowerShell na pasta onde você descompactou o ZIP (**guarde essa pasta**: o desinstalador só existe no ZIP): no Explorador de Arquivos, clique na barra de endereços, digite `powershell` e tecle Enter. Na janela que abrir, execute:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File uninstall.ps1
 ```
 
-Isso remove o registro do suplemento, o Local Confiável, **toda** a chave `HKCU\Software\VB and VBA Program Settings\ThinQQ` (as configurações do atualizador, inclusive a fonte de atualização e a versão pulada) e a pasta `%LOCALAPPDATA%\ThinQQ` (o parâmetro `-KeepFiles` mantém os arquivos). Os gráficos que você já criou continuam nas suas pastas de trabalho, como gráficos comuns do Excel.
+Isso remove o registro do suplemento do Excel e o do PowerPoint (`...\PowerPoint\AddIns\ThinQQ`), os Locais Confiáveis dos dois (`LocationThinQQ`), **toda** a chave `HKCU\Software\VB and VBA Program Settings\ThinQQ` (as configurações do atualizador, inclusive a fonte de atualização e a versão pulada) e a pasta `%LOCALAPPDATA%\ThinQQ` (o parâmetro `-KeepFiles` mantém os arquivos). Os gráficos que você já criou continuam nas suas pastas de trabalho, como gráficos comuns do Excel.
 
 ### Instalação manual
 
-Use se a política da empresa bloquear o script. Os arquivos estão no ZIP (`ThinQQ.xlam`, `ThinQQ.core.xlam`, `tutorial.html` e `manifest.json`, que traz a versão):
+Use se a política da empresa bloquear o script. Os arquivos estão no ZIP (`ThinQQ.xlam`, `ThinQQ.core.xlam`, `ThinQQ.ppam`, `tutorial.html` e `manifest.json`, que traz a versão):
 
 1. Crie a pasta `%LOCALAPPDATA%\ThinQQ` (cole esse caminho na barra de endereços do Explorador de Arquivos).
-2. Copie `ThinQQ.xlam` para essa pasta, e `ThinQQ.core.xlam` e `tutorial.html` para `%LOCALAPPDATA%\ThinQQ\versions\<versão>\` (a versão está no `manifest.json`, por exemplo `versions\1.2.0\`).
-3. Em cada `.xlam`: botão direito > Propriedades > marque **Desbloquear** > OK.
-4. Excel > Arquivo > Opções > Central de Confiabilidade > Configurações da Central de Confiabilidade > Locais Confiáveis > Adicionar novo local: `%LOCALAPPDATA%\ThinQQ`, marcando "Subpastas também são confiáveis".
+2. Copie `ThinQQ.xlam` e `ThinQQ.ppam` (o suplemento do PowerPoint, opcional) para essa pasta, e `ThinQQ.core.xlam` e `tutorial.html` para `%LOCALAPPDATA%\ThinQQ\versions\<versão>\` (a versão está no `manifest.json`, por exemplo `versions\1.2.0\`).
+3. Em cada `.xlam` e no `.ppam`: botão direito > Propriedades > marque **Desbloquear** > OK.
+4. Excel > Arquivo > Opções > Central de Confiabilidade > Configurações da Central de Confiabilidade > Locais Confiáveis > Adicionar novo local: `%LOCALAPPDATA%\ThinQQ`, marcando "Subpastas também são confiáveis". Para o suplemento do PowerPoint, faça o mesmo **no PowerPoint** (Arquivo > Opções > Central de Confiabilidade > Configurações da Central de Confiabilidade > Locais Confiáveis): macros dessa pasta rodam sem aviso.
 5. Excel > Arquivo > Opções > Suplementos > Gerenciar: Suplementos do Excel > Ir... > Procurar, e escolha `%LOCALAPPDATA%\ThinQQ\ThinQQ.xlam` > OK.
+6. PowerPoint (Office 16.0) > Arquivo > Opções > Suplementos > Gerenciar: Suplementos do PowerPoint > Ir... > Adicionar novo..., e escolha `%LOCALAPPDATA%\ThinQQ\ThinQQ.ppam` (não verificado em PowerPoint real). O atualizador do Excel só atualiza o suplemento do PowerPoint de quem o tem na raiz de `%LOCALAPPDATA%\ThinQQ`.
 
 A mesma instalação manual, com a recuperação de uma atualização do loader que falhou, está em `installer/LEIA-ME.txt` (incluído no ZIP).
 
 ### Problemas mais comuns
 
-1. **Macros bloqueadas, ou arquivo bloqueado pelo Windows.** *O que você vê:* uma faixa de aviso de segurança sobre macros, ou a aba ThinQQ não aparece depois de instalar. *O que fazer:* feche o Excel e rode `Instalar-ThinQQ.cmd` de novo (ele desbloqueia os arquivos e cria o local confiável). Se instalou à mão: botão direito em `ThinQQ.xlam` e em `ThinQQ.core.xlam` > Propriedades > marque **Desbloquear** > OK. Um arquivo baixado da internet fica "bloqueado" até isso.
+1. **Macros bloqueadas, ou arquivo bloqueado pelo Windows.** *O que você vê:* uma faixa de aviso de segurança sobre macros, ou a aba ThinQQ não aparece depois de instalar. *O que fazer:* feche o Excel e rode `Instalar-ThinQQ.cmd` de novo (ele desbloqueia os arquivos e cria o local confiável). Se instalou à mão: botão direito em `ThinQQ.xlam`, em `ThinQQ.core.xlam` e em `ThinQQ.ppam` > Propriedades > marque **Desbloquear** > OK. Um arquivo baixado da internet fica "bloqueado" até isso.
 2. **Central de Confiabilidade.** *O que você vê:* "As macros foram desabilitadas", ou o ThinQQ não carrega. *O que fazer:* Arquivo > Opções > Central de Confiabilidade > Configurações da Central de Confiabilidade > Configurações de Macro. Com "Desabilitar todas as macros, exceto as assinadas digitalmente", o ThinQQ só funciona a partir de um Local Confiável (item seguinte) ou com os `.xlam` assinados pela TI (veja "Ambientes corporativos (TI)"). Só mude essa configuração se a política da empresa permitir.
 3. **Local Confiável.** *O que você vê:* aviso de macros a cada abertura, ou o instalador não conseguiu criar o local. *O que fazer:* Arquivo > Opções > Central de Confiabilidade > Configurações da Central de Confiabilidade > Locais Confiáveis > Adicionar novo local: `%LOCALAPPDATA%\ThinQQ`, marcando "Subpastas também são confiáveis" (o core fica em `versions\<versão>`). O instalador já cria esse local; refaça-o se uma política da empresa o removeu.
 4. **Antivírus ou proxy.** *O que você vê:* o download do ZIP bloqueado ou incompleto, a mensagem "Pacote corrompido ou adulterado" (o SHA-256 não confere), o `ThinQQ.xlam` que sumiu da pasta (quarentena do antivírus) ou "Não foi possível verificar atualizações." / "Falha ao atualizar: ..." atrás de um proxy. *O que fazer:* baixe o ZIP de novo pelo navegador, restaure o arquivo da quarentena do antivírus e peça à TI para liberar `%LOCALAPPDATA%\ThinQQ`; atrás de um proxy, reinstale pelo ZIP em vez de usar o atualizador.
 5. **"Falha ao atualizar: O servidor de atualização respondeu com erro. HTTP 0 ao acessar https://github.com/..."** *O que você vê:* essa mensagem em ThinQQ > Verificar atualizações > Atualizar agora, com o ThinQQ 1.2.0, 1.2.1 ou 1.2.2. *Por quê:* o GitHub entrega os arquivos da release por um redirecionamento para outro domínio, que o carregador dessas versões não consegue seguir. *O que fazer:* reinstale **uma vez** pelo ZIP da release mais nova (passo a passo acima); da 1.2.3 em diante a atualização pelo Excel funciona. Atrás de um proxy configurado por **script de configuração automática** (PAC), a segunda tentativa de download do carregador (a que segue o redirecionamento) não usa o script, só o proxy fixo do Windows: se a atualização falhar nessa rede, reinstale pelo ZIP ou peça à TI um proxy fixo ou a liberação de `github.com` e `release-assets.githubusercontent.com`.
-6. **A aba ThinQQ não aparece.** *O que você vê:* o Excel abre sem a aba depois de instalar. *O que fazer:* feche **todas** as janelas do Excel (confira o Gerenciador de Tarefas), rode `Instalar-ThinQQ.cmd` de novo e abra o Excel. Em Arquivo > Opções > Suplementos > Gerenciar: Suplementos do Excel > Ir..., o ThinQQ precisa estar marcado (se estiver em "Itens Desabilitados", reabilite). Com a aba visível, ThinQQ > Sobre mostra as versões do carregador e do núcleo instalados. Se o instalador disser "Feche o Excel antes de instalar", encerre todas as janelas e tente de novo.
+6. **A aba ThinQQ não aparece.** *O que você vê:* o Excel abre sem a aba depois de instalar. *O que fazer:* feche **todas** as janelas do Excel (confira o Gerenciador de Tarefas), rode `Instalar-ThinQQ.cmd` de novo e abra o Excel. Em Arquivo > Opções > Suplementos > Gerenciar: Suplementos do Excel > Ir..., o ThinQQ precisa estar marcado (se estiver em "Itens Desabilitados", reabilite). Com a aba visível, ThinQQ > Sobre mostra as versões do carregador e do núcleo instalados. Se o instalador disser "Feche o Excel antes de instalar" (ou "Feche o PowerPoint..."), encerre todas as janelas e tente de novo.
+7. **A aba ThinQQ não aparece no PowerPoint.** *O que você vê:* o Excel tem a aba, o PowerPoint não. *O que fazer:* feche o PowerPoint e o Excel e rode `Instalar-ThinQQ.cmd` de novo (o ZIP precisa trazer o `ThinQQ.ppam`; um ZIP anterior à 1.4.0 não o traz). O suplemento precisa do PowerPoint do Office 16.0. Em Arquivo > Opções > Suplementos do PowerPoint, o ThinQQ precisa estar ativo; numa instalação manual, desbloqueie o `.ppam` e adicione `%LOCALAPPDATA%\ThinQQ` como Local Confiável **do PowerPoint** (não verificado em PowerPoint real).
+8. **O PowerPoint não pergunta nem atualiza ao abrir.** *O que fazer:* confira se a lista **Ao abrir** (aba ThinQQ do PowerPoint) não está em **Não atualizar**; apresentações somente leitura, sem gráfico colado como gráfico vinculado (uma imagem não conta), com o gráfico dentro de um grupo ou ainda em Modo de Exibição Protegido (antes de **Habilitar Edição**) não perguntam, e a apresentação já tratada não pergunta de novo enquanto está aberta. Use o botão **Atualizar gráficos**.
 
 ### Ambientes corporativos (TI)
 
-Para quem administra os computadores. O ThinQQ chega **sem assinatura digital**, e o instalador cria um Local Confiável **por usuário**, que uma política da empresa pode ignorar ou proibir. Em ambientes que bloqueiam macros não assinadas, o roteiro é assinar os dois arquivos com um certificado da própria empresa:
+Para quem administra os computadores. O ThinQQ chega **sem assinatura digital**, e o instalador cria um Local Confiável **por usuário**, que uma política da empresa pode ignorar ou proibir. Em ambientes que bloqueiam macros não assinadas, o roteiro é assinar os arquivos (os dois `.xlam` e o `.ppam`) com um certificado da própria empresa:
 
 1. **Certificado interno de assinatura de código**, emitido pela autoridade certificadora da empresa.
-2. **Assinar os dois `.xlam`** (`ThinQQ.xlam` e `ThinQQ.core.xlam`):
-   - *Manual (sempre disponível):* abra o arquivo no Excel, Alt+F11 (Editor do VBA) > Ferramentas > **Assinatura Digital** > escolha o certificado > salve (assinatura V3 do projeto VBA).
-   - *Automático, num servidor de build:* `signtool` do Windows SDK mais os **Office Subject Interface Packages** (DLLs de assinatura de projetos VBA, registradas com administrador), pelo `tools/Sign-ThinQQ.ps1` ou por `pwsh build/release.ps1 ... -SignPfx <arquivo.pfx>` (assina os `.xlam` antes de calcular os SHA-256 do manifesto).
+2. **Assinar os dois `.xlam` e o `.ppam`** (`ThinQQ.xlam`, `ThinQQ.core.xlam` e `ThinQQ.ppam`):
+   - *Manual (sempre disponível):* abra o arquivo no Excel, Alt+F11 (Editor do VBA) > Ferramentas > **Assinatura Digital** > escolha o certificado > salve (assinatura V3 do projeto VBA). Para o `.ppam`, o mesmo no PowerPoint (não verificado em PowerPoint real).
+   - *Automático, num servidor de build:* `signtool` do Windows SDK mais os **Office Subject Interface Packages** (DLLs de assinatura de projetos VBA, registradas com administrador), pelo `tools/Sign-ThinQQ.ps1` ou por `pwsh build/release.ps1 ... -SignPfx <arquivo.pfx>` (assina os `.xlam` e o `.ppam` antes de calcular os SHA-256 do manifesto).
 3. **Distribuir o certificado em Editores Confiáveis** (Trusted Publishers) por GPO: Configuração do Computador > Políticas > Configurações do Windows > Configurações de Segurança > Políticas de Chave Pública > Editores Confiáveis. Para um único usuário, `tools/Trust-ThinQQPublisher.ps1 -CerPath arquivo.cer` (`-Scope LocalMachine` exige administrador).
 4. **Ou um local confiável corporativo:** o instalador já registra `%LOCALAPPDATA%\ThinQQ` (com subpastas) por usuário; uma GPO pode distribuir um local confiável.
 5. **Política do Office:** com "Only trust VBA macros that use V3 signatures" os projetos precisam ter a assinatura V3 que o Editor do VBA grava.
-6. **Reassine a cada release** (os arquivos do build são novos a cada versão) e publique os SHA-256 dos arquivos assinados. **Atenção às atualizações:** depois que a TI assina os dois arquivos, a atualização automática pela fonte padrão instalaria o próximo `.xlam` sem assinatura e, com uma política de só macros assinadas, o ThinQQ deixaria de carregar. Aponte a fonte de atualização (ThinQQ > Configurações, ou `install.ps1 -UpdateSource`) para um `manifest.json` interno com os arquivos assinados (gerado por `release.ps1 -SignPfx` ou com os SHA-256 recalculados depois de assinar pelo Editor do VBA).
+6. **Reassine a cada release** (os arquivos do build são novos a cada versão) e publique os SHA-256 dos arquivos assinados. **Atenção às atualizações:** depois que a TI assina os arquivos, a atualização automática pela fonte padrão instalaria o próximo `.xlam` (e o `.ppam`) sem assinatura e, com uma política de só macros assinadas, o ThinQQ deixaria de carregar. Aponte a fonte de atualização (ThinQQ > Configurações, ou `install.ps1 -UpdateSource`) para um `manifest.json` interno com os arquivos assinados (gerado por `release.ps1 -SignPfx` ou com os SHA-256 recalculados depois de assinar pelo Editor do VBA).
 
 O que o repositório entrega:
 
@@ -139,7 +143,7 @@ Limites: sem o Windows SDK e as SIPs a assinatura automática não roda (o scrip
 - Três tipos novos no menu Mais tipos (a faixa passou a oferecer 20 tipos, e 21 com a cascata comparativa da 1.3.0): **Borboleta** (duas séries espelhadas, com os nomes no centro e os totais no fim da barra direita), **Dispersão** e **Bolhas** (uma série por grupo, nomes por ponto, Linha de tendência e Quadrantes (médias)).
 - **Rótulos com soma consistente** (os rótulos dos segmentos somam exatamente o total mostrado: 34% + 33% + 33% = 100%) e **Arredondar intervalo...** (a mesma conta numa tabela comum, em fórmulas da planilha que não dependem do ThinQQ, em até 1.000 células).
 - **Corte de eixo...** em colunas e barras empilhadas e agrupadas: a coluna gigante é cortada, com marca de corte, e o total real continua no rótulo.
-- Menu **PowerPoint**: Copiar como imagem e Copiar como gráfico vinculado (a esta pasta de trabalho) no slide da janela ativa do PowerPoint.
+- Menu **PowerPoint**: Copiar como imagem e Copiar como gráfico vinculado (a esta pasta de trabalho) no slide da janela ativa do PowerPoint, e Atualizar gráficos no PowerPoint, que atualiza os gráficos vinculados das apresentações abertas.
 - **Pasta de demonstração** `exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx`, com 28 exemplos (E01 a E28) e um índice de links, distribuída dentro do ZIP; as imagens dos gráficos estão embutidas na galeria do tutorial (`tools/Export-DemoChartImages.ps1` e `tools/Build-TutorialGallery.ps1`); a planilha Exemplos 3 completa os 27 exemplos de ThinQQ > Exemplos.
 - Ícones próprios na faixa de opções; scripts de certificado e de assinatura digital para a TI (`tools/`) e `release.ps1 -SignPfx`.
 - Acertos de aparência: eixos da dispersão no formato da origem e apertados em volta dos dados, pizza e rosca com até 10 cores, linha da combinação acima dos totais, formato inicial dos rótulos pela primeira célula de valor, rótulos das pontas da área e das barras finas da borboleta.
@@ -148,6 +152,14 @@ Limites: sem o Windows SDK e as SIPs a assinatura automática não roda (o scrip
 **Cascata comparativa (1.3.0)**
 
 - **Cascata comparativa** (ThinQQ > Cascata > Cascata comparativa): duas pontes lado a lado, uma por série (ex.: 2024 x 2025), com conectores por série, uma seta de variação em cotovelo entre as duas barras de cada etapa com `(B - A) / A` numa elipse (ou `n/d` com o primeiro valor zero ou sinais opostos; ThinQQ > Setas > Variação em valor mostra a diferença), totais com o percentual do primeiro total ("11 (41%)") e os nomes das séries dentro das barras (ThinQQ > Legenda > Nome dentro das barras) ou na legenda. Tudo em séries nativas ligadas a fórmulas: acompanha os números mesmo sem o ThinQQ; só o afastamento das setas e os rótulos finos são recalculados por ele.
+
+**PowerPoint atualizado ao reabrir (1.4.0)**
+
+- **Suplemento do PowerPoint** (`ThinQQ.ppam`, o terceiro arquivo do ThinQQ; aba **ThinQQ**, grupo **Gráficos do Excel** no PowerPoint): ao abrir uma apresentação com gráficos do ThinQQ colados como gráfico vinculado, pergunta (padrão) ou atualiza sempre ou não atualiza (lista **Ao abrir**: Perguntar, Atualizar sempre, Não atualizar), e o botão **Atualizar gráficos** força a atualização. A atualização refaz os dados (vínculo nativo) e as setas, os colchetes e os rótulos de seta, no tamanho do slide, pelo ThinQQ do Excel (o Excel aberto com o ThinQQ ou, senão, um Excel invisível só para isso).
+- Excel: PowerPoint > **Atualizar gráficos no PowerPoint** atualiza dados e setas dos gráficos vinculados de todas as apresentações abertas (sem precisar do suplemento do PowerPoint; as somente leitura são atualizadas só na memória).
+- O Excel atualiza o suplemento do PowerPoint junto com o ThinQQ, só para quem o instalou pelo ZIP; com o PowerPoint aberto a troca espera ele fechar (nova tentativa a cada 10 minutos e na próxima abertura do Excel). Opção "Atualizar também o suplemento do PowerPoint" na janela de atualização e em ThinQQ > Configurações.
+- Corrigido: Copiar como gráfico vinculado não deixa mais as setas e os rótulos de seta esticados e fora do lugar quando o PowerPoint ajusta o gráfico ao slide.
+- Só os dados atualizam sem o suplemento do PowerPoint (ou sem o ThinQQ no Excel); detalhes e limites em "Limitações conhecidas" e no tutorial. **Não verificado em PowerPoint real:** o carregamento do `.ppam` e a aba, o Modo de Exibição Protegido, a abertura por duplo clique e a abertura pela interface (veja "Verificações manuais").
 
 ### Galeria de gráficos (1.3.0)
 
@@ -167,7 +179,7 @@ do que cada tipo aceita, as mensagens do ThinQQ e os limites conhecidos.
 **Esta lista é de ações suas, fora do código** (as branches já estão no GitHub, em `israeldias-hub/ThinQQ`). A primeira versão a ser publicada é a **1.2.0**: a 1.0.0 (Fase 1) e a 1.1.0 (Fase 2) nunca foram publicadas (não há tags nem releases).
 
 - [x] Decidir a visibilidade do repositório: o repositório é **público** desde 13/10/2026. Se ele voltar a ser **privado**, ninguém sem acesso ao repositório consegue baixar a release (ZIP e arquivos) nem o `release/manifest.json`: o atualizador dos colegas falha em silêncio (sem aviso de versão nova) e o GitHub Pages do tutorial não fica público (no plano gratuito o Pages exige repositório público). Para distribuir, torne o repositório público (depois da limpeza de privacidade abaixo) ou use uma fonte de atualização interna (pasta de rede) e o tutorial que vai no ZIP. As opções estão em "Visibilidade do repositório", na seção Instalação.
-- [ ] Gerar os arquivos com `build/release.ps1` e publicar a release **v1.2.0** com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`). O ZIP traz a pasta `exemplos` (o Excel de demonstração e um LEIA-ME) ao lado de `Instalar-ThinQQ.cmd`: confira o conteúdo, e que a pasta de demonstração foi regenerada com o core final (`tools/New-DemoWorkbook.ps1`).
+- [ ] Gerar os arquivos com `build/release.ps1` e publicar a release **v1.2.0** com os assets (ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `ThinQQ.ppam`, `manifest.json`, `tutorial.html`). O ZIP traz a pasta `exemplos` (o Excel de demonstração e um LEIA-ME) ao lado de `Instalar-ThinQQ.cmd`: confira o conteúdo, e que a pasta de demonstração foi regenerada com o core final (`tools/New-DemoWorkbook.ps1`).
 - [ ] Fazer commit de `release/manifest.json` (com URLs reais) e de `version.json` (já em `{ "loader": "1.2.0", "core": "1.2.0" }`) na `main`.
 - [ ] **Privacidade antes de publicar** (o repositório ou o Pages): os arquivos versionados já foram limpos (caminhos de perfil do Windows, ids de máquina, PIDs do Excel do autor e e-mail corporativo) e `tests/ps/Test-Privacy.ps1` (rodado por `build/run-tests.ps1`) falha se algum voltar. O que sobra é o **histórico do Git**: o autor e o e-mail dos commits e o texto antigo dos arquivos continuam nos commits antigos. Para publicar só o estado atual, crie um repositório novo a partir da árvore de trabalho (`git archive HEAD`); para manter o histórico, reescreva-o antes de publicar (`git filter-repo --mailmap <arquivo>` troca nome e e-mail dos autores; `git filter-repo --replace-text <arquivo>` troca o texto antigo; instale o `git-filter-repo`, rode numa cópia e confira com `git log --format='%an <%ae>'` e `git grep` no histórico).
 - [ ] Habilitar o GitHub Pages para o tutorial online (veja "Tutorial online (GitHub Pages)": pela pasta `/docs`, tudo o que está em `docs/` fica público, inclusive a especificação e o plano em `docs/superpowers`; em repositório privado o Pages só existe em plano pago).
@@ -177,17 +189,19 @@ do que cada tipo aceita, as mensagens do ThinQQ e os limites conhecidos.
 
 ## Segurança e confiança
 
-- **Os arquivos não vêm assinados digitalmente.** A integridade das atualizações vem da conferência SHA-256 contra o manifesto; a TI pode assinar os dois `.xlam` com um certificado da empresa (veja "Ambientes corporativos (TI)", na seção Instalação).
+- **Os arquivos não vêm assinados digitalmente.** A integridade das atualizações vem da conferência SHA-256 contra o manifesto; a TI pode assinar os dois `.xlam` e o `.ppam` com um certificado da empresa (veja "Ambientes corporativos (TI)", na seção Instalação).
 - **Quem controla a branch `main` do repositório e os assets das releases controla o código que roda no Excel dos colegas** (o manifesto padrão vem de lá). Proteja a conta com autenticação em dois fatores e limite quem pode publicar; em empresas, use uma fonte de atualização interna.
 - O SHA-256 é calculado em VBA puro (módulo `modSha256`), sem iniciar processos externos (nada de `certutil`).
 - Downloads ficam em `%TEMP%\ThinQQ`, fora do local confiável; só depois de conferidos vão para `%LOCALAPPDATA%\ThinQQ`.
+- **PowerPoint:** a atualização dos gráficos abre, somente leitura e com as macros desligadas, as pastas de trabalho para as quais a apresentação aponta (é a apresentação que diz quais são); a pergunta ao abrir lista as pastas. Use **Atualizar sempre** só para apresentações de fontes confiáveis (com um endereço de rede, `\\servidor\...`, ou da web, `http`, ainda não aberto no Excel, o suplemento pergunta assim mesmo; letras de unidade mapeadas, como `Z:\`, não são detectadas).
 
 ### O que o instalador altera
 
-- Arquivos em `%LOCALAPPDATA%\ThinQQ` (loader na raiz, core e tutorial em `versions\<versão>`).
+- Arquivos em `%LOCALAPPDATA%\ThinQQ` (loader e `ThinQQ.ppam` na raiz, core e tutorial em `versions\<versão>`).
 - `HKCU\Software\Microsoft\Office\16.0\Excel\Options`: valor `OPEN` (ou `OPEN1`, `OPEN2`...) que registra o suplemento.
 - `HKCU\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\LocationThinQQ`: local confiável para `%LOCALAPPDATA%\ThinQQ\` **com subpastas**.
-- `HKCU\Software\VB and VBA Program Settings\ThinQQ`: configurações do atualizador.
+- PowerPoint (só se o pacote traz o `ThinQQ.ppam`; o desinstalador remove as duas chaves): `HKCU\Software\Microsoft\Office\16.0\PowerPoint\AddIns\ThinQQ` (valores `Path` e `AutoLoad`) e o local confiável `HKCU\Software\Microsoft\Office\16.0\PowerPoint\Security\Trusted Locations\LocationThinQQ`, também para `%LOCALAPPDATA%\ThinQQ\` **com subpastas**: macros dessa pasta rodam sem aviso.
+- `HKCU\Software\VB and VBA Program Settings\ThinQQ`: configurações do atualizador (inclusive `PpamVersion`, a versão do suplemento do PowerPoint) e, em `PowerPoint\OpenMode`, a opção "Ao abrir" do PowerPoint.
 - O ZIP também traz a pasta `exemplos` (o Excel de demonstração e um LEIA-ME): o instalador não a instala nem a abre.
 - Nada em `HKLM`. O `uninstall.ps1` desfaz tudo.
 
@@ -205,11 +219,14 @@ Confiabilidade > Configurações de Macro > "Confiar no acesso ao modelo de obje
 (`AccessVBOM=1`). O build confere isso e avisa se faltar.
 
 ```powershell
-pwsh build/build.ps1 -Target all -Configuration Release          # monta dist/ThinQQ.xlam e dist/ThinQQ.core.xlam
+pwsh build/build.ps1 -Target all -Configuration Release          # monta dist/ThinQQ.xlam e dist/ThinQQ.core.xlam (o suplemento do PowerPoint, dist/ThinQQ.ppam, sai com -Target ppt e pelo release.ps1)
+pwsh build/build.ps1 -Target ppt -Configuration Release          # monta dist/ThinQQ.ppam (PowerPoint próprio e invisível: exige o PowerPoint fechado e "Confiar no acesso ao modelo de objeto do projeto VBA" no PowerPoint)
 pwsh build/build.ps1 -Target all -Configuration Release -Install # + instala em %LOCALAPPDATA%\ThinQQ (Excel fechado)
 pwsh build/run-tests.ps1                                          # lint, compilação, testes VBA (core e loader), faixa, instalador, documentação
 pwsh build/run-tests.ps1 -Target core -NoBuild                    # só o core, reaproveitando o build de teste
 pwsh build/run-tests.ps1 -LoaderSwap                              # + teste de troca do loader em Excel real
+pwsh build/run-tests.ps1 -Ppt                                     # + suplemento do PowerPoint: monta ThinQQ.ppt.test.pptm e roda tests/ps/Test-PptAddin.ps1 (PowerPoint fechado)
+pwsh tests/ps/Test-PptAddin.ps1                                  # só a suíte do suplemento do PowerPoint (VBA + ponta a ponta), sobre o build -Target ppt -Configuration Test
 pwsh build/run-tests.ps1 -Target core -Filter "TestBars|TestGantt" -TimeoutSec 240   # só os testes cujo Modulo.Teste contém o texto (pula as suítes PowerShell)
 pwsh tests/ps/Test-Docs.ps1                                       # só a consistência da documentação (tutorial, README, CHANGELOG, faixa)
 pwsh tests/ps/Test-Privacy.ps1                                    # só a privacidade: nenhum arquivo versionado com caminho de perfil, id de máquina ou e-mail corporativo
@@ -246,7 +263,7 @@ publicado: o `release.ps1` recusa artefatos com módulos de teste.
 A publicação é um comando local em duas etapas: `publicar-release.bat` (na raiz do repositório), que chama `tools/Publish-Release.ps1`.
 Ele não roda no GitHub Actions porque a construção dos `.xlam` usa o Excel instalado na máquina.
 
-**Antes de começar**, na `main` (atualizada e sem alterações pendentes): escreva as notas da versão nova em `release/notes.txt` (de 6 a 8
+**Antes de começar**, na `main` (atualizada e sem alterações pendentes): escreva as notas da versão nova em `release/notes.txt` (de 1 a 8
 linhas com o marcador •; vão para o campo `notes` do manifesto e para o texto da release) e as entradas do `CHANGELOG.md` na seção
 `[Não lançado]`, e faça o commit delas pela via normal (pull request).
 
@@ -256,7 +273,7 @@ linhas com o marcador •; vão para o campo `notes` do manifesto e para o texto
    `Test-Docs.ps1` e `Test-Privacy.ps1` passando. Depois cria a branch `release/vx.y.z`, atualiza o `version.json` (loader e core), o
    `CHANGELOG.md` (`[Não lançado]` vira `[x.y.z] - AAAA-MM-DD` e uma `[Não lançado]` vazia fica no topo), o rodapé do tutorial e o exemplo de
    pasta do `installer/LEIA-ME.txt`; constrói o release numa cópia em `C:\temp\tqq-release-x.y.z` com `build/release.ps1` (Excel próprio e
-   invisível; a cópia é apagada no fim) e guarda o ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html` e um `state.json`
+   invisível; a cópia é apagada no fim) e guarda o ZIP, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `ThinQQ.ppam`, `manifest.json`, `tutorial.html` e um `state.json`
    (SHA-256 e tamanho de cada arquivo, o commit de preparação e a `main` de origem) em `dist\release-x.y.z\`; copia o `manifest.json` para
    `release/manifest.json`, faz o commit `release: ThinQQ x.y.z`, envia a branch (nunca a `main`) e abre a página do pull request. Se falhar
    antes do commit, tudo é desfeito (arquivos, branch e pasta).
@@ -271,8 +288,8 @@ linhas com o marcador •; vão para o campo `notes` do manifesto e para o texto
    (`state.json`) e são deste repositório (`-Repo`), que a `origin/main` contém a preparação (ou o mesmo conteúdo, num squash) e tem o mesmo
    `release/manifest.json` desses arquivos, que nada mais mudou na `origin/main` depois da preparação (senão a tag apontaria para outro código:
    prepare uma versão nova ou use `-AllowMainChanges`) e, pela API, que a tag `vx.y.z` e a release não existem; cria a release em
-   **rascunho** (tag `vx.y.z` no commit da `origin/main`, nome `ThinQQ x.y.z`, texto do `release/notes.txt` da `origin/main`), envia os 5
-   assets com os nomes exatos (`ThinQQ-x.y.z.zip`, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`), confere no GitHub o
+   **rascunho** (tag `vx.y.z` no commit da `origin/main`, nome `ThinQQ x.y.z`, texto do `release/notes.txt` da `origin/main`), envia os 6
+   assets com os nomes exatos (`ThinQQ-x.y.z.zip`, `ThinQQ.xlam`, `ThinQQ.core.xlam`, `ThinQQ.ppam`, `manifest.json`, `tutorial.html`), confere no GitHub o
    tamanho e o SHA-256 de cada um pelo campo `digest` da API e só então publica a release como a mais recente. Sem o campo `digest` a
    conferência falha e nada é publicado (o download do asset pela API redireciona para outro endereço, que o script não segue). Qualquer
    divergência ou falha no meio: nada é publicado, a mensagem diz o que houve e rodar de novo é seguro (um rascunho `ThinQQ x.y.z` deixado
@@ -284,7 +301,7 @@ linhas com o marcador •; vão para o campo `notes` do manifesto e para o texto
 Opções (o `.bat` repassa ao PowerShell): `-DryRun` (ou `set DRYRUN=1`) confere as pré-condições locais e mostra o que faria, sem gravar,
 construir, enviar, ler o token nem chamar a API; `-Draft` termina a etapa 3 com a release em rascunho (publique-a depois pela página dela; se
 editar o texto do rascunho no GitHub, publique por lá, sem rodar a etapa de novo); `-NoBrowser` não abre o navegador; `-RunTests` roda a
-suíte completa (`build/run-tests.ps1 -Target all -LoaderSwap -TimeoutSec 900`) na cópia antes de construir; `-AllowMainChanges` deixa a
+suíte completa (`build/run-tests.ps1 -Target all -LoaderSwap -TimeoutSec 1200`) na cópia antes de construir; `-AllowMainChanges` deixa a
 etapa 3 publicar mesmo com a `origin/main` alterada depois da preparação (a tag fica na `origin/main` atual); `-Repo` (padrão
 `israeldias-hub/ThinQQ`) e `-NotesFile` (padrão `release/notes.txt`). `set NOPAUSE=1` dispensa a pausa no fim. Códigos de saída: 0 ok,
 1 falha (a mensagem diz o que ficou feito e como retomar), 2 pré-condição recusada (nada mudou). Exemplo de ensaio completo:
@@ -316,11 +333,11 @@ O caminho antigo, passo a passo, continua valendo (por exemplo para publicar num
 
    Parâmetros: `-Version` (x.y.z, vira a versão do core), `-LoaderVersion` (opcional, só quando o loader muda),
    `-BaseUrl` (base das URLs do manifesto), `-PublishTo` (copia os arquivos para uma pasta), `-NotesFile` e `-ManifestUrl`
-   (opcional; veja abaixo); `-SignPfx`, `-SignPassword` e `-SignTimestampUrl` (assinatura opcional dos `.xlam`; veja "Ambientes corporativos (TI)").
+   (opcional; veja abaixo); `-SignPfx`, `-SignPassword` e `-SignTimestampUrl` (assinatura opcional dos `.xlam` e do `.ppam`; veja "Ambientes corporativos (TI)").
    O script recusa o tutorial-esqueleto, grava `version.json`, monta a configuração Release e gera
    `dist/manifest.json` (com os SHA-256) e `dist/ThinQQ-x.y.z.zip`. O ZIP leva também a pasta `exemplos` (o Excel de demonstração, copiado de `exemplos/`, e um LEIA-ME curto, `installer/LEIA-ME-exemplos.txt`); o script recusa o release se o ZIP tiver outro `.xlsx` ou `.xlsm`, se o xlsx do ZIP diferir (SHA-256) do do repositório ou se tiver macros.
 3. No GitHub, crie a release `vx.y.z` e anexe como assets o ZIP e os arquivos soltos de `dist/`
-   (`ThinQQ.xlam`, `ThinQQ.core.xlam`, `manifest.json`, `tutorial.html`): o atualizador baixa esses arquivos individualmente.
+   (`ThinQQ.xlam`, `ThinQQ.core.xlam`, `ThinQQ.ppam`, `manifest.json`, `tutorial.html`: 6 assets com o ZIP): o atualizador baixa esses arquivos individualmente. O ZIP traz 9 arquivos soltos na raiz (esses 5 e `install.ps1`, `uninstall.ps1`, `Instalar-ThinQQ.cmd` e `LEIA-ME.txt`), mais a pasta `exemplos`.
 4. Copie `dist/manifest.json` para `release/manifest.json` e faça commit junto com `version.json` na
    branch `main` (a fonte padrão de atualização é o `release/manifest.json` da `main`). Só commite o
    manifesto com URLs reais, nunca o de um teste local.
@@ -335,7 +352,7 @@ ser publicada na mesma pasta (o manifesto é substituído no lugar). `-ManifestU
 
 Para ensaiar sem publicar, use uma cópia do repositório (o Excel do usuário pode manter `dist\ThinQQ.core.test.xlam` travado):
 `pwsh build/release.ps1 -Version x.y.z -BaseUrl C:\temp\ensaio -PublishTo C:\temp\ensaio`, confira o ZIP e o
-`manifest.json` (versões e os dois SHA-256) e apague a pasta. O ensaio não grava `release/manifest.json`.
+`manifest.json` (versões e os SHA-256 dos três arquivos: dois `.xlam` e o `.ppam`) e apague a pasta. O ensaio não grava `release/manifest.json`.
 
 Detalhes em `release/README.md`.
 
@@ -354,6 +371,7 @@ Atenção: o Pages por branch só serve a raiz (`/`) ou a pasta `/docs`, então 
 - **Core** (`ThinQQ.core.xlam`): motor de gráficos e API pública `Core_*`. O loader abre o core mais novo de
   `%LOCALAPPDATA%\ThinQQ\versions\<x.y.z>\` e encaminha os comandos por `Application.Run`. Toda função `Core_*`
   trata os próprios erros.
+- **Suplemento do PowerPoint** (`ThinQQ.ppam`, fonte em `src/ppt/`): `AfterPresentationOpen`/`WindowActivate` acham os gráficos marcados (etiquetas `TQQ_*` gravadas na colagem), perguntam (ou não) e chamam `Core_PptSyncPresentation` num Excel com o ThinQQ (o aberto ou um invisível); o motor fica no core (`modPptSync`). Contrato de versão: `Core_PptApiVersion`.
 - **Troca a quente:** uma atualização do core baixa o arquivo, confere o SHA-256 do manifesto, instala em uma
   pasta de versão nova e recarrega o core sem reiniciar o Excel. O loader é substituído pelo core (com backup
   `ThinQQ.xlam.bak`) em um segundo momento, para que nenhum código do loader esteja em execução.
@@ -375,6 +393,7 @@ src/core/    fonte do core: um módulo por família de gráfico (modChartStacked
              modChartScatter), modRounding (soma consistente), modAxisBreak (corte de eixo), modPowerPoint,
              a matriz de capacidades (modChartKinds), decorações (modDecorations), anotações, geometria,
              rótulos, estilo, exemplos (modSamples), classes e o formulário de setas
+src/ppt/     fonte do suplemento do PowerPoint (modPptTqq, modPptRibbon, clsPptEvents, faixa de opções: customUI14.xml)
 tests/       testes VBA (TAP), testes PowerShell, servidor Node de fixtures
 installer/   instalador e desinstalador por usuário, LEIA-ME.txt
 release/     notas e manifesto publicado
@@ -397,12 +416,15 @@ Fase 3 (1.2.0): pesquisa, sondas em Excel e PowerPoint reais, decisões e matriz
 Cascata comparativa (1.3.0): decisões e medições em Excel real em
 `docs/superpowers/specs/2026-10-13-thinqq-cascata-comparativa-design.md`. Plano de execução: `docs/superpowers/plans/2026-10-13-thinqq-cascata-comparativa.md`.
 
+PowerPoint atualizado ao reabrir (1.4.0): pesquisa, sondas em PowerPoint e Excel reais, decisões, atualização automática do suplemento e casos de borda em
+`docs/superpowers/specs/2026-10-14-thinqq-ppt-delta-design.md`. Plano de execução: `docs/superpowers/plans/2026-10-14-thinqq-ppt-delta.md`.
+
 ## Verificações manuais no Excel real
 
-Os testes automáticos usam um Excel invisível; estas verificações precisam de uma sessão de Excel real (depois de `Instalar-ThinQQ.cmd` ou de `build.ps1 -Install`), com uma tabela 4x3 com cabeçalho para os itens 1 a 11 e as tabelas de exemplo de cada tipo (planilhas "Exemplos 2" e "Exemplos 3") para os demais:
+Os testes automáticos usam um Excel invisível; estas verificações precisam de uma sessão de Excel real (depois de `Instalar-ThinQQ.cmd` ou de `build.ps1 -Install`), com uma tabela 4x3 com cabeçalho para os itens 1 a 11 e as tabelas de exemplo de cada tipo (planilhas "Exemplos 2" e "Exemplos 3") para os demais. Os itens 43 a 54 (PowerPoint atualizado ao reabrir, 1.4.0) precisam também de um **PowerPoint real**: nada disso foi verificado nele (só o motor, o suplemento e o instalador têm teste automático):
 
 1. A aba ThinQQ aparece na faixa de opções, ao lado de Inserir, com os cinco menus de inserção (Colunas, Barras, Cascata, Linha e área, Mais tipos). Esta é a primeira conferência: sem a aba, nenhum outro item vale.
-2. Com células selecionadas, só os cinco menus, Mais opções (com Mesma escala, Escala automática e Arredondar intervalo...), Atualizar e o grupo ThinQQ ficam ativos; o resto do grupo "Gráfico selecionado" (inclusive os menus Setas e PowerPoint) fica cinza.
+2. Com células selecionadas, só os cinco menus, Mais opções (com Mesma escala, Escala automática e Arredondar intervalo...), Atualizar e o grupo ThinQQ ficam ativos; o resto do grupo "Gráfico selecionado" (inclusive o menu Setas; no menu PowerPoint só Atualizar gráficos no PowerPoint fica ativo) fica cinza.
 3. ThinQQ > Colunas > Colunas empilhadas insere o gráfico à direita, selecionado; Totais e Rótulos pressionados; Totais e Conectores ligam e desligam.
 4. Formato, Paleta e Espaço (que fica cinza em gráfico de linha); Colunas 100% mostra participações nos segmentos e nasce com "100%" à esquerda.
 5. Setas > Seta CAGR abre o formulário e desenha o texto; mudar um valor atualiza; Seta diferença; Remover setas; redimensionar reposiciona.
@@ -440,9 +462,21 @@ Os testes automáticos usam um Excel invisível; estas verificações precisam d
 37. Ícones próprios: os controles com ícone do ThinQQ (Colunas, Barras, Cascata, Cascata comparativa, Linha e área, Mais tipos, Borboleta, Dispersão, Bolhas, Mais opções, Rótulos com soma consistente, Linha de tendência, Quadrantes (médias), Corte de eixo..., Arredondar intervalo..., Setas (com Setas de variação e Variação em valor) e PowerPoint) desenham o próprio ícone, nenhum em branco (confira também com os itens cinza).
 38. Pasta de demonstração: abrir `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` do ZIP, com e sem o ThinQQ instalado: a primeira aba é o índice, cada nome leva ao exemplo e "Voltar ao índice" (A1) volta; os 28 exemplos mostram o que a legenda diz; sem macros e sem aviso de vínculo externo.
 39. Instalação pelo ZIP num perfil limpo: o ZIP traz a pasta `exemplos`, `Instalar-ThinQQ.cmd` conclui e o Excel abre com a aba ThinQQ; ThinQQ > Verificar atualizações informa a versão; `uninstall.ps1` deixa o perfil como estava.
-40. Com um core 1.1.0 e o loader 1.2.0 (ou um core de teste antigo), Arredondar intervalo... e o menu PowerPoint (com um gráfico selecionado) respondem "Atualize o ThinQQ para usar este recurso." em vez de não fazer nada.
+40. Com um core 1.1.0 e o loader 1.2.0 (ou um core de teste antigo), Arredondar intervalo..., os itens de copiar do menu PowerPoint (com um gráfico selecionado) e Atualizar gráficos no PowerPoint (sem exigir gráfico selecionado) respondem "Atualize o ThinQQ para usar este recurso." em vez de não fazer nada.
 41. Assinatura (TI): com um certificado de teste de `tools/New-ThinQQCert.ps1` (e depois remover o certificado pelo `certmgr.msc`), assinar um `.xlam` pelo Editor do VBA (Ferramentas > Assinatura Digital) e abri-lo; em uma máquina com Windows SDK e Office SIPs, rodar `tools/Sign-ThinQQ.ps1` (ainda não foi executado ponta a ponta) e conferir o resultado no Excel.
 42. Cascata comparativa com a tabela da imagem do think-cell (Bruto 27/29 até Líquido e/e): ThinQQ > Cascata > Cascata comparativa mostra as duas pontes, as elipses +7%, +75%, -67%, +67%, -9%, "11 (41%)" e "10 (34%)" e os nomes dentro das barras; ThinQQ > Setas > Variação em valor troca as elipses pela diferença; Legenda > Direita troca os nomes pela legenda; redimensionar mantém as setas acima dos rótulos; abrir a pasta sem o ThinQQ e mudar um número muda as elipses.
+43. PowerPoint 1.4.0, abrir pela interface nos três modos (aba ThinQQ do PowerPoint, grupo Gráficos do Excel, lista Ao abrir; instalado pelo ZIP, com uma apresentação que tenha gráficos colados com Copiar como gráfico vinculado e depois mude o dado no Excel): com **Perguntar** (o padrão) a pergunta aparece ao abrir, **Sim** atualiza dados e setas e **Não** deixa como está; com **Atualizar sempre** atualiza sem perguntar; com **Não atualizar** nada acontece; reabrir a apresentação pergunta de novo; Salvar como com outro nome pode perguntar mais uma vez; Atualizar gráficos força a atualização mesmo sem mudança (não verificado em PowerPoint real).
+44. PowerPoint, apresentação somente leitura: ao abrir não pergunta nem atualiza; Atualizar gráficos (do PowerPoint) e Atualizar gráficos no PowerPoint (do Excel) a atualizam somente na memória e o PowerPoint pergunta se quer salvar ao fechar (também em apresentação que não era somente leitura, depois de atualizar); no Excel, o Desfazer fica limpo depois de colar e de atualizar (não verificado em PowerPoint real).
+45. PowerPoint, Modo de Exibição Protegido: um anexo de e-mail (ou arquivo baixado) com um gráfico do ThinQQ vinculado não pergunta nada enquanto protegido; clicar em **Habilitar Edição** faz a pergunta aparecer (não verificado em PowerPoint real); abrir a apresentação com dois cliques no arquivo (PowerPoint fechado) também pergunta.
+46. PowerPoint, pasta movida: renomear o arquivo do Excel e atualizar mostra "Pasta de origem não encontrada ou sem acesso (o gráfico ficou como estava)" com o arquivo, sem travar o PowerPoint, e **Alterar Origem** (Arquivo > Informações > Editar Links para Arquivos) aponta para o arquivo novo; uma pasta protegida por senha cai no mesmo aviso sem pedir a senha.
+47. PowerPoint, pasta em rede: com a pasta num compartilhamento de rede a atualização funciona; com o compartilhamento fora do ar o aviso aparece depois de alguns segundos, sem travar; uma pasta aberta de um endereço da web (`https://`, SharePoint ou OneDrive) só atualiza com ela aberta no Excel; uma pasta do OneDrive sincronizada num caminho local se comporta como um arquivo normal.
+48. PowerPoint, 30 gráficos: uma apresentação com 30 gráficos vinculados atualiza em dezenas de segundos (estimativa de 10 a 40 s, não medida), com o andamento na barra de status do Excel; uma segunda atualização ao abrir, sem mudar nada, pula todos ("Sem mudança: 30") e Atualizar gráficos atualiza todos.
+49. PowerPoint, Excel aberto com a pasta alterada e não salva: a atualização traz o dado ainda não salvo e a pasta continua com o estado de salva que tinha; a apresentação aberta com o Excel ocupado (célula em edição) mostra o aviso de Excel ocupado sem travar.
+50. PowerPoint sem o ThinQQ no Excel: com um Excel aberto sem o ThinQQ, a atualização usa um Excel invisível próprio (que desaparece no fim) e não toca no seu; sem o ThinQQ instalado só os dados atualizam, com o aviso "O ThinQQ não está instalado no Excel deste computador"; o Excel travado deixa o PowerPoint esperando (sem tempo limite).
+51. Instalação pelo ZIP: depois de `Instalar-ThinQQ.cmd` (com o PowerPoint e o Excel fechados) a aba ThinQQ no PowerPoint aparece com o grupo Gráficos do Excel (Atualizar gráficos, Ao abrir, Sobre) sem aviso de macro e **Sobre** mostra a versão; `uninstall.ps1` remove as chaves do PowerPoint (`AddIns\ThinQQ` e `LocationThinQQ`).
+52. Atualização do suplemento pelo Excel (versão nova publicada): com o PowerPoint fechado a troca é imediata ("Suplemento do PowerPoint atualizado."); com o PowerPoint aberto, o aviso diz "feche e abra" ou que a troca espera o PowerPoint fechar (o Excel aplica sozinho em até 10 minutos ou na próxima abertura); depois, **Sobre** do PowerPoint mostra a versão nova; desligar a caixa "Atualizar também o suplemento do PowerPoint" impede o download; em 64 bits, quando houver máquina, repetir os itens 43 a 52.
+53. Assinatura do suplemento do PowerPoint (TI; não verificado): assinar o `ThinQQ.ppam` com `tools/Sign-ThinQQ.ps1` (SignTool e Office SIPs) ou pelo VBE do PowerPoint (Ferramentas > Assinatura Digital) e conferir, com "Desabilitar todas as macros, exceto as assinadas digitalmente" e o arquivo fora de um Local Confiável, que a aba ThinQQ do PowerPoint carrega sem aviso; que o SIP do Office assina um `.ppam` não foi verificado.
+54. Instalação manual do suplemento do PowerPoint (caminho de menu não verificado): sem o instalador, copiar o `ThinQQ.ppam` para `%LOCALAPPDATA%\ThinQQ`, desbloqueá-lo, adicionar essa pasta (com as subpastas) como Local Confiável do PowerPoint e, no PowerPoint, Arquivo > Opções > Suplementos > Gerenciar: Suplementos do PowerPoint > Ir... > Adicionar novo...; a aba ThinQQ aparece e **Sobre** mostra a versão (passo 6 da INSTALAÇÃO MANUAL do `LEIA-ME.txt`).
 
 ## Limitações conhecidas
 
@@ -469,6 +503,7 @@ Os detalhes de cada tipo estão na seção "Limitações" do tutorial.
 - **Combinação:** com Totais e eixo secundário a linha sobe para uma faixa acima dos totais (e o máximo do eixo das colunas, oculto, sobe junto); com Mesma escala o comportamento anterior volta e a linha pode cruzar os totais.
 - **Área:** o rótulo da primeira ou da última categoria que encosta no do vizinho fica oculto e volta quando cabe.
 - **Copiar para o PowerPoint:** a colagem usa a área de transferência do Windows e substitui o que estava nela; o destino é o slide da janela ativa do PowerPoint; uma pasta de trabalho aberta de um endereço da web (SharePoint ou OneDrive) pode não manter o vínculo do gráfico vinculado; renomear ou mover o arquivo do Excel quebra o vínculo.
+- **PowerPoint atualizado ao reabrir (1.4.0):** quem abre a apresentação sem o suplemento do PowerPoint, ou com o suplemento mas sem o ThinQQ no Excel, só tem os dados atualizados (as setas ficam como estavam); gráfico dentro de um grupo no slide fica de fora; em Modo de Exibição Protegido nada acontece até **Habilitar Edição**; pasta movida ou renomeada: o gráfico fica como estava e o aviso ensina **Alterar Origem**; pasta protegida por senha, em rede fora do ar ou em endereço da web fechado cai na lista "sem acesso". A apresentação somente leitura só é atualizada na memória (pelos botões, nunca ao abrir) e a atualização marca qualquer apresentação como modificada: o PowerPoint pergunta se quer salvar ao fechar. O Desfazer do Excel é limpo ao colar como gráfico vinculado e ao atualizar (na colagem como imagem, não verificado). A atualização de um gráfico não é transacional: se falhar no meio, o gráfico do slide pode ficar parcialmente atualizado (use Atualizar gráficos de novo). Salvar como pode perguntar mais uma vez. O PowerPoint espera o Excel sem tempo limite: um Excel travado trava a atualização. Mudar a legenda ou a área do gráfico no PowerPoint pode desalinhar as setas (refaça Copiar como gráfico vinculado). O carregamento do `.ppam`, a abertura pela interface, o Modo de Exibição Protegido e a abertura por duplo clique não foram verificados num PowerPoint real (veja "Verificações manuais").
 - O texto das setas de CAGR e de diferença e dos colchetes é calculado pelo ThinQQ: sem ele, o texto não se recalcula quando os números mudam.
 - **Assinatura:** os arquivos não vêm assinados; o ramo `signtool` mais Office SIPs de `tools/Sign-ThinQQ.ps1` nunca foi executado ponta a ponta na máquina de desenvolvimento (sem SDK nem SIPs); o caminho padrão do Office, que não depende do SDK, é Ferramentas > Assinatura Digital no Editor do VBA.
 - Macros precisam estar habilitadas; políticas corporativas podem exigir local confiável ou assinatura digital (veja "Ambientes corporativos (TI)").

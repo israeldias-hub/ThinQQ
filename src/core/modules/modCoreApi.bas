@@ -1121,7 +1121,7 @@ Public Sub Core_ApplyPendingLoader()
     mApplyBusy = True
     ApplyPendingLoaderImpl
     On Error Resume Next
-    DeleteSetting "ThinQQ", "Updater", "SwapInProgress"
+    DeleteSetting Util_UpdaterRegApp(), "Updater", "SwapInProgress"
     mApplyBusy = False
 End Sub
 
@@ -1160,15 +1160,15 @@ Private Sub ApplyPendingLoaderImpl()
     Dim pending As String, target As String, expectSha As String, nw As String, bak As String
     Dim ai As AddIn, found As Boolean, started As Boolean, committed As Boolean, en As Long, ed As String, prevAlerts As Boolean
     On Error GoTo Fail
-    pending = GetSetting("ThinQQ", "Updater", "PendingLoaderPath", "")
+    pending = GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", "")
     target = mLoaderPath
     If Len(pending) = 0 Or Len(target) = 0 Then Exit Sub
     If Len(Dir(pending)) = 0 Then
-        SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
-        SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", ""
+        SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", ""
+        SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", ""
         Exit Sub
     End If
-    expectSha = LCase$(GetSetting("ThinQQ", "Updater", "PendingLoaderSha256", ""))
+    expectSha = LCase$(GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", ""))
     nw = target & ".new": bak = target & ".bak"
     If Len(Dir(nw)) > 0 Then Kill nw
     If Len(Dir(bak)) > 0 Then Kill bak
@@ -1177,12 +1177,12 @@ Private Sub ApplyPendingLoaderImpl()
         Errors_Log "Core_ApplyPendingLoader: SHA-256 do loader pendente nao confere; descartado: " & pending
         Kill nw
         Kill pending
-        SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
-        SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", ""
+        SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", ""
+        SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", ""
         Core_Notify "A atualização do carregador do ThinQQ foi descartada: o arquivo não passou na verificação de integridade.", vbExclamation, False
         Exit Sub
     End If
-    SaveSetting "ThinQQ", "Updater", "SwapInProgress", Format$(Now, "yyyy-mm-dd hh:nn:ss")
+    SaveSetting Util_UpdaterRegApp(), "Updater", "SwapInProgress", Format$(Now, "yyyy-mm-dd hh:nn:ss")
     started = True
     prevAlerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
@@ -1208,9 +1208,9 @@ Private Sub ApplyPendingLoaderImpl()
     Application.DisplayAlerts = prevAlerts
     Kill bak
     Kill pending
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderPath", ""
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderSha256", ""
-    DeleteSetting "ThinQQ", "Updater", "PendingLoaderFailNotified"
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderPath", ""
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderSha256", ""
+    DeleteSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderFailNotified"
     Errors_Log "loader substituído: " & target
     Exit Sub
 Fail:
@@ -1226,13 +1226,13 @@ End Sub
 Private Sub NotifyPendingFailureThrottled()
     Dim last As String
     On Error Resume Next
-    last = GetSetting("ThinQQ", "Updater", "PendingLoaderFailNotified", "")
+    last = GetSetting(Util_UpdaterRegApp(), "Updater", "PendingLoaderFailNotified", "")
     If Len(last) > 0 Then
         If IsDate(last) Then
             If Now - CDate(last) >= 0 And Now - CDate(last) < 1 Then Exit Sub
         End If
     End If
-    SaveSetting "ThinQQ", "Updater", "PendingLoaderFailNotified", Format$(Now, "yyyy-mm-dd hh:nn:ss")
+    SaveSetting Util_UpdaterRegApp(), "Updater", "PendingLoaderFailNotified", Format$(Now, "yyyy-mm-dd hh:nn:ss")
     Core_Notify "Não foi possível atualizar o carregador do ThinQQ. A versão anterior foi mantida.", vbExclamation, False
 End Sub
 
@@ -1307,6 +1307,7 @@ Private Sub CopyToPowerPointImpl(mode As String)
         Set shp = Ppt_PasteChart(co, slide)
         On Error Resume Next: Application.CutCopyMode = False: Err.Clear: On Error GoTo Fail    ' a colagem ja deu certo: cancelar a copia nao pode desfazer nada
         linkState = Ppt_LinkState(shp)               ' o PowerPoint pode colar sem o vinculo: o aviso diz isso
+        If linkState = 1 Then PptSyncAfterPaste shp, co     ' etiquetas e anotacoes no tamanho do slide (o ajuste ao slide estica as formas)
     Else
         Set shp = Ppt_PasteImage(c, slide)
     End If
@@ -1347,6 +1348,78 @@ Fail:
         Errors_HandleErr "Core_CopyToPowerPoint(" & mode & ")", en, Ppt_ErrorText(en, ed)
     End If
 End Sub
+
+' Grafico vinculado recem-colado (Parte A): etiquetas TQQ_* (para a atualizacao ao reabrir) e as anotacoes recalculadas no tamanho do slide
+' (medido: Ppt_PlaceShape estica as formas internas junto com o grafico). Falha aqui NAO desfaz a colagem: fica registrada (o botao
+' "Atualizar graficos no PowerPoint" refaz). A impressao digital TQQ_FP so e gravada se a sincronizacao deu certo (senao a proxima
+' atualizacao pularia o grafico como "sem mudanca" com as setas ainda esticadas).
+Private Sub PptSyncAfterPaste(shp As Object, co As ChartObject)
+    Dim ok As Boolean
+    On Error Resume Next
+    PptSync_TagShape shp, co
+    If Err.Number <> 0 Then Errors_Log "CopyToPowerPoint/etiquetas" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    PptSync_SyncShape shp, co, False                 ' sem LinkFormat.Update: os dados acabaram de ser colados (o 1.3.0 tambem nao chamava)
+    ok = (Err.Number = 0)
+    If Not ok Then Errors_Log "CopyToPowerPoint/sincronizar" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    If ok Then shp.Tags.Add PPTSYNC_TAG_FP, PptSync_Fingerprint(co, shp)
+    Err.Clear
+End Sub
+
+' Parte A (1.4.0): atualiza os graficos ThinQQ vinculados de UMA apresentacao. O suplemento ThinQQ.ppam chama por Application.Run com o
+' objeto da apresentacao (ao abrir e no botao do PowerPoint). Devolve o resumo para o usuario; nunca propaga erro.
+Public Function Core_PptSyncPresentation(pres As Object, Optional force As Boolean = False) As String
+    Dim en As Long, ed As String
+    On Error GoTo Fail
+    Core_PptSyncPresentation = PptSync_Presentation(pres, force)
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Errors_Log "Core_PptSyncPresentation" & vbTab & en & vbTab & ed
+    Core_PptSyncPresentation = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
+End Function
+
+' Contrato com o suplemento do PowerPoint (spec 4.9): o .ppam so chama Core_PptSyncPresentation se Core_PptApiVersion >= o que ele exige.
+' Regra: a assinatura de Core_PptSyncPresentation nunca muda; mudanca incompativel = funcao nova + CORE_PPT_API maior (a antiga continua).
+Public Function Core_PptApiVersion() As Long
+    On Error Resume Next                                    ' constante: nao falha; a guarda mantem o contrato "Core_* nunca propaga" (teste de contencao)
+    Core_PptApiVersion = CORE_PPT_API
+End Function
+
+' Botao "Atualizar graficos no PowerPoint": todas as apresentacoes abertas (inclusive as somente leitura: a atualizacao fica so na memoria e o
+' PowerPoint pergunta se quer salvar ao fechar; so a atualizacao automatica ao abrir pula somente leitura, decisao do suplemento), forcando a
+' atualizacao; o aviso traz o resumo de cada uma (cada apresentacao e isolada: o erro de uma vira uma linha dela, sem perder o resumo das
+' outras). Sem PowerPoint aberto (nunca abre um) ou sem apresentacao: aviso. Nunca propaga erro.
+Public Sub Core_PptSyncOpen()
+    Dim app As Object, pres As Object, msg As String, en As Long, ed As String
+    On Error GoTo Fail
+    Set app = Ppt_GetApp(False)
+    If app Is Nothing Then Core_Notify PPTSYNC_NO_PPT, vbInformation: Exit Sub
+    For Each pres In app.Presentations
+        msg = msg & IIf(Len(msg) > 0, vbLf & vbLf, "") & "'" & PptSyncPresName(pres) & "': " & Core_PptSyncPresentation(pres, True)
+    Next
+    If Len(msg) = 0 Then msg = PPTSYNC_NO_PPT
+    Core_Notify msg, vbInformation
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Application.StatusBar = False
+    If Ppt_IsKnownFailure(en) Then
+        Core_Notify Ppt_ErrorText(en, ed), vbExclamation
+    Else
+        Errors_HandleErr "Core_PptSyncOpen", en, ed
+    End If
+End Sub
+
+Private Function PptSyncPresName(pres As Object) As String
+    On Error Resume Next
+    PptSyncPresName = CStr(pres.Name)
+    If Err.Number <> 0 Or Len(PptSyncPresName) = 0 Then PptSyncPresName = "(sem nome)"
+    Err.Clear
+End Function
 
 ' Gancho de teste de Core_RebuildFromRange (Util_FailThinSyncForTest = "rebuild-<ponto>:1"): dispara UMA vez. Inerte fora do build Test.
 Private Sub RebuildTestHook(site As String)

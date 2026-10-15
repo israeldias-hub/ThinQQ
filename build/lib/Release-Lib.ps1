@@ -5,7 +5,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 # Marcadores que nunca podem aparecer num artefato Release (nomes de modulos de teste).
 # Os nomes ficam em texto puro no stream PROJECT e, em UTF-16, no diretorio OLE do vbaProject.bin.
-$script:TestMarkerRegex = 'modTestDispatch|modTestRunner|modAssert|Module=Test[A-Za-z]+|Class=Test[A-Za-z]+'
+$script:TestMarkerRegex = 'modTestDispatch|modTestRunner|modAssert|modPptTestRunner|modPptAssert|Module=Test[A-Za-z]+|Class=Test[A-Za-z]+'
 
 function Get-TestMarkersInBytes([byte[]]$Bytes) {
     $text = [Text.Encoding]::GetEncoding(28591).GetString($Bytes).Replace([string][char]0, '')
@@ -21,13 +21,14 @@ function Read-EntryBytes($Entry) {
     return ,$ms.ToArray()
 }
 
-# Le o vbaProject.bin dentro de um xlam (zip, em memoria) e devolve os marcadores de teste encontrados.
+# Le o vbaProject.bin dentro de um xlam ou ppam (zip, em memoria; xl/ no Excel, ppt/ no PowerPoint) e devolve os marcadores de teste encontrados.
 function Get-TestMarkersInXlamBytes([byte[]]$XlamBytes) {
     $ms = New-Object IO.MemoryStream(,$XlamBytes)
     $z = New-Object IO.Compression.ZipArchive($ms, [IO.Compression.ZipArchiveMode]::Read)
     try {
         $e = $z.GetEntry('xl/vbaProject.bin')
-        if (-not $e) { throw 'xl/vbaProject.bin ausente no xlam' }
+        if (-not $e) { $e = $z.GetEntry('ppt/vbaProject.bin') }
+        if (-not $e) { throw 'vbaProject.bin ausente no pacote' }
         return (Get-TestMarkersInBytes (Read-EntryBytes $e))
     } finally { $z.Dispose() }
 }
@@ -36,13 +37,13 @@ function Get-TestMarkersInXlam([string]$Path) {
     return (Get-TestMarkersInXlamBytes ([IO.File]::ReadAllBytes($Path)))
 }
 
-# Varre todos os .xlam dentro de um zip de release.
+# Varre todos os .xlam e .ppam dentro de um zip de release.
 function Get-TestMarkersInZip([string]$ZipPath) {
     $result = New-Object System.Collections.Generic.List[string]
     $z = [IO.Compression.ZipFile]::OpenRead($ZipPath)
     try {
         foreach ($e in $z.Entries) {
-            if ($e.Name -like '*.xlam') {
+            if ($e.Name -like '*.xlam' -or $e.Name -like '*.ppam') {
                 foreach ($m in (Get-TestMarkersInXlamBytes (Read-EntryBytes $e))) { $result.Add("$($e.Name): $m") }
             }
         }
@@ -69,11 +70,11 @@ function Get-DefaultUpdateSource {
 # manifestUrl = a fonte de atualizacao que o instalador grava para quem instala pelo ZIP. Sem -ManifestUrl: com BaseUrl http(s) (release no
 # GitHub, assets versionados) e o endereco ESTAVEL (Get-DefaultUpdateSource), senao o ZIP da v1.1.0 consultaria para sempre o manifesto da
 # v1.1.0; com BaseUrl em pasta de rede/local (o manifesto e republicado no mesmo lugar) e BaseUrl\manifest.json.
-function New-ReleaseManifest([string]$CoreVersion, [string]$LoaderVersion, [string]$BaseUrl, [string]$CoreSha, [string]$LoaderSha, [string]$Notes, [string]$PublishedAt, [string]$ManifestUrl = '') {
+function New-ReleaseManifest([string]$CoreVersion, [string]$LoaderVersion, [string]$BaseUrl, [string]$CoreSha, [string]$LoaderSha, [string]$Notes, [string]$PublishedAt, [string]$ManifestUrl = '', [string]$PptSha = '') {
     if (-not $ManifestUrl) {
         if ($BaseUrl -match '^https?://') { $ManifestUrl = Get-DefaultUpdateSource } else { $ManifestUrl = Join-ReleaseUrl $BaseUrl 'manifest.json' }
     }
-    return [ordered]@{
+    $m = [ordered]@{
         schemaVersion = 1
         coreVersion   = $CoreVersion
         coreUrl       = Join-ReleaseUrl $BaseUrl 'ThinQQ.core.xlam'
@@ -81,11 +82,18 @@ function New-ReleaseManifest([string]$CoreVersion, [string]$LoaderVersion, [stri
         loaderVersion = $LoaderVersion
         loaderUrl     = Join-ReleaseUrl $BaseUrl 'ThinQQ.xlam'
         loaderSha256  = $LoaderSha
-        tutorialUrl   = Join-ReleaseUrl $BaseUrl 'tutorial.html'
-        manifestUrl   = $ManifestUrl
-        publishedAt   = $PublishedAt
-        notes         = $Notes
     }
+    # suplemento do PowerPoint (spec 4.9): sai junto com o core (mesma versao); sem -PptSha os tres campos nao aparecem
+    if ($PptSha) {
+        $m['pptAddinVersion'] = $CoreVersion
+        $m['pptAddinUrl']     = Join-ReleaseUrl $BaseUrl 'ThinQQ.ppam'
+        $m['pptAddinSha256']  = $PptSha
+    }
+    $m['tutorialUrl'] = Join-ReleaseUrl $BaseUrl 'tutorial.html'
+    $m['manifestUrl'] = $ManifestUrl
+    $m['publishedAt'] = $PublishedAt
+    $m['notes']       = $Notes
+    return $m
 }
 
 # "Stub" do tutorial: pequeno demais ou com o marcador do esqueleto.
@@ -103,7 +111,7 @@ function Get-ReleaseDemoName { return 'ThinQQ-Demonstracao-Materiais-Construcao.
 function Get-ReleaseInstallerFiles { return @('install.ps1', 'uninstall.ps1', 'Instalar-ThinQQ.cmd', 'LEIA-ME.txt') }
 
 # Arquivos soltos na raiz do ZIP (e os que -PublishTo copia para a pasta de publicacao).
-function Get-ReleaseTopFiles { return @('ThinQQ.xlam', 'ThinQQ.core.xlam', 'manifest.json', 'tutorial.html') + @(Get-ReleaseInstallerFiles) }
+function Get-ReleaseTopFiles { return @('ThinQQ.xlam', 'ThinQQ.core.xlam', 'ThinQQ.ppam', 'manifest.json', 'tutorial.html') + @(Get-ReleaseInstallerFiles) }
 
 # nome da entrada no ZIP (sempre com '/') -> arquivo de origem
 function Get-ReleaseZipLayout([string]$RepoRoot, [string]$DistDir) {
