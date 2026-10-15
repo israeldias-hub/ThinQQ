@@ -8,6 +8,7 @@ Public Const DELTA_GAP As Double = 8            ' pt: da borda mais externa das 
 Public Const DELTA_LABEL_ROOM As Double = 18    ' pt a mais com Rotulos ou Totais ligados (como ANN_TOTALS_EXTRA)
 Public Const DELTA_BAD_PICK As String = "Escolha duas barras diferentes do gráfico."
 Public Const DELTA_NONE As String = "Este gráfico não tem delta entre barras. Use Setas > Delta clicando nas barras."
+Public Const DELTA_MSG_NOCHART_FMT As String = "Selecione um gráfico do ThinQQ antes de alternar o texto do delta."
 
 ' Texto do delta de a para b: "both" = "+5 (+50%)" (como a Seta diferenca), "abs" = "+5", "pct" = "+50%". Percentual (b - a) / |a|; a = 0:
 ' "both" mostra so o valor e "pct" mostra "n/d". fmt = codigo do formato do grafico (Style_NumberFormat; a 1a secao). Pura.

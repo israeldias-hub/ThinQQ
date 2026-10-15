@@ -662,6 +662,36 @@ Public Sub Test_Delta_CycleFormat_AllOrSelected()
     Teardown wb
 End Sub
 
+' B6 (revisao da B4): "Delta: valor / % / ambos" numa planilha protegida avisa (a mesma mensagem do botao do delta) sem mexer nas setas;
+' sem grafico do ThinQQ ativo, avisa que e preciso selecionar um.
+Public Sub Test_Delta_CycleFormat_ProtectedSheet_AndNoChart()
+    Dim wb As Workbook, rng As Range, c As Chart
+    On Error GoTo Fail
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "clustered"
+    Set c = Core_ActiveChart()
+    Core_AddDelta "1:1", "1:3"
+    c.Parent.Locked = False
+    rng.Worksheet.Protect DrawingObjects:=True
+    c.Parent.Activate
+    AssertTrue Not Core_ActiveChart() Is Nothing, "grafico ativo na planilha protegida"
+    Core_ClearLastNotice
+    Core_DeltaCycleFormat
+    AssertEqual DELTAPICK_MSG_PROTECTED, Core_LastNotice(), "planilha protegida: aviso amigavel"
+    AssertEqual "both", Ann_ParseParam(c.Shapes("tqq_ann_delta_1").AlternativeText, "fmt"), "nada mudou"
+    rng.Worksheet.Unprotect
+    rng.Worksheet.Range("H20").Select
+    AssertTrue Core_ActiveChart() Is Nothing, "nenhum grafico ativo"
+    Core_ClearLastNotice
+    Core_DeltaCycleFormat
+    AssertEqual DELTA_MSG_NOCHART_FMT, Core_LastNotice(), "sem grafico do ThinQQ: aviso"
+    Teardown wb
+    Exit Sub
+Fail:
+    FailTeardown wb
+End Sub
+
 ' B4: a seta selecionada pode ser a perna (_t1/_t2) ou a linha; qualquer outra selecao (area do grafico) devolve "".
 Public Sub Test_Delta_SelectedName_LegsAndLine()
     Dim wb As Workbook, c As Chart

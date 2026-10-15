@@ -569,17 +569,26 @@ Fail:
     Errors_Handle "Core_DeltaPick"          ' DeltaPick_Arm tem tratador proprio (desarma); antes dele nada foi mexido
 End Sub
 
-' Botao "Delta: valor / % / ambos": alterna o texto da seta de delta selecionada (ou de todas do grafico). Nunca propaga.
+' Botao "Delta: valor / % / ambos": alterna o texto da seta de delta selecionada (ou de todas do grafico). Sem grafico do ThinQQ ou numa
+' planilha protegida (as setas nao podem mudar), avisa. Nunca propaga.
 Public Sub Core_DeltaCycleFormat()
     Dim c As Chart
     On Error GoTo Fail
     Set c = Core_ActiveChart()
-    If c Is Nothing Then Exit Sub
+    If c Is Nothing Then Core_Notify DELTA_MSG_NOCHART_FMT, vbInformation: Exit Sub
+    If Core_DrawingsProtected(c) Then Core_Notify DELTAPICK_MSG_PROTECTED, vbExclamation: Exit Sub
     If Ann_CycleDeltaFormat(c, Ann_SelectedDeltaName()) = 0 Then Core_Notify DELTA_NONE, vbInformation
     Exit Sub
 Fail:
     Errors_Handle "Core_DeltaCycleFormat"
 End Sub
+
+' True se o grafico esta numa planilha com os objetos de desenho protegidos (folha de grafico ou duvida: False). Nunca propaga.
+Private Function Core_DrawingsProtected(c As Chart) As Boolean
+    On Error Resume Next
+    If TypeName(c.Parent) = "ChartObject" Then Core_DrawingsProtected = c.Parent.Parent.ProtectDrawingObjects
+    Err.Clear
+End Function
 
 ' Abre o formulário de categorias (allowSame: o colchete aceita a mesma atividade nas duas pontas). Nunca abre em build de teste (modal
 ' travaria o Excel invisível).

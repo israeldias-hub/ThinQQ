@@ -432,6 +432,7 @@ $messages = @(
     'Este gráfico não tem delta entre barras. Use Setas > Delta clicando nas barras.',
     'A planilha está protegida. Desproteja a planilha para inserir o delta.',
     'Selecione um gráfico do ThinQQ antes de inserir o delta.',
+    'Selecione um gráfico do ThinQQ antes de alternar o texto do delta.',
     'Não foi possível ativar o delta clicando nas barras neste gráfico. Selecione o gráfico e tente de novo.',
     'ThinQQ - Delta: clique na barra de ORIGEM (Esc ou um clique numa célula cancela).',
     'ThinQQ - Delta: agora clique na barra de DESTINO.',
