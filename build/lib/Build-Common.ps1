@@ -24,6 +24,13 @@ function Assert-PptVbomTrusted {
         throw "Habilite no POWERPOINT 'Confiar no acesso ao modelo de objeto do projeto VBA' (Arquivo > Opções > Central de Confiabilidade > Configurações de Macro). Sem isso o suplemento ThinQQ.ppam não pode ser montado."
     }
 }
+# Pre-condicao do release (antes de alterar qualquer arquivo): o build do ThinQQ.ppam usa um PowerPoint proprio (instancia unica: com um
+# PowerPoint aberto ele nao pode ser criado) e precisa do VBOM do PowerPoint habilitado.
+function Assert-PptBuildReady {
+    if (Get-Process POWERPNT -ErrorAction SilentlyContinue) { throw 'Feche o PowerPoint antes de gerar o release: o build do suplemento ThinQQ.ppam usa um PowerPoint próprio (o PowerPoint é de instância única).' }
+    Assert-PptVbomTrusted
+}
+
 # PowerPoint e de instancia unica: so cria se NENHUM POWERPNT estiver em execucao (senao CreateObject anexaria ao do usuario).
 # O PID criado fica em $script:PptPid; o processo tem que ser de automacao (linha de comando com -Embedding), senao nao e nosso.
 function New-PptApp {

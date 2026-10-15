@@ -38,6 +38,8 @@ $demoSource = Join-Path $RepoRoot "exemplos\$(Get-ReleaseDemoName)"
 if (-not (Test-Path -LiteralPath $demoSource)) { throw "Arquivo de demonstracao ausente: exemplos\$(Get-ReleaseDemoName). Gere-o com tools/New-DemoWorkbook.ps1 antes do release." }
 if (Test-XlsxHasMacros $demoSource) { throw "exemplos\$(Get-ReleaseDemoName) contem macros (vbaProject): a demonstracao deve ser .xlsx sem macros." }
 if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot 'installer\LEIA-ME-exemplos.txt'))) { throw 'Arquivo ausente: installer\LEIA-ME-exemplos.txt (vai no ZIP como exemplos\LEIA-ME.txt).' }
+# PowerPoint fechado e VBOM do PowerPoint habilitado (o build do .ppam precisa dos dois): falha aqui, antes de gravar o version.json
+Assert-PptBuildReady
 
 # version.json: gravado antes do build (o build le dele); restaurado se qualquer etapa falhar
 $versionPath = Join-Path $RepoRoot 'version.json'

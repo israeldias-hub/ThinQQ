@@ -741,6 +741,10 @@ function Get-RpPwsh {
 $script:RpDefaultChecks = {
     param([string]$RepoRoot)
     $fails = @()
+    # o build do suplemento do PowerPoint (ThinQQ.ppam) na copia usa um PowerPoint proprio: PowerPoint fechado e VBOM do PowerPoint ligado
+    if (Get-Process POWERPNT -ErrorAction SilentlyContinue) { $fails += 'PowerPoint aberto: feche-o (o build do suplemento ThinQQ.ppam usa um PowerPoint proprio; o PowerPoint e de instancia unica).' }
+    $vbom = (Get-ItemProperty 'HKCU:\Software\Microsoft\Office\16.0\PowerPoint\Security' -ErrorAction SilentlyContinue).AccessVBOM
+    if ($vbom -ne 1) { $fails += "PowerPoint sem 'Confiar no acesso ao modelo de objeto do projeto VBA' (AccessVBOM): habilite em Arquivo > Opcoes > Central de Confiabilidade > Configuracoes de Macro do PowerPoint." }
     $exe = Get-RpPwsh
     if (-not $exe) { $exe = (Get-Process -Id $PID).Path }
     foreach ($t in 'Test-Docs.ps1', 'Test-Privacy.ps1') {

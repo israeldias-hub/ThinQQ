@@ -186,6 +186,15 @@ try {
     $iAll = $relText.IndexOf('-Target all -Configuration Release'); $iPpt = $relText.IndexOf('-Target ppt -Configuration Release')
     Assert ($iAll -ge 0 -and $iPpt -gt $iAll) 'release.ps1 constroi o .ppam (-Target ppt -Configuration Release) depois do build all'
     Assert ($relText -match 'Build do suplemento do PowerPoint falhou' -and $relText -match 'VBOM') 'release.ps1: falha do build do .ppam aborta com mensagem clara (VBOM)'
+    # PowerPoint aberto ou VBOM do PowerPoint desligado: o release para ANTES de gravar o version.json ou construir (nada de meio release)
+    $iReady = $relText.IndexOf('Assert-PptBuildReady'); $iVer = $relText.IndexOf('$versionPath = ')
+    Assert ($iReady -ge 0 -and $iReady -lt $iVer -and $iReady -lt $iAll) 'release.ps1: confere o PowerPoint (fechado e com VBOM) antes de alterar qualquer coisa'
+    $bcText = [IO.File]::ReadAllText((Join-Path $repo 'build\lib\Build-Common.ps1'))
+    $fnReady = [regex]::Match($bcText, '(?s)function Assert-PptBuildReady \{.*?\n\}').Value
+    Assert ($fnReady -match 'POWERPNT' -and $fnReady -match 'Feche o PowerPoint' -and $fnReady -match 'Assert-PptVbomTrusted') 'Build-Common: Assert-PptBuildReady recusa PowerPoint aberto (mensagem clara) e reusa Assert-PptVbomTrusted'
+    $rpText = [IO.File]::ReadAllText((Join-Path $repo 'tools\lib\Release-Publish.ps1'))
+    $chk = [regex]::Match($rpText, '(?s)\$script:RpDefaultChecks = \{.*?\n\}').Value
+    Assert ($chk -match 'POWERPNT' -and $chk -match 'AccessVBOM') 'publicar-release (Preparar): as verificacoes de pre-condicao recusam PowerPoint aberto e VBOM do PowerPoint desligado'
     Assert ($relText.Contains("@('ThinQQ.xlam', 'ThinQQ.core.xlam', 'ThinQQ.ppam')")) 'release.ps1: o .ppam entra na conferencia de marcadores de teste'
     $signLine = @($relText -split "`r?`n" | Where-Object { $_.Contains('Sign-ThinQQ.ps1') -and $_.Contains('-Files') })
     Assert ($signLine.Count -eq 1 -and $signLine[0].Contains("(Join-Path `$DistDir 'ThinQQ.ppam')")) 'release.ps1: assina tambem o .ppam'
