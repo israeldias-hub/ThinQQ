@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "coreVersion": "1.4.0",
-  "coreUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.4.0/ThinQQ.core.xlam",
-  "coreSha256": "5b29b22a4ff41cf315e2d13b611daa85456cc2004873c44cd98f0bda274d27a1",
-  "loaderVersion": "1.4.0",
-  "loaderUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.4.0/ThinQQ.xlam",
-  "loaderSha256": "31063c97af71c9d063b7b6578e536195bf12f6e17d57316acbeb2dca72a1fee0",
-  "pptAddinVersion": "1.4.0",
-  "pptAddinUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.4.0/ThinQQ.ppam",
-  "pptAddinSha256": "373be0ecca2aa4f7fc053aa350f532eedaf7c2bd43cb41ef790ade7cc5e7e2f2",
-  "tutorialUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.4.0/tutorial.html",
+  "coreVersion": "1.5.0",
+  "coreUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.5.0/ThinQQ.core.xlam",
+  "coreSha256": "6951ef74771667d2f19501256d9ff9142a0848765098c1c07e6bc6d084247a8d",
+  "loaderVersion": "1.5.0",
+  "loaderUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.5.0/ThinQQ.xlam",
+  "loaderSha256": "8604bf179d995f0aa4e3c6f02ec9079c9993af577fbb91b58ff6eca8373f2f49",
+  "pptAddinVersion": "1.5.0",
+  "pptAddinUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.5.0/ThinQQ.ppam",
+  "pptAddinSha256": "2e04a477ced36b4b1747c56d1611be0f99252b4f17db6e2678263aa838e2653e",
+  "tutorialUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.5.0/tutorial.html",
   "manifestUrl": "https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json",
   "publishedAt": "2026-10-15",
-  "notes": "• Novo: o PowerPoint atualiza os gráficos do ThinQQ ao abrir a apresentação (dados e setas); reinstale pelo ZIP para ganhar o suplemento do PowerPoint.\r\n• Novo: no Excel, PowerPoint > Atualizar gráficos no PowerPoint atualiza dados e setas das apresentações abertas.\r\n• Para quem instalou o suplemento do PowerPoint pelo ZIP, o Excel também o atualiza (com o PowerPoint aberto, quando ele fechar).\r\n• Corrigido: ao colar como gráfico vinculado, as setas e os rótulos de seta não ficam mais esticados e fora do lugar.\r\n• Quem tem a 1.2.0, 1.2.1 ou 1.2.2 precisa reinstalar uma vez pelo ZIP desta versão (o carregador antigo não consegue baixar a atualização); daí em diante a atualização pelo Excel funciona."
+  "notes": "• Novo: delta entre quaisquer duas barras, escolhidas clicando nelas (menu Setas): a seta mostra a diferença em valor e em %.\r\n• Novo: Setas > Delta: valor / % / ambos alterna o texto do delta (valor e %, só o valor, só o %)."
 }

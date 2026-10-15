@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versões no formato x.y.z.
 
 ## [Não lançado]
+
+## [1.5.0] - 2026-10-15
 - Delta (1.5.0): Delta entre barras: Setas > Delta clicando nas barras insere uma seta com a diferença (valor e %) entre quaisquer duas barras, escolhidas com dois cliques; Delta: valor / % / ambos alterna o texto.
 - - Delta (1.5.0): faixa do Excel: o menu Setas ganha Delta clicando nas barras e Delta: valor / % / ambos (ativos nos tipos que aceitam o delta; coluna Delta na tabela do tutorial).
 - Delta (1.5.0): exemplos: o exemplo 3 de ThinQQ > Exemplos (colunas agrupadas) e o E02 da pasta de demonstração (com a imagem na galeria do tutorial) ganham um delta; as contagens de exemplos não mudam.
