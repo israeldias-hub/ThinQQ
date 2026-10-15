@@ -18,6 +18,7 @@ Public Const DELTAPICK_MSG_CANCEL As String = "ThinQQ - Delta cancelado."
 Public Const DELTAPICK_MSG_OTHERCHART As String = "ThinQQ - Delta cancelado (outro gráfico)."
 Public Const DELTAPICK_MSG_TIMEOUT As String = "ThinQQ - Delta cancelado (60 s sem clique)."
 Public Const DELTAPICK_MSG_PROTECTED As String = "A planilha está protegida. Desproteja a planilha para inserir o delta."
+Public Const DELTAPICK_MSG_ARMFAIL As String = "Não foi possível ativar o delta clicando nas barras neste gráfico. Selecione o gráfico e tente de novo."
 Private Const DELTAPICK_TIMEOUT_S As Long = 60
 Private Const DELTAPICK_CLEAR_S As Long = 4
 Private Const DELTAPICK_DEDUPE_S As Single = 0.6
@@ -96,12 +97,13 @@ Public Sub DeltaPick_Arm(cht As Chart)
     Application.StatusBar = DELTAPICK_MSG_FROM
     Application.OnKey "{ESC}", DeltaPick_Proc("DeltaPick_EscKey")
     mDeadline = Now + TimeSerial(0, 0, DELTAPICK_TIMEOUT_S)
-    mTimeoutAt = DeltaPick_Schedule(DELTAPICK_TIMEOUT_S, "DeltaPick_Timeout")
+    mTimeoutAt = DeltaPick_Schedule(DELTAPICK_TIMEOUT_S, "DeltaPick_TimeoutFired")
     Exit Sub
 Fail:
     Errors_Log "DeltaPick_Arm" & vbTab & Err.Number & vbTab & Err.Description
     On Error GoTo -1
     DeltaPick_Disarm ""
+    Core_Notify DELTAPICK_MSG_ARMFAIL, vbExclamation
 End Sub
 
 ' Desarma (msg "" = barra de status devolvida ao Excel; senao mostra msg por 4 s). Remove a moldura, devolve o Esc e cancela os OnTime
@@ -119,7 +121,7 @@ Public Sub DeltaPick_Disarm(msg As String)
         Application.OnKey "{ESC}"
         Err.Clear
     End If
-    DeltaPick_CancelTimer mTimeoutAt, "DeltaPick_Timeout"
+    DeltaPick_CancelTimer mTimeoutAt, "DeltaPick_TimeoutFired"
     DeltaPick_CancelTimer mClearAt, "DeltaPick_ClearStatus"
     If Len(msg) > 0 Then
         Application.StatusBar = msg
@@ -139,16 +141,40 @@ Public Sub DeltaPick_ClearStatus()
     If Not mArmed And mStatusOwned Then Application.StatusBar = False: mStatusOwned = False
 End Sub
 
+' Esc (OnKey). Desarmado com a tecla ainda ligada (estado do VBA perdido, ex.: projeto reiniciado): devolve o Esc ao Excel.
 Public Sub DeltaPick_EscKey()
     On Error Resume Next
-    If mArmed Then DeltaPick_Disarm DELTAPICK_MSG_CANCEL
+    If mArmed Then
+        DeltaPick_Disarm DELTAPICK_MSG_CANCEL
+    Else
+        Application.OnKey "{ESC}"
+    End If
 End Sub
 
-' OnTime do prazo (ou o teste, depois de DeltaPick_ExpireForTest).
+' O OnTime do prazo disparou. Todo desarme cancela o OnTime vivo, entao um disparo e sempre o do modo atual: desarma SEM comparar Now com o
+' horario (Date exato pode ficar um ulp antes e o modo ficaria armado com o Esc preso). Desarmado: so devolve o Esc.
+Public Sub DeltaPick_TimeoutFired()
+    On Error Resume Next
+    mTimeoutAt = 0                                  ' disparou: nada a cancelar
+    If mArmed Then
+        DeltaPick_Disarm DELTAPICK_MSG_TIMEOUT
+    Else
+        Application.OnKey "{ESC}"
+    End If
+End Sub
+
+' Verificacao do prazo pelo relogio (gancho de teste DeltaPick_ExpireForTest; o OnTime real chama DeltaPick_TimeoutFired).
 Public Sub DeltaPick_Timeout()
     On Error Resume Next
-    If mTimeoutAt <> 0 And Now >= mTimeoutAt Then mTimeoutAt = 0     ' disparado pelo proprio OnTime: nada a cancelar
     If mArmed And Now >= mDeadline Then DeltaPick_Disarm DELTAPICK_MSG_TIMEOUT
+End Sub
+
+' Gancho de teste: simula o disparo do OnTime do prazo antes de vencer (cancela o OnTime real, como se o Excel o tivesse consumido, e chama
+' o manipulador do disparo). Inerte fora do build Test.
+Public Sub DeltaPick_FireTimeoutForTest()
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    DeltaPick_CancelTimer mTimeoutAt, "DeltaPick_TimeoutFired"
+    DeltaPick_TimeoutFired
 End Sub
 
 ' Gancho de teste: faz o prazo do modo armado vencer agora (o OnTime real continua agendado e e cancelado no desarme). Inerte fora do Test.
@@ -177,12 +203,19 @@ Public Sub DeltaPick_OnBookClose(bookName As String)
     If mArmed And bookName = mBookName Then DeltaPick_Disarm ""
 End Sub
 
-' Chart.Select de QUALQUER grafico observado. Outro grafico cancela; area/eixo/legenda/seta: segue armado.
+' Chart.Select de QUALQUER grafico observado. Outro grafico cancela; rotulo, linhas da serie, barras de erro, formas (setas, a moldura):
+' "clique numa barra" e segue armado; area, eixo, legenda, titulo: segue armado em silencio.
 Public Sub DeltaPick_OnSelect(cht As Chart, elementId As Long, a1 As Long, a2 As Long)
     If Not mArmed Then Exit Sub
     On Error Resume Next
     If Not DeltaPick_IsArmedFor(cht) Then DeltaPick_Disarm DELTAPICK_MSG_OTHERCHART: Exit Sub
-    If elementId <> xlSeries Then Exit Sub
+    If elementId <> xlSeries Then
+        Select Case elementId
+            Case xlDataLabel, xlTrendline, xlErrorBars, xlXErrorBars, xlYErrorBars, xlShape, xlSeriesLines, xlHiLoLines, xlDropLines, xlLeaderLines
+                Application.StatusBar = DELTAPICK_MSG_NOTBAR
+        End Select
+        Exit Sub
+    End If
     If a2 < 1 Then
         If Not DeltaPick_IsDuplicate(a1 & ":", "select") Then Application.StatusBar = DELTAPICK_MSG_SERIES
         Exit Sub
@@ -214,6 +247,12 @@ Private Sub DeltaPick_Take(cht As Chart, s As Long, p As Long, src As String)
     On Error GoTo Fail
     key = s & ":" & p
     If key = mLastKey And src <> mLastSrc And Abs(Timer - mLastAt) < DELTAPICK_DEDUPE_S Then Exit Sub
+    ' MouseUp logo depois de um Select ACEITO: e o mesmo clique (o hit test do proprio Excel ja o contou), qualquer que seja o ponto; senao
+    ' um clique na borda (zoom/DPI) com os dois caminhos discordando completaria o delta. Select -> Select e MouseUp -> MouseUp seguem valendo.
+    If src = "mouse" And mLastSrc = "select" And Abs(Timer - mLastAt) < DELTAPICK_DEDUPE_S Then
+        If key <> mLastKey Then Errors_Log "DeltaPick: MouseUp " & key & " ignorado logo depois do Select " & mLastKey & " (hit test diferente: zoom/DPI?)"
+        Exit Sub
+    End If
     mLastKey = key: mLastSrc = src: mLastAt = Timer
     If Not Delta_ResolvePick(cht, s, p, ref) Then Application.StatusBar = DELTAPICK_MSG_NOTBAR: Exit Sub
     If Len(mFromRef) = 0 Then

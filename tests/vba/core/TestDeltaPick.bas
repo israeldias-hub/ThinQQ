@@ -201,10 +201,12 @@ Public Sub Test_DeltaPick_NotArmed_NoEffect_AndRefusals()
     Set c = Core_ActiveChart()
     c.Parent.Activate
     t = Timer
-    For i = 1 To 30
+    For i = 1 To 200
         c.SeriesCollection(1).Points(1 + (i Mod 3)).Select
     Next
-    AssertTrue Timer - t < 3, "desarmado: eventos baratos"
+    t = Timer - t
+    Errors_Log "TestDeltaPick: 200 selecoes desarmadas em " & Format$(t, "0.00") & " s"
+    AssertTrue t < 1.5, "desarmado: eventos baratos (200 selecoes em " & t & " s; medido na spec: 0,62 s)"
     DeltaPick_OnMouseUp c, 10, 10
     AssertFalse HasShape(c, "tqq_ann_delta_1"), "desarmado: nada inserido"
     AssertFalse HasShape(c, DELTAPICK_MARK), "desarmado: sem moldura"
@@ -382,6 +384,172 @@ Public Sub Test_DeltaPick_DeletedChart_AndStaleMarkCleanup()
     m.Name = DELTAPICK_MARK
     Core_SafeRefresh c
     AssertFalse HasShape(c, DELTAPICK_MARK), "moldura de grafico nao armado apagada no refresh"
+    Teardown wb
+    Exit Sub
+Fail:
+    FailTeardown wb
+End Sub
+
+' Pixels (pt x 4/3 a 100%) do centro do ponto p da serie s; False (e registra) se o GetChartElement deste Excel nao der esse ponto.
+Private Function PointPixels(c As Chart, s As Long, p As Long, ByRef x As Long, ByRef y As Long) As Boolean
+    Dim pt As Point, id As Long, a1 As Long, a2 As Long
+    Set pt = c.SeriesCollection(s).Points(p)
+    x = CLng((pt.Left + pt.Width / 2) * 4 / 3): y = CLng((pt.Top + pt.Height / 2) * 4 / 3)
+    c.GetChartElement x, y, id, a1, a2
+    PointPixels = (id = xlSeries And a1 = s And a2 = p)
+    If Not PointPixels Then Errors_Log "TestDeltaPick: GetChartElement(" & x & "," & y & ") deu " & id & "/" & a1 & "/" & a2 & " para " & s & "/" & p & ": trecho do MouseUp pulado"
+End Function
+
+' O OnTime do prazo dispara: desarma SEM comparar Now com o prazo (Date exato podia nao vencer por um ulp e deixar o modo armado e o Esc
+' preso). Disparar de novo, ja desarmado, so devolve o Esc (sem erro).
+Public Sub Test_DeltaPick_TimeoutFired_DisarmsWithoutDeadlineCompare()
+    Dim wb As Workbook, c As Chart
+    On Error GoTo Fail
+    Set wb = NewTempWorkbook()
+    Set c = ArmedChart(wb, "clustered")
+    c.SeriesCollection(Delta_SeriesIndex(c, 1)).Points(1).Select
+    AssertTrue HasShape(c, DELTAPICK_MARK)
+    DeltaPick_FireTimeoutForTest                    ' o prazo de 60 s ainda nao venceu (Now < mDeadline)
+    AssertFalse DeltaPick_IsArmed(), "OnTime disparado desarma sem olhar o relogio"
+    AssertEqual DELTAPICK_MSG_TIMEOUT, StatusText()
+    AssertFalse HasShape(c, DELTAPICK_MARK), "moldura removida"
+    AssertEqual 1, DeltaPick_PendingTimers(), "so o aviso de 4 s"
+    AssertEqual 0, DeltaPick_TimerFailures(), "nenhum cancelamento do OnTime ja disparado"
+    DeltaPick_TimeoutFired
+    AssertFalse DeltaPick_IsArmed()
+    DeltaPick_Disarm ""
+    AssertEqual 0, DeltaPick_PendingTimers()
+    AssertEqual 0, DeltaPick_TimerFailures()
+    Teardown wb
+    Exit Sub
+Fail:
+    FailTeardown wb
+End Sub
+
+' Um clique fisico chega como Select (ponto pelo Excel) e MouseUp (ponto pelo GetChartElement); se os dois discordam (borda, zoom, DPI)
+' o MouseUp logo depois de um Select aceito e ignorado: um clique nunca completa o delta. Dois cliques rapidos em barras DIFERENTES pelo
+' mesmo caminho (Select -> Select ou MouseUp -> MouseUp) continuam valendo.
+Public Sub Test_DeltaPick_SelectThenMouseUp_IsOneClick()
+    Dim wb As Workbook, c As Chart, s As Long, x As Long, y As Long, x2 As Long, y2 As Long
+    On Error GoTo Fail
+    Set wb = NewTempWorkbook()
+    Set c = ArmedChart(wb, "clustered")
+    ForceLayout c
+    s = Delta_SeriesIndex(c, 2)
+    If PointPixels(c, s, 3, x, y) And PointPixels(c, s, 2, x2, y2) Then
+        DeltaPick_OnSelect c, xlSeries, s, 1
+        AssertEqual "2:1", DeltaPick_FromRef()
+        DeltaPick_OnMouseUp c, x, y                     ' o mesmo clique, hit test noutra barra
+        AssertEqual "2:1", DeltaPick_FromRef(), "MouseUp do mesmo clique nao vira destino"
+        AssertTrue DeltaPick_IsArmed(), "segue armado"
+        AssertFalse HasShape(c, "tqq_ann_delta_1"), "um clique nao insere delta"
+        DeltaPick_Disarm ""
+        ' ordem real Select -> MouseUp na mesma barra: o Select (evento real) escolhe, o MouseUp nao muda nada
+        c.ChartArea.Select
+        Core_DeltaPick
+        c.SeriesCollection(s).Points(2).Select
+        DeltaPick_OnMouseUp c, x2, y2
+        AssertEqual "2:2", DeltaPick_FromRef()
+        AssertEqual DELTAPICK_MSG_TO, StatusText(), "nada de 'mesma barra' no mesmo clique"
+        ' Select -> Select rapido em outra barra: e o 2o clique (destino)
+        DeltaPick_OnSelect c, xlSeries, s, 3
+        AssertFalse DeltaPick_IsArmed(), "Select -> Select: destino"
+        AssertEqual "kind=delta;v=1;from=2:2;to=2:3;fmt=both", c.Shapes("tqq_ann_delta_1").AlternativeText
+        ' MouseUp -> MouseUp rapido em outra barra: tambem e o 2o clique
+        ForceLayout c                                   ' a seta abriu sala: a area de plotagem mudou
+        If PointPixels(c, s, 3, x, y) And PointPixels(c, s, 2, x2, y2) Then
+            c.ChartArea.Select
+            Core_DeltaPick
+            AssertTrue DeltaPick_IsArmedFor(c)
+            DeltaPick_OnMouseUp c, x2, y2
+            DeltaPick_OnMouseUp c, x, y
+            AssertFalse DeltaPick_IsArmed(), "MouseUp -> MouseUp: destino"
+            AssertEqual "kind=delta;v=1;from=2:2;to=2:3;fmt=both", c.Shapes("tqq_ann_delta_2").AlternativeText
+        End If
+    End If
+    Teardown wb
+    Exit Sub
+Fail:
+    FailTeardown wb
+End Sub
+
+' Rotulo de dados, linhas de serie, formas (setas, a propria moldura): "clique numa barra", segue armado; area/eixo/legenda: silencio.
+Public Sub Test_DeltaPick_NonBarElements_StayArmed()
+    Dim wb As Workbook, c As Chart, s As Long
+    On Error GoTo Fail
+    Set wb = NewTempWorkbook()
+    Set c = ArmedChart(wb, "clustered")
+    s = Delta_SeriesIndex(c, 1)
+    DeltaPick_OnSelect c, xlChartArea, 0, 0
+    AssertEqual DELTAPICK_MSG_FROM, StatusText(), "area do grafico: sem mensagem"
+    DeltaPick_OnSelect c, xlDataLabel, s, 1
+    AssertEqual DELTAPICK_MSG_NOTBAR, StatusText(), "rotulo de dados"
+    AssertTrue DeltaPick_IsArmed()
+    AssertEqual "", DeltaPick_FromRef()
+    Application.StatusBar = DELTAPICK_MSG_FROM
+    DeltaPick_OnSelect c, xlShape, 0, 0
+    AssertEqual DELTAPICK_MSG_NOTBAR, StatusText(), "forma (seta/moldura)"
+    Application.StatusBar = DELTAPICK_MSG_FROM
+    DeltaPick_OnSelect c, xlSeriesLines, s, 0
+    AssertEqual DELTAPICK_MSG_NOTBAR, StatusText(), "linhas de serie"
+    AssertTrue DeltaPick_IsArmed()
+    Teardown wb
+    Exit Sub
+Fail:
+    FailTeardown wb
+End Sub
+
+' Esc com o estado do VBA perdido (desarmado mas a tecla ainda ligada): devolve o Esc ao Excel sem erro e sem mexer na barra de status.
+Public Sub Test_DeltaPick_EscWhenNotArmed_SelfHeals()
+    Dim wb As Workbook
+    On Error GoTo Fail
+    DeltaPick_Disarm ""
+    Application.StatusBar = False
+    DeltaPick_EscKey
+    AssertFalse DeltaPick_IsArmed()
+    AssertEqual "", StatusText()
+    AssertEqual 0, DeltaPick_PendingTimers()
+    Teardown wb
+    Exit Sub
+Fail:
+    FailTeardown wb
+End Sub
+
+' Core_OnUnload (core fechando) desarma: moldura, Esc e nenhum OnTime apontando para o core fechado.
+Public Sub Test_DeltaPick_CoreUnload_Disarms()
+    Dim wb As Workbook, c As Chart
+    On Error GoTo Fail
+    Set wb = NewTempWorkbook()
+    Set c = ArmedChart(wb, "clustered")
+    c.SeriesCollection(Delta_SeriesIndex(c, 1)).Points(1).Select
+    AssertTrue HasShape(c, DELTAPICK_MARK)
+    Core_OnUnload
+    AssertFalse DeltaPick_IsArmed()
+    AssertFalse HasShape(c, DELTAPICK_MARK)
+    AssertEqual 0, DeltaPick_PendingTimers()
+    AssertEqual 0, DeltaPick_TimerFailures()
+    AssertEqual "", StatusText()
+    Teardown wb                                     ' Core_OnUnload ja desligou os observadores (como o Teardown de todo teste)
+    Exit Sub
+Fail:
+    FailTeardown wb
+End Sub
+
+' DeltaPick_Arm falha (grafico apagado entre a escolha e o armar): desarma e avisa o usuario.
+Public Sub Test_DeltaPick_ArmFailure_Notifies()
+    Dim wb As Workbook, c As Chart
+    On Error GoTo Fail
+    Set wb = NewTempWorkbook()
+    Fixture(wb).Select
+    Core_Insert "clustered"
+    Set c = Core_ActiveChart()
+    c.Parent.Delete
+    Core_ClearLastNotice
+    DeltaPick_Arm c
+    AssertFalse DeltaPick_IsArmed()
+    AssertEqual DELTAPICK_MSG_ARMFAIL, Core_LastNotice()
+    AssertEqual 0, DeltaPick_PendingTimers()
+    AssertEqual "", StatusText()
     Teardown wb
     Exit Sub
 Fail:
