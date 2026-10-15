@@ -251,4 +251,6 @@ Check ($rt -match '\[int\]\$TimeoutSec = 1200') 'run-tests: -TimeoutSec padrao 1
 Check (([IO.File]::ReadAllText((Join-Path $RepoRoot 'tools\lib\Release-Publish.ps1'))) -match 'run-tests\.ps1''\) -Target all -LoaderSwap -TimeoutSec 1200') 'publicar-release -RunTests: suite com -TimeoutSec 1200'
 Check ($rt -match 'Get-PptProcessSnapshot' -and $rt -match 'Get-PptLeftovers' -and $rt -match 'Get-PptSkipCount') 'run-tests: registra POWERPNT antes/depois e conta os testes de PowerPoint pulados'
 Check ($rt -notmatch 'Stop-Process[^\r\n]*(left|Leftover|POWERPNT)') 'run-tests: nunca encerra POWERPNT (so avisa)'
+$fin = [regex]::Match($rt, '(?s)\} finally \{\s*\r?\n\s*Stop-ExcelWatchdog \$wd.*?\r?\n\}').Value
+Check ($fin -match 'Test-PptAfterSuite') 'run-tests: o aviso de PowerPoint orfao sai tambem quando o bloco VBA lanca (0x800706BE): Test-PptAfterSuite no finally'
 if ($script:fail -gt 0) { Write-Host "FALHAS ribbon-pacote: $script:fail"; exit 1 }

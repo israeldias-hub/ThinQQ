@@ -79,7 +79,7 @@ if ($node) {
 
 
 if ($Filter) { $env:TQQ_TEST_FILTER = $Filter } else { Remove-Item Env:\TQQ_TEST_FILTER -ErrorAction SilentlyContinue }
-$totalFailed = 0; $noTests = $false; $timedOut = $false; $compileFailed = $false
+$totalFailed = 0; $noTests = $false; $timedOut = $false; $compileFailed = $false; $vbaDone = $false
 $xl = New-ExcelApp
 $wd = Start-ExcelWatchdog $xl $TimeoutSec
 try {
@@ -119,6 +119,7 @@ try {
         }
         $totalFailed += [int]$failed
     }
+    $vbaDone = $true
 } catch {
     if (Test-ExcelWatchdogFired $wd) { $timedOut = $true } elseif (-not $compileFailed) { throw }
 } finally {
@@ -130,6 +131,8 @@ try {
     } else { Close-ExcelApp $xl }
     if ($server) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
     Clear-TqqTestRegBranch
+    # o bloco VBA lancou (ex.: 0x800706BE, Excel caiu) e o script vai sair aqui: avisa mesmo assim de um PowerPoint orfao
+    if (-not $vbaDone -and -not $timedOut -and -not $compileFailed) { [void](Test-PptAfterSuite) }
 }
 if ($targets -contains 'core') {
     $pptSkipped = Get-PptSkipCount @(Read-LogTail $testLog $testLogOffset)
