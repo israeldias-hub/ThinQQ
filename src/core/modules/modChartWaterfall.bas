@@ -10,6 +10,8 @@ Option Explicit
 ' primeira linha e um número na última: o primeiro total é calculado para trás, e a última linha vira total).
 Public Const WF_COL_CAT As Long = 1
 Public Const WF_COL_END As Long = 6
+Public Const WF_COL_LO As Long = 7                  ' extensao da barra (delta entre barras, Parte B)
+Public Const WF_COL_HI As Long = 8
 Public Const WF_COL_BASE As Long = 9
 Public Const WF_COL_UPPOS As Long = 12
 Public Const WF_COL_UPNEG As Long = 13
