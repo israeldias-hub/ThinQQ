@@ -538,7 +538,7 @@ Check ((Read-Utf8 (Join-Path $RepoRoot 'release\notes.txt')) -match 'quem instal
 $updSrc = Read-Utf8 (Join-Path $RepoRoot 'src\loader\modules\modUpdater.bas')
 $retryMin = [regex]::Match($updSrc, 'Private Const PPAM_RETRY_MINUTES As Long = (\d+)').Groups[1].Value
 Check ($retryMin -ne '' -and $updSrc.Contains("a cada $retryMin minutos") -and (Get-SectionText 'atualizar').Contains("a cada $retryMin minutos") -and $readme.Contains("em até $retryMin minutos")) "PPAM_RETRY_MINUTES ($retryMin) citado no aviso, no tutorial (#atualizar) e no README"
-Check ((($lmManual -split "\r?\n") | Where-Object { $_ -match 'Desbloquear' -and $_ -match 'ThinQQ\.ppam' }).Count -ge 1 -or $lmManual -match '(?s)Em cada arquivo[^\r\n]*\.ppam') 'LEIA-ME: a INSTALAÇÃO MANUAL manda desbloquear também o .ppam'
+Check (@(($lmManual -split "\r?\n") | Where-Object { $_ -match 'Desbloquear' -and $_ -match 'ThinQQ\.ppam' }).Count -ge 1 -or $lmManual -match '(?s)Em cada arquivo[^\r\n]*\.ppam') 'LEIA-ME: a INSTALAÇÃO MANUAL manda desbloquear também o .ppam'
 Check ($lmPpt -match 'macros dessa pasta rodam sem aviso' -and $lmPpt -match '16\.0') 'LEIA-ME: o item POWERPOINT diz que as macros da pasta rodam sem aviso e cita o PowerPoint 16.0'
 Check ($lmReq -match 'PowerPoint' -and $lmReq -match '16\.0') 'LEIA-ME: REQUISITOS cita o PowerPoint 16.0'
 Check ($leiameText -match '(?s)A aba ThinQQ não aparece no PowerPoint:.{0,200}16\.0') 'LEIA-ME: PROBLEMAS COMUNS: "A aba ThinQQ não aparece no PowerPoint" cita o PowerPoint do Office 16.0'
