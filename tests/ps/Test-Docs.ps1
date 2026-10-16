@@ -527,6 +527,27 @@ $pptMessages = @(
     @('core', 'powerpoint', 'Sem vínculo com o Excel (Quebrar Vínculo no PowerPoint): '),
     @('core', 'powerpoint', ' (veja o log do ThinQQ).'),
     @('core', 'powerpoint', 'Não foi possível atualizar os gráficos do ThinQQ: '),
+    # Criar gráficos pelo PowerPoint (1.8.0): suplemento (modPptTqq.bas) e core (modPptData.bas, modCoreApi.bas); as frases com o caminho (%1) vão em duas partes
+    @('ppt', 'powerpoint', 'Salve a apresentação primeiro: os dados do gráfico ficam numa pasta do Excel ao lado dela ('),
+    @('ppt', 'powerpoint', 'A apresentação está aberta por um endereço da Web (OneDrive/SharePoint). Salve-a numa pasta do computador (ou na pasta sincronizada do OneDrive) para inserir gráficos do ThinQQ.'),
+    @('ppt', 'powerpoint', 'O ThinQQ não está instalado no Excel deste computador: não é possível criar nem editar gráficos do ThinQQ.'),
+    @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para criar gráficos e editar dados pelo PowerPoint.'),
+    @('ppt', 'powerpoint', 'O Excel não está instalado (ou não pôde ser iniciado): o ThinQQ precisa dele para criar gráficos e editar dados.'),
+    @('ppt', 'powerpoint', 'Não foi possível criar o gráfico: '),
+    @('ppt', 'powerpoint', 'Não foi possível abrir os dados do gráfico: '),
+    @('ppt', 'powerpoint', 'O Excel abriu a planilha de dados do gráfico (veja a barra de tarefas).'),
+    @('ppt', 'powerpoint', 'Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida: o slide acompanha em cerca de 2 segundos.'),
+    @('ppt', 'powerpoint', 'Empacotar para enviar'),
+    @('core', 'powerpoint', 'Salve a apresentação primeiro: os dados do gráfico ficam numa pasta do Excel ao lado dela ('),
+    @('core', 'powerpoint', 'A apresentação está aberta por um endereço da Web (OneDrive/SharePoint). Salve-a numa pasta do computador (ou na pasta sincronizada do OneDrive) para inserir gráficos do ThinQQ.'),
+    @('core', 'powerpoint', 'A pasta de dados está aberta por outra pessoa ou é somente leitura: '),
+    @('core', 'powerpoint', "Feche no Excel a pasta '"),
+    @('core', 'powerpoint', "': ela tem o mesmo nome da pasta de dados desta apresentação."),
+    @('core', 'powerpoint', "Já existe o arquivo '"),
+    @('core', 'powerpoint', "' e ele não é uma pasta de dados do ThinQQ (nada foi alterado nele). Renomeie ou mova esse arquivo para inserir gráficos nesta apresentação."),
+    @('core', 'powerpoint', 'Pasta de dados não encontrada: '),
+    @('core', 'powerpoint', '. Se ela foi movida, ponha-a na mesma pasta da apresentação.'),
+    @('core', 'powerpoint', 'Gráfico não encontrado na pasta de dados (apagado ou recriado).'),
     # atualizador do loader (modUpdater.bas: Updater_PpamStatusText; modRibbon.bas: a pergunta de ThinQQ > Configurações)
     @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado.'),
     @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado: feche e abra o PowerPoint para usar a versão nova.'),
@@ -823,13 +844,13 @@ $autoRec = ($recRaw -replace '\s+', ' ')
 $clUnrel = [regex]::Match(($cl -replace "`r`n", "`n"), '(?ms)^## \[Não lançado\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
 # As linhas da 1.6.0 ficam em [Não lançado] até o publicar-release, que as move para "## [1.6.0] - data" (1.6.0 publicada antes) ou, se a 1.6.0
 # e a 1.7.0 saírem juntas, para "## [1.7.0] - data" (mesma classe do incidente do delta, dc446b0): os pinos leem a primeira seção que tem as
-# linhas (TQQ_AUTOIDX), nesta ordem: [Não lançado], [1.7.0], [1.6.0].
+# linhas (TQQ_AUTOIDX), nesta ordem: [Não lançado], [1.8.0], [1.7.0], [1.6.0] (a [1.8.0] e a [1.7.0] quando as versões empilhadas saem juntas).
 function Get-ChangelogSection([string]$text, [string]$head) {
     $t = $text -replace "`r`n", "`n"
     return [regex]::Match($t, "(?ms)^## $head[^\n]*\n(?<b>.*?)(?=^## \[|\z)").Groups['b'].Value
 }
 function Get-AutoChangelogBlock([string]$text) {
-    foreach ($h in '\[Não lançado\]', '\[1\.7\.0\]') {
+    foreach ($h in '\[Não lançado\]', '\[1\.8\.0\]', '\[1\.7\.0\]') {
         $b = Get-ChangelogSection $text $h
         if ($b.Contains('TQQ_AUTOIDX')) { return $b }
     }
@@ -926,7 +947,7 @@ $insTut = Get-SubsectionText 'ppt-inserir'
 $insRec = ([regex]::Match($readme, '(?s)\*\*Inserir também no slide \(1\.7\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
 function Get-InsertChangelogBlock([string]$text) {
     $acc = ''
-    foreach ($h in '\[Não lançado\]', '\[1\.7\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
+    foreach ($h in '\[Não lançado\]', '\[1\.8\.0\]', '\[1\.7\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
     return $acc
 }
 # True se existe "## [1.6.0]" e ela contém linhas da 1.7.0 (a 1.7.0 anunciada como entregue na 1.6.0)
@@ -969,7 +990,7 @@ foreach ($place in $insPlaces.Keys) {
     foreach ($ph in $insPlaces[$place].phrases) { Check ($pt.Contains($ph)) "inserir no slide, $place cita '$ph'" }
 }
 Check ($readme.Contains('`Core_InsertToPowerPoint(kind)`') -and $readme.Contains('`modLinkFrame`') -and $readme.Contains('`Core_ToggleLinkFrames`')) 'README (Arquitetura): o fluxo de inserir no slide (Core_InsertToPowerPoint, modLinkFrame, Core_ToggleLinkFrames)'
-$mvInsLines = @(($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 69 })
+$mvInsLines = @(($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 69 -and [int]$Matches[1] -le 74 })
 Check ($mvInsLines.Count -eq 6 -and @($mvNums | Where-Object { $_ -ge 69 -and $_ -le 74 }).Count -eq 6 -and $mvNums.Count -ge 74) "README: os itens manuais 69 a 74 existem, numerados sem buracos ($($mvInsLines.Count); total $($mvNums.Count))"
 Check (@($mvInsLines | Where-Object { $_ -notmatch 'não verificado em (Excel|PowerPoint) real' }).Count -eq 0) 'README (itens 69 a 74): todo item marca "não verificado em Excel real" ou "em PowerPoint real"'
 $mvInsPins = @{
@@ -983,6 +1004,116 @@ $mvInsPins = @{
 foreach ($n in ($mvInsPins.Keys | Sort-Object)) {
     $line = @($mvInsLines | Where-Object { $_ -match "^$n\. " })
     foreach ($ph in $mvInsPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
+}
+# ---- Criar gráficos pelo PowerPoint (1.8.0, Tarefa G5): subseção #ppt-criar, Recursos, Arquitetura, Limitações e itens manuais 75 a 85 do README e a
+# [Não lançado] do CHANGELOG. As linhas da 1.8.0 ficam em [Não lançado] (junto com as da 1.6.0 e da 1.7.0) até o publicar-release 1.8.0, que as move
+# para "## [1.8.0]": os pinos leem só essas duas seções. Dentro de "## [1.7.0]" ou "## [1.6.0]" elas anunciariam a 1.8.0 como entregue antes (merge
+# depois do publicar-release de uma versão anterior): um pino recusa (README, "Publicar uma versão"). Se as três saírem juntas, a [Não lançado] inteira
+# vira "## [1.8.0]" e os pinos das três versões leem as linhas ali.
+$lblCriar = 'Inserir gráfico'; $lblEditData = 'Editar dados'; $dataSuffix = ' - dados ThinQQ.xlsx'
+$pptDataSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modPptData.bas')
+$suffixCore = [regex]::Match($pptDataSrc, 'Public Const PPTDATA_SUFFIX As String = "([^"]+)"').Groups[1].Value
+$suffixPpt = [regex]::Match($pptTqqSrc, 'Public Const PPT_DATA_SUFFIX As String = "([^"]+)"').Groups[1].Value
+Check ($suffixCore -ceq $dataSuffix -and $suffixPpt -ceq $dataSuffix) "criar pelo PowerPoint: o sufixo da pasta de dados é '$dataSuffix' no core e no suplemento"
+Check ($pptDataSrc.Contains('PPTDATA_MARK As String = "TQQ_DATABOOK"') -and $pptDataSrc.Contains('PPTDATA_TAG As String = "TQQ_DATA"') -and $pptTqqSrc.Contains('PPT_TAG_DATA As String = "TQQ_DATA"') -and $pptTqqSrc.Contains('PPT_TAG_DATABOOK As String = "TQQ_DATABOOK"')) 'criar pelo PowerPoint: as etiquetas TQQ_DATA e TQQ_DATABOOK são as mesmas no core e no suplemento'
+Check ($pptDataSrc.Contains('PPTDATA_SHEET_PREFIX As String = "Gráfico "') -and $pptDataSrc.Contains('"Leia-me"')) 'criar pelo PowerPoint (código): as planilhas se chamam "Gráfico N" e a primeira "Leia-me"'
+Check ($pptTqqSrc.Contains('PPT_API_DATA As Long = 3') -and $syncSrc -match 'CORE_PPT_API As Long = ([3-9]|\d{2,})\b') 'criar pelo PowerPoint (código): o contrato do suplemento com o core é a API 3 (inserir, editar dados e salvar)'
+Check ($coreSrc.Contains('Public Function Core_PptInsertChart(') -and $coreSrc.Contains('Public Function Core_PptEditData(') -and $coreSrc.Contains('Public Function Core_PptDataSave(')) 'criar pelo PowerPoint (código): Core_PptInsertChart, Core_PptEditData e Core_PptDataSave existem no core'
+$gInsNode = $pptRibbon.SelectSingleNode("//*[@id='grpPptInsert']"); $eDataNode = $pptRibbon.SelectSingleNode("//*[@id='btnPptEditData']")
+Check ($null -ne $gInsNode -and $gInsNode.LocalName -eq 'group' -and $gInsNode.GetAttribute('label') -ceq $lblCriar) "faixa do PowerPoint: o grupo grpPptInsert tem o rótulo '$lblCriar'"
+Check ($null -ne $eDataNode -and $eDataNode.LocalName -eq 'button' -and $eDataNode.GetAttribute('label') -ceq $lblEditData) "faixa do PowerPoint: o botão btnPptEditData tem o rótulo '$lblEditData'"
+$gFirst = $pptRibbon.SelectSingleNode("//*[local-name()='tab']/*[local-name()='group'][1]")
+Check ($null -ne $gFirst -and $gFirst.GetAttribute('id') -ceq 'grpPptInsert') 'faixa do PowerPoint: o grupo Inserir gráfico é o primeiro da aba'
+if ($parsed) {
+    Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']//*[local-name()='h3'][@id='ppt-criar']")) 'tutorial: a subseção id="ppt-criar" está dentro de #powerpoint'
+    Check ($xml.SelectNodes("//a[@href='#ppt-criar']").Count -ge 3) 'tutorial: a subseção #ppt-criar tem links de #powerpoint, da tabela do suplemento e dos limites'
+    foreach ($l in $lblCriar, $lblEditData) { Check ($pptUi -contains $l) "tutorial: '$l' citado como span.ui dentro de #powerpoint" }
+    foreach ($l in 'Colunas', 'Barras', 'Cascata', 'Linha e área', 'Mais tipos') { Check ($pptUi -contains $l) "tutorial: o menu '$l' (os cinco menus do Inserir gráfico) citado como span.ui dentro de #powerpoint" }
+}
+$criarTut = Get-SubsectionText 'ppt-criar'
+$criarRec = ([regex]::Match($readme, '(?s)\*\*Criar gráficos pelo PowerPoint \(1\.8\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
+function Get-CriarChangelogBlock([string]$text) {
+    $acc = ''
+    foreach ($h in '\[Não lançado\]', '\[1\.8\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
+    return $acc
+}
+# True se a seção dada (por exemplo '\[1\.7\.0\]') existe e contém linhas da 1.8.0 (a 1.8.0 anunciada como entregue numa versão anterior)
+function Test-CriarInside([string]$text, [string]$head) {
+    $t = $text -replace "`r`n", "`n"
+    if ($t -notmatch "(?m)^## $head") { return $false }
+    return (Get-ChangelogSection $text $head).Contains('Criar gráficos pelo PowerPoint (1.8.0)')
+}
+$clCriarPhrases = @($lblCriar, $lblEditData, 'Criar gráficos pelo PowerPoint (1.8.0)', $dataSuffix, 'Core_PptInsertChart', 'API 3', 'Salve a apresentação primeiro', 'endereço da Web',
+    'Atualize o ThinQQ no Excel para criar gráficos e editar dados pelo PowerPoint.', 'fica com o usuário', 'Não verificado em PowerPoint e Excel reais', 'Documentação (1.8.0)')
+function Get-CriarChangelogMissing([string]$block) { return @($clCriarPhrases | Where-Object { -not $block.Contains($_) }) }
+$clCriar = Get-CriarChangelogBlock $cl
+Check ($criarTut.Length -gt 4000 -and $criarRec.Length -gt 2500 -and $clCriar.Length -gt 1500) "criar pelo PowerPoint: subseção do tutorial ($($criarTut.Length)), Recursos do README ($($criarRec.Length)) e CHANGELOG ($($clCriar.Length)) lidos"
+$clCriarLine = "- Criar gráficos pelo PowerPoint (1.8.0): " + (($clCriarPhrases | Where-Object { $_ -ne 'Criar gráficos pelo PowerPoint (1.8.0)' }) -join ' ') + "`n"
+Check (@(Get-CriarChangelogMissing (Get-CriarChangelogBlock "## [Não lançado]`n`n$clCriarLine`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -eq 0) 'CHANGELOG (sintético): as linhas da 1.8.0 em [Não lançado] satisfazem os pinos'
+Check (@(Get-CriarChangelogMissing (Get-CriarChangelogBlock "## [Não lançado]`n`n## [1.8.0] - 2026-11-10`n`n$clCriarLine`n## [1.7.0] - 2026-10-30`n`n- outra coisa`n")).Count -eq 0) 'CHANGELOG (sintético): depois do publicar-release 1.8.0 as linhas na [1.8.0] satisfazem os pinos'
+foreach ($old in '1.7.0', '1.6.0') {
+    $oldHead = [regex]::Escape("[$old]")
+    $clIn = "## [Não lançado]`n`n## $("[$old]") - 2026-10-30`n`n### Adicionado`n$clCriarLine`n## [1.5.0] - 2026-10-15`n`n- x`n"
+    Check ((Test-CriarInside $clIn $oldHead) -and @(Get-CriarChangelogMissing (Get-CriarChangelogBlock $clIn)).Count -gt 0) "CHANGELOG (sintético): as linhas da 1.8.0 dentro da [$old] (merge depois do publicar-release dela) = falha"
+    Check (-not (Test-CriarInside $cl $oldHead)) "CHANGELOG: a [$old] não contém linhas ""Criar gráficos pelo PowerPoint (1.8.0)"" (mova-as para a [Não lançado]; README, Publicar uma versão)"
+}
+Check (@(Get-CriarChangelogMissing (Get-CriarChangelogBlock "## [Não lançado]`n`n## [1.7.0] - 2026-10-30`n`n- outra coisa`n`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas da 1.8.0 em lugar nenhum = falha'
+# as três versões juntas como 1.8.0: o publicar-release 1.8.0 move a [Não lançado] inteira (linhas da 1.6.0, 1.7.0 e 1.8.0) para a [1.8.0]: ok para os três blocos
+$clRoll8 = "# Changelog`n`n## [Não lançado]`n`n## [1.8.0] - 2026-11-10`n" + ($clUnrel -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
+Check (@(Get-AutoChangelogMissing (Get-AutoChangelogBlock $clRoll8)).Count -eq 0 -and @(Get-InsertChangelogMissing (Get-InsertChangelogBlock $clRoll8)).Count -eq 0 -and @(Get-CriarChangelogMissing (Get-CriarChangelogBlock $clRoll8)).Count -eq 0 -and -not (Test-InsertInside160 $clRoll8) -and -not (Test-CriarInside $clRoll8 '\[1\.7\.0\]')) 'CHANGELOG (sintético): 1.6.0, 1.7.0 e 1.8.0 publicadas juntas na [1.8.0] satisfazem os pinos das três'
+# a 1.7.0 e a 1.8.0 juntas (a 1.6.0 já publicada): a [Não lançado] sem as da 1.6.0 vira a [1.8.0]
+$clRoll78 = "# Changelog`n`n## [Não lançado]`n`n## [1.8.0] - 2026-11-10`n" + (($clIns + "`n" + $clCriar) -replace "`r`n", "`n") + "`n## [1.6.0] - 2026-10-20`n`n- outra coisa`n"
+Check (@(Get-InsertChangelogMissing (Get-InsertChangelogBlock $clRoll78)).Count -eq 0 -and @(Get-CriarChangelogMissing (Get-CriarChangelogBlock $clRoll78)).Count -eq 0) 'CHANGELOG (sintético): 1.7.0 e 1.8.0 publicadas juntas na [1.8.0] satisfazem os pinos das duas'
+$criarPlaces = [ordered]@{
+    'tutorial #ppt-criar' = @{ text = $criarTut; phrases = @(
+        $lblCriar, $lblEditData, $dataSuffix, 'Elements', 'cinco menus', '21 tipos', 'Leia-me', 'uma planilha por gráfico', 'Não renomeie nem apague essas planilhas', 'moldura verde', 'Ctrl+B', 'Salvar como',
+        'os dois arquivos juntos', 'sem perguntar e sem abrir o Excel', 'fica com você', 'sem o ThinQQ', 'Nenhum Excel é criado', 'Editar Dados do PowerPoint', 'Empacotar para enviar',
+        'Salve a apresentação primeiro: os dados do gráfico ficam numa pasta do Excel ao lado dela', 'A apresentação está aberta por um endereço da Web (OneDrive/SharePoint)',
+        'Atualize o ThinQQ no Excel para criar gráficos e editar dados pelo PowerPoint.', 'Não foi possível criar o gráfico: ', 'Não foi possível abrir os dados do gráfico: ',
+        'veja a barra de tarefas', 'Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida', 'Feche no Excel a pasta', 'Já existe o arquivo',
+        'Pasta de dados não encontrada', 'Gráfico não encontrado na pasta de dados (apagado ou recriado).', 'A pasta de dados está aberta por outra pessoa ou é somente leitura',
+        'item 83', 'item 85', 'itens 75 a 85', 'AppActivate', 'Não verificado em PowerPoint e Excel reais', 'Alterar dados', 'gráfico dentro de um grupo', 'somente leitura', 'Diferenças para o think-cell') }
+    'README Recursos' = @{ text = $criarRec; phrases = @(
+        $lblCriar, $lblEditData, $dataSuffix, 'Elements', 'cinco menus e 21 tipos', 'Leia-me', 'TQQ_DATABOOK', 'não renomeie nem apague as planilhas', 'A apresentação precisa estar salva', 'Ctrl+B', 'Salvar como',
+        'Mover a pasta com os dois arquivos', 'fica com o usuário', 'nunca recebe o ThinQQ', 'Empacotar para enviar', 'Editar Dados', 'API 3', 'PG2', 'PG5', 'PG6', 'PG8', 'PG9', 'item 83',
+        'Atualize o ThinQQ no Excel para criar gráficos e editar dados pelo PowerPoint.', 'Não foi possível criar o gráfico: ', 'Não foi possível abrir os dados do gráfico: ',
+        'Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida', 'Feche no Excel a pasta', 'Já existe o arquivo', 'somente leitura',
+        'itens 75 a 85', 'Não verificado em PowerPoint e Excel reais') }
+    'README Limitações' = @{ text = $readmeLimTxt; phrases = @(
+        'Criar gráficos pelo PowerPoint (1.8.0)', $dataSuffix, 'Empacotar para enviar', 'PG2', 'PG5', 'PG6', 'PG8', 'PG9', 'item 83', 'item 85', 'itens 75 a 85', 'Editar Dados', 'Alterar dados',
+        'gráfico dentro de um grupo não é reapontado', 'somente leitura', 'Não verificado em PowerPoint e Excel reais') }
+    'CHANGELOG ([Não lançado] ou [1.8.0])' = @{ text = $clCriar; phrases = $clCriarPhrases }
+}
+foreach ($place in $criarPlaces.Keys) {
+    $pt = [string]$criarPlaces[$place].text
+    foreach ($ph in $criarPlaces[$place].phrases) { Check ($pt.Contains($ph)) "criar pelo PowerPoint, $place cita '$ph'" }
+}
+Check ($readme.Contains('`modPptData`') -and $readme.Contains('`Core_PptInsertChart(slide, tipo)`') -and $readme.Contains('`Core_PptEditData`') -and $readme.Contains('`Core_PptDataSave`') -and $readme.Contains('`PptTqq_RelinkData`') -and $readme.Contains('`PptTqq_InsertChartIn`')) 'README (Arquitetura): o fluxo de criar pelo PowerPoint (modPptData, Core_PptInsertChart, Core_PptEditData, Core_PptDataSave, PptTqq_InsertChartIn, PptTqq_RelinkData)'
+Check ($readme.Contains('seção 14 de `docs/superpowers/specs/2026-10-15-thinqq-thinkcell-parity-design.md`') -and (Test-Path (Join-Path $RepoRoot 'docs\superpowers\specs\2026-10-15-thinqq-thinkcell-parity-design.md'))) 'README (Estrutura): a seção 14 da especificação da paridade com o think-cell existe e é citada'
+# "Publicar uma versão": a ordem das três versões empilhadas
+$pubRelease = ([regex]::Match($readme, '(?s)## Publicar uma versão(?<b>.*?)## Arquitetura').Groups['b'].Value -replace '\s+', ' ')
+foreach ($ph in 'Publicando a 1.8.0', 'feat/ppt-auto', 'feat/ppt-inserir', 'feat/ppt-criar', 'Publique **em ordem**', 'antes de mesclar o ramo da 1.7.0', 'antes de mesclar o da 1.8.0', 'ou publique tudo junto como uma só versão', 'Criar gráficos pelo PowerPoint (1.8.0):', 'Documentação (1.8.0):') {
+    Check ($pubRelease.Contains($ph)) "README (Publicar uma versão): a ordem das versões empilhadas cita '$ph'"
+}
+$mvCriarLines = @(($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 75 -and [int]$Matches[1] -le 85 })
+Check ($mvCriarLines.Count -eq 11 -and @($mvNums | Where-Object { $_ -ge 75 -and $_ -le 85 }).Count -eq 11 -and $mvNums.Count -ge 85) "README: os itens manuais 75 a 85 existem, numerados sem buracos ($($mvCriarLines.Count); total $($mvNums.Count))"
+Check (@($mvCriarLines | Where-Object { $_ -notmatch 'não verificado em PowerPoint real' }).Count -eq 0) 'README (itens 75 a 85): todo item marca "não verificado em PowerPoint real"'
+$mvCriarPins = @{
+    75 = @($lblCriar, '21 tipos', 'PG8', 'menos de 3 s', 'menos de 12 s')
+    76 = @('PG9', 'Release', $lblEditData)
+    77 = @('PG2', 'AppActivate', 'PG1', 'continua aberto', 'O Excel abriu a planilha de dados do gráfico (veja a barra de tarefas).', 'Gráfico criado. Clique em OK')
+    78 = @('Gráfico 1', 'Atualização automática ligada', 'em até 3 s')
+    79 = @('PG5', 'Ctrl+B', 'Salvar como', 'dados ThinQQ.xlsx')
+    80 = @('PG4', 'os dois arquivos juntos', 'vínculo indisponível', 'somente leitura')
+    81 = @('Pasta de dados não encontrada', 'Editar Dados', 'ponha-a na mesma pasta da apresentação')
+    82 = @('Excel separado', 'ocupado', '.xlsm', 'macros')
+    83 = @('PG6', 'FullName', 'https', 'pasta sincronizada', 'A apresentação está aberta por um endereço da Web')
+    84 = @('Já existe o arquivo', 'Feche no Excel a pasta', 'A pasta de dados está aberta por outra pessoa ou é somente leitura')
+    85 = @('core corrompido', 'Não foi possível carregar o ThinQQ core', 'Gerenciador de Tarefas')
+}
+foreach ($n in ($mvCriarPins.Keys | Sort-Object)) {
+    $line = @($mvCriarLines | Where-Object { $_ -match "^$n\. " })
+    foreach ($ph in $mvCriarPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
 }
 if ($script:fail -gt 0) { Write-Host "FALHAS Test-Docs: $script:fail"; exit 1 }
 Write-Host 'Test-Docs: OK'
