@@ -111,7 +111,8 @@ Public Sub Test_Ribbon_Xml_HasAllCallbacks()
     names = Array("Rx_OnLoad", "Rx_OnInsert", "Rx_GetEnabled", "Rx_OnToggle", "Rx_GetPressed", "Rx_OnDropdown", _
                   "Rx_GetSelectedId", "Rx_OnAnnotation", "Rx_OnRemoveAnnotations", "Rx_OnRefresh", "Rx_OnChangeSource", _
                   "Rx_OnSamples", "Rx_OnTutorial", "Rx_OnCheckUpdates", "Rx_OnSettings", "Rx_OnAbout", "Rx_OnSameScale", "Rx_OnResetScale", _
-                  "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart", "Rx_OnPptSync", "Rx_OnDelta", "Rx_OnDeltaFormat", "Rx_GetPptFlag", "Rx_OnPptFlag")
+                  "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart", "Rx_OnPptSync", "Rx_OnDelta", "Rx_OnDeltaFormat", "Rx_GetPptFlag", "Rx_OnPptFlag", _
+                  "Rx_GetPptInsert", "Rx_OnPptInsert", "Rx_OnPptFrames")
     For i = LBound(names) To UBound(names)
         AssertTrue InStr(xml, names(i)) > 0, "callback ausente no XML: " & names(i)
     Next
@@ -255,7 +256,7 @@ Public Sub Test_Ribbon_Menus_Structure()
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnRoundRange']/@getEnabled") Is Nothing, "Arredondar intervalo age sobre celulas: sempre ativo"
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuPpt']/@getEnabled") Is Nothing, "PowerPoint sempre ativo: Atualizar graficos no PowerPoint nao exige grafico"
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuPpt']/@tag") Is Nothing
-    AssertEqual 3, d.SelectNodes("//u:menu[@id='mnuPpt']/u:button").Length
+    AssertEqual 4, d.SelectNodes("//u:menu[@id='mnuPpt']/u:button").Length
     AssertEqual "Rx_GetEnabled", AttrText(d.SelectSingleNode("//u:button[@id='btnPptImage']"), "getEnabled"), "copiar exige grafico"
     AssertEqual "Rx_GetEnabled", AttrText(d.SelectSingleNode("//u:button[@id='btnPptChart']"), "getEnabled")
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptSync'][@onAction='Rx_OnPptSync']") Is Nothing
@@ -877,7 +878,7 @@ End Sub
 Public Sub Test_Ribbon_PptAutoCheckBoxes()
     Dim d As Object
     Set d = LoadRibbon()
-    AssertEqual 2, d.SelectNodes("//u:menu[@id='mnuPpt']/u:checkBox").Length
+    AssertEqual 3, d.SelectNodes("//u:menu[@id='mnuPpt']/u:checkBox").Length
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:checkBox[@id='chkPptAutoOn'][@tag='autoon'][@getPressed='Rx_GetPptFlag'][@onAction='Rx_OnPptFlag']") Is Nothing
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:checkBox[@id='chkPptAutoNew'][@tag='autonew'][@getPressed='Rx_GetPptFlag'][@onAction='Rx_OnPptFlag']") Is Nothing
     AssertEqual "msepPptAuto", AttrText(d.SelectSingleNode("//u:button[@id='btnPptSync']/following-sibling::*[1]"), "id")
@@ -947,5 +948,33 @@ Cleanup:
     en = Err.Number: ed = Err.Description
     Loader_RunCore "Core_PptSetFlag", "autoon", True
     Loader_RunCore "Core_PptSetFlag", "autonew", False
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+' ---- Parte D2 (1.7.0): Inserir tambem no slide e Mostrar/ocultar molduras ----
+
+Public Sub Test_Ribbon_PptInsertAndFrames()
+    Dim d As Object
+    Set d = LoadRibbon()
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:checkBox[@id='chkPptInsert'][@getPressed='Rx_GetPptInsert'][@onAction='Rx_OnPptInsert']") Is Nothing
+    AssertEqual "chkPptInsert", AttrText(d.SelectSingleNode("//u:menu[@id='mnuPpt']/*[1]"), "id"), "primeiro item do menu"
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptFrames'][@onAction='Rx_OnPptFrames']") Is Nothing
+    AssertTrue d.SelectSingleNode("//u:button[@id='btnPptFrames']/@getEnabled") Is Nothing, "sempre ativo"
+    AssertEqual "btnPptFrames", AttrText(d.SelectSingleNode("//u:checkBox[@id='chkPptAutoNew']/following-sibling::*[1]"), "id")
+    AssertEqual "Inserir também no slide", AttrText(d.SelectSingleNode("//*[@id='chkPptInsert']"), "label")
+    AssertEqual "Mostrar/ocultar molduras", AttrText(d.SelectSingleNode("//*[@id='btnPptFrames']"), "label")
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='chkPptAutoNew']"), "supertip"), "colados ou inseridos") > 0, "inserir tambem nasce automatico"
+End Sub
+
+Public Sub Test_Ribbon_OnInsert_RoutesToPpt()
+    Dim en As Long, ed As String
+    On Error GoTo Cleanup
+    Rx_SetPptInsertForTest True
+    AssertEqual "Core_InsertToPowerPoint", Rx_InsertProcFor()
+    Rx_SetPptInsertForTest False
+    AssertEqual "Core_Insert", Rx_InsertProcFor()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    Rx_SetPptInsertForTest False
     If en <> 0 Then Err.Raise en, "TestRibbon", ed
 End Sub

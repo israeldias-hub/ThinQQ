@@ -184,6 +184,8 @@
           <!-- PowerPoint: o menu fica sempre ativo (Atualizar graficos no PowerPoint nao exige grafico); copiar exige um grafico (getEnabled). -->
           <menu id="mnuPpt" label="PowerPoint" image="tqq_ppt16"
                 screentip="PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint (como imagem ou gráfico vinculado), atualiza os gráficos vinculados das apresentações abertas e controla a atualização automática.">
+            <checkBox id="chkPptInsert" label="Inserir também no slide" getPressed="Rx_GetPptInsert" onAction="Rx_OnPptInsert"
+                      screentip="Inserir também no slide" supertip="Marcada, cada gráfico inserido pelos menus Colunas, Barras, Cascata, Linha e área e Mais tipos também vai para o slide ativo do PowerPoint como gráfico vinculado, e o intervalo de origem ganha uma moldura verde. A pasta precisa estar salva."/>
             <button id="btnPptImage" label="Copiar como imagem" onAction="Rx_OnPptImage" getEnabled="Rx_GetEnabled"
                     screentip="Copiar como imagem" supertip="Cola uma imagem do gráfico no slide ativo (abre o PowerPoint se preciso)."/>
             <button id="btnPptChart" label="Copiar como gráfico vinculado" onAction="Rx_OnPptChart" getEnabled="Rx_GetEnabled"
@@ -195,7 +197,9 @@
             <checkBox id="chkPptAutoOn" label="Atualização automática ligada" tag="autoon" getPressed="Rx_GetPptFlag" onAction="Rx_OnPptFlag"
                       screentip="Atualização automática ligada" supertip="Com o Excel e o PowerPoint abertos, atualiza sozinho os gráficos marcados como 'Atualizar automaticamente' cerca de 2 segundos depois que um valor da pasta muda. Desmarque para pausar."/>
             <checkBox id="chkPptAutoNew" label="Novos vínculos atualizam automaticamente" tag="autonew" getPressed="Rx_GetPptFlag" onAction="Rx_OnPptFlag"
-                      screentip="Novos vínculos atualizam automaticamente" supertip="Gráficos colados no PowerPoint a partir de agora já nascem com 'Atualizar automaticamente' ligado (sem esta opção nascem manuais, como no think-cell)."/>
+                      screentip="Novos vínculos atualizam automaticamente" supertip="Gráficos colados ou inseridos no PowerPoint a partir de agora já nascem com 'Atualizar automaticamente' ligado (sem esta opção nascem manuais, como no think-cell)."/>
+            <button id="btnPptFrames" label="Mostrar/ocultar molduras" image="tqq_ppt16" onAction="Rx_OnPptFrames"
+                    screentip="Mostrar/ocultar molduras" supertip="Mostra ou oculta as molduras verdes dos intervalos de origem dos gráficos inseridos no slide (a moldura não é impressa)."/>
           </menu>
           <separator id="sep3"/>
           <button id="btnRefresh" label="Atualizar" imageMso="Refresh" onAction="Rx_OnRefresh"

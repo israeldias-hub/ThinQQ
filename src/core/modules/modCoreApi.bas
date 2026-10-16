@@ -14,6 +14,8 @@ Private mLastConfirm As String      ' ultima pergunta de Core_Confirm (usada pel
 Private mTestRoundDec As Variant    ' gancho de teste: respostas do Arredondar intervalo no build Test (Core_TestSetRoundRangeAnswers)
 Private mTestRoundDest As Range
 Private mTestBreakAnswer As Variant  ' gancho de teste: resposta do InputBox do Corte de eixo no build Test (Core_TestSetAxisBreakAnswer)
+Private mPptPasteOk As Boolean     ' a ultima Core_CopyToPowerPoint colou (1.7.0)
+Public Const PPT_ERR_INSERT_UNSAVED As String = "Salve a pasta de trabalho antes de inserir no PowerPoint: o gráfico vinculado aponta para o arquivo salvo. Nada foi criado."
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
 Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,waterfallpair,"
 
@@ -1054,6 +1056,42 @@ Fail:
     Errors_Handle "Core_ToggleLinkFrames"
 End Sub
 
+' True se a ultima Core_CopyToPowerPoint colou no slide (1.7.0). Nunca propaga erro.
+Public Function Core_LastPptPasteOk() As Boolean
+    On Error Resume Next
+    Core_LastPptPasteOk = mPptPasteOk
+End Function
+
+' "Inserir tambem no slide" (1.7.0; o "Link To PowerPoint" do think-cell): com a tabela selecionada numa pasta SALVA, insere o grafico do tipo
+' no Excel, desenha a moldura verde no intervalo de origem e cola o grafico vinculado no slide ativo (Core_CopyToPowerPoint "chart": etiquetas,
+' setas no tamanho do slide e "Novos vinculos atualizam automaticamente"). Pasta nao salva: aviso e NADA criado. Colagem que falhou: o grafico
+' fica no Excel, sem moldura, com o aviso da colagem. Nunca propaga erro.
+Public Sub Core_InsertToPowerPoint(kind As String)
+    Dim rng As Range, c As Chart, data As clsChartData, src As Range, en As Long, ed As String
+    On Error GoTo Fail
+    mPptPasteOk = False
+    If TypeName(Selection) <> "Range" Then Core_Insert kind: Exit Sub        ' o aviso de selecao e o do Core_Insert
+    Set rng = Selection
+    If Len(rng.Worksheet.Parent.Path) = 0 Then Core_Notify PPT_ERR_INSERT_UNSAVED, vbExclamation: Exit Sub
+    Set data = ChartData_FromRange(rng)
+    Set src = data.Source
+    Core_Insert kind
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Sub                                            ' Core_Insert recusou e avisou
+    LinkFrame_Ensure c, src
+    c.Parent.Activate
+    Core_CopyToPowerPoint "chart"
+    If Not mPptPasteOk Then LinkFrame_Remove c
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If Not c Is Nothing And Not mPptPasteOk Then LinkFrame_Remove c         ' sem colagem, sem moldura
+    On Error GoTo 0
+    Errors_HandleErr "Core_InsertToPowerPoint(" & kind & ")", en, ed
+End Sub
+
 ' Recria o gráfico c a partir da faixa rng, na mesma posição, com as mesmas opções e toggles.
 ' O novo gráfico é construído ANTES; o antigo só é removido se a construção der certo (senão fica intacto).
 ' Anotações (setas) não são preservadas. Retorna True se recriou.
@@ -1381,6 +1419,7 @@ End Sub
 
 Private Sub CopyToPowerPointImpl(mode As String)
     On Error GoTo Fail
+    mPptPasteOk = False
     Dim c As Chart, co As ChartObject, wb As Workbook, app As Object, slide As Object, shp As Object, msg As String, linked As Boolean
     Dim en As Long, ed As String, created As Boolean, newPres As Object, linkState As Long, newSlide As Object
     Set c = Core_ActiveChart()
@@ -1413,6 +1452,7 @@ Private Sub CopyToPowerPointImpl(mode As String)
     msg = Ppt_DoneText(CLng(slide.SlideIndex), CStr(slide.Parent.Name), linked, linkState)
     If linked And linkState <> 0 And Not wb.Saved Then msg = msg & " " & PPT_NOTE_DIRTY
     Ppt_TestHook "after"
+    mPptPasteOk = True
     Core_Notify msg, vbInformation                   ' ANTES de ativar o PowerPoint: a caixa (Release) nao fica escondida atras dele
     If BUILD_CONFIG <> "Test" Then                   ' nos testes o PowerPoint do teste nao aparece nem rouba o foco
         On Error Resume Next

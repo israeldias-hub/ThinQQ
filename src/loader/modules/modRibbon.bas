@@ -7,6 +7,7 @@ Private mSupports As Object         ' cache de Core_Supports por ciclo de Invali
 Private mSupportsMissing As Boolean ' o core nao tem Core_Supports (versao 1.0.0) ou nao esta carregado: vale ate o fim do ciclo
 Private mSupportsProc As String     ' gancho de teste (Rx_TestSetSupportsProc); vazio = "Core_Supports"
 Private mTestProcSuffix As String   ' gancho de teste (Rx_TestSetFeatureProcSuffix): simula um core sem os procedimentos novos
+Private mPptInsert As Boolean       ' "Inserir tambem no slide" (sessao)
 Public Const RX_MSG_UPDATE As String = "Atualize o ThinQQ para usar este recurso."
 Public Const TUTORIAL_URL As String = "https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html"
 
@@ -115,10 +116,43 @@ Private Function CoreOrWarn() As Boolean
     CoreOrWarn = True
 End Function
 
+' Inserir (menus Colunas, Barras, Cascata, Linha e area, Mais tipos). Com "Inserir tambem no slide" marcada (1.7.0) o grafico tambem vai ao
+' slide ativo (Core_InsertToPowerPoint; core anterior: aviso de atualizar). Rx_InsertProcFor e a parte testavel da escolha.
 Public Sub Rx_OnInsert(control As IRibbonControl)
+    Dim p As String
     On Error Resume Next
-    If CoreOrWarn() Then Loader_RunCore "Core_Insert", control.Tag
+    If CoreOrWarn() Then
+        p = Rx_InsertProcFor()
+        If p = "Core_InsertToPowerPoint" Then RunCoreFeature p, control.Tag Else Loader_RunCore p, control.Tag
+    End If
     Loader_InvalidateRibbon                 ' o grafico novo fica selecionado: o tipo mudou
+End Sub
+
+Public Function Rx_InsertProcFor() As String
+    If mPptInsert Then Rx_InsertProcFor = "Core_InsertToPowerPoint" Else Rx_InsertProcFor = "Core_Insert"
+End Function
+
+' Gancho de teste: marca/desmarca "Inserir tambem no slide" sem a faixa. So existe no build de Teste.
+Public Sub Rx_SetPptInsertForTest(v As Boolean)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mPptInsert = v
+End Sub
+
+' "Inserir tambem no slide" (1.7.0): estado so da sessao, no loader (nao exige o core). Nunca propaga erro.
+Public Sub Rx_GetPptInsert(control As IRibbonControl, ByRef pressed)
+    On Error Resume Next
+    pressed = mPptInsert
+End Sub
+
+Public Sub Rx_OnPptInsert(control As IRibbonControl, pressed As Boolean)
+    On Error Resume Next
+    mPptInsert = pressed
+End Sub
+
+' Mostrar/ocultar molduras (1.7.0): todas as molduras da pasta ativa. Sempre ativo; core anterior: aviso de atualizar.
+Public Sub Rx_OnPptFrames(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_ToggleLinkFrames"
 End Sub
 
 Public Sub Rx_GetEnabled(control As IRibbonControl, ByRef enabled)

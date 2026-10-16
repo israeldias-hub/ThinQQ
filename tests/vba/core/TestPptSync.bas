@@ -2070,3 +2070,64 @@ Cleanup:
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub
+
+' ---- Parte D2: inserir a partir do intervalo direto no slide ----
+
+Public Sub Test_InsertToPpt_Unsaved_NothingCreated()
+    Dim wb As Workbook, rng As Range, n0 As Long
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    n0 = rng.Worksheet.ChartObjects.Count
+    rng.Select
+    Core_ClearLastNotice
+    Core_InsertToPowerPoint "stacked"
+    AssertEqual PPT_ERR_INSERT_UNSAVED, Core_LastNotice()
+    AssertEqual n0, rng.Worksheet.ChartObjects.Count, "nenhum grafico criado"
+    AssertEqual 0, rng.Worksheet.Shapes.Count - rng.Worksheet.ChartObjects.Count, "nenhuma moldura"
+    Teardown wb
+End Sub
+
+Public Sub Test_InsertToPpt_NoPowerPoint_FrameRemoved()
+    Dim wb As Workbook, rng As Range
+    Ppt_ResetTestHooks                                   ' build Test sem instancia injetada: Ppt_GetApp devolve Nothing
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    wb.SaveAs TempDir() & "\pptins-noppt.xlsx", xlOpenXMLWorkbook
+    rng.Select
+    Core_InsertToPowerPoint "clustered"
+    AssertEqual 1, rng.Worksheet.ChartObjects.Count, "o grafico fica no Excel"
+    AssertFalse Core_LastPptPasteOk()
+    AssertTrue LinkFrame_Find(rng.Worksheet.ChartObjects(1).Chart) Is Nothing, "sem colagem, sem moldura"
+    AssertEqual PPT_ERR_NOT_INSTALLED, Core_LastNotice()
+    Teardown wb
+End Sub
+
+Public Sub Test_InsertToPpt_ChartFrameAndSlide_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, slide As Object, own As New Collection, en As Long, ed As String, shp As Object, c As Chart
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set slide = pres.Slides.Add(1, 12)
+    Ppt_PinTargetForTest slide
+    Ppt_SetAppForTest app
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    wb.SaveAs TempDir() & "\pptins-ok.xlsx", xlOpenXMLWorkbook
+    rng.Select
+    Core_InsertToPowerPoint "stacked"                    ' o teste confere a integracao, nao o tipo
+    Set c = rng.Worksheet.ChartObjects(1).Chart
+    AssertTrue Core_LastPptPasteOk()
+    AssertEqual 1, slide.Shapes.Count
+    Set shp = slide.Shapes(1)
+    AssertEqual Registry_IdFromChart(c), PptSync_Tag(shp, PPTSYNC_TAG_CHART)
+    AssertEqual 1, Ppt_LinkState(shp)
+    AssertTrue Not LinkFrame_Find(c) Is Nothing, "moldura no intervalo"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set shp = Nothing: Set slide = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
