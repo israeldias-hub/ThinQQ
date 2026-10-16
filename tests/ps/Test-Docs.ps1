@@ -537,7 +537,6 @@ $pptMessages = @(
     @('ppt', 'powerpoint', 'Não foi possível abrir os dados do gráfico: '),
     @('ppt', 'powerpoint', 'O Excel abriu a planilha de dados do gráfico (veja a barra de tarefas).'),
     @('ppt', 'powerpoint', 'Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida: o slide acompanha em cerca de 2 segundos.'),
-    @('ppt', 'powerpoint', 'Empacotar para enviar'),
     @('core', 'powerpoint', 'Salve a apresentação primeiro: os dados do gráfico ficam numa pasta do Excel ao lado dela ('),
     @('core', 'powerpoint', 'A apresentação está aberta por um endereço da Web (OneDrive/SharePoint). Salve-a numa pasta do computador (ou na pasta sincronizada do OneDrive) para inserir gráficos do ThinQQ.'),
     @('core', 'powerpoint', 'A pasta de dados está aberta por outra pessoa ou é somente leitura: '),
@@ -548,6 +547,13 @@ $pptMessages = @(
     @('core', 'powerpoint', 'Pasta de dados não encontrada: '),
     @('core', 'powerpoint', '. Se ela foi movida, ponha-a na mesma pasta da apresentação.'),
     @('core', 'powerpoint', 'Gráfico não encontrado na pasta de dados (apagado ou recriado).'),
+    # revisao final (I2, M4): pastas do usuario no Editar dados e recusa de extensao/nome
+    @('core', 'powerpoint', 'A pasta está aberta por outra pessoa ou é somente leitura: '),
+    @('core', 'powerpoint', "': ela tem o mesmo nome da pasta de origem deste gráfico."),
+    @('core', 'powerpoint', 'Pasta de origem não encontrada: '),
+    @('core', 'powerpoint', 'Gráfico não encontrado na pasta de origem (apagado ou recriado).'),
+    @('core', 'powerpoint', 'O ThinQQ só abre pastas do Excel (.xlsx, .xlsm, .xlsb ou .xls); o gráfico aponta para: '),
+    @('core', 'powerpoint', 'O gráfico criado pelo PowerPoint aponta para um arquivo que não é uma pasta de dados do ThinQQ ('),
     # atualizador do loader (modUpdater.bas: Updater_PpamStatusText; modRibbon.bas: a pergunta de ThinQQ > Configurações)
     @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado.'),
     @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado: feche e abra o PowerPoint para usar a versão nova.'),

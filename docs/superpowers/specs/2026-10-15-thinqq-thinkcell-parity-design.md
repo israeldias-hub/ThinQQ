@@ -544,8 +544,10 @@ nasce centralizado (não se arrasta um retângulo) e existe uma cópia do gráfi
   recusam ("A pasta de dados está aberta por outra pessoa ou é somente leitura"); pastas do usuário nunca são tocadas (a de dados é outra).
 - **Segurança:** aberta para edição com `AutomationSecurity = 3` (macros desligadas) e eventos desligados durante o `Open`; só o caminho
   derivado da própria apresentação (mesma pasta) ou a etiqueta de uma forma `TQQ_DATA` cuja pasta **tem** a marca `TQQ_DATABOOK` é aberto
-  para edição; demais casos seguem o `PptSync_OpenBook` (somente leitura). Sem processo filho (o Excel é obtido por `GetObject`/`CreateObject`,
-  como hoje).
+  para edição; no "Editar dados" (§14.3) a pasta de origem do usuário também é aberta para edição (macros desligadas; já aberta, mesmo
+  somente leitura, é usada como está); a sincronização segue o `PptSync_OpenBook` (somente leitura). Só extensões de pasta do Excel
+  (`.xlsx`, `.xlsm`, `.xlsb`, `.xls`) são abertas, e uma forma `TQQ_DATA` só com um arquivo `<nome> - dados ThinQQ.xlsx` (revisão final, I2).
+  Sem processo filho (o Excel é obtido por `GetObject`/`CreateObject`, como hoje).
 
 ### 14.3 Editar dados (UX)
 - Botão **"Editar dados"** (`btnPptEditData`, grupo "Gráfico selecionado"), também depois de inserir (automático), e a dica no supertip do

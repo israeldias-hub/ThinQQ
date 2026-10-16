@@ -2137,7 +2137,7 @@ Public Function PptData_OpenOrCreate(path As String, presName As String) As Work
     Set w = Application.Workbooks.Add(xlWBATWorksheet)
     w.Worksheets(1).Name = "Leia-me"
     w.Worksheets(1).Range("A1").Value = "Dados dos gráficos do ThinQQ da apresentação '" & presName & "'."
-    w.Worksheets(1).Range("A2").Value = "Cada planilha 'Gráfico N' alimenta um gráfico do slide. Envie este arquivo junto com a apresentação (PowerPoint: ThinQQ > Empacotar para enviar)."
+    w.Worksheets(1).Range("A2").Value = "Cada planilha 'Gráfico N' alimenta um gráfico do slide. Envie este arquivo junto com a apresentação."
     w.Names.Add Name:=PPTDATA_MARK, RefersTo:="=""1""", Visible:=False
     prevAlerts = Application.DisplayAlerts: Application.DisplayAlerts = False
     w.SaveAs Filename:=path, FileFormat:=xlOpenXMLWorkbook, AddToMru:=False
@@ -2522,7 +2522,7 @@ Private Sub PptTqq_FirstHint(pres As Object)
     If mHintShown Then Exit Sub
     mHintShown = True
     PptTqq_Msg "Digite os dados na planilha do Excel que abriu: o slide acompanha em cerca de 2 segundos." & vbLf & _
-               "Os dados ficam em '" & Mid$(PptTqq_DataPathFor(CStr(pres.FullName)), InStrRev(PptTqq_DataPathFor(CStr(pres.FullName)), "\") + 1) & "', ao lado da apresentação: envie os dois arquivos juntos (ThinQQ > Empacotar para enviar)."
+               "Os dados ficam em '" & Mid$(PptTqq_DataPathFor(CStr(pres.FullName)), InStrRev(PptTqq_DataPathFor(CStr(pres.FullName)), "\") + 1) & "', ao lado da apresentação: envie os dois arquivos juntos."
 End Sub
 
 ' "Inserir grafico" (1.8.0): apresentacao salva (senao a mensagem), slide de destino (o dado; Nothing = um slide novo no fim), Excel para editar
