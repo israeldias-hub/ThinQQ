@@ -1042,11 +1042,24 @@ Fail:
     Errors_Handle "Core_ChangeSource"
 End Sub
 
+' Mostrar/ocultar as molduras dos intervalos vinculados da pasta ativa (1.7.0). Nunca propaga erro.
+Public Sub Core_ToggleLinkFrames()
+    Dim r As Long
+    On Error GoTo Fail
+    If ActiveWorkbook Is Nothing Then Exit Sub
+    r = LinkFrame_ToggleAll(ActiveWorkbook)
+    If r = -1 Then Core_Notify "Esta pasta não tem molduras de intervalos vinculados ao PowerPoint (elas aparecem ao usar 'Inserir também no slide')."
+    Exit Sub
+Fail:
+    Errors_Handle "Core_ToggleLinkFrames"
+End Sub
+
 ' Recria o gráfico c a partir da faixa rng, na mesma posição, com as mesmas opções e toggles.
 ' O novo gráfico é construído ANTES; o antigo só é removido se a construção der certo (senão fica intacto).
 ' Anotações (setas) não são preservadas. Retorna True se recriou.
 Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     On Error GoTo Fail
+    Dim hadFrame As Boolean
     Dim co As ChartObject, oldCo As ChartObject, data As clsChartData, msg As String
     Dim kind As String, opts As String, ws As Worksheet, wb As Workbook, nc As Chart, prevSU As Boolean
     Dim l As Double, t As Double, w As Double, h As Double, keepKeys As Variant, keepVals(5) As String, ki As Long
@@ -1068,6 +1081,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     kind = Registry_ChartType(c)
     l = oldCo.Left: t = oldCo.Top: w = oldCo.Width: h = oldCo.Height
     opts = CStr(Registry_Block(c).Cells(1, 4).Value)
+    hadFrame = Not LinkFrame_Find(c) Is Nothing  ' moldura do intervalo vinculado (1.7.0): conferida ANTES, o grafico antigo deixa de existir
     Break_TakeNotice                            ' descarta um aviso de corte que tenha sobrado
     Application.ScreenUpdating = False
     ' O novo gráfico nasce na planilha do gráfico antigo (ws), não na da nova fonte.
@@ -1110,6 +1124,10 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     NotifyMekkoNegatives kind, data
     msg = Break_TakeNotice()                    ' corte de eixo: aviso so depois de o grafico antigo ser trocado
     If Len(msg) > 0 Then Core_Notify msg, vbInformation
+    If hadFrame Then                            ' Alterar dados: a moldura acompanha a tabela nova (a do grafico antigo, orfa, sai)
+        LinkFrame_CleanOrphans wb
+        LinkFrame_Ensure nc, rng
+    End If
     Core_RebuildFromRange = True
     Exit Function
 FailNew:
