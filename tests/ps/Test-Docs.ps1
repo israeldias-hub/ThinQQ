@@ -516,6 +516,10 @@ $pptMessages = @(
     @('core', 'powerpoint', "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."),
     @('core', 'powerpoint', 'Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo.'),
     @('core', 'powerpoint', 'Gráficos do ThinQQ atualizados: '),
+    # Inserir também no slide (1.7.0): modCoreApi.bas e o aviso de núcleo antigo da faixa
+    @('core', 'powerpoint', 'Salve a pasta de trabalho antes de inserir no PowerPoint: o gráfico vinculado aponta para o arquivo salvo. Nada foi criado.'),
+    @('core', 'powerpoint', "Esta pasta não tem molduras de intervalos vinculados ao PowerPoint (elas aparecem ao usar 'Inserir também no slide')."),
+    @('loader', 'powerpoint', 'Atualize o ThinQQ para usar este recurso.'),
     @('core', 'powerpoint', ' Sem mudança: '),
     @('core', 'powerpoint', 'Pasta de origem não encontrada ou sem acesso (o gráfico ficou como estava): '),
     @('core', 'powerpoint', 'Se ela foi movida ou renomeada, use no PowerPoint Arquivo > Informações > Editar Links para Arquivos > Alterar Origem.'),
@@ -899,5 +903,67 @@ foreach ($n in ($mvAutoPins.Keys | Sort-Object)) {
     foreach ($ph in $mvAutoPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
 }
 
+# ---- Inserir também no slide (1.7.0, Tarefa D3): subseção #ppt-inserir, Recursos e Limitações do README, itens manuais 69 a 74 e a [Não lançado] do
+# CHANGELOG. As linhas da 1.7.0 ficam em [Não lançado] junto com as da 1.6.0 até o publicar-release; se a 1.6.0 sair antes, o publicar-release move
+# tudo para "## [1.6.0]" (ou, se a 1.7.0 sair depois, para "## [1.7.0]"): os pinos leem as três seções e continuam valendo nos dois casos.
+$lblIns = 'Inserir também no slide'; $lblFrames = 'Mostrar/ocultar molduras'
+$insNode = $ribbon.SelectSingleNode("//*[@id='chkPptInsert']"); $frNode = $ribbon.SelectSingleNode("//*[@id='btnPptFrames']")
+Check ($null -ne $insNode -and $insNode.LocalName -eq 'checkBox' -and $insNode.GetAttribute('label') -ceq $lblIns) "faixa do Excel: a caixa chkPptInsert tem o rótulo '$lblIns'"
+Check ($null -ne $frNode -and $frNode.LocalName -eq 'button' -and $frNode.GetAttribute('label') -ceq $lblFrames) "faixa do Excel: o botão btnPptFrames tem o rótulo '$lblFrames'"
+if ($parsed) {
+    Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']//*[local-name()='h3'][@id='ppt-inserir']")) 'tutorial: a subseção id="ppt-inserir" está dentro de #powerpoint'
+    Check ($xml.SelectNodes("//a[@href='#ppt-inserir']").Count -ge 3) 'tutorial: a subseção #ppt-inserir tem links de #powerpoint, da referência da faixa e dos limites'
+    foreach ($l in $lblIns, $lblFrames) { Check ($pptUi -contains $l) "tutorial: '$l' citado como span.ui dentro de #powerpoint" }
+}
+$insTut = Get-SubsectionText 'ppt-inserir'
+$insRec = ([regex]::Match($readme, '(?s)\*\*Inserir também no slide \(1\.7\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
+function Get-InsertChangelogBlock([string]$text) {
+    $t = $text -replace "`r`n", "`n"
+    $acc = ''
+    foreach ($h in '\[Não lançado\]', '\[1\.7\.0\]', '\[1\.6\.0\]') { $acc += "`n" + [regex]::Match($t, "(?ms)^## $h[^\n]*\n(?<b>.*?)(?=^## \[|\z)").Groups['b'].Value }
+    return $acc
+}
+$clInsPhrases = @($lblIns, $lblFrames, 'Inserir no slide (1.7.0)', 'moldura verde', 'não muda o vínculo', 'Alterar dados', 'Atualize o ThinQQ para usar este recurso.', 'não cria nada', 'sem moldura')
+function Get-InsertChangelogMissing([string]$block) { return @($clInsPhrases | Where-Object { -not $block.Contains($_) }) }
+$clIns = Get-InsertChangelogBlock $cl
+Check ($insTut.Length -gt 2500 -and $insRec.Length -gt 1500 -and $clIns.Length -gt 1000) "inserir no slide: subseção do tutorial ($($insTut.Length)), Recursos do README ($($insRec.Length)) e CHANGELOG ($($clIns.Length)) lidos"
+$clInsLine = "- Inserir no slide (1.7.0): " + (($clInsPhrases | Where-Object { $_ -ne 'Inserir no slide (1.7.0)' }) -join ' ') + "`n"
+Check (@(Get-InsertChangelogMissing (Get-InsertChangelogBlock "## [Não lançado]`n`n$clInsLine`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -eq 0 -and @(Get-InsertChangelogMissing (Get-InsertChangelogBlock "## [Não lançado]`n`n## [1.6.0] - 2026-10-20`n`n### Adicionado`n$clInsLine`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -eq 0) 'CHANGELOG (sintético): as linhas da 1.7.0 em [Não lançado] ou, depois do publicar-release 1.6.0, em [1.6.0] satisfazem os pinos'
+Check (@(Get-InsertChangelogMissing (Get-InsertChangelogBlock "## [Não lançado]`n`n## [1.7.0] - 2026-10-30`n`n$clInsLine`n## [1.6.0] - 2026-10-20`n`n- outra coisa`n")).Count -eq 0) 'CHANGELOG (sintético): depois do publicar-release 1.7.0 as linhas na [1.7.0] satisfazem os pinos'
+Check (@(Get-InsertChangelogMissing (Get-InsertChangelogBlock "## [Não lançado]`n`n## [1.6.0] - 2026-10-20`n`n- outra coisa`n`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas da 1.7.0 em lugar nenhum = falha'
+$insPlaces = [ordered]@{
+    'tutorial #ppt-inserir' = @{ text = $insTut; phrases = @(
+        $lblIns, $lblFrames, 'Salve a pasta de trabalho antes de inserir no PowerPoint', 'Nada foi criado', 'Esta pasta não tem molduras de intervalos vinculados ao PowerPoint',
+        'moldura verde', 'não muda o vínculo', 'Alterar dados', 'Só os gráficos inseridos por este caminho ganham moldura', 'Não é impressa', 'vermelha e azul',
+        'sem moldura', 'sem vínculo com a pasta', 'desmarcada', 'cinco menus', 'sonda P4', 'itens 69 a 74', 'Atualize o ThinQQ para usar este recurso.', 'não insere nada',
+        'Não verificado em PowerPoint e Excel reais', 'é só um indicador', 'também existe no Excel') }
+    'README Recursos' = @{ text = $insRec; phrases = @(
+        $lblIns, $lblFrames, 'Moldura verde', 'não muda o vínculo', 'Alterar dados', 'só os gráficos inseridos por este caminho ganham moldura', 'vermelha e azul', 'não é impressa',
+        'Nada foi criado', 'sem moldura', 'Atualize o ThinQQ para usar este recurso.', 'itens 69 a 74', 'sonda P4', 'Não verificado em Excel e PowerPoint reais', 'volta desmarcada') }
+    'README Limitações' = @{ text = $readmeLimTxt; phrases = @(
+        'Inserir também no slide (1.7.0)', 'não muda o vínculo', 'só os gráficos inseridos por este caminho ganham moldura', 'vermelha e azul', 'não é impressa',
+        'Atualize o ThinQQ para usar este recurso.', 'itens 69 a 74', 'sonda P4', 'Alterar dados') }
+    'CHANGELOG ([Não lançado], [1.7.0] ou [1.6.0])' = @{ text = $clIns; phrases = $clInsPhrases }
+}
+foreach ($place in $insPlaces.Keys) {
+    $pt = [string]$insPlaces[$place].text
+    foreach ($ph in $insPlaces[$place].phrases) { Check ($pt.Contains($ph)) "inserir no slide, $place cita '$ph'" }
+}
+Check ($readme.Contains('`Core_InsertToPowerPoint(kind)`') -and $readme.Contains('`modLinkFrame`') -and $readme.Contains('`Core_ToggleLinkFrames`')) 'README (Arquitetura): o fluxo de inserir no slide (Core_InsertToPowerPoint, modLinkFrame, Core_ToggleLinkFrames)'
+$mvInsLines = @(($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 69 })
+Check ($mvInsLines.Count -eq 6 -and @($mvNums | Where-Object { $_ -ge 69 -and $_ -le 74 }).Count -eq 6 -and $mvNums.Count -ge 74) "README: os itens manuais 69 a 74 existem, numerados sem buracos ($($mvInsLines.Count); total $($mvNums.Count))"
+Check (@($mvInsLines | Where-Object { $_ -notmatch 'não verificado em (Excel|PowerPoint) real' }).Count -eq 0) 'README (itens 69 a 74): todo item marca "não verificado em Excel real" ou "em PowerPoint real"'
+$mvInsPins = @{
+    69 = @('sonda P4', 'clicar', $lblIns, 'quatro linhas')
+    70 = @('imprimir', 'não aparece no papel')
+    71 = @('inserir uma linha', 'apagar uma linha', 'Alterar dados')
+    72 = @('Mover ou copiar', 'moldura órfã')
+    73 = @('PowerPoint fechado', 'cinco menus', 'Novos vínculos atualizam automaticamente')
+    74 = @('Nada foi criado', $lblFrames, 'Atualize o ThinQQ para usar este recurso.', 'sem moldura')
+}
+foreach ($n in ($mvInsPins.Keys | Sort-Object)) {
+    $line = @($mvInsLines | Where-Object { $_ -match "^$n\. " })
+    foreach ($ph in $mvInsPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
+}
 if ($script:fail -gt 0) { Write-Host "FALHAS Test-Docs: $script:fail"; exit 1 }
 Write-Host 'Test-Docs: OK'
