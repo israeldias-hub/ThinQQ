@@ -11,6 +11,34 @@ Public Const PPTDATA_SHEET_PREFIX As String = "Gráfico "
 Public Const PPTDATA_MSG_UNSAVED As String = "Salve a apresentação primeiro: os dados do gráfico ficam numa pasta do Excel ao lado dela (""<nome> - dados ThinQQ.xlsx"")."
 Public Const PPTDATA_MSG_WEB As String = "A apresentação está aberta por um endereço da Web (OneDrive/SharePoint). Salve-a numa pasta do computador (ou na pasta sincronizada do OneDrive) para inserir gráficos do ThinQQ."
 Public Const PPTDATA_MSG_RO As String = "A pasta de dados está aberta por outra pessoa ou é somente leitura: "
+Public Const PPTDATA_MSG_SAMENAME As String = "Feche no Excel a pasta '%1': ela tem o mesmo nome da pasta de dados desta apresentação."
+Public Const PPTDATA_MSG_NOTMARKED As String = "Já existe o arquivo '%1' e ele não é uma pasta de dados do ThinQQ (nada foi alterado nele). Renomeie ou mova esse arquivo para inserir gráficos nesta apresentação."
+Private mTestTable As Variant           ' gancho de teste: tabela usada no lugar da de exemplo (so no build Test; Empty = a de exemplo)
+Private mTestFail As String             ' gancho de teste: ponto de Core_PptInsertChart que falha uma vez (so no build Test)
+
+' Gancho de teste: a proxima PptData_NewChart usa esta tabela (uso unico). Inerte fora do build Test.
+Public Sub PptData_SetTableForTest(tbl As Variant)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestTable = tbl
+End Sub
+
+' Gancho de teste: o proximo PptData_Hook com este ponto levanta erro (uso unico). Inerte fora do build Test.
+Public Sub PptData_SetFailForTest(point As String)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestFail = point
+End Sub
+
+Public Sub PptData_ResetTestHooks()
+    mTestTable = Empty
+    mTestFail = ""
+End Sub
+
+Public Sub PptData_Hook(point As String)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    If Len(mTestFail) = 0 Or mTestFail <> point Then Exit Sub
+    mTestFail = ""
+    Err.Raise vbObjectError + 9993, "PptData", "Falha simulada (teste) " & point
+End Sub
 
 ' Caminho da pasta de dados de uma apresentacao (FullName): mesma pasta, nome sem a ultima extensao + PPTDATA_SUFFIX. "" para endereco
 ' http(s) ou apresentacao sem pasta (nunca salva). Pura.
@@ -52,13 +80,32 @@ Public Function PptData_IsDataBook(wb As Workbook) As Boolean
     Err.Clear
 End Function
 
+' Pasta ja aberta neste Excel com o caminho dado (Nothing se nao). Outra pasta aberta com o MESMO NOME de arquivo mas de outro lugar (o Excel
+' nao abre duas pastas de mesmo nome: duas versoes do deck, pasta copiada, unidade mapeada x UNC) = erro 7130 com o texto para o usuario.
+' Propaga erro.
+Private Function PptData_FindOpen(path As String) As Workbook
+    Dim w As Workbook, fileName As String
+    fileName = Mid$(path, InStrRev(path, "\") + 1)
+    For Each w In Application.Workbooks
+        If StrComp(w.FullName, path, vbTextCompare) = 0 Then
+            Set PptData_FindOpen = w
+            Exit Function
+        End If
+        If StrComp(w.Name, fileName, vbTextCompare) = 0 Then Err.Raise vbObjectError + 7130, "PptData", Replace(PPTDATA_MSG_SAMENAME, "%1", w.FullName)
+    Next
+End Function
+
 ' Abre para EDICAO (macros desligadas e eventos desligados durante o Open, sem atualizar vinculos, sem MRU, sem a caixa de senha) ou devolve a
-' ja aberta neste Excel. Somente leitura (aberta por outra pessoa) = erro 7130 (fechada antes). Propaga erro.
+' ja aberta neste Excel. Somente leitura (aberta por outra pessoa, ou ja aberta somente leitura neste Excel) = erro 7130 (a que este codigo
+' abriu e fechada antes); outra pasta de mesmo nome aberta = 7130 (PptData_FindOpen). Propaga erro.
 Public Function PptData_OpenForEdit(path As String) As Workbook
     Dim w As Workbook, prevSec As Long, prevAlerts As Boolean, prevEv As Boolean, en As Long, ed As String
-    For Each w In Application.Workbooks
-        If StrComp(w.FullName, path, vbTextCompare) = 0 Then Set PptData_OpenForEdit = w: Exit Function
-    Next
+    Set w = PptData_FindOpen(path)
+    If Not w Is Nothing Then
+        If w.ReadOnly Then Err.Raise vbObjectError + 7130, "PptData", PPTDATA_MSG_RO & path
+        Set PptData_OpenForEdit = w
+        Exit Function
+    End If
     prevAlerts = Application.DisplayAlerts: prevEv = Application.EnableEvents: prevSec = Application.AutomationSecurity
     Application.DisplayAlerts = False: Application.EnableEvents = False
     Application.AutomationSecurity = 3                          ' msoAutomationSecurityForceDisable
@@ -77,10 +124,27 @@ Public Function PptData_OpenForEdit(path As String) As Workbook
 End Function
 
 ' A pasta de dados da apresentacao: aberta para edicao se existe; senao criada ("Leia-me" + marca) e salva como .xlsx. Propaga erro; a pasta
-' nova que nao chegou a ser salva e fechada (nenhuma "Pasta1" sobra no Excel).
+' nova que nao chegou a ser salva e fechada (nenhuma "Pasta1" sobra no Excel). Arquivo com o nome derivado mas SEM a marca TQQ_DATABOOK (um
+' arquivo do usuario que coincide no nome) = erro 7130 sem alterar nada (fechado sem salvar se foi este codigo que o abriu).
 Public Function PptData_OpenOrCreate(path As String, presName As String) As Workbook
-    Dim w As Workbook, prevAlerts As Boolean, en As Long, ed As String
-    If CBool(CreateObject("Scripting.FileSystemObject").FileExists(path)) Then Set PptData_OpenOrCreate = PptData_OpenForEdit(path): Exit Function
+    Dim w As Workbook, prevAlerts As Boolean, en As Long, ed As String, wasOpen As Boolean
+    If CBool(CreateObject("Scripting.FileSystemObject").FileExists(path)) Then
+        wasOpen = Not PptData_FindOpen(path) Is Nothing
+        Set w = PptData_OpenForEdit(path)
+        If Not PptData_IsDataBook(w) Then
+            If Not wasOpen Then
+                prevAlerts = Application.DisplayAlerts: Application.DisplayAlerts = False
+                On Error Resume Next
+                w.Close SaveChanges:=False
+                On Error GoTo 0
+                Application.DisplayAlerts = prevAlerts
+            End If
+            Err.Raise vbObjectError + 7130, "PptData", Replace(PPTDATA_MSG_NOTMARKED, "%1", path)
+        End If
+        Set PptData_OpenOrCreate = w
+        Exit Function
+    End If
+    PptData_FindOpen path                                       ' outra pasta de mesmo nome aberta: o SaveAs falharia com 1004
     prevAlerts = Application.DisplayAlerts
     On Error GoTo Fail
     Set w = Application.Workbooks.Add(xlWBATWorksheet)
@@ -109,6 +173,7 @@ End Function
 Public Function PptData_NewChart(wb As Workbook, kind As String, ByRef rng As Range) As ChartObject
     Dim ws As Worksheet, tbl As Variant, c As Chart, prevAlerts As Boolean, en As Long, ed As String
     tbl = Samples_TableFor(kind)
+    If BUILD_CONFIG = "Test" And Not IsEmpty(mTestTable) Then tbl = mTestTable: mTestTable = Empty
     If IsEmpty(tbl) Then Err.Raise vbObjectError + 7131, "PptData", "Tipo de gráfico desconhecido: " & kind
     On Error GoTo Fail
     Set ws = wb.Worksheets.Add(After:=wb.Sheets(wb.Sheets.Count))

@@ -15,6 +15,7 @@ Private mTestRoundDec As Variant    ' gancho de teste: respostas do Arredondar i
 Private mTestRoundDest As Range
 Private mTestBreakAnswer As Variant  ' gancho de teste: resposta do InputBox do Corte de eixo no build Test (Core_TestSetAxisBreakAnswer)
 Private mPptPasteOk As Boolean     ' a ultima Core_CopyToPowerPoint colou e, no vinculado, manteve o vinculo (1.7.0)
+Private mQuietDepth As Long        ' Core_QuietBegin/End: chamada vinda do PowerPoint em andamento (sem caixas; Core_IsQuiet)
 Public Const PPT_ERR_INSERT_UNSAVED As String = "Salve a pasta de trabalho antes de inserir no PowerPoint: o gráfico vinculado aponta para o arquivo salvo. Nada foi criado."
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
 Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,waterfallpair,"
@@ -69,14 +70,14 @@ Public Sub Core_RegisterLoader(loaderName As String, loaderFullPath As String)
 End Sub
 
 ' Mensagem ao usuário (suprimida em build de teste para não travar o Excel invisível).
-' logIt=False quando o chamador já registrou a mensagem (Errors_Handle). Durante o ciclo automático do PowerPoint (PptAuto_InTick: OnTime,
+' logIt=False quando o chamador já registrou a mensagem (Errors_Handle). No modo silencioso (Core_IsQuiet: chamada vinda do PowerPoint) e durante o ciclo automático do PowerPoint (PptAuto_InTick: OnTime,
 ' sem o usuário ter pedido nada) só registra: um aviso do Core_SafeRefresh (tabela de origem, Mesma escala) nunca abre uma caixa modal.
 Public Sub Core_Notify(msg As String, Optional style As VbMsgBoxStyle = vbInformation, Optional logIt As Boolean = True)
     On Error Resume Next
     mLastNotice = msg
     mNoticeCount = mNoticeCount + 1
-    If logIt Then Errors_Log "notify" & IIf(PptAuto_InTick(), " (ciclo automatico: sem caixa)", "") & vbTab & Replace(msg, vbLf, " | ")
-    If PptAuto_InTick() Then Exit Sub
+    If logIt Then Errors_Log "notify" & IIf(Core_IsQuiet(), " (ciclo automatico ou chamada do PowerPoint: sem caixa)", "") & vbTab & Replace(msg, vbLf, " | ")
+    If Core_IsQuiet() Then Exit Sub
     mShownCount = mShownCount + 1
     If BUILD_CONFIG = "Test" Then Exit Sub
     MsgBox msg, style, APP_NAME
@@ -88,11 +89,31 @@ End Sub
 Public Function Core_Confirm(msg As String) As Boolean
     On Error Resume Next
     mLastConfirm = msg
-    Errors_Log "confirm" & IIf(PptAuto_InTick(), " (ciclo automatico: Nao, sem caixa)", "") & vbTab & Replace(msg, vbLf, " | ")
-    If PptAuto_InTick() Then Exit Function
+    Errors_Log "confirm" & IIf(Core_IsQuiet(), " (ciclo automatico ou chamada do PowerPoint: Nao, sem caixa)", "") & vbTab & Replace(msg, vbLf, " | ")
+    If Core_IsQuiet() Then Exit Function
     mShownCount = mShownCount + 1
     If BUILD_CONFIG = "Test" Then Exit Function
     Core_Confirm = (MsgBox(msg, vbQuestion + vbYesNo, APP_NAME) = vbYes)
+End Function
+
+' Modo silencioso para as chamadas que o suplemento do PowerPoint faz por xl.Run (Core_PptInsertChart e, depois, Core_PptEditData/
+' Core_PptCommand): uma caixa modal no Excel (que pode estar invisivel ou atras do PowerPoint) deixaria o PowerPoint parado "aguardando uma
+' acao OLE". Enquanto ligado, Core_Notify/Core_Confirm (e Errors_HandleErr, que passa por Core_Notify) so registram, como no ciclo automatico;
+' a mensagem chega a quem chamou por Core_LastNotice / pelo texto devolvido. Contador (aninhavel); cada Begin tem o seu End em todo caminho.
+Public Sub Core_QuietBegin()
+    On Error Resume Next
+    mQuietDepth = mQuietDepth + 1
+End Sub
+
+Public Sub Core_QuietEnd()
+    On Error Resume Next
+    If mQuietDepth > 0 Then mQuietDepth = mQuietDepth - 1
+End Sub
+
+' Sem caixas agora: ciclo automatico do PowerPoint (PptAuto_InTick) ou chamada vinda do PowerPoint (Core_QuietBegin). Nunca propaga erro.
+Public Function Core_IsQuiet() As Boolean
+    On Error Resume Next
+    Core_IsQuiet = (mQuietDepth > 0) Or PptAuto_InTick()
 End Function
 
 ' Caixas que Core_Notify/Core_Confirm abririam (no build Test: as que abririam fora dele). Gancho de teste, zerado por Core_ClearLastNotice.
@@ -911,7 +932,7 @@ Private Sub NotifySourceMismatchOnce(cht As Chart)
     id = Registry_IdFromChart(cht)
     If Len(id) = 0 Then Exit Sub
     If Not Core_ChartSourceMismatch(cht) Then Exit Sub
-    If PptAuto_InTick() Then Errors_Log "aviso adiado (ciclo automatico): tabela de origem mudou de tamanho" & vbTab & id: Exit Sub   ' sem marcar: o proximo refresh fora do ciclo avisa
+    If Core_IsQuiet() Then Errors_Log "aviso adiado (ciclo automatico ou chamada do PowerPoint): tabela de origem mudou de tamanho" & vbTab & id: Exit Sub   ' sem marcar: o proximo refresh fora do ciclo avisa
     If mMismatchSeen Is Nothing Then Set mMismatchSeen = New Collection
     Err.Clear
     mMismatchSeen.Add id, id
@@ -939,7 +960,7 @@ Public Sub Core_NotifyCopiedChartOnce(co As ChartObject)
         Err.Clear
     Next
     If n < 2 Then Exit Sub
-    If PptAuto_InTick() Then Errors_Log "aviso adiado (ciclo automatico): grafico em planilha copiada" & vbTab & id: Exit Sub   ' (hoje so os vigias chamam; por garantia)
+    If Core_IsQuiet() Then Errors_Log "aviso adiado (ciclo automatico ou chamada do PowerPoint): grafico em planilha copiada" & vbTab & id: Exit Sub   ' (hoje so os vigias chamam; por garantia)
     If mCopySeen Is Nothing Then Set mCopySeen = New Collection
     mCopySeen.Add id, id
     Core_Notify "Este gráfico do ThinQQ também existe em outra planilha (planilha copiada): a cópia continua ligada aos dados e às opções do gráfico original. Use 'Alterar dados' no gráfico da cópia para separá-lo.", vbExclamation
@@ -958,7 +979,7 @@ Private Sub NotifyScaleClippedOnce(cht As Chart)
         Err.Clear
     End If
     If Not Deco_ScaleClipped(cht) Then Exit Sub
-    If PptAuto_InTick() Then Errors_Log "aviso adiado (ciclo automatico): dados acima da escala fixa" & vbTab & id: Exit Sub   ' sem marcar: o proximo refresh fora do ciclo avisa
+    If Core_IsQuiet() Then Errors_Log "aviso adiado (ciclo automatico ou chamada do PowerPoint): dados acima da escala fixa" & vbTab & id: Exit Sub   ' sem marcar: o proximo refresh fora do ciclo avisa
     If mClipSeen Is Nothing Then Set mClipSeen = New Collection
     mClipSeen.Add id, id
     ' cascata comparativa com as barras dentro da escala: so a sala das setas passou do maximo (Mesma escala de novo daria a mesma uniao)
@@ -1586,18 +1607,21 @@ End Sub
 ' caminho do "Copiar como grafico vinculado": etiquetas e setas no tamanho do slide), marca TQQ_DATA e liga "Atualizar automaticamente".
 ' Devolve "" (ok) ou a mensagem; falha desfaz a forma e a planilha criadas. Nunca propaga erro. Nunca chama LinkFormat.Update (a colagem
 ' acabou de trazer os dados; PG4: Update com a origem ausente abre uma caixa modal que trava o PowerPoint). O ciclo automatico espera
-' (Ppt_BeginOp/Ppt_EndOp, como no Core_CopyToPowerPoint).
+' (Ppt_BeginOp/Ppt_EndOp, como no Core_CopyToPowerPoint) e nenhuma caixa abre no Excel durante a chamada (Core_QuietBegin/End: o PowerPoint
+' esta parado no xl.Run; os avisos do caminho comum, como o da tabela invalida, voltam no texto devolvido).
 Public Function Core_PptInsertChart(slide As Object, kind As String) As String
     On Error Resume Next
+    Core_QuietBegin
     Ppt_BeginOp
     Core_PptInsertChart = PptInsertChartImpl(slide, kind)
     Ppt_EndOp
+    Core_QuietEnd
     Err.Clear
 End Function
 
 Private Function PptInsertChartImpl(slide As Object, kind As String) As String
     Dim pres As Object, path As String, wb As Workbook, co As ChartObject, rng As Range, shp As Object, ws As Worksheet
-    Dim en As Long, ed As String, prevAlerts As Boolean
+    Dim en As Long, ed As String, prevAlerts As Boolean, shpGone As Boolean
     On Error GoTo Fail
     If Not Kinds_IsValid(kind) Then PptInsertChartImpl = "Tipo de gráfico desconhecido: " & kind: Exit Function
     Set pres = slide.Parent
@@ -1614,6 +1638,7 @@ Private Function PptInsertChartImpl(slide As Object, kind As String) As String
     If Ppt_LinkState(shp) <> 1 Then Err.Raise vbObjectError + 7133, "PptData", "O PowerPoint colou o gráfico sem o vínculo com a pasta de dados; tente de novo."
     PptSyncAfterPaste shp, co
     shp.Tags.Add PPTDATA_TAG, "1"
+    PptData_Hook "tagged"
     pres.Tags.Add PPTDATA_MARK, path
     PptSync_SetAuto shp, True                        ' por ultimo: a ultima gravacao e a do indice (falha antes dele nao deixa entrada orfa)
     PptInsertChartImpl = ""
@@ -1623,15 +1648,24 @@ Fail:
     On Error GoTo -1
     On Error Resume Next
     Application.CutCopyMode = False
+    shpGone = True
     If Not shp Is Nothing Then
         PptSync_SetAuto shp, False                   ' tira do indice se a colagem ja a tinha ligado (opcao "Novos vinculos")
+        Err.Clear
         shp.Delete
+        shpGone = (Err.Number = 0)
+        Err.Clear
     End If
     If Not ws Is Nothing Then
-        prevAlerts = Application.DisplayAlerts: Application.DisplayAlerts = False
-        ws.Delete
-        Application.DisplayAlerts = prevAlerts
-        wb.Save
+        If shpGone Then
+            prevAlerts = Application.DisplayAlerts: Application.DisplayAlerts = False
+            ws.Delete
+            Application.DisplayAlerts = prevAlerts
+            wb.Save
+        Else
+            ' a forma ficou no slide (PowerPoint ocupado?): a planilha fica, senao a forma etiquetada apontaria para um grafico inexistente
+            Errors_Log "Core_PptInsertChart: a forma colada nao saiu do slide; a planilha do grafico foi mantida" & vbTab & ws.Name
+        End If
     End If
     Errors_Log "Core_PptInsertChart(" & kind & ")" & vbTab & en & vbTab & ed
     If en >= vbObjectError + 7130 And en <= vbObjectError + 7133 Then

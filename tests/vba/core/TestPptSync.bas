@@ -2171,6 +2171,7 @@ Public Sub Test_PptInsertChart_FromPpt_WhenAvailable()
     p = pp & "\Vendas G - dados ThinQQ.xlsx": pp = pp & "\Vendas G.pptx"
     If Len(Dir(p)) > 0 Then Kill p
     pres.SaveAs pp
+    PptSync_ResetTestHooks                               ' contador de LinkFormat.Update zerado aqui (nao depende de outro teste)
     msg = Core_PptInsertChart(slide, "clustered")
     AssertEqual "", msg
     AssertEqual 0, PptSync_UpdateCountForTest(), "a colagem nunca chama LinkFormat.Update (PG4: origem ausente trava o PowerPoint)"
@@ -2208,6 +2209,54 @@ Cleanup:
     StopScratchPowerPoint app, own
     Watchers_Stop
     If wb Is Nothing And Len(p) > 0 Then Set wb = Workbooks(Dir(p))      ' falha antes de o teste pegar a pasta de dados: fecha mesmo assim
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    Kill p: Kill pp
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' M3 (revisao da G2): falha DEPOIS da colagem (forma ja etiquetada e, com "Novos vinculos" ligada, ja no indice) desfaz tudo: sem forma, sem
+' entrada no indice, sem a planilha "Gráfico 1", pasta de dados salva, operacao e modo silencioso fechados.
+Public Sub Test_PptInsertChart_FailureAfterPaste_Undone_WhenAvailable()
+    Dim app As Object, pres As Object, slide As Object, own As New Collection, en As Long, ed As String, msg As String
+    Dim td As String, p As String, pp As String, wb As Workbook, ws As Worksheet
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    AutoReset
+    PptAuto_SetNewLinksAuto True                         ' a colagem ja indexa: o desfazer precisa tirar a entrada
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set slide = pres.Slides.Add(1, 12)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    td = TempDir()
+    pp = td & "\Desfaz G.pptx": p = td & "\Desfaz G - dados ThinQQ.xlsx"
+    pres.SaveAs pp
+    PptData_SetFailForTest "tagged"
+    msg = Core_PptInsertChart(slide, "stacked")
+    AssertTrue InStr(1, msg, "Falha simulada (teste) tagged", vbBinaryCompare) > 0, "mensagem devolvida: " & msg
+    AssertEqual 0, slide.Shapes.Count, "forma colada removida"
+    AssertEqual "", PptSync_Tag(pres, PPTSYNC_TAG_INDEX), "sem entrada no indice"
+    Set wb = Workbooks(Dir(p))
+    AssertFalse wb Is Nothing
+    On Error Resume Next
+    Set ws = wb.Worksheets("Gráfico 1")
+    On Error GoTo Cleanup
+    AssertTrue ws Is Nothing, "planilha do grafico apagada"
+    AssertTrue wb.Saved, "pasta de dados salva depois do desfazer"
+    AssertFalse Ppt_InOperation(), "operacao fechada"
+    AssertFalse Core_IsQuiet(), "modo silencioso fechado"
+    AssertEqual "", Core_PptInsertChart(slide, "stacked"), "a proxima insercao funciona"
+    AssertEqual "Gráfico 1", PptSync_Tag(slide.Shapes(1), PPTSYNC_TAG_SHEET), "e reaproveita o nome livre"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptData_ResetTestHooks
+    AutoReset
+    Set ws = Nothing: Set slide = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    Watchers_Stop
+    If wb Is Nothing And Len(p) > 0 Then Set wb = Workbooks(Dir(p))
     If Not wb Is Nothing Then wb.Close SaveChanges:=False
     Kill p: Kill pp
     On Error GoTo 0
