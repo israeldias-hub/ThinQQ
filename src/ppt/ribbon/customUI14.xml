@@ -86,7 +86,7 @@
           <button id="btnPptDiff" label="Seta diferença" imageMso="ShapeUpArrow" tag="diff" onAction="PptRx_OnArrow" getEnabled="PptRx_GetOptEnabled"
                   screentip="Seta diferença" supertip="Acrescenta a seta da diferença entre duas categorias, escolhidas pelo número numa lista."/>
           <button id="btnPptClearAnn" label="Remover setas" imageMso="Delete" onAction="PptRx_OnClearAnn" getEnabled="PptRx_GetElemEnabled"
-                  screentip="Remover setas" supertip="Remove as setas de CAGR e de diferença do gráfico do ThinQQ selecionado."/>
+                  screentip="Remover setas" supertip="Remove as setas (CAGR, diferença e delta) e os colchetes do gráfico do ThinQQ selecionado, como o Remover setas do Excel."/>
         </group>
       </tab>
     </tabs>

@@ -514,13 +514,15 @@ End Function
 ' legend=right;caps=labels,totals,...,". Pura sobre o grafico. Os valores vem do registro do grafico (que a pasta pode trazer alterado): so
 ' letras e digitos passam (PptSync_OptValue), entao o texto nunca tem ";", "=", ",", quebras de linha nem Chr(30)/Chr(31) fora da estrutura.
 Public Function PptSync_OptsText(c As Chart) As String
-    Dim k As Variant, s As String, caps As String
+    Dim k As Variant, s As String, caps As String, kind As String, nSeries As Long
+    kind = Registry_ChartType(c)                         ' lido uma vez (revisao final G-II, M9): a mesma regra de Kinds_SupportsChart
+    If Kinds_Family(kind) = "waterfall" Then nSeries = Waterfall_SeriesCount(c)
     For Each k In Array("labels", "totals", "connectors")
         s = s & k & "=" & IIf(Registry_GetOption(c, CStr(k), "0") = "1", "1", "0") & ";"
     Next
     s = s & "numfmt=" & PptSync_OptValue(Registry_GetOption(c, "numfmt", "int")) & ";legend=" & PptSync_OptValue(Registry_GetOption(c, "legend", "right")) & ";"
     For Each k In Array("labels", "totals", "connectors", "numfmt", "legend", "cagr", "diff")
-        If Kinds_SupportsChart(c, CStr(k)) Then caps = caps & k & ","
+        If Kinds_Supports(kind, CStr(k), nSeries) Then caps = caps & k & ","
     Next
     PptSync_OptsText = s & "caps=" & caps
 End Function

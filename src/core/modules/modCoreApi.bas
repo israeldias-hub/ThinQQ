@@ -1790,8 +1790,9 @@ Public Function Core_PptDataSave(pres As Object) As Long
     Err.Clear
 End Function
 
-' API 4 (1.9.0): comando da faixa do PowerPoint nos graficos listados (spec 14.5): "toggle" (arg = labels|totals|connectors: inverte),
-' "numfmt"/"legend" (arg = valor), "cagr"/"diff" (arg = "de,ate", indices de categoria a partir de 1), "clear" (remove as setas). Aplica pelo
+' API 4 (1.9.0): comando da faixa do PowerPoint nos graficos listados (spec 14.5): "toggle" (arg = labels|totals|connectors + ":1"/":0" = o
+' valor, como a faixa do Excel; sem ":valor" inverte), "numfmt"/"legend" (arg = valor), "cagr"/"diff" (arg = "de,ate", indices de categoria a
+' partir de 1), "clear" (remove as anotacoes: setas, delta e colchetes). Cada grafico (pasta + TQQ_CHART) recebe o comando uma vez. Aplica pelo
 ' MESMO codigo da faixa do Excel, Core_SafeRefresh, salva so a pasta de DADOS (pasta do usuario fica alterada e nao salva: o usuario decide)
 ' e sincroniza (forcado, com o motor de sempre: LinkFormat.Update so com o arquivo presente) so as formas em que o comando deu certo. Pasta do
 ' usuario fechada nunca e aberta (PPTCMD_MSG_OPEN_SOURCE). Devolve "" ou a 1a mensagem (recusa da matriz em texto). Sem caixas (modo
@@ -1808,23 +1809,36 @@ End Function
 
 Private Function PptCommandImpl(pres As Object, entries As String, cmd As String, arg As String) As String
     Dim items As Collection, shp As Object, msg As String, first As String, okItems As Collection, opened As Collection, en As Long, ed As String
-    Dim summary As String
+    Dim summary As String, done As Collection, key As String, prev As Variant
     On Error GoTo Fail
     Select Case cmd
         Case "toggle", "numfmt", "legend", "cagr", "diff", "clear"
         Case Else: PptCommandImpl = PPTCMD_MSG_UNKNOWN & cmd: Exit Function
     End Select
-    Set opened = New Collection: Set okItems = New Collection
+    Set opened = New Collection: Set okItems = New Collection: Set done = New Collection
     Set items = PptSync_ResolveEntries(pres, entries)
     If items.Count = 0 Then
         If PptIdx_Parse(entries).Count > 0 Then PptCommandImpl = PPTSYNC_NOT_FOUND Else PptCommandImpl = PPTSYNC_NONE
         Exit Function
     End If
+    ' revisao final G-II (M1): duas formas do MESMO grafico (pasta + TQQ_CHART; copia colada no slide) recebem o comando UMA vez (um toggle
+    ' nao desfaz o outro, nem duas setas iguais), e todas as formas em que ele deu certo sao sincronizadas
     For Each shp In items
-        msg = PptCmd_One(shp, cmd, arg, opened)
+        key = LCase$(PptSync_ItemBook(shp)) & "|" & PptSync_Tag(shp, PPTSYNC_TAG_CHART)
+        prev = Empty
+        On Error Resume Next
+        prev = done(key)
+        On Error GoTo Fail
+        If IsEmpty(prev) Then
+            msg = PptCmd_One(shp, cmd, arg, opened)
+            done.Add msg, key
+        Else
+            msg = CStr(prev)
+            If Len(msg) > 0 Then msg = "-"                      ' a recusa ja foi contada na 1a forma do grafico
+        End If
         If Len(msg) = 0 Then
             okItems.Add shp
-        ElseIf Len(first) = 0 Then
+        ElseIf Len(first) = 0 And msg <> "-" Then
             first = msg
         End If
     Next
@@ -1848,21 +1862,40 @@ End Function
 ' Um comando numa forma: o mesmo codigo da faixa do Excel (ApplyToggle, ApplyOption, Ann_AddCagr/Ann_AddDifference, Ann_RemoveAll),
 ' Core_SafeRefresh e, se for pasta de dados, salvar (sem caixas do Excel). "" ou a mensagem para o usuario. Nunca propaga erro.
 Private Function PptCmd_One(shp As Object, cmd As String, arg As String, opened As Collection) As String
-    Dim wb As Workbook, co As ChartObject, c As Chart, p() As String, msg As String, n As Long, a As Long, b As Long
+    Dim wb As Workbook, co As ChartObject, c As Chart, p() As String, msg As String, n As Long, a As Long, b As Long, key As String, v As String
     On Error GoTo Fail
     Set wb = PptCmd_Book(shp, opened, msg)
     If wb Is Nothing Then PptCmd_One = msg: Exit Function
     Set co = Registry_FindChartObject(wb, PptSync_Tag(shp, PPTSYNC_TAG_CHART))
-    If co Is Nothing Then PptCmd_One = "Gráfico não encontrado na pasta de origem (apagado ou recriado).": Exit Function
+    If co Is Nothing Then
+        If PptData_IsDataBook(wb) Then
+            PptCmd_One = "Gráfico não encontrado na pasta de dados (apagado ou recriado)."
+        Else
+            PptCmd_One = "Gráfico não encontrado na pasta de origem (apagado ou recriado)."
+        End If
+        Exit Function
+    End If
     Set c = co.Chart
     Select Case cmd
         Case "toggle"
-            Select Case arg
+            ' "labels:1"/"labels:0" = valor absoluto (o estado do botao, como Core_SetToggle da faixa do Excel; revisao final G-II, M2);
+            ' "labels" sem valor = inverte (compatibilidade)
+            key = arg: v = ""
+            If InStr(arg, ":") > 0 Then key = Left$(arg, InStr(arg, ":") - 1): v = Mid$(arg, InStr(arg, ":") + 1)
+            Select Case key
                 Case "labels", "totals", "connectors"
                 Case Else: PptCmd_One = PPTCMD_MSG_UNKNOWN & cmd & " " & arg: Exit Function
             End Select
-            If Not Kinds_SupportsChart(c, arg) Then PptCmd_One = Kinds_NotApplicableText(arg): Exit Function
-            ApplyToggle c, arg, Not (Registry_GetOption(c, arg, "0") = "1")
+            Select Case v
+                Case "", "0", "1"
+                Case Else: PptCmd_One = PPTCMD_MSG_UNKNOWN & cmd & " " & arg: Exit Function
+            End Select
+            If Not Kinds_SupportsChart(c, key) Then PptCmd_One = Kinds_NotApplicableText(key): Exit Function
+            If Len(v) = 0 Then
+                ApplyToggle c, key, Not (Registry_GetOption(c, key, "0") = "1")
+            Else
+                ApplyToggle c, key, (v = "1")
+            End If
         Case "numfmt", "legend"
             msg = ValidateOption(cmd, arg)
             If Len(msg) > 0 Then PptCmd_One = msg: Exit Function

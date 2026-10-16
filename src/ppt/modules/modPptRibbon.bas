@@ -35,6 +35,7 @@ End Sub
 Public Sub PptRx_InvalidateElem()
     Dim id As Variant
     On Error Resume Next
+    PptTqq_NoteInvalidate                                   ' gancho de teste (inerte fora do build Test)
     If mRibbon Is Nothing Then Exit Sub
     mRibbon.InvalidateControl "tglPptAuto"
     mRibbon.InvalidateControl "btnPptUpdateSel"
@@ -123,15 +124,20 @@ End Sub
 
 Public Sub PptRx_OnToggleOpt(control As IRibbonControl, pressed As Boolean)
     On Error Resume Next
-    PptTqq_CommandShapes Nothing, PptTqq_SelectedTagged(), "toggle", PptRx_TagOf(control)
+    PptTqq_CommandShapes Nothing, PptTqq_SelectedTagged(), "toggle", PptRx_ToggleArg(PptRx_TagOf(control), pressed)
 End Sub
 
-' Itens dos dropdowns: id = tag + valor ("numfmtpct0", "legendright").
+' Alternancia: a opcao com o estado do botao ("labels:1"): o core aplica o valor (como Core_SetToggle da faixa do Excel), nao inverte. Pura.
+Public Function PptRx_ToggleArg(tag As String, pressed As Boolean) As String
+    PptRx_ToggleArg = tag & ":" & IIf(pressed, "1", "0")
+End Function
+
+' Itens dos dropdowns: id = tag + valor ("numfmtpct0", "legendright"); valor fora dos itens ou sem selecao: o 1o item (PptTqq_OptItemId).
 Public Sub PptRx_GetOptItem(control As IRibbonControl, ByRef itemId)
     Dim t As String
     On Error Resume Next
     t = PptRx_TagOf(control)
-    itemId = t & PptTqq_OptValue(PptTqq_SelectedOpts(), t)
+    itemId = PptTqq_OptItemId(t, PptTqq_OptValue(PptTqq_SelectedOpts(), t))
 End Sub
 
 Public Sub PptRx_OnOptItem(control As IRibbonControl, selectedId As String, selectedIndex As Integer)

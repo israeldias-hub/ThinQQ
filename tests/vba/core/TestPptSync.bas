@@ -2341,6 +2341,7 @@ End Sub
 Public Sub Test_PptCommand_FromPpt_WhenAvailable()
     Dim app As Object, pres As Object, slide As Object, own As New Collection, en As Long, ed As String
     Dim shp As Object, td As String, p As String, pp As String, wb As Workbook, e As String, n0 As Long, w As Workbook, o0 As String
+    Dim nA As Long, id0 As String
     Set app = StartScratchPowerPoint()
     If app Is Nothing Then Exit Sub
     On Error GoTo Cleanup
@@ -2374,8 +2375,24 @@ Public Sub Test_PptCommand_FromPpt_WhenAvailable()
     AssertEqual PPTCMD_MSG_CATS, Core_PptCommand(pres, e, "diff", "3,2"), "de depois de ate"
     AssertEqual PPTCMD_MSG_CATS, Core_PptCommand(pres, e, "diff", "1,9"), "fora do grafico"
     AssertEqual PPTCMD_MSG_CATS, Core_PptCommand(pres, e, "diff", "x"), "sem as duas categorias"
+    nA = CountAnn(Registry_FindChartObject(wb, PptSync_Tag(shp, PPTSYNC_TAG_CHART)).Chart)
+    AssertTrue nA > 0, "seta CAGR na pasta de dados"
     AssertEqual "", Core_PptCommand(pres, e, "clear", "")
     AssertEqual 0, CountAnn(shp.Chart), "setas removidas no slide"
+    ' revisao final G-II (M2): alternancia com o valor do botao ("labels:1"): repetir nao desfaz. (M1, duas formas do mesmo grafico, fica no
+    ' teste com dubles abaixo: duplicar um grafico vinculado no PowerPoint chama o servidor OLE deste mesmo Excel no meio da suite)
+    AssertEqual "", Core_PptCommand(pres, e, "toggle", "labels:1")
+    AssertTrue InStr(PptSync_Tag(shp, PPTSYNC_TAG_OPTS), "labels=1;") = 1, PptSync_Tag(shp, PPTSYNC_TAG_OPTS)
+    AssertEqual "", Core_PptCommand(pres, e, "toggle", "labels:1")
+    AssertTrue InStr(PptSync_Tag(shp, PPTSYNC_TAG_OPTS), "labels=1;") = 1, "valor absoluto: de novo continua ligado"
+    AssertEqual "", Core_PptCommand(pres, e, "toggle", "labels:0")
+    AssertTrue InStr(PptSync_Tag(shp, PPTSYNC_TAG_OPTS), "labels=0;") = 1, PptSync_Tag(shp, PPTSYNC_TAG_OPTS)
+    AssertEqual PPTCMD_MSG_UNKNOWN & "toggle labels:x", Core_PptCommand(pres, e, "toggle", "labels:x")
+    ' (M7) grafico apagado da pasta de DADOS: o texto da pasta de dados
+    id0 = PptSync_Tag(shp, PPTSYNC_TAG_CHART)
+    shp.Tags.Add PPTSYNC_TAG_CHART, "naoexiste"
+    AssertEqual "Gráfico não encontrado na pasta de dados (apagado ou recriado).", Core_PptCommand(pres, e, "clear", "")
+    shp.Tags.Add PPTSYNC_TAG_CHART, id0
     AssertEqual Kinds_NotApplicableText("totals"), Core_PptCommand(pres, e, "toggle", "totals"), "agrupadas nao tem totais: recusa da matriz em texto"
     AssertEqual PPTCMD_MSG_UNKNOWN & "toggle palette", Core_PptCommand(pres, e, "toggle", "palette")
     AssertEqual "Formato numérico desconhecido: abc", Core_PptCommand(pres, e, "numfmt", "abc")
@@ -2423,7 +2440,7 @@ End Function
 ' sem grafico no slide, a sincronizacao conta falha e o resumo volta como mensagem).
 Public Sub Test_PptCommand_UserBook_OnlyWhenOpen_NeverSaved()
     Dim wb As Workbook, rng As Range, p As String, id As String, shp As TestPptFake, lf As TestPptFake, pres As TestPptFake, msg As String
-    Dim w As Workbook, en As Long, ed As String, t0 As Date, e As String, v0 As String
+    Dim w As Workbook, en As Long, ed As String, t0 As Date, e As String, v0 As String, shp2 As TestPptFake, lf2 As TestPptFake, v1 As String
     On Error GoTo Cleanup
     AutoBegin
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
@@ -2457,6 +2474,20 @@ Public Sub Test_PptCommand_UserBook_OnlyWhenOpen_NeverSaved()
     msg = Core_PptCommand(pres, e, "toggle", "totals")
     AssertTrue InStr(msg, "Falha ao atualizar: 1") > 0, "o slide (duble sem grafico) nao acompanhou: o resumo volta: " & msg
     AssertEqual IIf(v0 = "1", "0", "1"), Registry_GetOption(Registry_FindChartObject(wb, id).Chart, "totals", "0"), "comando aplicado (invertido) na pasta aberta"
+    ' revisao final G-II (M1): duas formas do MESMO grafico (pasta + TQQ_CHART; copia colada no slide) selecionadas: o comando vale UMA vez
+    ' (um toggle nao desfaz o outro) e as duas formas vao para a sincronizacao (o duble sem grafico conta 2 falhas)
+    Set shp2 = New TestPptFake: Set shp2.Tags = CreateObject("Scripting.Dictionary")
+    shp2.Tags.Add PPTSYNC_TAG_CHART, id
+    shp2.Tags.Add PPTSYNC_TAG_BOOK, p
+    Set lf2 = New TestPptFake: lf2.SourceFullName = p: Set shp2.LinkFormat = lf2
+    pres.Slides.Slide.Shapes.Add shp2, "tqq_y"
+    AssertEqual 2, PptSync_ResolveEntries(pres, e & vbLf & PptIdx_Entry(256, "tqq_y", "")).Count, "duas formas"
+    v1 = Registry_GetOption(Registry_FindChartObject(wb, id).Chart, "totals", "0")
+    msg = Core_PptCommand(pres, e & vbLf & PptIdx_Entry(256, "tqq_y", ""), "toggle", "totals")
+    AssertEqual IIf(v1 = "1", "0", "1"), Registry_GetOption(Registry_FindChartObject(wb, id).Chart, "totals", "0"), "invertido UMA vez com as duas formas: " & msg
+    AssertTrue InStr(msg, "Falha ao atualizar: 2") > 0, "as duas formas sincronizadas: " & msg
+    msg = Core_PptCommand(pres, e & vbLf & PptIdx_Entry(256, "tqq_y", ""), "toggle", "totals:1")
+    AssertEqual "1", Registry_GetOption(Registry_FindChartObject(wb, id).Chart, "totals", "0"), "(M2) valor absoluto"
     AssertFalse wb.Saved, "pasta do usuario alterada e NAO salva"
     AssertTrue FileDateTime(p) = t0, "arquivo do usuario intacto"
     AssertEqual "T1" & Chr$(31) & "T2", Core_PptCategories(pres, e), "categorias da pasta aberta"

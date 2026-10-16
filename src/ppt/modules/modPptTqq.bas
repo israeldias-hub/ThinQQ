@@ -66,6 +66,8 @@ Private mLastHint As String                     ' gancho de teste: texto do avis
 Private mTestProbes As Long                     ' gancho de teste: FileExists do caminho antigo em PptTqq_RelinkData
 Private mTestPickA As Long                      ' gancho de teste: respostas de PptTqq_PickTwo (de, ate)
 Private mTestPickB As Long
+Private mTestPackProbes As Long                 ' gancho de teste: FileExists de pastas de dados em PptTqq_Package
+Private mTestInvalidates As Long                ' gancho de teste: chamadas de PptRx_InvalidateElem
 
 ' Carga do suplemento: liga os eventos do PowerPoint e trata as apresentacoes ja abertas (o projeto de teste .pptm nao liga).
 Public Sub Auto_Open()
@@ -118,6 +120,8 @@ Public Sub PptTqq_ResetTestHooks()
     mTestProbes = 0
     mTestPickA = 0
     mTestPickB = 0
+    mTestPackProbes = 0
+    mTestInvalidates = 0
 End Sub
 
 Public Function PptTqq_RelinkProbesForTest() As Long
@@ -1474,6 +1478,34 @@ Private Function PptTqq_InKeys(c As Collection, key As String) As Boolean
     Err.Clear
 End Function
 
+' Pastas abertas COM alteracoes nao salvas no Excel ja aberto (o de edicao guardado, senao o do GetObject; nunca cria um Excel; build Test: o
+' injetado), chave = FullName em minusculas. So le FullName/Saved (nunca abre nem salva nada). Ocupado ou ausente: vazia. Nunca propaga.
+Private Function PptTqq_DirtyOpenBooks() As Collection
+    Dim out As New Collection, xl As Object, wb As Object
+    Set PptTqq_DirtyOpenBooks = out
+    On Error Resume Next
+    If BUILD_CONFIG = "Test" Then
+        Set xl = mTestXl
+    Else
+        If Not mEditXl Is Nothing Then
+            If CBool(mEditXl.Visible) Then Set xl = mEditXl
+        End If
+        Err.Clear
+        If xl Is Nothing Then Set xl = GetObject(, "Excel.Application")
+    End If
+    Err.Clear
+    If xl Is Nothing Then Exit Function
+    For Each wb In xl.Workbooks
+        If Not CBool(wb.Saved) Then out.Add 1, LCase$(CStr(wb.FullName))
+        Err.Clear
+    Next
+    Err.Clear
+End Function
+
+Public Function PptTqq_PackProbesForTest() As Long
+    PptTqq_PackProbesForTest = mTestPackProbes
+End Function
+
 ' Acrescenta um nome (limpo, PptTqq_CleanPath) a uma lista "a, b". Pura.
 Private Function PptTqq_ListAdd(lst As String, nm As String) As String
     If Len(lst) > 0 Then PptTqq_ListAdd = lst & ", " & PptTqq_CleanPath(nm) Else PptTqq_ListAdd = PptTqq_CleanPath(nm)
@@ -1482,13 +1514,15 @@ End Function
 ' "Empacotar para enviar": salva a apresentacao (se nao for somente leitura) e a pasta de dados marcada aberta e alterada (PptTqq_OnSave: so
 ' com o Excel do ThinQQ ja aberto; nunca abre nem salva uma pasta do usuario) e COPIA a apresentacao e as pastas de dados dela
 ' (PptTqq_DataBooksOf) para "<pasta da apresentacao>\<nome> (ThinQQ)\" (lugar fixo; criada se nao existe; arquivos de mesmo nome
-' substituidos). Pastas de dados ausentes, de rede fora da pasta da apresentacao (nunca tocadas: o caminho vem da apresentacao, que pode ser
-' de outra pessoa; a de rede AO LADO de uma apresentacao de rede e copiada) ou com o nome de outra ja copiada ficam de
-' fora e sao citadas no aviso; uma que nao copia (bloqueada pelo Excel: PG10) pede para fecha-la no Excel. Devolve a pasta do pacote ("" se a
-' apresentacao nao foi copiada; o aviso diz por que). Reentrada ignorada. Nunca propaga.
+' substituidos). So entram as pastas de dados NA PASTA da apresentacao (revisao final G-II, I1); as de fora (local ou rede: o caminho vem da
+' apresentacao, que pode ser de outra pessoa) nunca sao tocadas e o aviso as cita em linha propria, como as ausentes; o "Pronto" lista cada
+' arquivo copiado; uma pasta de dados copiada que esta aberta no Excel com alteracoes nao salvas e citada (foi a versao do disco); uma que nao
+' copia (bloqueada pelo Excel: PG10) pede para fecha-la no Excel. Devolve a pasta do pacote ("" se a apresentacao nao foi copiada; o aviso
+' diz por que). Reentrada ignorada. Nunca propaga.
 Public Function PptTqq_Package(pres As Object) As String
     Dim fso As Object, dest As String, b As Variant, nm As String, done As New Collection, n As Long, others As Long, en As Long, ed As String
-    Dim missing As String, remote As String, failed As String, dup As String, msg As String, roUnsaved As Boolean
+    Dim missing As String, outside As String, failed As String, msg As String, roUnsaved As Boolean, copied As String, dirty As String
+    Dim openDirty As Collection
     If mBusy Then Exit Function
     If pres Is Nothing Then PptTqq_Msg PPT_MSG_NO_PRES: Exit Function
     On Error GoTo Fail
@@ -1504,42 +1538,53 @@ Public Function PptTqq_Package(pres As Object) As String
     dest = CStr(pres.Path) & "\" & CStr(fso.GetBaseName(CStr(pres.FullName))) & PPT_PACK_SUFFIX
     If Not CBool(fso.FolderExists(dest)) Then fso.CreateFolder dest
     fso.CopyFile CStr(pres.FullName), dest & "\", True
-    done.Add 1, LCase$(CStr(fso.GetFileName(CStr(pres.FullName))))
+    copied = PptTqq_ListAdd("", CStr(fso.GetFileName(CStr(pres.FullName))))
     PptTqq_Package = dest
+    Set openDirty = PptTqq_DirtyOpenBooks()
     For Each b In PptTqq_DataBooksOf(pres, others)
         nm = PptTqq_FileNameOf(CStr(b))
-        If PptTqq_IsRemotePath(CStr(b)) And StrComp(Left$(CStr(b), Len(CStr(b)) - Len(nm) - 1), CStr(pres.Path), vbTextCompare) <> 0 Then
-            remote = PptTqq_ListAdd(remote, nm)
+        ' revisao final G-II (I1): so as pastas de dados NA PASTA da apresentacao entram no pacote. O caminho vem do deck (pode ser de outra
+        ' pessoa e apontar para a pasta de dados confidencial de outra apresentacao): fora dela (local ou rede) nada e copiado nem sondado
+        ' no disco, e o aviso a cita em linha propria
+        If StrComp(Left$(CStr(b), Len(CStr(b)) - Len(nm) - 1), CStr(pres.Path), vbTextCompare) <> 0 Then
+            outside = PptTqq_ListAdd(outside, nm)
         ElseIf PptTqq_InKeys(done, LCase$(nm)) Then
-            dup = PptTqq_ListAdd(dup, nm)
-        ElseIf Not PptTqq_FileExists(CStr(b)) Then
-            missing = PptTqq_ListAdd(missing, nm)
+            ' a mesma pasta escrita de outro jeito (nao acontece com caminhos normalizados): ja copiada
         Else
-            Err.Clear
-            On Error Resume Next
-            fso.CopyFile CStr(b), dest & "\" & nm, True
-            en = Err.Number
-            Err.Clear
-            On Error GoTo Fail
-            If en = 0 Then
-                n = n + 1
-                done.Add 1, LCase$(nm)
+            If BUILD_CONFIG = "Test" Then mTestPackProbes = mTestPackProbes + 1
+            If Not PptTqq_FileExists(CStr(b)) Then
+                missing = PptTqq_ListAdd(missing, nm)
             Else
-                failed = PptTqq_ListAdd(failed, nm)
+                Err.Clear
+                On Error Resume Next
+                fso.CopyFile CStr(b), dest & "\" & nm, True
+                en = Err.Number
+                Err.Clear
+                On Error GoTo Fail
+                If en = 0 Then
+                    n = n + 1
+                    done.Add 1, LCase$(nm)
+                    copied = PptTqq_ListAdd(copied, nm)
+                    If PptTqq_InKeys(openDirty, LCase$(CStr(b))) Then dirty = PptTqq_ListAdd(dirty, nm)
+                Else
+                    failed = PptTqq_ListAdd(failed, nm)
+                End If
             End If
         End If
     Next
-    msg = "Pronto: a apresentação e " & n & " pasta(s) de dados do ThinQQ foram copiadas para '" & PptTqq_CleanPath(dest) & "'. Envie a pasta " & _
+    If Len(copied) > 300 Then copied = Left$(copied, 297) & "..."
+    msg = "Pronto: a apresentação e " & n & " pasta(s) de dados do ThinQQ foram copiadas para '" & PptTqq_CleanPath(dest) & "': " & copied & ". Envie a pasta " & _
           "inteira (por exemplo, compactada): quem abrir a apresentação dessa pasta com o ThinQQ terá os gráficos criados pelo PowerPoint ligados aos dados ao lado."
-    If roUnsaved Then msg = msg & vbLf & "A apresentação está somente leitura: foi copiada a versão salva no disco (sem as alterações abertas)."
-    If others > 0 Then msg = msg & vbLf & "Gráficos colados do Excel continuam ligados às pastas de origem, que não entram no pacote."
+    ' as linhas de excecao mais importantes primeiro (o aviso e cortado em PPT_MAX_ASK_LEN)
+    If Len(outside) > 0 Then msg = msg & vbLf & "Não copiada(s): fora da pasta da apresentação: " & outside
+    If Len(dirty) > 0 Then msg = msg & vbLf & "Copiada(s) a versão salva no disco (aberta(s) no Excel com alterações não salvas; salve-a(s) no Excel e empacote de novo para levá-las): " & dirty
     If Len(failed) > 0 Then msg = msg & vbLf & "Não foi possível copiar (feche-a no Excel e empacote de novo): " & failed
     If Len(missing) > 0 Then msg = msg & vbLf & "Não encontrada(s) (os gráficos ficam com os últimos dados): " & missing
-    If Len(remote) > 0 Then msg = msg & vbLf & "Não copiada(s), num endereço de rede: " & remote
-    If Len(dup) > 0 Then msg = msg & vbLf & "Não copiada(s), mesmo nome de outra já copiada: " & dup
+    If roUnsaved Then msg = msg & vbLf & "A apresentação está somente leitura: foi copiada a versão salva no disco (sem as alterações abertas)."
+    If others > 0 Then msg = msg & vbLf & "Gráficos colados do Excel continuam ligados às pastas de origem, que não entram no pacote."
     If Len(msg) > PPT_MAX_ASK_LEN Then msg = Left$(msg, PPT_MAX_ASK_LEN - 3) & "..."
     mBusy = False
-    If Len(failed) + Len(missing) + Len(remote) + Len(dup) > 0 Or roUnsaved Then PptTqq_Msg msg, vbExclamation Else PptTqq_Msg msg, vbInformation
+    If Len(failed) + Len(missing) + Len(outside) + Len(dirty) > 0 Or roUnsaved Then PptTqq_Msg msg, vbExclamation Else PptTqq_Msg msg, vbInformation
     Exit Function
 Fail:
     en = Err.Number: ed = Err.Description
@@ -1572,6 +1617,31 @@ End Function
 Public Function PptTqq_OptCap(opts As String, feature As String) As Boolean
     If Len(feature) = 0 Then Exit Function
     PptTqq_OptCap = InStr("," & PptTqq_OptValue(opts, "caps"), "," & feature & ",") > 0
+End Function
+
+' Item selecionado de uma lista do grupo: tag + valor quando o valor e um dos itens da faixa; senao (sem selecao, legenda "lineend"/"inbar"
+' definida no Excel, valor estranho) o 1o item, sempre um id que existe (revisao final G-II, M5). Pura.
+Public Function PptTqq_OptItemId(tag As String, v As String) As String
+    Dim items As String
+    Select Case tag
+        Case "numfmt": items = ",int,dec1,dec2,pct0,pct1,mil,mi,"
+        Case "legend": items = ",right,none,"
+        Case Else: Exit Function
+    End Select
+    If Len(v) > 0 And InStr(items, "," & v & ",") > 0 Then
+        PptTqq_OptItemId = tag & v
+    Else
+        PptTqq_OptItemId = tag & Split(items, ",")(1)
+    End If
+End Function
+
+' Gancho de teste: PptRx_InvalidateElem chamado (o projeto de teste nao tem faixa).
+Public Sub PptTqq_NoteInvalidate()
+    If BUILD_CONFIG = "Test" Then mTestInvalidates = mTestInvalidates + 1
+End Sub
+
+Public Function PptTqq_InvalidatesForTest() As Long
+    PptTqq_InvalidatesForTest = mTestInvalidates
 End Function
 
 ' TQQ_OPTS da 1a forma do ThinQQ selecionada ("" sem selecao ou forma colada por um core anterior ao 1.9.0, ate a proxima atualizacao).
@@ -1654,7 +1724,7 @@ Public Sub PptTqq_CommandShapes(pres As Object, shapes As Collection, cmd As Str
     Next
     entries = PptTqq_EntriesOf(shapes)
     Set xl = PptTqq_CmdExcel(created)
-    If xl Is Nothing Then mBusy = False: PptTqq_Msg PPT_MSG_NO_EXCEL_DATA, vbExclamation: Exit Sub
+    If xl Is Nothing Then mBusy = False: PptTqq_Msg PPT_MSG_NO_EXCEL_DATA, vbExclamation: PptRx_InvalidateElem: Exit Sub
     core = PptTqq_EnsureCore(xl, created)
     a2 = arg
     If Len(core) = 0 Then
@@ -1692,4 +1762,5 @@ Fail:
     PptTqq_Release xl, created
     mBusy = False
     PptTqq_Msg PptTqq_DataErrorText("Não foi possível aplicar: ", en, ed), vbExclamation
+    PptRx_InvalidateElem                                ' o botao clicado volta ao estado gravado (revisao final G-II, M3)
 End Sub

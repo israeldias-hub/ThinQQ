@@ -1250,6 +1250,48 @@ Public Sub Test_PptRx_ChartCallbacks_NoSelection()
     PptRx_InvalidateElem
 End Sub
 
+' Revisao final G-II: (M2) a alternancia manda o estado do botao ("labels:1"), nao "inverta"; (M5) lista com valor fora dos itens (legenda
+' "lineend" do Excel) ou sem selecao: o 1o item, sempre um id que existe; (M3) sem Excel e na falha a faixa e invalidada (o botao volta).
+Public Sub Test_PptTqq_ChartGroup_FinalReview()
+    Dim p As Object, s As Object, f As TestXlFake, en As Long, ed As String, c As New Collection
+    AssertEqual "labels:1", PptRx_ToggleArg("labels", True)
+    AssertEqual "totals:0", PptRx_ToggleArg("totals", False)
+    AssertEqual "legendright", PptTqq_OptItemId("legend", "right")
+    AssertEqual "legendnone", PptTqq_OptItemId("legend", "none")
+    AssertEqual "legendright", PptTqq_OptItemId("legend", "lineend"), "legenda do Excel fora dos itens: o 1o item"
+    AssertEqual "legendright", PptTqq_OptItemId("legend", "inbar")
+    AssertEqual "legendright", PptTqq_OptItemId("legend", ""), "sem selecao"
+    AssertEqual "numfmtpct1", PptTqq_OptItemId("numfmt", "pct1")
+    AssertEqual "numfmtint", PptTqq_OptItemId("numfmt", "xyz")
+    AssertEqual "", PptTqq_OptItemId("", "x"), "controle sem tag"
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set s = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50)
+    s.Tags.Add PPT_TAG_CHART, "c1"
+    c.Add s
+    PptTqq_ResetTestHooks
+    PptTqq_SetExcelForTest Nothing, ""
+    PptTqq_CommandShapes p, c, "toggle", "labels:1"
+    AssertEqual PPT_MSG_NO_EXCEL_DATA, PptTqq_LastMsg()
+    AssertEqual 1, PptTqq_InvalidatesForTest(), "sem Excel: faixa invalidada"
+    Set f = NewFakeXl(4): f.FailOn = "Core_PptCommand"
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_CommandShapes p, c, "toggle", "labels:1"
+    AssertTrue InStr(PptTqq_LastMsg(), "Não foi possível aplicar: ") = 1, PptTqq_LastMsg()
+    AssertEqual 2, PptTqq_InvalidatesForTest(), "falha: faixa invalidada"
+    f.FailOn = ""
+    PptTqq_CommandShapes p, c, "toggle", "labels:0"
+    AssertEqual "toggle:labels:0", f.LastCmd, "o valor do botao chega ao core"
+    AssertEqual 3, PptTqq_InvalidatesForTest(), "sucesso: faixa invalidada"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set s = Nothing: Set c = Nothing
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
 ' ---- 1.9.0 (Parte G-II, G9): "Empacotar para enviar" ----
 
 Public Sub Test_PptTqq_Package_CopiesBoth()
@@ -1281,12 +1323,14 @@ Cleanup:
     If en <> 0 Then Err.Raise en, "TestPptAddin", ed
 End Sub
 
-' Empacotar junta as pastas de dados DISTINTAS das formas TQQ_DATA (revisao G4, M8: Salvar como + inserir deixa formas em duas pastas de
-' dados) e a marca; nunca copia uma pasta do usuario (nome sem " - dados ThinQQ.xlsx"), nem um caminho de rede; a ausente e a de rede sao
-' citadas no aviso. Apresentacao nunca salva: o aviso de salvar, nada criado. Sem apresentacao: o aviso de abrir uma.
+' Empacotar junta as pastas de dados DISTINTAS das formas TQQ_DATA (revisao G4, M8) e a marca, mas so as que estao NA PASTA da apresentacao
+' (revisao final G-II, I1): a de outra pasta (Salvar como para outra pasta, ou um deck de terceiros apontando para a pasta de dados de OUTRA
+' apresentacao) nao e copiada nem sondada no disco e e citada em linha propria; idem a de rede; nunca uma pasta do usuario (nome sem
+' " - dados ThinQQ.xlsx"); a ausente e citada; o "Pronto" lista cada arquivo copiado; a copiada que esta aberta no Excel com alteracoes nao
+' salvas e citada (M8). Apresentacao nunca salva: o aviso de salvar, nada criado. Sem apresentacao: o aviso de abrir uma.
 Public Sub Test_PptTqq_Package_GathersDataBooks()
     Dim p As Object, s As Object, f As String, d1 As String, d2 As String, u As String, dest As String, k As Integer, en As Long, ed As String
-    Dim fso As Object, base As String, m As String
+    Dim fso As Object, base As String, m As String, xf As TestXlFake, wf As TestXlFake
     Set fso = CreateObject("Scripting.FileSystemObject")
     base = Environ$("TEMP") & "\tqq-pack2-" & Format$(Now, "hhnnss")
     Set p = NewPres()
@@ -1315,19 +1359,27 @@ Public Sub Test_PptTqq_Package_GathersDataBooks()
     Set s = p.Slides(1).Shapes.AddShape(1, 310, 10, 50, 50): s.Tags.Add PPT_TAG_DATA, "1": s.Tags.Add PPT_TAG_BOOK, "\\tqq-host-que-nao-existe\s\Rede - dados ThinQQ.xlsx"
     Set s = p.Slides(1).Shapes.AddShape(1, 370, 10, 50, 50): s.Tags.Add PPT_TAG_CHART, "c1": s.Tags.Add PPT_TAG_BOOK, base & "\Colado - dados ThinQQ.xlsx"
     Set s = Nothing
+    Set xf = NewFakeXl(3)                                  ' Excel aberto: a pasta de dados B aberta com alteracoes nao salvas
+    Set wf = New TestXlFake: wf.FullName = d2: wf.Saved = False
+    xf.Workbooks.Add wf
+    PptTqq_SetExcelForTest xf, ""
     dest = PptTqq_Package(p)
     AssertEqual base & "\B (ThinQQ)", dest
     AssertTrue fso.FileExists(dest & "\B.pptx"), "apresentacao"
-    AssertTrue fso.FileExists(dest & "\A - dados ThinQQ.xlsx"), "pasta de dados de outra pasta (Salvar como)"
-    AssertTrue fso.FileExists(dest & "\B - dados ThinQQ.xlsx"), "pasta de dados marcada"
+    AssertTrue fso.FileExists(dest & "\B - dados ThinQQ.xlsx"), "pasta de dados marcada, na pasta da apresentacao"
+    AssertFalse fso.FileExists(dest & "\A - dados ThinQQ.xlsx"), "pasta de dados de OUTRA pasta: nao copiada"
     AssertFalse fso.FileExists(dest & "\Orcamento.xlsx"), "pasta do usuario: nunca"
-    AssertEqual 3, fso.GetFolder(dest).Files.Count, "so a apresentacao e as 2 pastas de dados"
+    AssertEqual 2, fso.GetFolder(dest).Files.Count, "so a apresentacao e a pasta de dados ao lado"
+    AssertEqual 2, PptTqq_PackProbesForTest(), "so as da pasta da apresentacao foram conferidas no disco (B e Sumiu); a de outra pasta e a de rede nao"
     m = PptTqq_LastMsg()
-    AssertTrue InStr(m, "Pronto: ") = 1, m
-    AssertTrue InStr(m, "Sumiu - dados ThinQQ.xlsx") > 0, "ausente citada: " & m
-    AssertTrue InStr(m, "Rede - dados ThinQQ.xlsx") > 0, "de rede citada: " & m
+    AssertTrue InStr(m, "Pronto: a apresentação e 1 pasta(s) de dados do ThinQQ foram copiadas para '") = 1, m
+    AssertTrue InStr(m, "': B.pptx, B - dados ThinQQ.xlsx. Envie a pasta ") > 0, "Pronto lista cada arquivo copiado: " & m
+    AssertTrue InStr(m, vbLf & "Não copiada(s): fora da pasta da apresentação: A - dados ThinQQ.xlsx, Rede - dados ThinQQ.xlsx") > 0, "de fora citadas em linha propria: " & m
+    AssertTrue InStr(m, "Não encontrada(s) (os gráficos ficam com os últimos dados): Sumiu - dados ThinQQ.xlsx") > 0, "ausente citada: " & m
+    AssertTrue InStr(m, "aberta(s) no Excel com alterações não salvas") > 0 And InStr(m, "levá-las): B - dados ThinQQ.xlsx") > 0, "aberta e alterada citada (M8): " & m
     AssertEqual 0, InStr(m, "Orcamento"), "pasta do usuario nem citada: " & m
-    AssertEqual 0, InStr(m, "Colado"), "forma sem TQQ_DATA (colada do Excel) nao entra: " & m
+    AssertEqual 0, InStr(m, "Colado - dados"), "forma sem TQQ_DATA (colada do Excel) nao entra: " & m
+    AssertTrue InStr(m, "Gráficos colados do Excel continuam ligados") > 0, m
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo 0

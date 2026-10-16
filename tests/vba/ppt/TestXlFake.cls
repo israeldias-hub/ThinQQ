@@ -28,6 +28,8 @@ Public CommandResult As String                  ' resposta de Core_PptCommand ("
 Public LastCmd As String                        ' "cmd:arg" recebidos por Core_PptCommand (o ultimo)
 Public CmdLog As String                         ' "cmd:arg;" de todas as chamadas de Core_PptCommand
 Public CatsResult As String                     ' resposta de Core_PptCategories
+Public FullName As String                       ' usado como pasta aberta (item de Workbooks): caminho
+Public Saved As Boolean                         ' usado como pasta aberta: False = alteracoes nao salvas
 Private mBooks As New Collection
 
 Public Property Get Workbooks() As Collection
