@@ -1396,10 +1396,12 @@ End Sub
 
 ' Sem janela (projeto de teste): nada selecionado. O callback avisa para selecionar uma caixa de texto.
 Public Sub Test_PptTqq_SelectionTextRange_NoWindow()
-    Dim s As Object, a As Long, b As Long
+    Dim s As Object, a As Long, b As Long, g As Boolean
     PptTqq_ResetTestHooks
-    AssertFalse PptTqq_SelectionTextRange(s, a, b)
+    AssertFalse PptTqq_SelectionTextRange(s, a, b, g)
     AssertTrue s Is Nothing
+    AssertFalse g, "sem janela: nao e grupo"
+    AssertFalse PptTqq_SelInGroup(New Collection), "objeto sem HasChildShapeRange: nao e grupo"
     PptTqq_ClearLastMsg
     PptRx_OnLinkText Nothing
     AssertEqual PPTTEXT_MSG_NOTEXT_PPT, PptTqq_LastMsg()
@@ -1444,7 +1446,10 @@ Public Sub Test_PptTqq_LinkText_Paths()
     PptTqq_LinkText s, 1, 0
     AssertEqual f.LinkResult, PptTqq_LastMsg(), "recusa do core como veio"
     AssertEqual "1:0", f.LastLink, "cursor"
-    f.LinkResult = "Texto vinculado. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255."
+    f.LinkResult = "Texto vinculado à célula Vendas.xlsx!Dados!B2."
+    PptTqq_LinkText s, 3, 1
+    AssertEqual f.LinkResult & " " & PPT_MSG_TEXT_SAVE, PptTqq_LastMsg(), "core 1.9.0: a celula e a pasta, com o lembrete (M9)"
+    f.LinkResult = "Texto vinculado à célula Vendas.xlsx!Dados!B2. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255."
     PptTqq_LinkText s, 1, 3
     AssertEqual f.LinkResult & " " & PPT_MSG_TEXT_SAVE, PptTqq_LastMsg(), "cortado: com o lembrete"
     f.LinkResult = "": f.FailOn = "Core_PptLinkText"

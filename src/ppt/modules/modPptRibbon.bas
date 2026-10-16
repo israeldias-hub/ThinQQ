@@ -75,9 +75,12 @@ End Sub
 ' Texto vinculado ao Excel (1.9.0): a selecao de texto (ou a caixa inteira) desta janela e a celula ativa do Excel JA aberto com o ThinQQ;
 ' nunca cria um Excel (PptTqq_LinkText).
 Public Sub PptRx_OnLinkText(control As IRibbonControl)
-    Dim shp As Object, st As Long, ln As Long
+    Dim shp As Object, st As Long, ln As Long, inGroup As Boolean
     On Error Resume Next
-    If Not PptTqq_SelectionTextRange(shp, st, ln) Then PptTqq_Msg PPTTEXT_MSG_NOTEXT_PPT: Exit Sub
+    If Not PptTqq_SelectionTextRange(shp, st, ln, inGroup) Then
+        If inGroup Then PptTqq_Msg PPT_MSG_TEXT_GROUP Else PptTqq_Msg PPTTEXT_MSG_NOTEXT_PPT
+        Exit Sub
+    End If
     PptTqq_LinkText shp, st, ln
 End Sub
 

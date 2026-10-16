@@ -52,6 +52,7 @@ Public Const PPT_TAG_TEXT As String = "TQQ_TEXT"            ' forma de texto vin
 Public Const PPT_MSG_OPEN_EXCEL As String = "Abra a pasta no Excel (com o ThinQQ), selecione a célula com o valor e clique de novo em Texto vinculado ao Excel."
 Public Const PPTTEXT_MSG_NOTEXT_PPT As String = "Selecione uma caixa de texto (ou parte do texto dela)."
 Public Const PPT_MSG_OLD_CORE_TEXT As String = "Atualize o ThinQQ no Excel para vincular texto pelo PowerPoint."
+Public Const PPT_MSG_TEXT_GROUP As String = "O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular."
 Public Const PPT_MSG_TEXT_OK As String = "Texto vinculado à célula do Excel."
 Public Const PPT_MSG_TEXT_SAVE As String = "Salve a pasta de trabalho no Excel: assim o vínculo acompanha linhas e colunas inseridas antes da célula."
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
@@ -1777,11 +1778,16 @@ End Sub
 ' ---- Texto vinculado ao Excel (1.9.0, API 5; spec 5.3) ----
 
 ' Selecao da janela ativa: texto selecionado ou cursor (ppSelectionText: o trecho) ou UMA forma com texto (o texto inteiro). False se nao
-' houver (sem janela, nada selecionado, varias formas, forma sem texto). Nunca propaga erro.
-Public Function PptTqq_SelectionTextRange(ByRef shp As Object, ByRef st As Long, ByRef ln As Long) As Boolean
+' houver (sem janela, nada selecionado, varias formas, forma sem texto). Selecao dentro de um grupo: False e inGroup = True (o texto vinculado
+' so vale para formas soltas: a sincronizacao nao desce em grupos). Nunca propaga erro.
+Public Function PptTqq_SelectionTextRange(ByRef shp As Object, ByRef st As Long, ByRef ln As Long, Optional ByRef inGroup As Boolean) As Boolean
     Dim sel As Object, s As Object
+    inGroup = False
     On Error GoTo Done
     Set sel = Application.ActiveWindow.Selection
+    If sel.Type = 2 Or sel.Type = 3 Then
+        If PptTqq_SelInGroup(sel) Then inGroup = True: Exit Function
+    End If
     If sel.Type = 3 Then                                         ' ppSelectionText
         Set s = sel.ShapeRange(1)
         st = CLng(sel.TextRange.Start): ln = CLng(sel.TextRange.Length)
@@ -1798,6 +1804,13 @@ Public Function PptTqq_SelectionTextRange(ByRef shp As Object, ByRef st As Long,
 Done:
 End Function
 
+' Selecao dentro de um grupo (HasChildShapeRange). Leitura que falha = nao. Nunca propaga erro.
+Public Function PptTqq_SelInGroup(sel As Object) As Boolean
+    On Error Resume Next
+    PptTqq_SelInGroup = CBool(sel.HasChildShapeRange)
+    Err.Clear
+End Function
+
 ' Chama Core_PptLinkText no Excel dado, so com a API 5 (core antigo: PPT_MSG_OLD_CORE_TEXT, sem chamar). Devolve o texto do core ("" =
 ' vinculado). Excel ocupado: o erro de ocupado sobe; outra falha da chamada sobe.
 Public Function PptTqq_LinkTextTo(xl As Object, core As String, shp As Object, st As Long, ln As Long) As String
@@ -1810,7 +1823,7 @@ End Function
 Public Function PptTqq_LinkTextMsg(coreMsg As String) As String
     If Len(coreMsg) = 0 Then
         PptTqq_LinkTextMsg = PPT_MSG_TEXT_OK & " " & PPT_MSG_TEXT_SAVE
-    ElseIf Left$(coreMsg, 16) = "Texto vinculado." Then
+    ElseIf Left$(coreMsg, 15) = "Texto vinculado" Then              ' "Texto vinculado à célula Pasta!Plan!B2." (e o cortado)
         PptTqq_LinkTextMsg = coreMsg & " " & PPT_MSG_TEXT_SAVE
     Else
         PptTqq_LinkTextMsg = coreMsg

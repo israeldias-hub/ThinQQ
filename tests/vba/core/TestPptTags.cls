@@ -13,6 +13,7 @@ Option Explicit
 Private mD As Object
 Public Writes As Long
 Public Deletes As Long
+Public FailOnKey As String                      ' a proxima gravacao desta etiqueta falha (uso unico)
 
 Private Sub Class_Initialize()
     Set mD = CreateObject("Scripting.Dictionary")
@@ -24,6 +25,7 @@ Public Function Item(key As String) As String
 End Function
 
 Public Sub Add(key As String, value As String)
+    If Len(FailOnKey) > 0 And key = FailOnKey Then FailOnKey = "": Err.Raise vbObjectError + 9995, "TestPptTags", "falha injetada (etiqueta " & key & ")"
     mD(key) = value
     Writes = Writes + 1
 End Sub

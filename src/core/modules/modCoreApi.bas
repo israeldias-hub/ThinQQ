@@ -2079,8 +2079,8 @@ Fail:
 End Function
 
 ' API 5 (1.9.0): o .ppam vincula a forma do slide (shp; trecho [startPos, startPos + length) do texto, length 0 = no cursor) a celula ATIVA
-' deste Excel (a acao explicita do usuario: so ela cria o nome definido oculto na pasta dele, que precisa estar aberta e salva). Devolve ""
-' (ok), PPTTEXT_MSG_CUT (vinculado com o valor cortado) ou a mensagem. Sem caixas (modo silencioso) e com o ciclo automatico esperando
+' deste Excel (a acao explicita do usuario: so ela cria o nome definido oculto na pasta dele, que precisa estar aberta e salva). Devolve
+' "Texto vinculado a celula Pasta!Planilha!B2." (PptText_LinkedText; + o aviso de valor cortado) ou a mensagem da recusa. Sem caixas (modo silencioso) e com o ciclo automatico esperando
 ' (Ppt_BeginOp/EndOp), equilibrados em todo caminho. Nunca propaga erro.
 Public Function Core_PptLinkText(shp As Object, startPos As Long, length As Long) As String
     On Error Resume Next
@@ -2093,12 +2093,18 @@ Public Function Core_PptLinkText(shp As Object, startPos As Long, length As Long
 End Function
 
 Private Function PptLinkTextImpl(shp As Object, startPos As Long, length As Long) As String
-    Dim en As Long, ed As String, cell As Range
+    Dim en As Long, ed As String, cell As Range, msg As String
     On Error GoTo Fail
     If TypeName(Selection) <> "Range" Then PptLinkTextImpl = PPTTEXT_MSG_NOCELL: Exit Function
     Set cell = ActiveCell
     If cell Is Nothing Then PptLinkTextImpl = PPTTEXT_MSG_NOCELL: Exit Function
-    PptLinkTextImpl = PptText_Link(shp, startPos, length, cell)
+    msg = PptText_Link(shp, startPos, length, cell)
+    If Len(msg) = 0 Then
+        msg = PptText_LinkedText(cell, False)                   ' com a pasta e a celula (revisao final E, M9: dois Excel abertos)
+    ElseIf msg = PPTTEXT_MSG_CUT Then
+        msg = PptText_LinkedText(cell, True)
+    End If
+    PptLinkTextImpl = msg
     Exit Function
 Fail:
     en = Err.Number: ed = Err.Description

@@ -26,6 +26,11 @@ Public Const PPTTEXT_MSG_EDITDATA As String = "Editar dados vale para gráficos 
 Public Const PPTTEXT_MSG_NOTCHART As String = "Este comando vale só para gráficos do ThinQQ (não para texto vinculado)."
 Public Const PPTTEXT_MSG_NOPPT As String = "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em 'Vincular célula ao texto selecionado'."
 Public Const PPTTEXT_MSG_SAVEHINT As String = "Salve a pasta de trabalho: assim o vínculo acompanha linhas e colunas inseridas antes da célula."
+Public Const PPTTEXT_MSG_GROUP As String = "O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular."
+Public Const PPTTEXT_MSG_LINKED As String = "Texto vinculado à célula "     ' + Pasta!Planilha!Endereco + "." (o .ppam reconhece o prefixo "Texto vinculado")
+' Marca fixa (nome oculto) de "esta pasta tem vinculos criados pelo ThinQQ" (revisao final E, I1/I3): criada junto com o primeiro nome TQQ_X_/
+' TQQ_T_ (PptLink_DefineName, so pela acao explicita de vincular) e salva com ele. Uma busca so (PptLink_HasMark) em vez de varrer os nomes.
+Public Const PPTLINK_MARK As String = "TQQ_XLINK"
 Public Const LINKTITLE_MSG_OTHERBOOK As String = "Escolha uma célula da mesma pasta de trabalho do gráfico."
 Private Const PPTLINK_REF_SEP As String = "|"
 
@@ -94,7 +99,10 @@ Public Function PptText_SafeValue(t As String, ByRef cut As Boolean) As String
         If (c >= 0 And c < 32) Or c = 127 Then Mid$(s, i, 1) = " "
     Next
     cut = (Len(s) > PPTTEXT_MAX_LEN)
-    If cut Then s = Left$(s, PPTTEXT_MAX_LEN)
+    If cut Then
+        c = AscW(Mid$(s, PPTTEXT_MAX_LEN, 1)) And &HFFFF&
+        If c >= &HD800& And c <= &HDBFF& Then s = Left$(s, PPTTEXT_MAX_LEN - 1) Else s = Left$(s, PPTTEXT_MAX_LEN)   ' nunca parte um par substituto (emoji)
+    End If
     PptText_SafeValue = s
 End Function
 
@@ -166,7 +174,19 @@ Public Function PptLink_DefineName(rng As Range, prefix As String) As String
         i = i + 1
     Loop While Not n Is Nothing And i < 50
     wb.Names.Add Name:=nm, RefersTo:="='" & Replace(rng.Worksheet.Name, "'", "''") & "'!" & rng.Address, Visible:=False
+    If Not PptLink_HasMark(wb) Then wb.Names.Add Name:=PPTLINK_MARK, RefersTo:="=1", Visible:=False
     PptLink_DefineName = nm
+End Function
+
+' A pasta tem a marca PPTLINK_MARK (vinculos criados pelo ThinQQ nela). Uma busca so (nunca varre os nomes: e chamada a cada SheetChange e
+' SheetCalculate por PptAuto_IsCandidate). Nunca propaga erro.
+Public Function PptLink_HasMark(wb As Workbook) As Boolean
+    Dim n As Object
+    On Error Resume Next
+    If wb Is Nothing Then Exit Function
+    Set n = wb.Names(PPTLINK_MARK)
+    PptLink_HasMark = Not n Is Nothing
+    Err.Clear
 End Function
 
 ' Intervalo do vinculo: pelo nome (acompanha insercoes) ou, sem ele, pelo endereco de reserva. Nothing se nenhum resolve. So le. Nunca
@@ -208,6 +228,7 @@ End Sub
 Public Function PptText_Link(shp As Object, startPos As Long, length As Long, cell As Range) As String
     Dim wb As Workbook, tr As Object, cur As String, pre As String, suf As String, v As String, st As Long, ln As Long, hasTf As Boolean
     Dim cut As Boolean, nm As String, mid0 As String, changed As Boolean, wasLinked As Boolean, en As Long, ed As String
+    Dim wasAuto As Boolean, hadMark As Boolean, old As Variant
     Set wb = cell.Worksheet.Parent
     If Len(wb.Path) = 0 Then PptText_Link = PPTTEXT_MSG_UNSAVED: Exit Function
     If Not PptData_IsWorkbookExt(wb.FullName) Then PptText_Link = PPTTEXT_MSG_NOTBOOK: Exit Function
@@ -217,6 +238,7 @@ Public Function PptText_Link(shp As Object, startPos As Long, length As Long, ce
     Err.Clear
     On Error GoTo 0
     If Not hasTf Then PptText_Link = PPTTEXT_MSG_NOTEXT: Exit Function
+    If PptText_IsGroupChild(shp) Then PptText_Link = PPTTEXT_MSG_GROUP: Exit Function   ' a sincronizacao so percorre as formas soltas do slide
     Set tr = shp.TextFrame.TextRange
     cur = CStr(tr.Text)
     st = startPos: ln = length
@@ -227,7 +249,10 @@ Public Function PptText_Link(shp As Object, startPos As Long, length As Long, ce
     pre = Left$(cur, st - 1): suf = Mid$(cur, st + ln): mid0 = Mid$(cur, st, ln)
     v = PptText_SafeValue(PptText_CellText(cell), cut)
     wasLinked = (PptSync_Tag(shp, PPTTEXT_TAG) = "1")
-    nm = PptLink_DefineName(cell.Cells(1, 1), "TQQ_X_")          ' falha aqui: nada mudou
+    wasAuto = (PptSync_Tag(shp, PPTSYNC_TAG_AUTO) = "1")
+    old = PptText_TagsOf(shp)                                    ' vincular de novo: as etiquetas antigas voltam se algo falhar
+    hadMark = PptLink_HasMark(wb)
+    nm = PptLink_DefineName(cell.Cells(1, 1), "TQQ_X_")          ' falha aqui: nada mudou (a marca so e criada depois do nome)
     On Error GoTo Undo
     PptText_Replace shp, st, ln, v
     changed = True
@@ -238,7 +263,8 @@ Public Function PptText_Link(shp As Object, startPos As Long, length As Long, ce
     shp.Tags.Add PPTTEXT_TAG_SUF, PptText_TagEnc(suf)
     shp.Tags.Add PPTTEXT_TAG_LAST, PptText_TagEnc(v)
     shp.Tags.Add PPTTEXT_TAG, "1"                                ' por ultimo: so vira "texto vinculado" com as etiquetas completas
-    If PptAuto_NewLinksAuto() Then PptSync_SetAuto shp, True
+    ' automatica antes (outra pasta: o indice TQQ_AUTOIDX passa a citar a pasta nova) ou "Novos vinculos automaticos"
+    If wasAuto Or PptAuto_NewLinksAuto() Then PptSync_SetAuto shp, True
     If cut Then PptText_Link = PPTTEXT_MSG_CUT
     Exit Function
 Undo:
@@ -246,13 +272,52 @@ Undo:
     On Error GoTo -1
     On Error Resume Next
     wb.Names(nm).Delete
+    If Not hadMark Then wb.Names(PPTLINK_MARK).Delete
     If changed Then
         If Len(v) > 0 Then shp.TextFrame.TextRange.Characters(st, Len(v)).Text = mid0 Else PptText_Replace shp, st, 0, mid0
     End If
-    If Not wasLinked Then PptSync_TagDelete shp, PPTTEXT_TAG
+    If wasLinked Then PptText_RestoreTags shp, old Else PptSync_TagDelete shp, PPTTEXT_TAG
     Err.Clear
     On Error GoTo 0
     Err.Raise en, "PptText_Link", ed
+End Function
+
+' Etiquetas do vinculo de uma forma (para desfazer um novo vinculo que falhou). Nunca propaga erro.
+Private Function PptText_TagsOf(shp As Object) As Variant
+    Dim k As Variant, out(5) As String, i As Long
+    For Each k In Array(PPTSYNC_TAG_BOOK, PPTLINK_TAG_NAME, PPTLINK_TAG_REF, PPTTEXT_TAG_PRE, PPTTEXT_TAG_SUF, PPTTEXT_TAG_LAST)
+        out(i) = PptSync_Tag(shp, CStr(k)): i = i + 1
+    Next
+    PptText_TagsOf = out
+End Function
+
+' Devolve as etiquetas guardadas por PptText_TagsOf (vazia = apagada). Melhor esforco: nunca propaga erro.
+Private Sub PptText_RestoreTags(shp As Object, old As Variant)
+    Dim k As Variant, i As Long
+    On Error Resume Next
+    For Each k In Array(PPTSYNC_TAG_BOOK, PPTLINK_TAG_NAME, PPTLINK_TAG_REF, PPTTEXT_TAG_PRE, PPTTEXT_TAG_SUF, PPTTEXT_TAG_LAST)
+        If Len(old(i)) > 0 Then shp.Tags.Add CStr(k), CStr(old(i)) Else PptSync_TagDelete shp, CStr(k)
+        i = i + 1
+    Next
+    Err.Clear
+End Sub
+
+' Forma dentro de um grupo (Shape.Child = msoTrue). Leitura que falha (duble, objeto sem Child) = nao. Nunca propaga erro.
+Public Function PptText_IsGroupChild(shp As Object) As Boolean
+    On Error Resume Next
+    PptText_IsGroupChild = (CLng(shp.Child) = -1)
+    Err.Clear
+End Function
+
+' Texto de sucesso do vincular, com a pasta, a planilha e a celula (com dois Excel abertos, o usuario ve qual celula foi usada): "Texto
+' vinculado a celula Pasta.xlsx!Planilha!B2." (+ o aviso de valor cortado). Nunca propaga erro.
+Public Function PptText_LinkedText(cell As Range, cut As Boolean) As String
+    Dim s As String
+    On Error Resume Next
+    s = PPTTEXT_MSG_LINKED & cell.Worksheet.Parent.Name & "!" & cell.Worksheet.Name & "!" & cell.Cells(1, 1).Address(False, False) & "."
+    If cut Then s = s & " O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255."
+    PptText_LinkedText = s
+    Err.Clear
 End Function
 
 ' Selecao da janela ativa do PowerPoint app: texto selecionado ou cursor (ppSelectionText: o trecho, Start/Length relativos ao texto da forma)
@@ -278,11 +343,16 @@ Public Function PptText_SelectionParts(selType As Long, sel As Object, ByRef shp
     Dim s As Object, a As Long, b As Long, en As Long, ed As String
     On Error GoTo Fail
     If selType = 3 Then                                          ' ppSelectionText
-        Set s = sel.ShapeRange(1)
+        If PptText_SelInGroup(sel) Then Set s = sel.ChildShapeRange(1) Else Set s = sel.ShapeRange(1)   ' filho de grupo: PptText_Link recusa
         a = CLng(sel.TextRange.Start): b = CLng(sel.TextRange.Length)
     ElseIf selType = 2 Then                                      ' ppSelectionShapes
-        If sel.ShapeRange.Count <> 1 Then Exit Function
-        Set s = sel.ShapeRange(1)
+        If PptText_SelInGroup(sel) Then
+            If sel.ChildShapeRange.Count <> 1 Then Exit Function
+            Set s = sel.ChildShapeRange(1)
+        Else
+            If sel.ShapeRange.Count <> 1 Then Exit Function
+            Set s = sel.ShapeRange(1)
+        End If
         If Not CBool(s.HasTextFrame) Then Exit Function
         a = 1: b = Len(CStr(s.TextFrame.TextRange.Text))
     Else
@@ -298,13 +368,27 @@ Fail:
     If Ppt_IsBusyError(en) Then Err.Raise en, "PptText_SelectionParts", ed
 End Function
 
+' Selecao dentro de um grupo (Selection.HasChildShapeRange). Leitura que falha = nao. Nunca propaga erro.
+Private Function PptText_SelInGroup(sel As Object) As Boolean
+    On Error Resume Next
+    PptText_SelInGroup = CBool(sel.HasChildShapeRange)
+    Err.Clear
+End Function
+
 ' Atualiza o campo da forma pela pasta wb (aberta; so LIDA: nada e gravado nela). PPTSYNC_R_SAME sem mudanca (e sem force); R_NOCHART celula
 ' nao encontrada; R_EDITED edicao incompativel (nada tocado); R_OK; R_FAIL (registrado). PowerPoint ocupado sobe.
 Public Function PptText_Sync(shp As Object, wb As Workbook, force As Boolean) As Long
     Dim rng As Range, v As String, cur As String, pre As String, suf As String, last As String, st As Long, ln As Long, bn As Long, bd As String
-    Dim cut As Boolean
+    Dim cut As Boolean, nm As String, ref As String
     On Error GoTo Fail
-    Set rng = PptLink_ResolveRange(wb, PptSync_Tag(shp, PPTLINK_TAG_NAME), PptSync_Tag(shp, PPTLINK_TAG_REF))
+    ' SEGURANCA (revisao final E, I1): as etiquetas vem da apresentacao (de quem a fez). So um nome TQQ_X_ (criado pela acao de vincular) e
+    ' seguido; o endereco de reserva so vale numa pasta com a marca PPTLINK_MARK (o usuario vinculou algo nela). Senao um deck hostil leria
+    ' qualquer celula de qualquer pasta do usuario e a gravaria no slide.
+    nm = PptSync_Tag(shp, PPTLINK_TAG_NAME)
+    If Left$(nm, 6) <> "TQQ_X_" Then nm = ""
+    If PptLink_HasMark(wb) Then ref = PptSync_Tag(shp, PPTLINK_TAG_REF)
+    If Len(nm) = 0 And Len(ref) = 0 Then PptText_Sync = PPTSYNC_R_NOCHART: Exit Function
+    Set rng = PptLink_ResolveRange(wb, nm, ref)
     If rng Is Nothing Then PptText_Sync = PPTSYNC_R_NOCHART: Exit Function
     v = PptText_SafeValue(PptText_CellText(rng), cut)
     If cut Then Errors_Log "PptText_Sync: valor da celula cortado em " & PPTTEXT_MAX_LEN & " caracteres" & vbTab & wb.Name
@@ -335,7 +419,7 @@ End Function
 ' Liga o titulo de c a cell (mesma pasta do grafico; erro 7110 se outra). cell Nothing = remove o titulo ligado (um titulo que o ThinQQ nao
 ' ligou fica como esta). A opcao so e gravada depois de o titulo estar ligado.
 Public Sub LinkTitle_Apply(c As Chart, cell As Range)
-    Dim r As Range
+    Dim r As Range, had As Boolean, oldF As String, en As Long, ed As String
     If cell Is Nothing Then
         If Len(Registry_GetOption(c, "titleref", "")) = 0 Then Exit Sub
         c.HasTitle = False
@@ -344,13 +428,38 @@ Public Sub LinkTitle_Apply(c As Chart, cell As Range)
     End If
     If Not cell.Worksheet.Parent Is Registry_Workbook(c) Then Err.Raise vbObjectError + 7110, "LinkTitle", LINKTITLE_MSG_OTHERBOOK
     Set r = cell.Cells(1, 1)
+    had = CBool(c.HasTitle)
+    If had Then oldF = CStr(c.ChartTitle.Formula)
+    On Error GoTo Undo                                          ' transacional (revisao final E, M8): falha = o titulo volta como estava
     c.HasTitle = True
+    LinkTitle_TestHook "formula"
     c.ChartTitle.Formula = "='" & Replace(r.Worksheet.Name, "'", "''") & "'!" & r.Address
     Registry_SetOption c, "titleref", LinkTitle_Enc(PptLink_RefOf(r))
+    Exit Sub
+Undo:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    c.HasTitle = had
+    If had Then c.ChartTitle.Formula = oldF
+    Err.Clear
+    On Error GoTo 0
+    Err.Raise en, "LinkTitle_Apply", ed
+End Sub
+
+' Gancho de teste (Util_FailThinSyncForTest = "linktitle-<ponto>:1"): dispara UMA vez. Inerte fora do build Test.
+Private Sub LinkTitle_TestHook(site As String)
+    If BUILD_CONFIG = "Test" Then
+        If Util_FailThinSyncForTest = "linktitle-" & site & ":1" Then
+            Util_FailThinSyncForTest = ""
+            Err.Raise vbObjectError + 9994, "ThinQQ", "Falha simulada (teste) " & site
+        End If
+    End If
 End Sub
 
 ' Celula a que o titulo de c esta ligado agora (Nothing se o ThinQQ nao o ligou, ou se o usuario apagou o titulo ou trocou por texto). Le a
-' formula do titulo (que o Excel ajusta quando linhas/colunas sao inseridas); sem ela, o endereco gravado. Nunca propaga erro.
+' formula do titulo (que o Excel ajusta quando linhas/colunas sao inseridas); sem ela, o endereco gravado; com #REF! (celula apagada),
+' Nothing. Nunca propaga erro.
 Public Function LinkTitle_Cell(c As Chart) As Range
     Dim ref As String, f As String, p As Long, sh As String, r As Range, wb As Workbook
     On Error Resume Next
@@ -359,6 +468,7 @@ Public Function LinkTitle_Cell(c As Chart) As Range
     If Not CBool(c.HasTitle) Then Exit Function
     f = CStr(c.ChartTitle.Formula)
     If Left$(f, 1) <> "=" Then Exit Function
+    If InStr(1, f, "#REF!", vbTextCompare) > 0 Then Exit Function   ' celula apagada: o titulo ligado sai (a reserva apontaria a celula que subiu)
     Set wb = Registry_Workbook(c)
     f = Mid$(f, 2)
     p = InStrRev(f, "!")

@@ -162,6 +162,12 @@ Public Sub Test_PptSync_Fingerprint_ChangesWithDataSizeAndShapes()
     b = PptSync_Fingerprint(c.Parent, shp)
     Ann_AddCagr c, 1, 2
     AssertTrue b <> PptSync_Fingerprint(c.Parent, shp), "seta nova muda a impressao digital"
+    ' revisao final E (I2): o titulo ligado a uma celula entra na impressao digital
+    rng.Worksheet.Range("H1").Value = "Titulo 1"
+    LinkTitle_Apply c, rng.Worksheet.Range("H1")
+    b = PptSync_Fingerprint(c.Parent, shp)
+    rng.Worksheet.Range("H1").Value = "Titulo 2"
+    AssertTrue b <> PptSync_Fingerprint(c.Parent, shp), "titulo mudou: impressao digital muda"
     Teardown wb
 End Sub
 
@@ -565,6 +571,7 @@ End Sub
 ' (instancia injetada) cita a apresentacao no aviso.
 Public Sub Test_PptSync_Fingerprint_SkipsUnchanged_AndCoreOpen_WhenAvailable()
     Dim wb As Workbook, rng As Range, app As Object, pres As Object, shp As Object, own As New Collection, en As Long, ed As String, s As String
+    Dim c As Chart
     Set app = StartScratchPowerPoint()
     If app Is Nothing Then Exit Sub
     On Error GoTo Cleanup
@@ -583,11 +590,25 @@ Public Sub Test_PptSync_Fingerprint_SkipsUnchanged_AndCoreOpen_WhenAvailable()
     Core_ClearLastNotice
     Core_PptSyncOpen
     AssertTrue InStr(Core_LastNotice(), "'" & CStr(pres.Name) & "': Gráficos do ThinQQ atualizados: 1.") > 0, Core_LastNotice()
+    ' revisao final E (I2): titulo ligado a uma celula; mudar a celula chega ao slide sem forcar (como no ciclo automatico)
+    Set c = rng.Worksheet.ChartObjects(rng.Worksheet.ChartObjects.Count).Chart
+    rng.Worksheet.Range("H1").Value = "Receita 2026"
+    LinkTitle_Apply c, rng.Worksheet.Range("H1")
+    s = PptSync_Presentation(pres, False)
+    AssertEqual "Gráficos do ThinQQ atualizados: 1.", s, "titulo ligado: atualiza sem forcar"
+    rng.Worksheet.Range("H1").Value = "Receita 2027"
+    s = PptSync_Presentation(pres, False)
+    AssertEqual "Gráficos do ThinQQ atualizados: 1.", s, "celula do titulo mudou: atualiza sem forcar"
+    AssertEqual "Receita 2027", CStr(shp.Chart.ChartTitle.Text), "o titulo chegou ao slide (copiado: o vinculo nativo nao o traz)"
+    AssertEqual "Gráficos do ThinQQ atualizados: 0. Sem mudança: 1.", PptSync_Presentation(pres, False)
+    LinkTitle_Apply c, Nothing
+    AssertEqual "Gráficos do ThinQQ atualizados: 1.", PptSync_Presentation(pres, False), "ligacao removida: atualiza"
+    AssertFalse CBool(shp.Chart.HasTitle), "o titulo posto pelo ThinQQ sai do slide"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
-    Set shp = Nothing: Set pres = Nothing
+    Set c = Nothing: Set shp = Nothing: Set pres = Nothing
     StopScratchPowerPoint app, own
     If Not wb Is Nothing Then Teardown wb
     On Error GoTo 0
@@ -2737,6 +2758,44 @@ Cleanup:
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub
 
+' Revisao final E (M3, M10), PowerPoint real: emoji no prefixo (par substituto: Characters/Start contam unidades UTF-16 como Len?), vinculo no
+' cursor (tamanho 0, InsertBefore), campo que esvazia (celula vazia) e volta a ter valor.
+Public Sub Test_PptText_CursorEmptyEmoji_WhenAvailable()
+    Dim wb As Workbook, ws As Worksheet, app As Object, pres As Object, tb As Object, own As New Collection, en As Long, ed As String, s As String
+    Dim emo As String, pre As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    ws.Range("A1").Value = "abc"
+    wb.SaveAs TempDir() & "\ppttext-cursor.xlsx", xlOpenXMLWorkbook
+    emo = ChrW$(&HD83D) & ChrW$(&HDE00)
+    pre = emo & " Total: ["
+    Set tb = NewTextBox(pres, pre & "] fim")
+    AssertEqual Len(pre) + 5, Len(CStr(tb.TextFrame.TextRange.Text)), "premissa: o PowerPoint guarda o emoji como 2 unidades UTF-16"
+    AssertEqual "", PptText_Link(tb, Len(pre) + 1, 0, ws.Range("A1"))
+    AssertEqual pre & "abc] fim", CStr(tb.TextFrame.TextRange.Text), "cursor depois do emoji: no lugar certo"
+    ws.Range("A1").ClearContents
+    s = PptSync_Presentation(pres, False)
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 1.") = 1, s
+    AssertEqual pre & "] fim", CStr(tb.TextFrame.TextRange.Text), "celula vazia: campo vazio"
+    ws.Range("A1").Value = "zz"
+    s = PptSync_Presentation(pres, False)
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 1.") = 1, s
+    AssertEqual pre & "zz] fim", CStr(tb.TextFrame.TextRange.Text), "o campo vazio volta a ter valor"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set tb = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
 ' Adendo do controlador: as etiquetas do texto vinculado (prefixo com quebra de paragrafo, quebra de linha e Tab; reserva planilha|endereco)
 ' sobrevivem a Salvar como .pptx, fechar e reabrir: a sincronizacao depois de reabrir diz "sem mudanca" (nao "editado"), atualiza quando a
 ' celula muda, e a forma automatica continua no indice que o ciclo automatico le (PptAuto_ItemsFor).
@@ -2815,6 +2874,7 @@ Public Sub Test_PptText_HostileSourceMacros_NeverRun_Fake()
     Set wb = NewTempWorkbook()
     sheetName = wb.Worksheets(1).Name
     wb.Worksheets(1).Range("A1").Value = 42
+    PptLink_DefineName wb.Worksheets(1).Range("A1"), "TQQ_X_"         ' a pasta tem vinculos do ThinQQ (marca): a reserva TQQ_TREF vale (I1)
     code = "Private Sub Workbook_Open()" & vbCrLf
     code = code & "    Dim f As Integer: f = FreeFile: Open """ & marker & """ For Output As #f: Print #f, ""macro rodou (open)"": Close #f" & vbCrLf
     code = code & "End Sub" & vbCrLf

@@ -467,7 +467,7 @@ Public Sub Test_Core_PptLinkText_ActiveCellQuietBalanced()
     Core_ClearLastNotice
     Set t = TextShape("n=X")
     s = Core_PptLinkText(t, 3, 1)
-    AssertEqual "", s
+    AssertEqual "Texto vinculado à célula ppttext-api.xlsx!Dados!C4.", s, "a pasta, a planilha e a celula (M9)"
     AssertEqual "n=77", t.Text
     AssertEqual "Dados|$C$4", t.Tags.Item(PPTLINK_TAG_REF)
     AssertFalse Core_IsQuiet(), "modo silencioso fechado"
@@ -480,5 +480,159 @@ Public Sub Test_Core_PptLinkText_ActiveCellQuietBalanced()
     AssertFalse Core_IsQuiet(), "modo silencioso fechado na falha"
     AssertFalse Ppt_InOperation(), "operacao fechada na falha"
     AssertEqual 0, Core_ShownCountForTest(), "nenhuma caixa"
+    CloseTemp wb
+End Sub
+
+' ---- Revisao final da Parte E ----
+
+' Forma de texto "vinculado" de um deck hostil (duble): etiquetas forjadas por quem fez o deck.
+Private Function HostileShape(nm As String, ref As String, book As String) As TestPptTextFake
+    Dim t As TestPptTextFake
+    Set t = TextShape("v=X")
+    t.Tags.Preset PPTTEXT_TAG, "1"
+    t.Tags.Preset PPTSYNC_TAG_BOOK, book
+    t.Tags.Preset PPTLINK_TAG_NAME, nm
+    t.Tags.Preset PPTLINK_TAG_REF, ref
+    t.Tags.Preset PPTTEXT_TAG_PRE, PptText_TagEnc("v=")
+    t.Tags.Preset PPTTEXT_TAG_LAST, "X"
+    Set HostileShape = t
+End Function
+
+' I1 (seguranca): um deck hostil nao le celulas arbitrarias da pasta do usuario. Nome definido do usuario (nao TQQ_X_) nunca e seguido;
+' endereco de reserva so numa pasta com a marca (o usuario vinculou algo nela). Nada e escrito no slide.
+Public Sub Test_PptText_Sync_HostileTagsRefused_Fake()
+    Dim wb As Workbook, ws As Worksheet, t As TestPptTextFake
+    Set wb = SavedBook("ppttext-hostil-tags.xlsx"): Set ws = wb.Worksheets(1)
+    ws.Range("B2").Value = "salario secreto"
+    wb.Names.Add Name:="Total_Salarios", RefersTo:="='Dados'!$B$2"
+    AssertFalse PptLink_HasMark(wb), "premissa: pasta sem a marca"
+    Set t = HostileShape("Total_Salarios", "", wb.FullName)
+    AssertEqual PPTSYNC_R_NOCHART, PptText_Sync(t, wb, True), "nome do usuario"
+    AssertEqual "v=X", t.Text
+    Set t = HostileShape("", "Dados|$B$2", wb.FullName)
+    AssertEqual PPTSYNC_R_NOCHART, PptText_Sync(t, wb, True), "reserva numa pasta sem vinculos do ThinQQ"
+    AssertEqual "v=X", t.Text
+    Set t = HostileShape("TQQ_X_naoexiste", "Dados|$B$2", wb.FullName)
+    AssertEqual PPTSYNC_R_NOCHART, PptText_Sync(t, wb, True), "nome TQQ_X_ inexistente e reserva sem a marca"
+    AssertEqual "v=X", t.Text
+    AssertTrue InStr(PptSync_SummaryText(0, 0, "", 0, 0, 0, 0, 1), "Célula do texto vinculado não encontrada") > 0, "M5: o resumo nao diz 'grafico'"
+    ' depois que o usuario vincula algo nesta pasta (marca): a reserva vale; um nome que nao e TQQ_X_ continua recusado
+    PptLink_DefineName ws.Range("C3"), "TQQ_X_"
+    AssertTrue PptLink_HasMark(wb), "vincular cria a marca"
+    Set t = HostileShape("Total_Salarios", "", wb.FullName)
+    AssertEqual PPTSYNC_R_NOCHART, PptText_Sync(t, wb, True), "nome do usuario, mesmo com a marca"
+    AssertEqual "v=X", t.Text
+    Set t = HostileShape("", "Dados|$B$2", wb.FullName)
+    AssertEqual PPTSYNC_R_OK, PptText_Sync(t, wb, True), "com a marca, a reserva vale"
+    CloseTemp wb
+End Sub
+
+' I3 (custo): PptAuto_IsCandidate (a cada SheetChange/SheetCalculate) so faz buscas diretas: uma pasta com muitos nomes, um deles TQQ_X_
+' posto sem a marca, NAO e candidata (prova que os nomes nao sao varridos); com a marca (vincular), e.
+Public Sub Test_PptAuto_IsCandidate_NoNameLoop()
+    Dim wb As Workbook, ws As Worksheet, i As Long, t0 As Single, k As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    wb.SaveAs TempDir() & "\ppttext-nomes.xlsx", xlOpenXMLWorkbook
+    For i = 1 To 600
+        wb.Names.Add Name:="Nome_" & i, RefersTo:="=" & ws.Name & "!$A$" & i, Visible:=(i Mod 2 = 0)
+    Next
+    wb.Names.Add Name:="TQQ_X_semmarca", RefersTo:="=" & ws.Name & "!$B$1", Visible:=False
+    AssertFalse PptAuto_IsCandidate(wb), "sem a marca: os nomes nao sao varridos"
+    t0 = Timer
+    For k = 1 To 200
+        PptAuto_IsCandidate wb
+    Next
+    AssertTrue Timer - t0 < 2, "200 chamadas numa pasta com 600 nomes: " & Format$(Timer - t0, "0.00") & " s"
+    PptLink_DefineName ws.Range("C1"), "TQQ_X_"
+    AssertTrue PptAuto_IsCandidate(wb), "com a marca"
+    CloseTemp wb
+End Sub
+
+' M1/M2: vincular de novo a mesma forma (outra parte do texto, outra celula): o campo antigo vira texto comum e a sincronizacao so mexe no
+' campo novo. Falha numa etiqueta ao vincular de novo: as etiquetas antigas voltam (nada misturado) e a forma continua vinculada como antes.
+Public Sub Test_PptText_Relink_SameShape()
+    Dim wb As Workbook, ws As Worksheet, t As TestPptTextFake, nm0 As String, ref0 As String, en As Long
+    Set wb = SavedBook("ppttext-relink.xlsx"): Set ws = wb.Worksheets(1)
+    ws.Range("A1").Value = 10: ws.Range("B1").Value = "Sul"
+    Set t = TextShape("X em Y")
+    AssertEqual "", PptText_Link(t, 1, 1, ws.Range("A1"))
+    AssertEqual "10 em Y", t.Text
+    nm0 = t.Tags.Item(PPTLINK_TAG_NAME): ref0 = t.Tags.Item(PPTLINK_TAG_REF)
+    ' falha na gravacao da reserva ao vincular de novo: tudo volta
+    t.Tags.FailOnKey = PPTLINK_TAG_REF
+    On Error Resume Next
+    PptText_Link t, 7, 1, ws.Range("B1")
+    en = Err.Number
+    On Error GoTo 0
+    AssertEqual vbObjectError + 9995, en, "o erro sobe"
+    AssertEqual "10 em Y", t.Text, "texto de volta"
+    AssertEqual nm0, t.Tags.Item(PPTLINK_TAG_NAME), "nome antigo de volta"
+    AssertEqual ref0, t.Tags.Item(PPTLINK_TAG_REF), "reserva antiga de volta"
+    AssertEqual "1", t.Tags.Item(PPTTEXT_TAG), "continua vinculada"
+    AssertEqual "", PptText_TagDec(t.Tags.Item(PPTTEXT_TAG_PRE)), "prefixo antigo de volta"
+    ' novo vinculo de verdade: o Y vira a celula B1; o 10 vira texto comum
+    AssertEqual "", PptText_Link(t, 7, 1, ws.Range("B1"))
+    AssertEqual "10 em Sul", t.Text
+    ws.Range("A1").Value = 99: ws.Range("B1").Value = "Norte"
+    AssertEqual PPTSYNC_R_OK, PptText_Sync(t, wb, False)
+    AssertEqual "10 em Norte", t.Text, "o campo antigo virou texto comum"
+    CloseTemp wb
+End Sub
+
+' M3: o corte em 255 nunca parte um par substituto (emoji); M4: forma dentro de um grupo e recusada (a sincronizacao nao desce em grupos).
+Public Sub Test_PptText_SurrogateCutAndGroup()
+    Dim cut As Boolean, s As String, emo As String, wb As Workbook, t As TestPptTextFake, sel As TestPptSelFake, shp As Object, st As Long, ln As Long
+    emo = ChrW$(&HD83D) & ChrW$(&HDE00)
+    s = PptText_SafeValue(String$(254, "a") & emo & "b", cut)
+    AssertTrue cut
+    AssertEqual 254, Len(s), "o emoji que nao cabe inteiro sai"
+    s = PptText_SafeValue(String$(253, "a") & emo & "b", cut)
+    AssertEqual 255, Len(s), "o emoji que cabe fica inteiro"
+    AssertEqual emo, Right$(s, 2)
+    Set wb = SavedBook("ppttext-grupo.xlsx")
+    Set t = TextShape("v=X"): t.Child = -1
+    AssertEqual PPTTEXT_MSG_GROUP, PptText_Link(t, 3, 1, wb.Worksheets(1).Range("A1")), "filho de grupo"
+    AssertEqual "v=X", t.Text
+    AssertEqual 0, t.Tags.Writes
+    Set sel = New TestPptSelFake: Set sel.ShapeRange = New Collection: sel.ShapeRange.Add TextShape("grupo")
+    sel.HasChildShapeRange = True: Set sel.ChildShapeRange = New Collection: sel.ChildShapeRange.Add t
+    sel.Start = 3: sel.Length = 1
+    AssertTrue PptText_SelectionParts(3, sel, shp, st, ln)
+    AssertTrue shp Is t, "selecao num grupo: o filho (PptText_Link o recusa)"
+    CloseTemp wb
+End Sub
+
+' M7: celula do titulo apagada (#REF!): o titulo ligado sai no Alterar dados (nao religa a celula que subiu). M8: falha ao ligar o titulo
+' (gancho) devolve o grafico como estava.
+Public Sub Test_LinkTitle_RefDeletedAndFailureUndone()
+    Dim wb As Workbook, ws As Worksheet, c As Chart, en As Long
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Ano", "Sul", "Norte")
+    ws.Range("A2:C2").Value = Array("T1", 10, 5): ws.Range("A3:C3").Value = Array("T2", 20, 6)
+    ws.Range("E5").Value = "Titulo": ws.Range("E6").Value = "Outro texto"
+    ws.Range("A1:C3").Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    ' M8: falha depois de ligar HasTitle: volta sem titulo e sem opcao
+    Util_FailThinSyncForTest = "linktitle-formula:1"
+    On Error Resume Next
+    LinkTitle_Apply c, ws.Range("E5")
+    en = Err.Number
+    On Error GoTo 0
+    Util_FailThinSyncForTest = ""
+    AssertEqual vbObjectError + 9994, en, "o erro sobe"
+    AssertFalse c.HasTitle, "sem o titulo automatico"
+    AssertEqual "", Registry_GetOption(c, "titleref", "")
+    ' M7
+    Core_TestSetTitleCell ws.Range("E5")
+    Core_LinkTitle
+    AssertEqual "Titulo", c.ChartTitle.Text
+    ws.Rows(5).Delete
+    AssertTrue LinkTitle_Cell(c) Is Nothing, "formula com #REF!: sem celula (" & c.ChartTitle.Formula & ")"
+    AssertTrue Core_RebuildFromRange(c, ws.Range("A1:C3"))
+    Set c = Core_ActiveChart()
+    AssertFalse c.HasTitle, "o titulo ligado sai (nao vira 'Outro texto')"
+    AssertEqual "", Registry_GetOption(c, "titleref", "")
+    Watchers_Stop
     CloseTemp wb
 End Sub

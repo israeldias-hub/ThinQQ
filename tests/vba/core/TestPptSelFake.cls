@@ -12,6 +12,8 @@ Option Explicit
 ' parte, porque "Type" e palavra reservada do VBA): ShapeRange (Collection: Count e (1)) e, no texto, TextRange.Start/Length (a mesma
 ' instancia).
 Public ShapeRange As Collection
+Public HasChildShapeRange As Boolean            ' selecao dentro de um grupo
+Public ChildShapeRange As Collection
 Public Start As Long
 Public Length As Long
 

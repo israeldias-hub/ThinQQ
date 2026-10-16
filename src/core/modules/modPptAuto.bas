@@ -168,20 +168,17 @@ Private Sub PptAuto_Log(msg As String)
     Errors_Log msg
 End Sub
 
-' Pasta que pode ter elementos no PowerPoint: salva (o vinculo aponta para o arquivo) e com a planilha _ThinQQ (graficos do ThinQQ). As
-' versoes 1.9.0/1.10.0 acrescentam os nomes definidos TQQ_X_ (texto vinculado) / TQQ_T_ (tabela). Nunca propaga erro.
+' Pasta que pode ter elementos no PowerPoint: salva (o vinculo aponta para o arquivo) e com a planilha _ThinQQ (graficos do ThinQQ) ou, desde a
+' 1.9.0, com a marca PPTLINK_MARK (texto vinculado / tabela: criada junto com os nomes TQQ_X_/TQQ_T_ e salva com eles). Chamada a cada
+' SheetChange e SheetCalculate: so buscas diretas, NUNCA um laco pelos nomes da pasta (revisao final E, I3). Nunca propaga erro.
 Public Function PptAuto_IsCandidate(wb As Workbook) As Boolean
-    Dim ws As Object, n As Object
+    Dim ws As Object
     On Error Resume Next
     If wb Is Nothing Then Exit Function
     If Len(wb.Path) = 0 Then Exit Function
     Set ws = wb.Worksheets(CALC_SHEET)
     PptAuto_IsCandidate = Not ws Is Nothing
-    If Not PptAuto_IsCandidate Then
-        For Each n In wb.Names
-            If Left$(n.Name, 6) = "TQQ_X_" Or Left$(n.Name, 6) = "TQQ_T_" Then PptAuto_IsCandidate = True: Exit For
-        Next
-    End If
+    If Not PptAuto_IsCandidate Then PptAuto_IsCandidate = PptLink_HasMark(wb)
     Err.Clear
 End Function
 

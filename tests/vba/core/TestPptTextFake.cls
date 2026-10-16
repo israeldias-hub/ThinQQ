@@ -15,6 +15,7 @@ Public Tags As Object                           ' TestPptTags
 Public HasTextFrame As Long                     ' -1 = msoTrue
 Public TextWrites As Long
 Public FailTextWrite As Boolean
+Public Child As Long                            ' -1 = forma dentro de um grupo (Shape.Child)
 Private mText As String
 Private mRoot As TestPptTextFake
 Private mSt As Long

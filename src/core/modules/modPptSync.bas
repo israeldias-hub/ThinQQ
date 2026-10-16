@@ -15,6 +15,7 @@ Public Const PPTSYNC_TAG_BOOK As String = "TQQ_BOOK"        ' caminho completo d
 Public Const PPTSYNC_TAG_SHEET As String = "TQQ_SHEET"      ' planilha do grafico na colagem (informativo)
 Public Const PPTSYNC_TAG_VER As String = "TQQ_VER"          ' versao do formato das etiquetas
 Public Const PPTSYNC_TAG_FP As String = "TQQ_FP"            ' impressao digital da ultima sincronizacao (PptSync_Fingerprint)
+Public Const PPTSYNC_TAG_TITLE As String = "TQQ_TITLE"      ' "1" = o titulo do grafico do slide foi posto pelo ThinQQ (titulo ligado, 1.9.0)
 Public Const PPTSYNC_TAG_AUTO As String = "TQQ_AUTO"        ' "1" = atualizar automaticamente (spec 2026-10-15 secao 5.1)
 Public Const PPTSYNC_TAG_INDEX As String = "TQQ_AUTOIDX"   ' etiqueta da APRESENTACAO: indice das formas automaticas (PptIdx_*)
 Public Const PPTIDX_MAX_ENTRIES As Long = 2000             ' PptIdx_Parse: entradas alem disto sao ignoradas
@@ -376,6 +377,7 @@ Public Sub PptSync_SyncShape(shp As Object, co As ChartObject, Optional updateDa
     Set snaps = PptSync_Snapshot(cht)
     PptSync_Hook "apply"
     Set pc = shp.Chart
+    PptSync_ApplyTitle shp, pc, cht                     ' antes de medir as areas internas: o titulo ocupa espaco
     dx = CDbl(pc.PlotArea.InsideLeft) - cht.PlotArea.InsideLeft
     dy = CDbl(pc.PlotArea.InsideTop) - cht.PlotArea.InsideTop
     If Abs(CDbl(pc.PlotArea.InsideWidth) - cht.PlotArea.InsideWidth) > PPTSYNC_LAYOUT_TOL Or Abs(CDbl(pc.PlotArea.InsideHeight) - cht.PlotArea.InsideHeight) > PPTSYNC_LAYOUT_TOL Then
@@ -393,6 +395,23 @@ Fail:
     Application.ScreenUpdating = prevSU: Application.EnableEvents = prevEv
     On Error GoTo 0
     Err.Raise en, "PptSync_SyncShape", ed
+End Sub
+
+' Titulo ligado a uma celula (1.9.0; revisao final E, I2): MEDIDO, o LinkFormat.Update do PowerPoint so traz os dados, nunca o titulo do
+' grafico do Excel. Com o titulo ligado pelo ThinQQ (opcao titleref), o texto e copiado para o grafico do slide e a forma ganha a marca
+' TQQ_TITLE; ligacao removida no Excel: o titulo posto pelo ThinQQ sai do slide. Um titulo do slide que o ThinQQ nao pos nunca e tocado.
+' Levanta erro (PowerPoint ocupado etc.; quem chama trata como a falha da forma).
+Private Sub PptSync_ApplyTitle(shp As Object, pc As Object, cht As Chart)
+    Dim t As String
+    If Len(Registry_GetOption(cht, "titleref", "")) > 0 And CBool(cht.HasTitle) Then
+        t = CStr(cht.ChartTitle.Text)
+        If Not CBool(pc.HasTitle) Then pc.HasTitle = True
+        If CStr(pc.ChartTitle.Text) <> t Then pc.ChartTitle.Text = t
+        If PptSync_Tag(shp, PPTSYNC_TAG_TITLE) <> "1" Then shp.Tags.Add PPTSYNC_TAG_TITLE, "1"
+    ElseIf PptSync_Tag(shp, PPTSYNC_TAG_TITLE) = "1" Then
+        If CBool(pc.HasTitle) Then pc.HasTitle = False
+        PptSync_TagDelete shp, PPTSYNC_TAG_TITLE
+    End If
 End Sub
 
 Private Sub PptSync_Restore(co As ChartObject, w0 As Double, h0 As Double, wb As Workbook, saved0 As Boolean)
@@ -429,8 +448,16 @@ Public Function PptSync_Fingerprint(co As ChartObject, shp As Object) As String
         If Left$(nm, Len(ANN_PREFIX)) = ANN_PREFIX Then s = s & nm & "=" & co.Chart.Shapes(i).AlternativeText & Chr$(30)
     Next
     s = s & "|" & Format$(CDbl(shp.Width), "0.0") & "x" & Format$(CDbl(shp.Height), "0.0")
+    s = s & "|t=" & PptSync_TitleText(co.Chart)              ' titulo (ligado a uma celula, 1.9.0): mudou = atualizar (revisao final E, I2)
     b = StrConv(s, vbFromUnicode)
     PptSync_Fingerprint = Sha256_Bytes(b, UBound(b) - LBound(b) + 1)
+End Function
+
+' Texto do titulo do grafico ("" sem titulo ou ilegivel). Nunca propaga erro.
+Private Function PptSync_TitleText(c As Chart) As String
+    On Error Resume Next
+    If CBool(c.HasTitle) Then PptSync_TitleText = CStr(c.ChartTitle.Text)
+    Err.Clear
 End Function
 
 ' ---- Indice das formas automaticas (1.6.0). Formato (igual no .ppam: PptTqq_Idx*): entradas separadas por quebra de linha (vbLf), campos
@@ -664,13 +691,14 @@ End Function
 ' ---- Sincronizacao da apresentacao inteira (Tarefa A2) ----
 
 ' Resumo para o usuario (textos exatos da spec 4.2). missing = nomes dos arquivos ja separados por ", ". Pura.
-Public Function PptSync_SummaryText(nOk As Long, nSame As Long, missing As String, nNoChart As Long, nUnlinked As Long, nFail As Long, Optional nEdited As Long = 0) As String
+Public Function PptSync_SummaryText(nOk As Long, nSame As Long, missing As String, nNoChart As Long, nUnlinked As Long, nFail As Long, Optional nEdited As Long = 0, Optional nNoCell As Long = 0) As String
     Dim s As String
     s = "Gráficos do ThinQQ atualizados: " & nOk & "."
     If nSame > 0 Then s = s & " Sem mudança: " & nSame & "."
     If Len(missing) > 0 Then s = s & vbLf & "Pasta de origem não encontrada ou sem acesso (o gráfico ficou como estava): " & missing & ". Se ela foi movida ou renomeada, use no PowerPoint Arquivo > Informações > Editar Links para Arquivos > Alterar Origem."
     If nNoChart > 0 Then s = s & vbLf & "Gráfico não encontrado na pasta de origem (apagado ou recriado): " & nNoChart & "."
     If nUnlinked > 0 Then s = s & vbLf & "Sem vínculo com o Excel (Quebrar Vínculo no PowerPoint): " & nUnlinked & "."
+    If nNoCell > 0 Then s = s & vbLf & "Célula do texto vinculado não encontrada na pasta de origem (apagada, ou a pasta não tem vínculos do ThinQQ): " & nNoCell & "."
     If nEdited > 0 Then s = s & vbLf & "Texto editado no PowerPoint fora do campo vinculado (vincule de novo): " & nEdited & "."
     If nFail > 0 Then s = s & vbLf & "Falha ao atualizar: " & nFail & " (veja o log do ThinQQ)."
     PptSync_SummaryText = s
@@ -851,7 +879,7 @@ End Function
 Public Function PptSync_Items(items As Collection, force As Boolean, Optional noOpen As Boolean = False) As String
     Dim shp As Object, opened As Collection, books As Object, missingSet As Object, path As String, k As Long
     Dim wb As Workbook, missing As String, en As Long, ed As String, prevSU As Boolean, ls As Long
-    Dim nOk As Long, nSame As Long, nNoChart As Long, nUnlinked As Long, nFail As Long, kind As String, r As Long, nEdited As Long
+    Dim nOk As Long, nSame As Long, nNoChart As Long, nUnlinked As Long, nFail As Long, kind As String, r As Long, nEdited As Long, nNoCell As Long
     Set opened = New Collection
     Set books = CreateObject("Scripting.Dictionary")
     books.CompareMode = 1
@@ -862,7 +890,7 @@ Public Function PptSync_Items(items As Collection, force As Boolean, Optional no
     Application.ScreenUpdating = False
     For Each shp In items
         k = k + 1
-        Application.StatusBar = "ThinQQ: atualizando gráfico " & k & " de " & items.Count & " do PowerPoint..."
+        Application.StatusBar = "ThinQQ: atualizando elemento " & k & " de " & items.Count & " do PowerPoint..."
         kind = PptSync_ItemKind(shp)
         If kind = "chart" Then ls = Ppt_LinkState(shp) Else ls = 1  ' texto vinculado: sem vinculo nativo (a pasta vem de TQQ_BOOK)
         path = ""
@@ -892,7 +920,8 @@ Public Function PptSync_Items(items As Collection, force As Boolean, Optional no
                     Select Case r
                         Case PPTSYNC_R_OK: nOk = nOk + 1
                         Case PPTSYNC_R_SAME: nSame = nSame + 1
-                        Case PPTSYNC_R_NOCHART: nNoChart = nNoChart + 1
+                        Case PPTSYNC_R_NOCHART
+                            If kind = "text" Then nNoCell = nNoCell + 1 Else nNoChart = nNoChart + 1
                         Case PPTSYNC_R_SKIPPED: missingSet(path) = True
                         Case PPTSYNC_R_EDITED: nEdited = nEdited + 1
                         Case Else: nFail = nFail + 1
@@ -904,7 +933,7 @@ Public Function PptSync_Items(items As Collection, force As Boolean, Optional no
     Application.ScreenUpdating = prevSU
     Application.StatusBar = False
     If missingSet.Count > 0 Then missing = PptSync_MissingText(missingSet.Keys)
-    PptSync_Items = PptSync_SummaryText(nOk, nSame, missing, nNoChart, nUnlinked, nFail, nEdited)
+    PptSync_Items = PptSync_SummaryText(nOk, nSame, missing, nNoChart, nUnlinked, nFail, nEdited, nNoCell)
     Exit Function
 Fail:
     en = Err.Number: ed = Err.Description
