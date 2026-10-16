@@ -95,6 +95,7 @@ End Function
 
 ' Caixas que Core_Notify/Core_Confirm abririam (no build Test: as que abririam fora dele). Gancho de teste, zerado por Core_ClearLastNotice.
 Public Function Core_ShownCountForTest() As Long
+    On Error Resume Next                                    ' contrato "Core_* nunca propaga" (Test_Core_AllPublicApi_HaveErrorContainment)
     Core_ShownCountForTest = mShownCount
 End Function
 
