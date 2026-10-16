@@ -574,6 +574,28 @@ $pptMessages = @(
     @('ppt', 'powerpoint', 'Não copiada(s): fora da pasta da apresentação: '),
     @('ppt', 'powerpoint', 'Copiada(s) a versão salva no disco (aberta(s) no Excel com alterações não salvas; salve-a(s) no Excel e empacote de novo para levá-las): '),
     @('ppt', 'powerpoint', 'Não foi possível empacotar: '),
+    # Texto vinculado a célula e título ligado (1.9.0, Parte E): suplemento (modPptTqq.bas) e core (modPptText.bas, modCoreApi.bas, modPptSync.bas)
+    @('ppt', 'powerpoint', 'Abra a pasta no Excel (com o ThinQQ), selecione a célula com o valor e clique de novo em Texto vinculado ao Excel.'),
+    @('ppt', 'powerpoint', 'Selecione uma caixa de texto (ou parte do texto dela).'),
+    @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para vincular texto pelo PowerPoint.'),
+    @('ppt', 'powerpoint', 'Texto vinculado à célula do Excel.'),
+    @('ppt', 'powerpoint', 'Salve a pasta de trabalho no Excel: assim o vínculo acompanha linhas e colunas inseridas antes da célula.'),
+    @('ppt', 'powerpoint', 'Não foi possível vincular o texto: '),
+    @('core', 'powerpoint', 'Não foi possível vincular o texto: '),
+    @('core', 'powerpoint', 'Salve a pasta de trabalho antes de vincular: o vínculo aponta para o arquivo salvo.'),
+    @('core', 'powerpoint', 'Salve a pasta como pasta de trabalho do Excel (.xlsx, .xlsm, .xlsb ou .xls) antes de vincular.'),
+    @('core', 'powerpoint', 'Selecione uma caixa de texto (ou parte do texto dela) no PowerPoint.'),
+    @('core', 'powerpoint', 'Selecione no Excel a célula com o valor e tente de novo.'),
+    @('core', 'powerpoint', 'Texto vinculado. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255.'),
+    @('core', 'powerpoint', 'Editar dados vale para gráficos do ThinQQ. Para mudar o texto vinculado, altere a célula no Excel e atualize.'),
+    @('core', 'powerpoint', 'Este comando vale só para gráficos do ThinQQ (não para texto vinculado).'),
+    @('core', 'powerpoint', "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em 'Vincular célula ao texto selecionado'."),
+    @('core', 'powerpoint', 'Salve a pasta de trabalho: assim o vínculo acompanha linhas e colunas inseridas antes da célula.'),
+    @('core', 'powerpoint', 'Texto do slide vinculado à célula '),
+    @('core', 'powerpoint', 'Texto editado no PowerPoint fora do campo vinculado (vincule de novo): '),
+    @('core', 'powerpoint', 'Escolha uma célula da mesma pasta de trabalho do gráfico.'),
+    @('core', 'powerpoint', 'Remover a ligação do título com a célula? (o título sai do gráfico)'),
+    @('core', 'powerpoint', 'Clique na célula com o texto do título do gráfico:'),
     # atualizador do loader (modUpdater.bas: Updater_PpamStatusText; modRibbon.bas: a pergunta de ThinQQ > Configurações)
     @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado.'),
     @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado: feche e abra o PowerPoint para usar a versão nova.'),
@@ -927,7 +949,7 @@ foreach ($place in $autoPlaces.Keys) {
 }
 # os quatro rótulos também aparecem na seção #powerpoint, no README (Recursos) e nos itens manuais, com o caminho de menu certo
 foreach ($l in $labelPins) { Check ($autoRec.Contains($l)) "README Recursos cita o rótulo '$l'" }
-Check ($autoRec.Contains('aba ThinQQ > Gráfico selecionado > Atualizar automaticamente') -and $autoRec.Contains('No Excel, ThinQQ > PowerPoint:')) 'README Recursos: caminhos de menu do PowerPoint e do Excel'
+Check ($autoRec.Contains('aba ThinQQ > Elemento selecionado > Atualizar automaticamente') -and $autoRec.Contains('No Excel, ThinQQ > PowerPoint:')) 'README Recursos: caminhos de menu do PowerPoint e do Excel'
 Check ($readmeText.Contains('Arquitetura') -and $readme.Contains('**Atualização automática (1.6.0):** `clsAppEvents`') -and $readme.Contains('`PptAuto_Tick`') -and $readme.Contains('API 2')) 'README (Arquitetura): o motor automático (clsAppEvents, PptAuto_OnChange, PptAuto_Tick, API 2)'
 # a CHANGELOG: estrutura que o publicar-release espera (cabeçalho, ### e entradas "- ") e as linhas do delta ficam em [1.5.0]
 Check ($clAuto -match '(?m)^### Adicionado\s*$' -and @([regex]::Matches($clAuto, '(?m)^\s*[-*]\s+\S')).Count -ge 4) 'CHANGELOG da 1.6.0 ([Não lançado] ou, depois do publicar-release, [1.6.0]): seção ### Adicionado e pelo menos 4 entradas "- "'
@@ -1266,6 +1288,121 @@ $mvCmdPins = @{
 foreach ($n in ($mvCmdPins.Keys | Sort-Object)) {
     $line = @($mvCmdLines | Where-Object { $_ -match "^$n\. " })
     foreach ($ph in $mvCmdPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
+}
+# ---- Texto vinculado a célula e título ligado (1.9.0, Parte E, Tarefa E4): subseções #ppt-texto e #ppt-fora (h3 dentro de #powerpoint), Recursos, Arquitetura,
+# Estrutura, Limitações, "Publicar uma versão" e itens manuais 93 a 101 do README e a [Não lançado] do CHANGELOG. As linhas da Parte E ficam em [Não lançado]
+# até o publicar-release 1.9.0, junto com as da G-II (leem-se só [Não lançado] e [1.9.0]; dentro de "## [1.8.0]", "## [1.7.0]" ou "## [1.6.0]" elas anunciariam
+# a 1.9.0 como entregue antes: um pino recusa). Se todas as versões saírem juntas, a [Não lançado] inteira vira "## [1.9.0]".
+$lblElem = 'Elemento selecionado'; $lblTextPpt = 'Texto vinculado ao Excel'; $lblTextXl = 'Vincular célula ao texto selecionado'; $lblLinkTitle = 'Título ligado a uma célula...'
+$gElemNode = $pptRibbon.SelectSingleNode("//*[@id='grpPptElem']"); $textPptNode = $pptRibbon.SelectSingleNode("//*[@id='btnPptLinkText']")
+$textXlNode = $ribbon.SelectSingleNode("//*[@id='btnPptLinkText']"); $titleNode = $ribbon.SelectSingleNode("//*[@id='btnLinkTitle']")
+Check ($null -ne $gElemNode -and $gElemNode.LocalName -eq 'group' -and $gElemNode.GetAttribute('label') -ceq $lblElem) "faixa do PowerPoint: o grupo grpPptElem tem o rótulo '$lblElem' (era 'Gráfico selecionado' antes da 1.9.0)"
+Check ($null -ne $textPptNode -and $textPptNode.LocalName -eq 'button' -and $textPptNode.GetAttribute('label') -ceq $lblTextPpt -and $textPptNode.ParentNode.GetAttribute('id') -ceq 'grpPptElem') "faixa do PowerPoint: o botão btnPptLinkText ('$lblTextPpt') está no grupo grpPptElem"
+Check ($null -ne $textXlNode -and $textXlNode.GetAttribute('label') -ceq $lblTextXl -and $textXlNode.ParentNode.GetAttribute('id') -ceq 'mnuPpt') "faixa do Excel: o botão btnPptLinkText ('$lblTextXl') está no menu mnuPpt"
+Check ($null -ne $titleNode -and $titleNode.GetAttribute('label') -ceq $lblLinkTitle -and $titleNode.ParentNode.GetAttribute('id') -ceq 'mnuMore') "faixa do Excel: o botão btnLinkTitle ('$lblLinkTitle') está no menu mnuMore (Mais opções)"
+if ($parsed) {
+    foreach ($l in @($lblElem, $lblTextPpt, $lblTextXl, $lblLinkTitle)) { Check ($pptUi -contains $l) "tutorial: '$l' citado como span.ui dentro de #powerpoint" }
+    foreach ($a in 'ppt-texto', 'ppt-fora') {
+        Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']//*[local-name()='h3'][@id='$a']")) "tutorial: a subseção id=""$a"" é um h3 dentro de #powerpoint"
+    }
+    Check ($xml.SelectNodes("//a[@href='#ppt-texto']").Count -ge 3) 'tutorial: a subseção #ppt-texto tem links da tabela do suplemento e das mensagens'
+    Check ($xml.SelectNodes("//a[@href='#ppt-fora']").Count -ge 1) 'tutorial: a subseção #ppt-fora tem link dos limites'
+}
+Check ($pptTqqSrc.Contains('PPT_API_TEXT As Long = 5') -and $syncSrc -match 'CORE_PPT_API As Long = ([5-9]|\d{2,})\b') 'texto vinculado (código): o contrato do suplemento com o core é a API 5 (Core_PptLinkText)'
+Check ($coreSrc.Contains('Public Function Core_PptLinkText(') -and $coreSrc.Contains('Public Sub Core_PptLinkTextFromPpt(') -and $coreSrc.Contains('Public Sub Core_LinkTitle(') -and $pptTqqSrc.Contains('Public Sub PptTqq_LinkText(')) 'texto vinculado (código): Core_PptLinkText, Core_PptLinkTextFromPpt, Core_LinkTitle e PptTqq_LinkText existem'
+$textTags = @('TQQ_TEXT', 'TQQ_TNAME', 'TQQ_TREF', 'TQQ_TPRE', 'TQQ_TSUF', 'TQQ_TLAST')
+$textTagsFound = @([regex]::Matches($coreSrc, 'Public Const PPT(?:TEXT|LINK)_TAG\w* As String = "(TQQ_T[A-Z]+)"') | ForEach-Object { $_.Groups[1].Value })
+Check (($textTags | Where-Object { $textTagsFound -notcontains $_ }).Count -eq 0 -and $pptTqqSrc.Contains('PPT_TAG_TEXT As String = "TQQ_TEXT"')) "texto vinculado (código): as etiquetas $($textTags -join ', ') existem no core e TQQ_TEXT no suplemento"
+Check ($coreSrc.Contains('PPTTEXT_MAX_LEN As Long = 255') -and $coreSrc.Contains('PptLink_DefineName(cell.Cells(1, 1), "TQQ_X_")')) 'texto vinculado (código): o valor é cortado em 255 caracteres e o nome oculto começa por TQQ_X_'
+$textoTut = Get-SubsectionText 'ppt-texto'
+$foraTut = Get-SubsectionText 'ppt-fora'
+$textoRec = ([regex]::Match($readme, '(?s)\*\*Texto vinculado a célula \(1\.9\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
+function Get-TextoChangelogBlock([string]$text) {
+    $acc = ''
+    foreach ($h in '\[Não lançado\]', '\[1\.9\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
+    return $acc
+}
+function Test-TextoInside([string]$text, [string]$head) {
+    $t = $text -replace "`r`n", "`n"
+    if ($t -notmatch "(?m)^## $head") { return $false }
+    return (Get-ChangelogSection $text $head).Contains('Texto vinculado a célula (1.9.0)')
+}
+$textoMsgs = @('Abra a pasta no Excel (com o ThinQQ), selecione a célula com o valor e clique de novo em Texto vinculado ao Excel.', 'Selecione uma caixa de texto (ou parte do texto dela).',
+    'Atualize o ThinQQ no Excel para vincular texto pelo PowerPoint.', 'Selecione no Excel a célula com o valor e tente de novo.',
+    "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em 'Vincular célula ao texto selecionado'.", 'Não foi possível vincular o texto: ')
+$clTextoPhrases = @('Texto vinculado a célula (1.9.0)', 'Título ligado a uma célula (1.9.0)', $lblTextPpt, $lblTextXl, $lblElem, $lblLinkTitle, 'TQQ_TEXT', 'TQQ_X_', 'Core_PptLinkText', 'Core_PptLinkTextFromPpt', 'API 5',
+    'Salve a pasta de trabalho antes de vincular: o vínculo aponta para o arquivo salvo.', 'Texto editado no PowerPoint fora do campo vinculado (vincule de novo): N.',
+    'Remover a ligação do título com a célula? (o título sai do gráfico)', 'Escolha uma célula da mesma pasta de trabalho do gráfico.', 'Tableau', 'datasheet interno', 'P5', 'P6', 'P7', 'S10',
+    'itens 93 a 101', 'Não verificado em PowerPoint e Excel reais', 'Documentação (1.9.0)') + $textoMsgs
+function Get-TextoChangelogMissing([string]$block) { return @($clTextoPhrases | Where-Object { -not $block.Contains($_) }) }
+$clTexto = Get-TextoChangelogBlock $cl
+Check ($textoTut.Length -gt 5000 -and $foraTut.Length -gt 1000 -and $textoRec.Length -gt 4000 -and $clTexto.Length -gt 3000) "texto vinculado: subseções do tutorial ($($textoTut.Length), $($foraTut.Length)), Recursos do README ($($textoRec.Length)) e CHANGELOG ($($clTexto.Length)) lidos"
+$clTextoLine = "- Texto vinculado a célula (1.9.0): " + (($clTextoPhrases | Where-Object { $_ -ne 'Texto vinculado a célula (1.9.0)' }) -join ' ') + "`n"
+Check (@(Get-TextoChangelogMissing (Get-TextoChangelogBlock "## [Não lançado]`n`n$clTextoLine`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -eq 0) 'CHANGELOG (sintético): as linhas do texto vinculado em [Não lançado] satisfazem os pinos'
+Check (@(Get-TextoChangelogMissing (Get-TextoChangelogBlock "## [Não lançado]`n`n## [1.9.0] - 2026-11-20`n`n$clTextoLine`n## [1.8.0] - 2026-11-10`n`n- outra coisa`n")).Count -eq 0) 'CHANGELOG (sintético): depois do publicar-release 1.9.0 as linhas na [1.9.0] satisfazem os pinos do texto vinculado'
+foreach ($old in '1.8.0', '1.7.0', '1.6.0') {
+    $oldHead = [regex]::Escape("[$old]")
+    $clIn = "## [Não lançado]`n`n## $("[$old]") - 2026-10-30`n`n### Adicionado`n$clTextoLine`n## [1.5.0] - 2026-10-15`n`n- x`n"
+    Check ((Test-TextoInside $clIn $oldHead) -and @(Get-TextoChangelogMissing (Get-TextoChangelogBlock $clIn)).Count -gt 0) "CHANGELOG (sintético): as linhas do texto vinculado dentro da [$old] (merge depois do publicar-release dela) = falha"
+    Check (-not (Test-TextoInside $cl $oldHead)) "CHANGELOG: a [$old] não contém linhas ""Texto vinculado a célula (1.9.0)"" (mova-as para a [Não lançado]; README, Publicar uma versão)"
+}
+Check (@(Get-TextoChangelogMissing (Get-TextoChangelogBlock "## [Não lançado]`n`n## [1.8.0] - 2026-11-10`n`n- outra coisa`n`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas do texto vinculado em lugar nenhum = falha'
+$clRollT = "# Changelog`n`n## [Não lançado]`n`n## [1.9.0] - 2026-11-20`n" + ($clUnrel -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
+Check (@(Get-TextoChangelogMissing (Get-TextoChangelogBlock $clRollT)).Count -eq 0 -and -not (Test-TextoInside $clRollT '\[1\.8\.0\]')) 'CHANGELOG (sintético): 1.6.0 a 1.9.0 publicadas juntas na [1.9.0] satisfazem os pinos do texto vinculado'
+$textoPlaces = [ordered]@{
+    'tutorial #ppt-texto' = @{ text = $textoTut; phrases = @(
+        $lblTextPpt, $lblTextXl, $lblElem, 'Mais opções', $lblLinkTitle, 'A caixa inteira:', 'A parte selecionada:', 'O cursor:', 'Um campo por forma', 'prefixo + valor da célula + sufixo',
+        'O texto exibido da célula', '####', 'Limite de 255 caracteres', 'TQQ_X_', 'Gerenciador de Nomes', 'salve a pasta no Excel depois de vincular', 'deixa de acompanhar as linhas inseridas',
+        'somente leitura e com as macros desligadas', 'fechada sem salvar', 'Atualizar uma vez', 'Atualizar automaticamente', 'Novos vínculos atualizam automaticamente',
+        'Texto editado no PowerPoint fora do campo vinculado (vincule de novo): N.', 'Cancelar não muda nada', 'Alterar dados', '#REF!', 'Dois Excel abertos', 'Excel ocupado', 'P5', 'itens 93 a 101',
+        'Clique na célula com o texto do título do gráfico:', 'Remover a ligação do título com a célula? (o título sai do gráfico)', 'Escolha uma célula da mesma pasta de trabalho do gráfico.',
+        'Texto vinculado à célula do Excel.', 'Texto do slide vinculado à célula B2.', 'Texto vinculado. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255.',
+        'Salve a pasta de trabalho antes de vincular: o vínculo aponta para o arquivo salvo.', 'Salve a pasta como pasta de trabalho do Excel (.xlsx, .xlsm, .xlsb ou .xls) antes de vincular.',
+        'Editar dados vale para gráficos do ThinQQ. Para mudar o texto vinculado, altere a célula no Excel e atualize.', 'Este comando vale só para gráficos do ThinQQ (não para texto vinculado).') }
+    'tutorial #ppt-mensagens' = @{ text = (Get-SubsectionText 'ppt-mensagens'); phrases = $textoMsgs + @('Texto vinculado à célula do Excel.', 'Salve a pasta de trabalho no Excel: assim o vínculo acompanha linhas e colunas inseridas antes da célula.', 'Texto do slide vinculado à célula B2.', 'Texto vinculado. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255.', 'Texto editado no PowerPoint fora do campo vinculado (vincule de novo): K.', 'Remover a ligação do título com a célula? (o título sai do gráfico)', 'Escolha uma célula da mesma pasta de trabalho do gráfico.') }
+    'tutorial #ppt-fora' = @{ text = $foraTut; phrases = @(
+        'Think-cell: o que fica de fora', 'Tableau', 'extensão de navegador', 'exporte a view do Tableau para uma planilha', 'Atualização automática', 'Datasheet interno', 'nunca quebra o vínculo',
+        'Quebrar Vínculo', 'Arquivo > Informações > Editar Links para Arquivos', 'congelam', 'Sem vínculo com o Excel', 'Editar Dados', $lblElem) }
+    'README Recursos' = @{ text = $textoRec; phrases = @(
+        $lblTextPpt, $lblTextXl, $lblElem, $lblLinkTitle, 'caixa inteira', 'parte selecionada', 'ponto do cursor', 'Um campo por forma', 'TQQ_TEXT', 'TQQ_BOOK', 'TQQ_TNAME', 'TQQ_TREF', 'TQQ_TPRE', 'TQQ_TSUF', 'TQQ_TLAST',
+        'TQQ_X_<id>', 'A pasta precisa estar salva', '255 caracteres', '####', 'Atualizar uma vez', 'Atualizar automaticamente', 'somente leitura, com as macros desligadas', 'API 5', 'Core_PptLinkText', 'Core_PptLinkTextFromPpt',
+        'Texto editado no PowerPoint fora do campo vinculado (vincule de novo): N.', 'Remover a ligação do título com a célula? (o título sai do gráfico)', 'titleref', 'Think-cell: o que fica de fora',
+        'Tableau', 'Datasheet interno', 'ChartData.BreakLink', 'Quebrar Vínculo', 'P5', 'P6', 'P7', 'S10', 'itens 93 a 101', 'Não verificado em PowerPoint e Excel reais',
+        'Editar dados vale para gráficos do ThinQQ. Para mudar o texto vinculado, altere a célula no Excel e atualize.', 'Este comando vale só para gráficos do ThinQQ (não para texto vinculado).') + $textoMsgs }
+    'README Limitações' = @{ text = $readmeLimTxt; phrases = @(
+        'Texto vinculado e o que fica de fora do think-cell (1.9.0)', 'um campo por forma', '255 caracteres', 'TQQ_X_', 'Tableau', 'datasheet interno', 'Quebrar Vínculo', 'P5', 'S10', 'itens 93 a 101',
+        'Texto editado no PowerPoint fora do campo vinculado (vincule de novo)', 'Não verificado em PowerPoint e Excel reais') }
+    'tutorial #h-limites' = @{ text = (Get-SectionText 'limites'); phrases = @('Texto vinculado e o que fica de fora do think-cell (1.9.0)', 'TQQ_X_', '255 caracteres', 'Tableau', 'itens 93 a 101') }
+    'CHANGELOG ([Não lançado] ou [1.9.0])' = @{ text = $clTexto; phrases = $clTextoPhrases }
+}
+foreach ($place in $textoPlaces.Keys) {
+    $pt = [string]$textoPlaces[$place].text
+    foreach ($ph in $textoPlaces[$place].phrases) { Check ($pt.Contains($ph)) "texto vinculado, $place cita '$ph'" }
+}
+foreach ($t in 'PptText_Link', 'PptText_Sync', 'PptText_Locate', 'PptTqq_LinkText', 'Core_LinkTitle', 'LinkTitle_Reapply', 'CORE_PPT_API = 5', 'PptText_SelectionOf') {
+    Check ($readme.Contains('`' + $t + '`') -or $readme.Contains('`' + $t + '(')) "README (Arquitetura): o fluxo do texto vinculado cita $t"
+}
+Check ($readme.Contains('seção 5.3 da mesma especificação') -and $readme.Contains('nas seções 5.5 e 5.6')) 'README (Estrutura): a especificação do texto vinculado (5.3) e do que fica de fora (5.5 e 5.6) é citada'
+foreach ($ph in 'feat/ppt-texto', 'Texto vinculado a célula (1.9.0):', 'Título ligado a uma célula (1.9.0):', 'a Parte E (texto vinculado e título ligado)') {
+    Check ($pubRelease.Contains($ph)) "README (Publicar uma versão): a ordem da 1.9.0 (G-II e Parte E juntas) cita '$ph'"
+}
+$mvTextLines = @(($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 93 -and [int]$Matches[1] -le 101 })
+Check ($mvTextLines.Count -eq 9 -and @($mvNums | Where-Object { $_ -ge 93 -and $_ -le 101 }).Count -eq 9 -and $mvNums.Count -ge 101) "README: os itens manuais 93 a 101 existem, numerados sem buracos ($($mvTextLines.Count); total $($mvNums.Count))"
+Check (@($mvTextLines | Where-Object { $_ -notmatch 'não verificado em PowerPoint real' }).Count -eq 0) 'README (itens 93 a 101): todo item marca "não verificado em PowerPoint real"'
+$mvTextPins = @{
+    93  = @($lblTextPpt, $lblElem, 'Texto vinculado à célula do Excel.', 'Abra a pasta no Excel (com o ThinQQ)', 'Novos vínculos atualizam automaticamente', 'caixa de texto inteira', 'cursor')
+    94  = @($lblTextXl, 'P5', 'cursor sem trecho marcado', 'Selecione no Excel a célula com o valor e tente de novo.', "clique de novo em 'Vincular célula ao texto selecionado'.")
+    95  = @('Texto editado no PowerPoint fora do campo vinculado (vincule de novo): 1.', 'vincular de novo', 'Sem mudança')
+    96  = @('P7', '####', '255 caracteres', 'coluna estreita', 'percentual', 'moeda')
+    97  = @('P6', 'Type:=8', 'Remover a ligação do título com a célula? (o título sai do gráfico)', 'Alterar dados', 'Escolha uma célula da mesma pasta de trabalho do gráfico.')
+    98  = @('S10', 'Quebrar Vínculo', 'Sem vínculo com o Excel (Quebrar Vínculo no PowerPoint): 1.', 'nunca por macro')
+    99  = @('dois Excel', 'Atualize o ThinQQ no Excel para vincular texto pelo PowerPoint.', 'Excel ocupado')
+    100 = @('#REF!', 'Alterar dados', 'endereço guardado')
+    101 = @('TQQ_X_', 'Gerenciador de Nomes', 'somente leitura', 'Salve a pasta de trabalho antes de vincular: o vínculo aponta para o arquivo salvo.')
+}
+foreach ($n in ($mvTextPins.Keys | Sort-Object)) {
+    $line = @($mvTextLines | Where-Object { $_ -match "^$n\. " })
+    foreach ($ph in $mvTextPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
 }
 if ($script:fail -gt 0) { Write-Host "FALHAS Test-Docs: $script:fail"; exit 1 }
 Write-Host 'Test-Docs: OK'
