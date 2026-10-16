@@ -596,6 +596,10 @@ $pptMessages = @(
     @('core', 'powerpoint', 'Escolha uma célula da mesma pasta de trabalho do gráfico.'),
     @('core', 'powerpoint', 'Remover a ligação do título com a célula? (o título sai do gráfico)'),
     @('core', 'powerpoint', 'Clique na célula com o texto do título do gráfico:'),
+    @('core', 'powerpoint', 'Texto vinculado à célula '),
+    @('ppt', 'powerpoint', 'O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular.'),
+    @('core', 'powerpoint', 'O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular.'),
+    @('core', 'powerpoint', 'Célula do texto vinculado não encontrada na pasta de origem (apagada, ou a pasta não tem vínculos do ThinQQ): '),
     # atualizador do loader (modUpdater.bas: Updater_PpamStatusText; modRibbon.bas: a pergunta de ThinQQ > Configurações)
     @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado.'),
     @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado: feche e abra o PowerPoint para usar a versão nova.'),
@@ -1331,7 +1335,7 @@ $textoMsgs = @('Abra a pasta no Excel (com o ThinQQ), selecione a célula com o 
     'Atualize o ThinQQ no Excel para vincular texto pelo PowerPoint.', 'Selecione no Excel a célula com o valor e tente de novo.',
     "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em 'Vincular célula ao texto selecionado'.", 'Não foi possível vincular o texto: ')
 $clTextoPhrases = @('Texto vinculado a célula (1.9.0)', 'Título ligado a uma célula (1.9.0)', $lblTextPpt, $lblTextXl, $lblElem, $lblLinkTitle, 'TQQ_TEXT', 'TQQ_X_', 'Core_PptLinkText', 'Core_PptLinkTextFromPpt', 'API 5',
-    'Salve a pasta de trabalho antes de vincular: o vínculo aponta para o arquivo salvo.', 'Texto editado no PowerPoint fora do campo vinculado (vincule de novo): N.',
+    'Salve a pasta de trabalho antes de vincular: o vínculo aponta para o arquivo salvo.', 'Texto editado no PowerPoint fora do campo vinculado (vincule de novo): N.', 'TQQ_XLINK',
     'Remover a ligação do título com a célula? (o título sai do gráfico)', 'Escolha uma célula da mesma pasta de trabalho do gráfico.', 'Tableau', 'datasheet interno', 'P5', 'P6', 'P7', 'S10',
     'itens 93 a 101', 'Não verificado em PowerPoint e Excel reais', 'Documentação (1.9.0)') + $textoMsgs
 function Get-TextoChangelogMissing([string]$block) { return @($clTextoPhrases | Where-Object { -not $block.Contains($_) }) }
@@ -1358,7 +1362,7 @@ $textoPlaces = [ordered]@{
         'Clique na célula com o texto do título do gráfico:', 'Remover a ligação do título com a célula? (o título sai do gráfico)', 'Escolha uma célula da mesma pasta de trabalho do gráfico.',
         'Texto vinculado à célula do Excel.', 'Texto do slide vinculado à célula B2.', 'Texto vinculado. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255.',
         'Salve a pasta de trabalho antes de vincular: o vínculo aponta para o arquivo salvo.', 'Salve a pasta como pasta de trabalho do Excel (.xlsx, .xlsm, .xlsb ou .xls) antes de vincular.',
-        'Editar dados vale para gráficos do ThinQQ. Para mudar o texto vinculado, altere a célula no Excel e atualize.', 'Este comando vale só para gráficos do ThinQQ (não para texto vinculado).') }
+        'Editar dados vale para gráficos do ThinQQ. Para mudar o texto vinculado, altere a célula no Excel e atualize.', 'Este comando vale só para gráficos do ThinQQ (não para texto vinculado).', 'TQQ_XLINK', 'O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular.', 'Célula do texto vinculado não encontrada na pasta de origem (apagada, ou a pasta não tem vínculos do ThinQQ): N.') }
     'tutorial #ppt-mensagens' = @{ text = (Get-SubsectionText 'ppt-mensagens'); phrases = $textoMsgs + @('Texto vinculado à célula do Excel.', 'Salve a pasta de trabalho no Excel: assim o vínculo acompanha linhas e colunas inseridas antes da célula.', 'Texto do slide vinculado à célula B2.', 'Texto vinculado. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255.', 'Texto editado no PowerPoint fora do campo vinculado (vincule de novo): K.', 'Remover a ligação do título com a célula? (o título sai do gráfico)', 'Escolha uma célula da mesma pasta de trabalho do gráfico.') }
     'tutorial #ppt-fora' = @{ text = $foraTut; phrases = @(
         'Think-cell: o que fica de fora', 'Tableau', 'extensão de navegador', 'exporte a view do Tableau para uma planilha', 'Atualização automática', 'Datasheet interno', 'nunca quebra o vínculo',
@@ -1368,7 +1372,7 @@ $textoPlaces = [ordered]@{
         'TQQ_X_<id>', 'A pasta precisa estar salva', '255 caracteres', '####', 'Atualizar uma vez', 'Atualizar automaticamente', 'somente leitura, com as macros desligadas', 'API 5', 'Core_PptLinkText', 'Core_PptLinkTextFromPpt',
         'Texto editado no PowerPoint fora do campo vinculado (vincule de novo): N.', 'Remover a ligação do título com a célula? (o título sai do gráfico)', 'titleref', 'Think-cell: o que fica de fora',
         'Tableau', 'Datasheet interno', 'ChartData.BreakLink', 'Quebrar Vínculo', 'P5', 'P6', 'P7', 'S10', 'itens 93 a 101', 'Não verificado em PowerPoint e Excel reais',
-        'Editar dados vale para gráficos do ThinQQ. Para mudar o texto vinculado, altere a célula no Excel e atualize.', 'Este comando vale só para gráficos do ThinQQ (não para texto vinculado).') + $textoMsgs }
+        'Editar dados vale para gráficos do ThinQQ. Para mudar o texto vinculado, altere a célula no Excel e atualize.', 'Este comando vale só para gráficos do ThinQQ (não para texto vinculado).', 'TQQ_XLINK', 'TQQ_TITLE', 'O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular.') + $textoMsgs }
     'README Limitações' = @{ text = $readmeLimTxt; phrases = @(
         'Texto vinculado e o que fica de fora do think-cell (1.9.0)', 'um campo por forma', '255 caracteres', 'TQQ_X_', 'Tableau', 'datasheet interno', 'Quebrar Vínculo', 'P5', 'S10', 'itens 93 a 101',
         'Texto editado no PowerPoint fora do campo vinculado (vincule de novo)', 'Não verificado em PowerPoint e Excel reais') }
@@ -1390,14 +1394,14 @@ $mvTextLines = @(($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. 
 Check ($mvTextLines.Count -eq 9 -and @($mvNums | Where-Object { $_ -ge 93 -and $_ -le 101 }).Count -eq 9 -and $mvNums.Count -ge 101) "README: os itens manuais 93 a 101 existem, numerados sem buracos ($($mvTextLines.Count); total $($mvNums.Count))"
 Check (@($mvTextLines | Where-Object { $_ -notmatch 'não verificado em PowerPoint real' }).Count -eq 0) 'README (itens 93 a 101): todo item marca "não verificado em PowerPoint real"'
 $mvTextPins = @{
-    93  = @($lblTextPpt, $lblElem, 'Texto vinculado à célula do Excel.', 'Abra a pasta no Excel (com o ThinQQ)', 'Novos vínculos atualizam automaticamente', 'caixa de texto inteira', 'cursor')
+    93  = @($lblTextPpt, $lblElem, 'Texto vinculado à célula Pasta.xlsx!Planilha!B2.', 'O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular.', 'Abra a pasta no Excel (com o ThinQQ)', 'Novos vínculos atualizam automaticamente', 'caixa de texto inteira', 'cursor')
     94  = @($lblTextXl, 'P5', 'cursor sem trecho marcado', 'Selecione no Excel a célula com o valor e tente de novo.', "clique de novo em 'Vincular célula ao texto selecionado'.")
     95  = @('Texto editado no PowerPoint fora do campo vinculado (vincule de novo): 1.', 'vincular de novo', 'Sem mudança')
     96  = @('P7', '####', '255 caracteres', 'coluna estreita', 'percentual', 'moeda')
     97  = @('P6', 'Type:=8', 'Remover a ligação do título com a célula? (o título sai do gráfico)', 'Alterar dados', 'Escolha uma célula da mesma pasta de trabalho do gráfico.')
     98  = @('S10', 'Quebrar Vínculo', 'Sem vínculo com o Excel (Quebrar Vínculo no PowerPoint): 1.', 'nunca por macro')
     99  = @('dois Excel', 'Atualize o ThinQQ no Excel para vincular texto pelo PowerPoint.', 'Excel ocupado')
-    100 = @('#REF!', 'Alterar dados', 'endereço guardado')
+    100 = @('#REF!', 'Alterar dados', 'o título ligado sai')
     101 = @('TQQ_X_', 'Gerenciador de Nomes', 'somente leitura', 'Salve a pasta de trabalho antes de vincular: o vínculo aponta para o arquivo salvo.')
 }
 foreach ($n in ($mvTextPins.Keys | Sort-Object)) {
