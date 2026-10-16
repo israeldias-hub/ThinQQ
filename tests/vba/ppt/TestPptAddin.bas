@@ -972,6 +972,7 @@ Public Sub Test_PptTqq_InsertChartIn_Api3_InsertsAndOpensData()
     AssertEqual "edit:Pasta - Excel", PptTqq_LastMsg()
     AssertTrue InStr(PptTqq_LastHintForTest(), "Gráfico criado. Clique em OK e digite os dados") = 1, PptTqq_LastHintForTest()
     AssertTrue InStr(PptTqq_LastHintForTest(), "'tqq-ppam-g4b - dados ThinQQ.xlsx'") > 0, "aviso cita o arquivo de dados: " & PptTqq_LastHintForTest()
+    AssertTrue InStr(PptTqq_LastHintForTest(), "ThinQQ > Empacotar para enviar") > 0, "aviso cita o Empacotar (1.9.0): " & PptTqq_LastHintForTest()
     PptTqq_InsertChartIn p, Nothing, "pie"
     AssertEqual 2, p.Slides.Count, "sem slide: um slide novo no fim"
     AssertEqual 2, f.InsertSlideIndex
@@ -1247,4 +1248,94 @@ Public Sub Test_PptRx_ChartCallbacks_NoSelection()
     PptRx_OnClearAnn Nothing
     AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg(), "remover setas"
     PptRx_InvalidateElem
+End Sub
+
+' ---- 1.9.0 (Parte G-II, G9): "Empacotar para enviar" ----
+
+Public Sub Test_PptTqq_Package_CopiesBoth()
+    Dim p As Object, f As String, d As String, dest As String, k As Integer, en As Long, ed As String, fso As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    f = Environ$("TEMP") & "\tqq-pack.pptx": p.SaveAs f
+    d = Environ$("TEMP") & "\tqq-pack - dados ThinQQ.xlsx"
+    k = FreeFile: Open d For Output As #k: Print #k, "x": Close #k
+    p.Tags.Add PPT_TAG_DATABOOK, d
+    PptTqq_ResetTestHooks
+    dest = PptTqq_Package(p)
+    AssertEqual Environ$("TEMP") & "\tqq-pack (ThinQQ)", dest
+    AssertTrue fso.FileExists(dest & "\tqq-pack.pptx"), "apresentacao copiada"
+    AssertTrue fso.FileExists(dest & "\tqq-pack - dados ThinQQ.xlsx"), "pasta de dados copiada"
+    AssertTrue InStr(PptTqq_LastMsg(), "Pronto: ") = 1, PptTqq_LastMsg()
+    dest = PptTqq_Package(p)
+    AssertEqual Environ$("TEMP") & "\tqq-pack (ThinQQ)", dest, "de novo: a mesma pasta, arquivos substituidos"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    On Error Resume Next
+    fso.DeleteFolder Environ$("TEMP") & "\tqq-pack (ThinQQ)", True
+    Kill f: Kill d
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Empacotar junta as pastas de dados DISTINTAS das formas TQQ_DATA (revisao G4, M8: Salvar como + inserir deixa formas em duas pastas de
+' dados) e a marca; nunca copia uma pasta do usuario (nome sem " - dados ThinQQ.xlsx"), nem um caminho de rede; a ausente e a de rede sao
+' citadas no aviso. Apresentacao nunca salva: o aviso de salvar, nada criado. Sem apresentacao: o aviso de abrir uma.
+Public Sub Test_PptTqq_Package_GathersDataBooks()
+    Dim p As Object, s As Object, f As String, d1 As String, d2 As String, u As String, dest As String, k As Integer, en As Long, ed As String
+    Dim fso As Object, base As String, m As String
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    base = Environ$("TEMP") & "\tqq-pack2-" & Format$(Now, "hhnnss")
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptTqq_ClearLastMsg
+    AssertEqual "", PptTqq_Package(p), "nunca salva"
+    AssertEqual PPT_MSG_PACK_SAVE_FIRST, PptTqq_LastMsg()
+    AssertEqual "", PptTqq_Package(Nothing)
+    AssertEqual PPT_MSG_NO_PRES, PptTqq_LastMsg()
+    fso.CreateFolder base
+    fso.CreateFolder base & "\A"
+    f = base & "\B.pptx": p.SaveAs f
+    d1 = base & "\A\A - dados ThinQQ.xlsx"
+    d2 = base & "\B - dados ThinQQ.xlsx"
+    u = base & "\Orcamento.xlsx"
+    k = FreeFile: Open d1 For Output As #k: Print #k, "a": Close #k
+    k = FreeFile: Open d2 For Output As #k: Print #k, "b": Close #k
+    k = FreeFile: Open u For Output As #k: Print #k, "u": Close #k
+    p.Tags.Add PPT_TAG_DATABOOK, d2
+    Set s = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): s.Tags.Add PPT_TAG_DATA, "1": s.Tags.Add PPT_TAG_BOOK, d1
+    Set s = p.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50): s.Tags.Add PPT_TAG_DATA, "1": s.Tags.Add PPT_TAG_BOOK, UCase$(d1)
+    Set s = p.Slides(1).Shapes.AddShape(1, 130, 10, 50, 50): s.Tags.Add PPT_TAG_DATA, "1": s.Tags.Add PPT_TAG_BOOK, d2
+    Set s = p.Slides(1).Shapes.AddShape(1, 190, 10, 50, 50): s.Tags.Add PPT_TAG_DATA, "1": s.Tags.Add PPT_TAG_BOOK, u
+    Set s = p.Slides(1).Shapes.AddShape(1, 250, 10, 50, 50): s.Tags.Add PPT_TAG_DATA, "1": s.Tags.Add PPT_TAG_BOOK, base & "\Sumiu - dados ThinQQ.xlsx"
+    Set s = p.Slides(1).Shapes.AddShape(1, 310, 10, 50, 50): s.Tags.Add PPT_TAG_DATA, "1": s.Tags.Add PPT_TAG_BOOK, "\\tqq-host-que-nao-existe\s\Rede - dados ThinQQ.xlsx"
+    Set s = p.Slides(1).Shapes.AddShape(1, 370, 10, 50, 50): s.Tags.Add PPT_TAG_CHART, "c1": s.Tags.Add PPT_TAG_BOOK, base & "\Colado - dados ThinQQ.xlsx"
+    Set s = Nothing
+    dest = PptTqq_Package(p)
+    AssertEqual base & "\B (ThinQQ)", dest
+    AssertTrue fso.FileExists(dest & "\B.pptx"), "apresentacao"
+    AssertTrue fso.FileExists(dest & "\A - dados ThinQQ.xlsx"), "pasta de dados de outra pasta (Salvar como)"
+    AssertTrue fso.FileExists(dest & "\B - dados ThinQQ.xlsx"), "pasta de dados marcada"
+    AssertFalse fso.FileExists(dest & "\Orcamento.xlsx"), "pasta do usuario: nunca"
+    AssertEqual 3, fso.GetFolder(dest).Files.Count, "so a apresentacao e as 2 pastas de dados"
+    m = PptTqq_LastMsg()
+    AssertTrue InStr(m, "Pronto: ") = 1, m
+    AssertTrue InStr(m, "Sumiu - dados ThinQQ.xlsx") > 0, "ausente citada: " & m
+    AssertTrue InStr(m, "Rede - dados ThinQQ.xlsx") > 0, "de rede citada: " & m
+    AssertEqual 0, InStr(m, "Orcamento"), "pasta do usuario nem citada: " & m
+    AssertEqual 0, InStr(m, "Colado"), "forma sem TQQ_DATA (colada do Excel) nao entra: " & m
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set s = Nothing
+    ClosePres p
+    On Error Resume Next
+    fso.DeleteFolder base, True
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
 End Sub

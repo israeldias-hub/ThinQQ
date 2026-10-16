@@ -45,6 +45,8 @@ Public Const PPT_API_CMD As Long = 4                        ' Core_PptCommand, C
 Public Const PPT_TAG_OPTS As String = "TQQ_OPTS"            ' estado das opcoes gravado pelo core na forma ("labels=1;...;caps=labels,...,")
 Public Const PPT_MSG_OLD_CORE_CMD As String = "Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint."
 Public Const PPT_MSG_CATS As String = "Escolha duas categorias diferentes do gráfico, a primeira antes da segunda."
+Public Const PPT_MSG_PACK_SAVE_FIRST As String = "Salve a apresentação numa pasta do computador antes de empacotar."
+Public Const PPT_PACK_SUFFIX As String = " (ThinQQ)"            ' pasta do pacote: "<pasta da apresentacao>\<nome> (ThinQQ)"
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
 Private Const RPC_E_RETRYLATER As Long = -2147417846
 Private mEvents As clsPptEvents
@@ -1212,7 +1214,7 @@ Private Sub PptTqq_FirstHint(pres As Object)
     d = PptTqq_DataPathFor(CStr(pres.FullName))
     If BUILD_CONFIG = "Test" Then mTestTrail = mTestTrail & "hint;"
     PptTqq_Msg "Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida: o slide acompanha em cerca de 2 segundos." & vbLf & _
-               "Os dados ficam em '" & Mid$(d, InStrRev(d, "\") + 1) & "', ao lado da apresentação: envie os dois arquivos juntos."
+               "Os dados ficam em '" & Mid$(d, InStrRev(d, "\") + 1) & "', ao lado da apresentação: envie os dois arquivos juntos (ou use ThinQQ > Empacotar para enviar)."
     If BUILD_CONFIG = "Test" Then mLastHint = mLastMsg
 End Sub
 
@@ -1427,6 +1429,125 @@ Public Sub PptTqq_OnSave(pres As Object)
     xl.Run "'" & PptTqq_CoreFileName() & "'!Core_PptDataSave", pres
     Err.Clear
 End Sub
+
+' ---- 1.9.0 (Parte G-II, G9): "Empacotar para enviar" (spec 14.2 e 14.5). Sem Excel, sem ZIP, sem processo filho: so FileSystemObject. ----
+
+' Pastas de dados da apresentacao (revisao G4, M8: Salvar como + inserir deixa formas em DUAS pastas de dados): a marca TQQ_DATABOOK e os
+' caminhos das formas TQQ_DATA (vinculo, senao TQQ_BOOK), distintos sem diferenciar maiusculas, so os de nome "<...> - dados ThinQQ.xlsx"
+' (nunca uma pasta do usuario). So le etiquetas e vinculos (nunca o disco); nao desce em grupos (como PptTqq_RelinkData). others: formas do
+' ThinQQ sem TQQ_DATA (coladas do Excel: a pasta de origem e do usuario e nao entra no pacote). Nunca propaga.
+Public Function PptTqq_DataBooksOf(pres As Object, Optional ByRef others As Long) As Collection
+    Dim out As New Collection, sl As Object, shp As Object
+    Set PptTqq_DataBooksOf = out
+    others = 0
+    On Error Resume Next
+    PptTqq_AddDataBook out, PptTqq_Tag(pres, PPT_TAG_DATABOOK)
+    For Each sl In pres.Slides
+        For Each shp In sl.Shapes
+            If PptTqq_Tag(shp, PPT_TAG_DATA) = "1" Then
+                PptTqq_AddDataBook out, PptTqq_SourcePath(PptTqq_LinkSource(shp), PptTqq_Tag(shp, PPT_TAG_BOOK))
+            ElseIf Len(PptTqq_Tag(shp, PPT_TAG_CHART)) > 0 Then
+                others = others + 1
+            End If
+        Next
+    Next
+    Err.Clear
+End Function
+
+Private Sub PptTqq_AddDataBook(out As Collection, p As String)
+    Dim t As String, nm As String, sfx As String
+    t = Trim$(p)
+    nm = PptTqq_FileNameOf(t)
+    sfx = LCase$(PPT_DATA_SUFFIX)
+    If Len(nm) <= Len(sfx) Or Len(nm) = Len(t) Then Exit Sub          ' sem nome proprio ou sem pasta (caminho relativo)
+    If LCase$(Right$(nm, Len(sfx))) <> sfx Then Exit Sub
+    On Error Resume Next
+    out.Add t, LCase$(t)                                               ' repetida: chave ja existe, ignorada
+    Err.Clear
+End Sub
+
+Private Function PptTqq_InKeys(c As Collection, key As String) As Boolean
+    Dim v As Variant
+    On Error Resume Next
+    v = c(key)
+    PptTqq_InKeys = (Err.Number = 0)
+    Err.Clear
+End Function
+
+' Acrescenta um nome (limpo, PptTqq_CleanPath) a uma lista "a, b". Pura.
+Private Function PptTqq_ListAdd(lst As String, nm As String) As String
+    If Len(lst) > 0 Then PptTqq_ListAdd = lst & ", " & PptTqq_CleanPath(nm) Else PptTqq_ListAdd = PptTqq_CleanPath(nm)
+End Function
+
+' "Empacotar para enviar": salva a apresentacao (se nao for somente leitura) e a pasta de dados marcada aberta e alterada (PptTqq_OnSave: so
+' com o Excel do ThinQQ ja aberto; nunca abre nem salva uma pasta do usuario) e COPIA a apresentacao e as pastas de dados dela
+' (PptTqq_DataBooksOf) para "<pasta da apresentacao>\<nome> (ThinQQ)\" (lugar fixo; criada se nao existe; arquivos de mesmo nome
+' substituidos). Pastas de dados ausentes, de rede fora da pasta da apresentacao (nunca tocadas: o caminho vem da apresentacao, que pode ser
+' de outra pessoa; a de rede AO LADO de uma apresentacao de rede e copiada) ou com o nome de outra ja copiada ficam de
+' fora e sao citadas no aviso; uma que nao copia (bloqueada pelo Excel: PG10) pede para fecha-la no Excel. Devolve a pasta do pacote ("" se a
+' apresentacao nao foi copiada; o aviso diz por que). Reentrada ignorada. Nunca propaga.
+Public Function PptTqq_Package(pres As Object) As String
+    Dim fso As Object, dest As String, b As Variant, nm As String, done As New Collection, n As Long, others As Long, en As Long, ed As String
+    Dim missing As String, remote As String, failed As String, dup As String, msg As String, roUnsaved As Boolean
+    If mBusy Then Exit Function
+    If pres Is Nothing Then PptTqq_Msg PPT_MSG_NO_PRES: Exit Function
+    On Error GoTo Fail
+    If Len(CStr(pres.Path)) = 0 Or Len(PptTqq_DataPathFor(CStr(pres.FullName))) = 0 Then PptTqq_Msg PPT_MSG_PACK_SAVE_FIRST: Exit Function
+    mBusy = True
+    If CLng(pres.ReadOnly) <> 0 Then
+        roUnsaved = (CLng(pres.Saved) = 0)
+    ElseIf CLng(pres.Saved) = 0 Then
+        pres.Save
+    End If
+    PptTqq_OnSave pres
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    dest = CStr(pres.Path) & "\" & CStr(fso.GetBaseName(CStr(pres.FullName))) & PPT_PACK_SUFFIX
+    If Not CBool(fso.FolderExists(dest)) Then fso.CreateFolder dest
+    fso.CopyFile CStr(pres.FullName), dest & "\", True
+    done.Add 1, LCase$(CStr(fso.GetFileName(CStr(pres.FullName))))
+    PptTqq_Package = dest
+    For Each b In PptTqq_DataBooksOf(pres, others)
+        nm = PptTqq_FileNameOf(CStr(b))
+        If PptTqq_IsRemotePath(CStr(b)) And StrComp(Left$(CStr(b), Len(CStr(b)) - Len(nm) - 1), CStr(pres.Path), vbTextCompare) <> 0 Then
+            remote = PptTqq_ListAdd(remote, nm)
+        ElseIf PptTqq_InKeys(done, LCase$(nm)) Then
+            dup = PptTqq_ListAdd(dup, nm)
+        ElseIf Not PptTqq_FileExists(CStr(b)) Then
+            missing = PptTqq_ListAdd(missing, nm)
+        Else
+            Err.Clear
+            On Error Resume Next
+            fso.CopyFile CStr(b), dest & "\" & nm, True
+            en = Err.Number
+            Err.Clear
+            On Error GoTo Fail
+            If en = 0 Then
+                n = n + 1
+                done.Add 1, LCase$(nm)
+            Else
+                failed = PptTqq_ListAdd(failed, nm)
+            End If
+        End If
+    Next
+    msg = "Pronto: a apresentação e " & n & " pasta(s) de dados do ThinQQ foram copiadas para '" & PptTqq_CleanPath(dest) & "'. Envie a pasta " & _
+          "inteira (por exemplo, compactada): quem abrir a apresentação dessa pasta com o ThinQQ terá os gráficos criados pelo PowerPoint ligados aos dados ao lado."
+    If roUnsaved Then msg = msg & vbLf & "A apresentação está somente leitura: foi copiada a versão salva no disco (sem as alterações abertas)."
+    If others > 0 Then msg = msg & vbLf & "Gráficos colados do Excel continuam ligados às pastas de origem, que não entram no pacote."
+    If Len(failed) > 0 Then msg = msg & vbLf & "Não foi possível copiar (feche-a no Excel e empacote de novo): " & failed
+    If Len(missing) > 0 Then msg = msg & vbLf & "Não encontrada(s) (os gráficos ficam com os últimos dados): " & missing
+    If Len(remote) > 0 Then msg = msg & vbLf & "Não copiada(s), num endereço de rede: " & remote
+    If Len(dup) > 0 Then msg = msg & vbLf & "Não copiada(s), mesmo nome de outra já copiada: " & dup
+    If Len(msg) > PPT_MAX_ASK_LEN Then msg = Left$(msg, PPT_MAX_ASK_LEN - 3) & "..."
+    mBusy = False
+    If Len(failed) + Len(missing) + Len(remote) + Len(dup) > 0 Or roUnsaved Then PptTqq_Msg msg, vbExclamation Else PptTqq_Msg msg, vbInformation
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    mBusy = False
+    PptTqq_Package = ""
+    PptTqq_Msg "Não foi possível empacotar: " & ed & " (" & en & ")", vbExclamation
+End Function
 
 ' ---- 1.9.0 (Parte G-II, G8): grupo "Grafico do ThinQQ" (spec 14.5). O estado da faixa vem da etiqueta TQQ_OPTS (sem chamar o Excel). ----
 

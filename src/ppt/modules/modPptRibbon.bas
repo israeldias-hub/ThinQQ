@@ -90,6 +90,16 @@ Public Sub PptRx_OnEditData(control As IRibbonControl)
     PptTqq_EditShapes shapes(1).Parent.Parent, shapes
 End Sub
 
+' "Empacotar para enviar" (1.9.0): a apresentacao ativa (Modo de Exibicao Protegido ou nenhuma: o aviso de abrir uma).
+Public Sub PptRx_OnPackage(control As IRibbonControl)
+    Dim pres As Object
+    On Error Resume Next
+    If Application.Presentations.Count = 0 Then PptTqq_Msg PPT_MSG_NO_PRES: Exit Sub
+    Set pres = Application.ActivePresentation
+    Err.Clear
+    PptTqq_Package pres
+End Sub
+
 ' ---- Grupo "Grafico do ThinQQ" (1.9.0): a opcao vem do tag do controle; a apresentacao, da forma selecionada (PptTqq_CommandShapes). ----
 
 ' Tag do controle ("" sem controle). Nunca propaga.

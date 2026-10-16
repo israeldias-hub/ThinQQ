@@ -240,6 +240,9 @@ Check (@($px.SelectNodes("//u:group[@id='grpPptChart']/u:*", $pns)).Count -eq 8)
 Check ($pptBas -match '(?m)^Public Sub PptRx_OnToggleOpt\(control As IRibbonControl, pressed As Boolean\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetOpt\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetOptEnabled\(control As IRibbonControl, ByRef \w+\)') 'ppt: assinaturas das alternâncias do Gráfico do ThinQQ'
 Check ($pptBas -match '(?m)^Public Sub PptRx_GetOptItem\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnOptItem\(control As IRibbonControl, selectedId As String, selectedIndex As Integer\)') 'ppt: assinaturas das listas do Gráfico do ThinQQ'
 Check ($pptBas -match '(?m)^Public Sub PptRx_OnArrow\(control As IRibbonControl\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnClearAnn\(control As IRibbonControl\)') 'ppt: assinaturas das setas do Gráfico do ThinQQ'
+# 1.9.0 (G9): "Empacotar para enviar" no grupo "Gráficos do Excel" (imageMso: image= so no Inserir gráfico)
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptSync']/u:button[@id='btnPptPackage'][@label='Empacotar para enviar'][@onAction='PptRx_OnPackage'][@imageMso]", $pns)) 'ppt: Empacotar para enviar'
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnPackage\(control As IRibbonControl\)') 'ppt: assinatura de Empacotar para enviar'
 foreach ($id in 'tglPptLabels', 'tglPptTotals', 'tglPptConnectors', 'ddPptNumFmt', 'ddPptLegend', 'btnPptCagr', 'btnPptDiff', 'btnPptClearAnn') {
     Check ($pptBas.Contains('"' + $id + '"')) "ppt: $id invalidado com a selecao"
 }

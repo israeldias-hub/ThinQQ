@@ -47,6 +47,8 @@
             <item id="modealways" label="Atualizar sempre"/>
             <item id="modenever" label="Não atualizar"/>
           </dropDown>
+          <button id="btnPptPackage" label="Empacotar para enviar" imageMso="FileSaveAs" onAction="PptRx_OnPackage"
+                  screentip="Empacotar para enviar" supertip="Copia a apresentação e as pastas de dados dos gráficos criados pelo PowerPoint para uma pasta nova ao lado (&lt;nome&gt; (ThinQQ)), pronta para compactar e enviar."/>
           <button id="btnPptAbout" label="Sobre" imageMso="Info" onAction="PptRx_OnAbout" screentip="Sobre o ThinQQ para PowerPoint"/>
         </group>
         <group id="grpPptElem" label="Gráfico selecionado">
