@@ -398,6 +398,66 @@ Public Sub Test_LinkTitle_OtherBookOddSheetAndUserTitle()
     CloseTemp wb
 End Sub
 
+' Selecao do PowerPoint lida pelo botao do Excel (E3): texto/cursor = o trecho; UMA forma com texto = o texto inteiro; varias formas, forma
+' sem texto ou outro tipo = nada.
+Public Sub Test_PptText_SelectionParts()
+    Dim sel As TestPptSelFake, t As TestPptTextFake, t2 As TestPptTextFake, shp As Object, st As Long, ln As Long
+    Set t = TextShape("Receita: X mil")
+    Set sel = New TestPptSelFake: Set sel.ShapeRange = New Collection: sel.ShapeRange.Add t
+    sel.Start = 10: sel.Length = 1
+    AssertTrue PptText_SelectionParts(3, sel, shp, st, ln), "texto selecionado"
+    AssertTrue shp Is t
+    AssertEqual 10, st: AssertEqual 1, ln
+    sel.Length = 0
+    AssertTrue PptText_SelectionParts(3, sel, shp, st, ln), "cursor"
+    AssertEqual 0, ln
+    Set shp = Nothing
+    AssertTrue PptText_SelectionParts(2, sel, shp, st, ln), "a forma inteira"
+    AssertEqual 1, st: AssertEqual Len("Receita: X mil"), ln
+    Set t2 = TextShape("outra"): sel.ShapeRange.Add t2
+    Set shp = Nothing
+    AssertFalse PptText_SelectionParts(2, sel, shp, st, ln), "duas formas"
+    AssertTrue shp Is Nothing
+    Set sel.ShapeRange = New Collection: t.HasTextFrame = 0: sel.ShapeRange.Add t
+    AssertFalse PptText_SelectionParts(2, sel, shp, st, ln), "forma sem texto"
+    AssertFalse PptText_SelectionParts(1, sel, shp, st, ln), "slides selecionados"
+    AssertFalse PptText_SelectionParts(0, sel, shp, st, ln), "nada selecionado"
+    Set sel.ShapeRange = New Collection
+    AssertFalse PptText_SelectionParts(3, sel, shp, st, ln), "selecao vazia: erro vira False"
+End Sub
+
+' Botao do Excel "Vincular celula ao texto selecionado": sem celula selecionada, sem PowerPoint (nunca abre um) e sem selecao legivel na
+' janela do PowerPoint: avisos proprios, nada vinculado, operacao fechada.
+Public Sub Test_Core_PptLinkTextFromPpt_Refusals()
+    Dim wb As Workbook, ws As Worksheet, app As TestPptFake, win As TestPptFake, sh As Shape, n0 As Long
+    Set wb = SavedBook("ppttext-fromppt.xlsx"): Set ws = wb.Worksheets(1)
+    ws.Range("C4").Value = 77
+    n0 = wb.Names.Count
+    wb.Activate: ws.Activate
+    Set sh = ws.Shapes.AddShape(1, 10, 10, 40, 40)
+    sh.Select
+    Core_ClearLastNotice
+    Core_PptLinkTextFromPpt
+    AssertEqual PPTTEXT_MSG_NOCELL, Core_LastNotice(), "sem celula selecionada"
+    sh.Delete
+    wb.Save
+    ws.Range("C4").Select
+    Ppt_ResetTestHooks
+    Ppt_SetAppForTest Nothing
+    Core_PptLinkTextFromPpt
+    AssertEqual PPTTEXT_MSG_NOPPT, Core_LastNotice(), "sem PowerPoint aberto"
+    Set app = New TestPptFake: Set win = New TestPptFake
+    Set app.ActiveWindow = win                                   ' janela sem selecao (Selection Nothing: erro 91, como no PowerPoint)
+    Ppt_SetAppForTest app
+    Core_PptLinkTextFromPpt
+    AssertEqual PPTTEXT_MSG_NOTEXT, Core_LastNotice(), "nada selecionado no PowerPoint"
+    AssertEqual n0, wb.Names.Count, "nenhum nome criado"
+    AssertTrue wb.Saved, "pasta intacta"
+    AssertFalse Ppt_InOperation(), "operacao fechada"
+    Ppt_ResetTestHooks
+    CloseTemp wb
+End Sub
+
 ' API 5: a celula ATIVA deste Excel; modo silencioso e operacao equilibrados; nenhuma caixa; nunca propaga.
 Public Sub Test_Core_PptLinkText_ActiveCellQuietBalanced()
     Dim wb As Workbook, ws As Worksheet, t As TestPptTextFake, s As String

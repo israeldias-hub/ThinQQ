@@ -2108,6 +2108,39 @@ Fail:
     If Ppt_IsBusyError(en) Then PptLinkTextImpl = PPT_ERR_BUSY Else PptLinkTextImpl = "Não foi possível vincular o texto: " & ed & " (" & en & ")"
 End Function
 
+' Botao do Excel "Vincular celula ao texto selecionado" (1.9.0): a celula ATIVA passa a alimentar o texto selecionado na janela ativa do
+' PowerPoint JA aberto (nunca abre um): a caixa inteira (forma selecionada), a parte selecionada ou o ponto do cursor (PptText_SelectionOf).
+' Sonda P5 pendente: se a selecao do PowerPoint nao for legivel com o Excel ativo, o aviso pede selecionar o texto (ou usar o botao do
+' PowerPoint). O ciclo automatico espera (Ppt_BeginOp/EndOp, equilibrados). Nunca propaga erro.
+Public Sub Core_PptLinkTextFromPpt()
+    Dim app As Object, shp As Object, st As Long, ln As Long, msg As String, en As Long, ed As String, began As Boolean, addr As String
+    On Error GoTo Fail
+    If TypeName(Selection) <> "Range" Then Core_Notify PPTTEXT_MSG_NOCELL: Exit Sub
+    addr = ActiveCell.Address(False, False)
+    Set app = Ppt_GetApp(False)
+    If app Is Nothing Then Core_Notify PPTTEXT_MSG_NOPPT: Exit Sub
+    If Not PptText_SelectionOf(app, shp, st, ln) Then Core_Notify PPTTEXT_MSG_NOTEXT: Exit Sub
+    Ppt_BeginOp
+    began = True
+    msg = PptText_Link(shp, st, ln, ActiveCell)
+    began = False
+    Ppt_EndOp
+    If Len(msg) = 0 Then msg = "Texto do slide vinculado à célula " & addr & ". " & PPTTEXT_MSG_SAVEHINT
+    Core_Notify msg
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If began Then Ppt_EndOp
+    On Error GoTo 0
+    If Ppt_IsKnownFailure(en) Then
+        Core_Notify Ppt_ErrorText(en, ed), vbExclamation
+    Else
+        Errors_HandleErr "Core_PptLinkTextFromPpt", en, ed
+    End If
+End Sub
+
 ' Botao "Atualizar graficos no PowerPoint": todas as apresentacoes abertas (inclusive as somente leitura: a atualizacao fica so na memoria e o
 ' PowerPoint pergunta se quer salvar ao fechar; so a atualizacao automatica ao abrir pula somente leitura, decisao do suplemento), forcando a
 ' atualizacao; o aviso traz o resumo de cada uma (cada apresentacao e isolada: o erro de uma vira uma linha dela, sem perder o resumo das

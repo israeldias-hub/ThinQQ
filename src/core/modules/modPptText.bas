@@ -24,6 +24,8 @@ Public Const PPTTEXT_MSG_NOCELL As String = "Selecione no Excel a célula com o 
 Public Const PPTTEXT_MSG_CUT As String = "Texto vinculado. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255."
 Public Const PPTTEXT_MSG_EDITDATA As String = "Editar dados vale para gráficos do ThinQQ. Para mudar o texto vinculado, altere a célula no Excel e atualize."
 Public Const PPTTEXT_MSG_NOTCHART As String = "Este comando vale só para gráficos do ThinQQ (não para texto vinculado)."
+Public Const PPTTEXT_MSG_NOPPT As String = "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em 'Vincular célula ao texto selecionado'."
+Public Const PPTTEXT_MSG_SAVEHINT As String = "Salve a pasta de trabalho: assim o vínculo acompanha linhas e colunas inseridas antes da célula."
 Public Const LINKTITLE_MSG_OTHERBOOK As String = "Escolha uma célula da mesma pasta de trabalho do gráfico."
 Private Const PPTLINK_REF_SEP As String = "|"
 
@@ -251,6 +253,49 @@ Undo:
     Err.Clear
     On Error GoTo 0
     Err.Raise en, "PptText_Link", ed
+End Function
+
+' Selecao da janela ativa do PowerPoint app: texto selecionado ou cursor (ppSelectionText: o trecho, Start/Length relativos ao texto da forma)
+' ou UMA forma com texto (o texto inteiro). False sem janela, sem selecao, com varias formas ou forma sem texto. So le o PowerPoint; ocupado
+' (RPC) sobe, o resto vira False.
+Public Function PptText_SelectionOf(app As Object, ByRef shp As Object, ByRef st As Long, ByRef ln As Long) As Boolean
+    Dim sel As Object, t As Long, en As Long, ed As String
+    On Error GoTo Fail
+    Set sel = app.ActiveWindow.Selection
+    t = CLng(sel.Type)
+    PptText_SelectionOf = PptText_SelectionParts(t, sel, shp, st, ln)
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error GoTo 0
+    If Ppt_IsBusyError(en) Then Err.Raise en, "PptText_SelectionOf", ed
+End Function
+
+' A parte de PptText_SelectionOf depois de ler o tipo da selecao (selType: 3 texto, 2 formas, outro = nada). Ocupado (RPC) sobe; o resto vira
+' False.
+Public Function PptText_SelectionParts(selType As Long, sel As Object, ByRef shp As Object, ByRef st As Long, ByRef ln As Long) As Boolean
+    Dim s As Object, a As Long, b As Long, en As Long, ed As String
+    On Error GoTo Fail
+    If selType = 3 Then                                          ' ppSelectionText
+        Set s = sel.ShapeRange(1)
+        a = CLng(sel.TextRange.Start): b = CLng(sel.TextRange.Length)
+    ElseIf selType = 2 Then                                      ' ppSelectionShapes
+        If sel.ShapeRange.Count <> 1 Then Exit Function
+        Set s = sel.ShapeRange(1)
+        If Not CBool(s.HasTextFrame) Then Exit Function
+        a = 1: b = Len(CStr(s.TextFrame.TextRange.Text))
+    Else
+        Exit Function
+    End If
+    Set shp = s: st = a: ln = b
+    PptText_SelectionParts = True
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error GoTo 0
+    If Ppt_IsBusyError(en) Then Err.Raise en, "PptText_SelectionParts", ed
 End Function
 
 ' Atualiza o campo da forma pela pasta wb (aberta; so LIDA: nada e gravado nela). PPTSYNC_R_SAME sem mudanca (e sem force); R_NOCHART celula

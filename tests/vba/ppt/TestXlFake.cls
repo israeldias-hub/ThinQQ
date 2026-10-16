@@ -28,6 +28,9 @@ Public CommandResult As String                  ' resposta de Core_PptCommand ("
 Public LastCmd As String                        ' "cmd:arg" recebidos por Core_PptCommand (o ultimo)
 Public CmdLog As String                         ' "cmd:arg;" de todas as chamadas de Core_PptCommand
 Public CatsResult As String                     ' resposta de Core_PptCategories
+Public LinkResult As String                     ' resposta de Core_PptLinkText ("" = vinculado)
+Public LastLink As String                       ' "inicio:tamanho" recebidos por Core_PptLinkText
+Public LinkShape As Object                      ' forma recebida por Core_PptLinkText
 Public FullName As String                       ' usado como pasta aberta (item de Workbooks): caminho
 Public Saved As Boolean                         ' usado como pasta aberta: False = alteracoes nao salvas
 Private mBooks As New Collection
@@ -68,6 +71,10 @@ Public Function Run(macro As String, Optional a1 As Variant, Optional a2 As Vari
         Case "Core_PptCategories"
             LastEntries = CStr(a2)
             Run = CatsResult
+        Case "Core_PptLinkText"
+            Set LinkShape = a1
+            LastLink = CStr(a2) & ":" & CStr(a3)
+            Run = LinkResult
     End Select
 End Function
 

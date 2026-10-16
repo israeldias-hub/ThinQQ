@@ -112,7 +112,7 @@ Public Sub Test_Ribbon_Xml_HasAllCallbacks()
                   "Rx_GetSelectedId", "Rx_OnAnnotation", "Rx_OnRemoveAnnotations", "Rx_OnRefresh", "Rx_OnChangeSource", _
                   "Rx_OnSamples", "Rx_OnTutorial", "Rx_OnCheckUpdates", "Rx_OnSettings", "Rx_OnAbout", "Rx_OnSameScale", "Rx_OnResetScale", _
                   "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart", "Rx_OnPptSync", "Rx_OnDelta", "Rx_OnDeltaFormat", "Rx_GetPptFlag", "Rx_OnPptFlag", _
-                  "Rx_GetPptInsert", "Rx_OnPptInsert", "Rx_OnPptFrames")
+                  "Rx_GetPptInsert", "Rx_OnPptInsert", "Rx_OnPptFrames", "Rx_OnPptLinkText", "Rx_OnLinkTitle")
     For i = LBound(names) To UBound(names)
         AssertTrue InStr(xml, names(i)) > 0, "callback ausente no XML: " & names(i)
     Next
@@ -256,12 +256,13 @@ Public Sub Test_Ribbon_Menus_Structure()
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnRoundRange']/@getEnabled") Is Nothing, "Arredondar intervalo age sobre celulas: sempre ativo"
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuPpt']/@getEnabled") Is Nothing, "PowerPoint sempre ativo: Atualizar graficos no PowerPoint nao exige grafico"
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuPpt']/@tag") Is Nothing
-    AssertEqual 4, d.SelectNodes("//u:menu[@id='mnuPpt']/u:button").Length
+    AssertEqual 5, d.SelectNodes("//u:menu[@id='mnuPpt']/u:button").Length
     AssertEqual "Rx_GetEnabled", AttrText(d.SelectSingleNode("//u:button[@id='btnPptImage']"), "getEnabled"), "copiar exige grafico"
     AssertEqual "Rx_GetEnabled", AttrText(d.SelectSingleNode("//u:button[@id='btnPptChart']"), "getEnabled")
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptSync'][@onAction='Rx_OnPptSync']") Is Nothing
     AssertTrue d.SelectSingleNode("//u:button[@id='btnPptSync']/@getEnabled") Is Nothing, "Atualizar graficos no PowerPoint: sempre ativo"
-    AssertEqual "msepPpt", AttrText(d.SelectSingleNode("//u:button[@id='btnPptChart']/following-sibling::*[1]"), "id")
+    AssertEqual "btnPptLinkText", AttrText(d.SelectSingleNode("//u:button[@id='btnPptChart']/following-sibling::*[1]"), "id"), "1.9.0: vincular texto logo depois de copiar"
+    AssertEqual "msepPpt", AttrText(d.SelectSingleNode("//u:button[@id='btnPptLinkText']/following-sibling::*[1]"), "id")
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptImage'][@onAction='Rx_OnPptImage']") Is Nothing
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptChart'][@onAction='Rx_OnPptChart']") Is Nothing
     ' ordem do grupo: ... Mais opcoes, Setas, PowerPoint, separador, Atualizar
@@ -457,6 +458,9 @@ Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
         Select Case id
             Case "btnBreak", "btnBreakOff"
                 AssertEqual "Rx_GetEnabled", AttrText(n, "getEnabled"), "corte de eixo segue a matriz (Core_Supports): " & id
+            Case "btnLinkTitle"
+                AssertEqual "Rx_GetEnabled", AttrText(n, "getEnabled"), "titulo ligado exige um grafico ThinQQ"
+                AssertEqual "", AttrText(n, "tag"), "titulo ligado vale para todo tipo (sem tag: so exige grafico)"
             Case "btnSameScale", "btnResetScale", "btnRoundRange"
                 AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "deve ficar sempre ativo: " & id
             Case Else
@@ -464,7 +468,7 @@ Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
         End Select
         c = c + 1
     Next
-    AssertEqual 5, c, "botoes de Mais opcoes"
+    AssertEqual 6, c, "botoes de Mais opcoes"
     ' Setas: cada seta consulta a matriz pela propria tag; "Remover setas" so exige um grafico (sem tag)
     For Each n In d.SelectNodes("//u:menu[@id='mnuArrows']/u:button")
         AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "seta sem getEnabled: " & NodeId(n)
@@ -475,6 +479,7 @@ Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
         AssertEqual "", AttrText(n, "tag"), "PowerPoint nao consulta a matriz: " & NodeId(n)
         If NodeId(n) = "btnPptImage" Or NodeId(n) = "btnPptChart" Then AssertEqual "Rx_GetEnabled", AttrText(n, "getEnabled"), "copiar exige grafico: " & NodeId(n)
         If NodeId(n) = "btnPptSync" Then AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "Atualizar graficos no PowerPoint: sempre ativo"
+        If NodeId(n) = "btnPptLinkText" Then AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "Vincular celula ao texto: age sobre a celula, sempre ativo"
     Next
 End Sub
 
@@ -976,5 +981,36 @@ Public Sub Test_Ribbon_OnInsert_RoutesToPpt()
 Cleanup:
     en = Err.Number: ed = Err.Description
     Rx_SetPptInsertForTest False
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+' ---- Parte E (1.9.0): Vincular celula ao texto selecionado (menu PowerPoint) e Titulo ligado a uma celula (Mais opcoes) ----
+
+Public Sub Test_Ribbon_LinkTextAndTitle()
+    Dim d As Object, code As String, en As Long, ed As String
+    On Error GoTo Cleanup
+    Set d = LoadRibbon()
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptLinkText'][@onAction='Rx_OnPptLinkText'][@image='tqq_ppt16']") Is Nothing
+    AssertEqual "Vincular célula ao texto selecionado", AttrText(d.SelectSingleNode("//*[@id='btnPptLinkText']"), "label")
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='btnPptLinkText']"), "supertip"), "Texto vinculado ao Excel") > 0, "cita o botao do PowerPoint"
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnLinkTitle'][@onAction='Rx_OnLinkTitle'][@getEnabled='Rx_GetEnabled'][@image='tqq_options16']") Is Nothing
+    AssertEqual "Título ligado a uma célula...", AttrText(d.SelectSingleNode("//*[@id='btnLinkTitle']"), "label")
+    AssertEqual "btnLinkTitle", AttrText(d.SelectSingleNode("//u:button[@id='btnResetScale']/following-sibling::*[1]"), "id"), "depois de Escala automatica"
+    code = RibbonModuleCode()
+    AssertTrue InStr(code, "RunCoreFeature ""Core_PptLinkTextFromPpt""") > 0, "Rx_OnPptLinkText chama Core_PptLinkTextFromPpt"
+    AssertTrue InStr(code, "RunCoreFeature ""Core_LinkTitle""") > 0, "Rx_OnLinkTitle chama Core_LinkTitle"
+    If Loader_CoreWorkbook() Is Nothing Then Loader_Log "TestRibbon: core nao carregado (parte do aviso pulada)": GoTo Cleanup
+    Rx_TestSetFeatureProcSuffix "_inexistente"
+    Loader_LastMsg = ""
+    Rx_OnPptLinkText Nothing
+    AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "Vincular celula ao texto com core anterior"
+    Loader_LastMsg = ""
+    Rx_OnLinkTitle Nothing
+    AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "Titulo ligado com core anterior"
+    Rx_TestSetFeatureProcSuffix ""
+    Err.Clear
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    Rx_TestSetFeatureProcSuffix ""
     If en <> 0 Then Err.Raise en, "TestRibbon", ed
 End Sub

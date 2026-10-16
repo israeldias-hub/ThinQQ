@@ -27,10 +27,10 @@ End Sub
 
 Public Sub PptRx_OnAbout(control As IRibbonControl)
     On Error Resume Next
-    PptTqq_Msg "ThinQQ para PowerPoint " & APP_VERSION & vbLf & "Cria gráficos do ThinQQ direto no slide (Inserir gráfico; os dados ficam numa pasta do Excel ao lado da apresentação) e atualiza dados e setas dos gráficos do ThinQQ vinculados: ao abrir a apresentação (aba ThinQQ > Ao abrir), pelo botão ou automaticamente (Gráfico selecionado > Atualizar automaticamente).", vbInformation
+    PptTqq_Msg "ThinQQ para PowerPoint " & APP_VERSION & vbLf & "Cria gráficos do ThinQQ direto no slide (Inserir gráfico; os dados ficam numa pasta do Excel ao lado da apresentação) e atualiza dados e setas dos gráficos do ThinQQ vinculados: ao abrir a apresentação (aba ThinQQ > Ao abrir), pelo botão ou automaticamente (Elemento selecionado > Atualizar automaticamente).", vbInformation
 End Sub
 
-' ---- Grupo "Grafico selecionado" (1.6.0): estado segue a selecao (clsPptEvents.WindowSelectionChange invalida). ----
+' ---- Grupo "Elemento selecionado" (1.6.0; "Grafico selecionado" ate a 1.8.0): estado segue a selecao (clsPptEvents.WindowSelectionChange invalida). ----
 
 Public Sub PptRx_InvalidateElem()
     Dim id As Variant
@@ -70,6 +70,15 @@ End Sub
 Public Sub PptRx_OnUpdateSel(control As IRibbonControl)
     On Error Resume Next
     PptTqq_UpdateSelected PptTqq_SelectedTagged()
+End Sub
+
+' Texto vinculado ao Excel (1.9.0): a selecao de texto (ou a caixa inteira) desta janela e a celula ativa do Excel JA aberto com o ThinQQ;
+' nunca cria um Excel (PptTqq_LinkText).
+Public Sub PptRx_OnLinkText(control As IRibbonControl)
+    Dim shp As Object, st As Long, ln As Long
+    On Error Resume Next
+    If Not PptTqq_SelectionTextRange(shp, st, ln) Then PptTqq_Msg PPTTEXT_MSG_NOTEXT_PPT: Exit Sub
+    PptTqq_LinkText shp, st, ln
 End Sub
 
 ' ---- Grupo "Inserir grafico" e "Editar dados" (1.8.0): o tipo vem do tag do botao (os mesmos 21 do Excel). ----

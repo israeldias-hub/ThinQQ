@@ -286,6 +286,20 @@ Public Sub Rx_OnPptChart(control As IRibbonControl)
     If CoreOrWarn() Then RunCoreFeature "Core_CopyToPowerPoint", "chart"
 End Sub
 
+' Vincular celula ao texto selecionado no PowerPoint (1.9.0): age sobre a celula ativa (sem grafico); sempre ativo; core anterior: aviso de
+' atualizar.
+Public Sub Rx_OnPptLinkText(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_PptLinkTextFromPpt"
+End Sub
+
+' Titulo ligado a uma celula (1.9.0): o core pergunta a celula (InputBox) e liga o titulo do grafico ativo; core anterior: aviso de atualizar.
+Public Sub Rx_OnLinkTitle(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_LinkTitle"
+    Loader_InvalidateRibbon
+End Sub
+
 ' Atualizar graficos no PowerPoint (Parte A): nao exige grafico selecionado; core anterior: aviso de atualizar.
 Public Sub Rx_OnPptSync(control As IRibbonControl)
     On Error Resume Next

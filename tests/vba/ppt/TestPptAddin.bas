@@ -1391,3 +1391,93 @@ Cleanup:
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptAddin", ed
 End Sub
+
+' ---- 1.9.0 (Parte E, E3): Texto vinculado ao Excel ----
+
+' Sem janela (projeto de teste): nada selecionado. O callback avisa para selecionar uma caixa de texto.
+Public Sub Test_PptTqq_SelectionTextRange_NoWindow()
+    Dim s As Object, a As Long, b As Long
+    PptTqq_ResetTestHooks
+    AssertFalse PptTqq_SelectionTextRange(s, a, b)
+    AssertTrue s Is Nothing
+    PptTqq_ClearLastMsg
+    PptRx_OnLinkText Nothing
+    AssertEqual PPTTEXT_MSG_NOTEXT_PPT, PptTqq_LastMsg()
+    AssertEqual 5, PPT_API_TEXT
+    AssertEqual 1, PPT_REQUIRED_API, "a API exigida ao abrir nao subiu"
+End Sub
+
+' Caminhos: sem Excel aberto ou sem o ThinQQ nele (nunca cria um Excel; o do usuario nunca recebe Quit), core antigo (sem chamar), sucesso
+' (o trecho chega ao core; aviso com o lembrete de salvar), recusa do core (como veio), cortado (com o lembrete), falha (texto proprio;
+' reentrada liberada).
+Public Sub Test_PptTqq_LinkText_Paths()
+    Dim p As Object, s As Object, f As TestXlFake, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set s = p.Slides(1).Shapes.AddTextbox(1, 10, 10, 200, 50)
+    s.TextFrame.TextRange.Text = "n=X"
+    PptTqq_ResetTestHooks
+    PptTqq_ClearLastMsg
+    PptTqq_LinkText Nothing, 1, 0
+    AssertEqual PPTTEXT_MSG_NOTEXT_PPT, PptTqq_LastMsg(), "sem forma"
+    PptTqq_SetExcelForTest Nothing, ""
+    PptTqq_LinkText s, 3, 1
+    AssertEqual PPT_MSG_OPEN_EXCEL, PptTqq_LastMsg(), "sem Excel aberto: nunca cria um"
+    Set f = NewFakeXl(5): f.NoCore = True
+    PptTqq_SetExcelForTest f, "", True                          ' mesmo marcado como criavel: o vincular nunca cria nem abre o core
+    PptTqq_LinkText s, 3, 1
+    AssertEqual PPT_MSG_OPEN_EXCEL, PptTqq_LastMsg(), "Excel sem o ThinQQ"
+    AssertEqual 0, f.QuitCount, "o Excel do usuario nunca recebe Quit"
+    AssertEqual 0, InStr(f.Calls, "Core_PptLinkText"), f.Calls
+    Set f = NewFakeXl(4)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_LinkText s, 3, 1
+    AssertEqual PPT_MSG_OLD_CORE_TEXT, PptTqq_LastMsg(), "core 1.9.0 sem a API 5"
+    AssertEqual 0, InStr(f.Calls, "Core_PptLinkText"), f.Calls
+    Set f = NewFakeXl(5)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_LinkText s, 3, 1
+    AssertEqual "3:1", f.LastLink
+    AssertEqual CStr(s.Name), CStr(f.LinkShape.Name)
+    AssertEqual PPT_MSG_TEXT_OK & " " & PPT_MSG_TEXT_SAVE, PptTqq_LastMsg(), "vinculado: com o lembrete de salvar"
+    f.LinkResult = "Salve a pasta de trabalho antes de vincular: o vínculo aponta para o arquivo salvo."
+    PptTqq_LinkText s, 1, 0
+    AssertEqual f.LinkResult, PptTqq_LastMsg(), "recusa do core como veio"
+    AssertEqual "1:0", f.LastLink, "cursor"
+    f.LinkResult = "Texto vinculado. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255."
+    PptTqq_LinkText s, 1, 3
+    AssertEqual f.LinkResult & " " & PPT_MSG_TEXT_SAVE, PptTqq_LastMsg(), "cortado: com o lembrete"
+    f.LinkResult = "": f.FailOn = "Core_PptLinkText"
+    PptTqq_LinkText s, 1, 3
+    AssertTrue InStr(PptTqq_LastMsg(), "Não foi possível vincular o texto: falha simulada") = 1, PptTqq_LastMsg()
+    f.FailOn = ""
+    PptTqq_ClearLastMsg
+    PptTqq_LinkText s, 2, 1
+    AssertEqual "2:1", f.LastLink, "reentrada liberada depois da falha"
+    AssertEqual 0, f.QuitCount
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set s = Nothing
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' 1.9.0: uma apresentacao so com textos vinculados (TQQ_TEXT = "1") conta para "Ao abrir" e "Atualizar graficos" (antes so TQQ_CHART);
+' TQQ_TEXT diferente de "1" nao conta.
+Public Sub Test_PptTqq_CountTagged_LinkedText()
+    Dim p As Object, s As Object, srcs As New Collection, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set s = p.Slides(1).Shapes.AddTextbox(1, 10, 10, 200, 50): s.Tags.Add PPT_TAG_TEXT, "1": s.Tags.Add PPT_TAG_BOOK, "C:\Dados\T.xlsx"
+    Set s = p.Slides(1).Shapes.AddTextbox(1, 10, 80, 200, 50): s.Tags.Add PPT_TAG_TEXT, "0": s.Tags.Add PPT_TAG_BOOK, "C:\Dados\U.xlsx"
+    AssertEqual 1, PptTqq_CountTagged(p, srcs)
+    AssertEqual 1, srcs.Count
+    AssertEqual "C:\Dados\T.xlsx", CStr(srcs(1)), "a pasta vem de TQQ_BOOK (texto nao tem vinculo nativo)"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    Set s = Nothing
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub

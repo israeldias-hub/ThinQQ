@@ -47,6 +47,13 @@ Public Const PPT_MSG_OLD_CORE_CMD As String = "Atualize o ThinQQ no Excel para m
 Public Const PPT_MSG_CATS As String = "Escolha duas categorias diferentes do gráfico, a primeira antes da segunda."
 Public Const PPT_MSG_PACK_SAVE_FIRST As String = "Salve a apresentação numa pasta do computador antes de empacotar."
 Public Const PPT_PACK_SUFFIX As String = " (ThinQQ)"            ' pasta do pacote: "<pasta da apresentacao>\<nome> (ThinQQ)"
+Public Const PPT_API_TEXT As Long = 5                       ' Core_PptLinkText (core 1.9.0)
+Public Const PPT_TAG_TEXT As String = "TQQ_TEXT"            ' forma de texto vinculado a celula ("1"; = PPTTEXT_TAG do core)
+Public Const PPT_MSG_OPEN_EXCEL As String = "Abra a pasta no Excel (com o ThinQQ), selecione a célula com o valor e clique de novo em Texto vinculado ao Excel."
+Public Const PPTTEXT_MSG_NOTEXT_PPT As String = "Selecione uma caixa de texto (ou parte do texto dela)."
+Public Const PPT_MSG_OLD_CORE_TEXT As String = "Atualize o ThinQQ no Excel para vincular texto pelo PowerPoint."
+Public Const PPT_MSG_TEXT_OK As String = "Texto vinculado à célula do Excel."
+Public Const PPT_MSG_TEXT_SAVE As String = "Salve a pasta de trabalho no Excel: assim o vínculo acompanha linhas e colunas inseridas antes da célula."
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
 Private Const RPC_E_RETRYLATER As Long = -2147417846
 Private mEvents As clsPptEvents
@@ -328,13 +335,15 @@ Private Function PptTqq_Tag(shp As Object, key As String) As String
     Err.Clear
 End Function
 
-' Formas soltas marcadas pelo ThinQQ na apresentacao. sources (opcional): recebe as pastas de origem distintas (sem diferenciar maiusculas),
-' na ordem em que aparecem: PptTqq_SourcePath(LinkFormat.SourceFullName, TQQ_BOOK); so le o vinculo e as etiquetas (nunca o arquivo).
+' Formas soltas marcadas pelo ThinQQ na apresentacao: graficos (TQQ_CHART) e, desde a 1.9.0, textos vinculados (TQQ_TEXT = "1": uma
+' apresentacao so com textos vinculados tambem pergunta/atualiza ao abrir e pelo botao). sources (opcional): recebe as pastas de origem
+' distintas (sem diferenciar maiusculas), na ordem em que aparecem: PptTqq_SourcePath(LinkFormat.SourceFullName, TQQ_BOOK); so le o
+' vinculo e as etiquetas (nunca o arquivo).
 Public Function PptTqq_CountTagged(pres As Object, Optional sources As Collection) As Long
     Dim sl As Object, shp As Object, p As String
     For Each sl In pres.Slides
         For Each shp In sl.Shapes
-            If Len(PptTqq_Tag(shp, PPT_TAG_CHART)) > 0 Then
+            If Len(PptTqq_Tag(shp, PPT_TAG_CHART)) > 0 Or PptTqq_Tag(shp, PPT_TAG_TEXT) = "1" Then
                 PptTqq_CountTagged = PptTqq_CountTagged + 1
                 If Not sources Is Nothing Then
                     p = PptTqq_SourcePath(PptTqq_LinkSource(shp), PptTqq_Tag(shp, PPT_TAG_BOOK))
@@ -1763,4 +1772,81 @@ Fail:
     mBusy = False
     PptTqq_Msg PptTqq_DataErrorText("Não foi possível aplicar: ", en, ed), vbExclamation
     PptRx_InvalidateElem                                ' o botao clicado volta ao estado gravado (revisao final G-II, M3)
+End Sub
+
+' ---- Texto vinculado ao Excel (1.9.0, API 5; spec 5.3) ----
+
+' Selecao da janela ativa: texto selecionado ou cursor (ppSelectionText: o trecho) ou UMA forma com texto (o texto inteiro). False se nao
+' houver (sem janela, nada selecionado, varias formas, forma sem texto). Nunca propaga erro.
+Public Function PptTqq_SelectionTextRange(ByRef shp As Object, ByRef st As Long, ByRef ln As Long) As Boolean
+    Dim sel As Object, s As Object
+    On Error GoTo Done
+    Set sel = Application.ActiveWindow.Selection
+    If sel.Type = 3 Then                                         ' ppSelectionText
+        Set s = sel.ShapeRange(1)
+        st = CLng(sel.TextRange.Start): ln = CLng(sel.TextRange.Length)
+    ElseIf sel.Type = 2 Then                                     ' ppSelectionShapes
+        If sel.ShapeRange.Count <> 1 Then Exit Function
+        Set s = sel.ShapeRange(1)
+        If Not CBool(s.HasTextFrame) Then Exit Function
+        st = 1: ln = Len(CStr(s.TextFrame.TextRange.Text))
+    Else
+        Exit Function
+    End If
+    Set shp = s
+    PptTqq_SelectionTextRange = True
+Done:
+End Function
+
+' Chama Core_PptLinkText no Excel dado, so com a API 5 (core antigo: PPT_MSG_OLD_CORE_TEXT, sem chamar). Devolve o texto do core ("" =
+' vinculado). Excel ocupado: o erro de ocupado sobe; outra falha da chamada sobe.
+Public Function PptTqq_LinkTextTo(xl As Object, core As String, shp As Object, st As Long, ln As Long) As String
+    If PptTqq_CoreApi(xl, core) < PPT_API_TEXT Then PptTqq_LinkTextTo = PPT_MSG_OLD_CORE_TEXT: Exit Function
+    PptTqq_LinkTextTo = CStr(xl.Run("'" & core & "'!Core_PptLinkText", shp, st, ln))
+End Function
+
+' Aviso final do vincular: "" (vinculado) ou o "vinculado, cortado" do core ganham o lembrete de salvar a pasta (o vincular criou um nome
+' oculto nela e a deixou "nao salva"; sem salvar, o vinculo segue pelo endereco e nao acompanha linhas inseridas). Recusas: como vieram. Pura.
+Public Function PptTqq_LinkTextMsg(coreMsg As String) As String
+    If Len(coreMsg) = 0 Then
+        PptTqq_LinkTextMsg = PPT_MSG_TEXT_OK & " " & PPT_MSG_TEXT_SAVE
+    ElseIf Left$(coreMsg, 16) = "Texto vinculado." Then
+        PptTqq_LinkTextMsg = coreMsg & " " & PPT_MSG_TEXT_SAVE
+    Else
+        PptTqq_LinkTextMsg = coreMsg
+    End If
+End Function
+
+' Vincula o trecho [st, st + ln) da forma a celula ATIVA do Excel JA aberto com o ThinQQ (a origem e a celula dele). Nunca cria um Excel nem
+' abre o core (sem eles: PPT_MSG_OPEN_EXCEL); o Excel do usuario nunca recebe Quit. O core roda em modo silencioso (sem caixas no Excel) e o
+' aviso (sucesso, recusa, core antigo, ocupado) e mostrado pelo PowerPoint depois de a chamada voltar. Reentrada ignorada; mBusy liberado em
+' todo caminho. Nunca propaga.
+Public Sub PptTqq_LinkText(shp As Object, st As Long, ln As Long)
+    Dim xl As Object, created As Boolean, core As String, msg As String, en As Long, ed As String
+    If mBusy Then Exit Sub
+    If shp Is Nothing Then PptTqq_Msg PPTTEXT_MSG_NOTEXT_PPT: Exit Sub
+    mBusy = True
+    On Error GoTo Fail
+    Set xl = PptTqq_GetExcel(created, True)
+    If xl Is Nothing Then
+        msg = PPT_MSG_OPEN_EXCEL
+    Else
+        core = PptTqq_EnsureCore(xl, False)
+        If Len(core) = 0 Then
+            msg = PPT_MSG_OPEN_EXCEL
+        Else
+            msg = PptTqq_LinkTextMsg(PptTqq_LinkTextTo(xl, core, shp, st, ln))
+        End If
+    End If
+    PptTqq_Release xl, created
+    mBusy = False
+    PptTqq_Msg msg
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptTqq_Release xl, created
+    mBusy = False
+    PptTqq_Msg PptTqq_DataErrorText("Não foi possível vincular o texto: ", en, ed), vbExclamation
 End Sub

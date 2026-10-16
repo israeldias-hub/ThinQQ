@@ -246,6 +246,17 @@ Check ($pptBas -match '(?m)^Public Sub PptRx_OnPackage\(control As IRibbonContro
 foreach ($id in 'tglPptLabels', 'tglPptTotals', 'tglPptConnectors', 'ddPptNumFmt', 'ddPptLegend', 'btnPptCagr', 'btnPptDiff', 'btnPptClearAnn') {
     Check ($pptBas.Contains('"' + $id + '"')) "ppt: $id invalidado com a selecao"
 }
+# 1.9.0 (E3): "Texto vinculado ao Excel" no grupo "Elemento selecionado" (ultimo botao; imageMso ja usado; sem getEnabled: vale para caixa de texto)
+Check ($px.SelectSingleNode("//u:group[@id='grpPptElem']", $pns).GetAttribute('label') -ceq 'Elemento selecionado') 'ppt: grupo Elemento selecionado (1.9.0)'
+$lt = $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptLinkText'][@label='Texto vinculado ao Excel'][@onAction='PptRx_OnLinkText'][@imageMso='TextBoxInsert']", $pns)
+Check ($null -ne $lt) 'ppt: Texto vinculado ao Excel'
+Check ($null -ne $lt -and -not $lt.HasAttribute('getEnabled')) 'ppt: Texto vinculado ao Excel sempre ativo'
+Check ($null -ne $lt -and $null -eq $lt.NextSibling) 'ppt: Texto vinculado ao Excel e o ultimo do grupo'
+Check (@($px.SelectNodes("//u:group[@id='grpPptElem']/u:*", $pns)).Count -eq 4) 'ppt: Elemento selecionado com 4 controles'
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnLinkText\(control As IRibbonControl\)') 'ppt: assinatura de Texto vinculado ao Excel'
+# e no Excel: Vincular celula ao texto selecionado (menu PowerPoint) e Titulo ligado a uma celula (Mais opcoes)
+Check ($null -ne $xx.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptLinkText'][@onAction='Rx_OnPptLinkText'][@image='tqq_ppt16']", $xns)) 'excel: Vincular célula ao texto selecionado'
+Check ($null -ne $xx.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnLinkTitle'][@onAction='Rx_OnLinkTitle'][@getEnabled='Rx_GetEnabled'][@image='tqq_options16']", $xns)) 'excel: Título ligado a uma célula'
 # ---- Carimbo do .ppam (Set-PackageDescription): o PowerPoint grava o suplemento sem docProps; pacotes sinteticos, sem Office
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem

@@ -119,7 +119,7 @@
           <!-- Mais opcoes fica sempre ativo (sem getEnabled): contem Mesma escala, Escala automatica e Arredondar intervalo, que valem sem gráfico
                selecionado. Os alternadores e os dois botoes de corte de eixo consultam a matriz pela tag (Core_Supports). -->
           <menu id="mnuMore" label="Mais opções" image="tqq_options16"
-                screentip="Mais opções" supertip="Indicador 100%, linha de valor, eixo secundário, rótulos fora da pizza, soma consistente, linha de tendência, quadrantes, corte de eixo, Arredondar intervalo, Mesma escala e Escala automática.">
+                screentip="Mais opções" supertip="Indicador 100%, linha de valor, eixo secundário, rótulos fora da pizza, soma consistente, linha de tendência, quadrantes, corte de eixo, Arredondar intervalo, Mesma escala, Escala automática e Título ligado a uma célula.">
             <toggleButton id="tglInd100" label="Indicador 100%" imageMso="PercentStyle" tag="ind100"
                           onAction="Rx_OnToggle" getPressed="Rx_GetPressed" getEnabled="Rx_GetEnabled"
                           screentip="Indicador 100%" supertip="Marca o nível de 100% (à esquerda nas colunas e no Mekko, no alto nas barras) dos gráficos 100% e do Mekko (%). Já nasce ligado nesses tipos."/>
@@ -155,6 +155,8 @@
                     screentip="Mesma escala" supertip="Aplica a mesma escala do eixo de valores a dois ou mais gráficos ThinQQ selecionados; com um só selecionado ou nenhum, a todos os da planilha. Não entram no grupo: gráficos 100%, Mekko (%), pizza, rosca, Gantt, dispersão, bolhas e qualquer gráfico com corte de eixo."/>
             <button id="btnResetScale" label="Escala automática" imageMso="Undo" onAction="Rx_OnResetScale"
                     screentip="Escala automática" supertip="Devolve o eixo de valores ao automático no gráfico selecionado (ou nos selecionados); sem nenhum selecionado, em todos os da planilha."/>
+            <button id="btnLinkTitle" label="Título ligado a uma célula..." image="tqq_options16" onAction="Rx_OnLinkTitle" getEnabled="Rx_GetEnabled"
+                    screentip="Título ligado a uma célula" supertip="O título do gráfico passa a mostrar o texto de uma célula e acompanha as mudanças dela (também no PowerPoint, pelo vínculo do gráfico). Cancelar com o título já ligado oferece remover a ligação."/>
           </menu>
           <!-- Setas: o menu so exige um grafico (sem tag); cada seta consulta a matriz pela propria tag. -->
           <menu id="mnuArrows" label="Setas" image="tqq_arrows16" getEnabled="Rx_GetEnabled"
@@ -183,13 +185,15 @@
           </menu>
           <!-- PowerPoint: o menu fica sempre ativo (Atualizar graficos no PowerPoint nao exige grafico); copiar exige um grafico (getEnabled). -->
           <menu id="mnuPpt" label="PowerPoint" image="tqq_ppt16"
-                screentip="PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint (como imagem ou gráfico vinculado), atualiza os gráficos vinculados das apresentações abertas e controla a atualização automática. Também insere direto no slide e mostra/oculta as molduras.">
+                screentip="PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint (como imagem ou gráfico vinculado), atualiza os gráficos vinculados das apresentações abertas e controla a atualização automática. Também insere direto no slide, vincula uma célula a um texto do slide e mostra/oculta as molduras.">
             <checkBox id="chkPptInsert" label="Inserir também no slide" getPressed="Rx_GetPptInsert" onAction="Rx_OnPptInsert"
                       screentip="Inserir também no slide" supertip="Marcada, cada gráfico inserido pelos menus Colunas, Barras, Cascata, Linha e área e Mais tipos também vai para o slide ativo do PowerPoint como gráfico vinculado, e o intervalo de origem ganha uma moldura verde. A pasta precisa estar salva."/>
             <button id="btnPptImage" label="Copiar como imagem" onAction="Rx_OnPptImage" getEnabled="Rx_GetEnabled"
                     screentip="Copiar como imagem" supertip="Cola uma imagem do gráfico no slide ativo (abre o PowerPoint se preciso)."/>
             <button id="btnPptChart" label="Copiar como gráfico vinculado" onAction="Rx_OnPptChart" getEnabled="Rx_GetEnabled"
                     screentip="Copiar como gráfico vinculado" supertip="Cola um gráfico do PowerPoint vinculado a esta pasta de trabalho salva, com as setas no tamanho do slide. Com o suplemento do PowerPoint, dados e setas são atualizados ao abrir a apresentação."/>
+            <button id="btnPptLinkText" label="Vincular célula ao texto selecionado" image="tqq_ppt16" onAction="Rx_OnPptLinkText"
+                    screentip="Vincular célula ao texto selecionado" supertip="A célula selecionada passa a alimentar o texto selecionado no PowerPoint (a caixa inteira, a parte selecionada ou o ponto do cursor). Também há o botão Texto vinculado ao Excel no PowerPoint."/>
             <menuSeparator id="msepPpt"/>
             <button id="btnPptSync" label="Atualizar gráficos no PowerPoint" imageMso="Refresh" onAction="Rx_OnPptSync"
                     screentip="Atualizar gráficos no PowerPoint" supertip="Atualiza dados e setas dos gráficos do ThinQQ vinculados nas apresentações abertas no PowerPoint (também acontece ao abrir a apresentação, com o suplemento do PowerPoint)."/>
