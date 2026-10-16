@@ -821,13 +821,19 @@ $autoTut = Get-SubsectionText 'ppt-auto'
 $recRaw = [regex]::Match($readme, '(?s)\*\*Atualização automática no PowerPoint \(1\.6\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value
 $autoRec = ($recRaw -replace '\s+', ' ')
 $clUnrel = [regex]::Match(($cl -replace "`r`n", "`n"), '(?ms)^## \[Não lançado\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
-# As linhas da 1.6.0 ficam em [Não lançado] até o publicar-release 1.6.0, que as move para "## [1.6.0] - data" e deixa a [Não lançado] vazia
-# (mesma classe do incidente do delta, dc446b0): os pinos leem a [Não lançado] enquanto ela tem as linhas (TQQ_AUTOIDX), senão a [1.6.0].
-function Get-AutoChangelogBlock([string]$text) {
+# As linhas da 1.6.0 ficam em [Não lançado] até o publicar-release, que as move para "## [1.6.0] - data" (1.6.0 publicada antes) ou, se a 1.6.0
+# e a 1.7.0 saírem juntas, para "## [1.7.0] - data" (mesma classe do incidente do delta, dc446b0): os pinos leem a primeira seção que tem as
+# linhas (TQQ_AUTOIDX), nesta ordem: [Não lançado], [1.7.0], [1.6.0].
+function Get-ChangelogSection([string]$text, [string]$head) {
     $t = $text -replace "`r`n", "`n"
-    $un = [regex]::Match($t, '(?ms)^## \[Não lançado\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
-    if ($un.Contains('TQQ_AUTOIDX')) { return $un }
-    return [regex]::Match($t, '(?ms)^## \[1\.6\.0\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
+    return [regex]::Match($t, "(?ms)^## $head[^\n]*\n(?<b>.*?)(?=^## \[|\z)").Groups['b'].Value
+}
+function Get-AutoChangelogBlock([string]$text) {
+    foreach ($h in '\[Não lançado\]', '\[1\.7\.0\]') {
+        $b = Get-ChangelogSection $text $h
+        if ($b.Contains('TQQ_AUTOIDX')) { return $b }
+    }
+    return (Get-ChangelogSection $text '\[1\.6\.0\]')
 }
 $clAuto = Get-AutoChangelogBlock $cl
 $notesNorm = ($notesText -replace '\s+', ' ')
@@ -865,7 +871,7 @@ $autoPlaces = [ordered]@{
         'Atualização automática no PowerPoint (1.6.0)', 'nada vira automático sem uma ação do usuário', 'já abertas', 'nunca abre o PowerPoint, uma apresentação nem uma pasta',
         $debText, $waitText, $retryText, 'Desfazer do Excel pode ser limpo', 'marca a apresentação como modificada', 'Atualize o ThinQQ no Excel para a atualização automática funcionar',
         'verificado em PowerPoint real', 'itens 61 a 68', 'Slides copiados de outra apresentação', 'somente leitura') }
-    'CHANGELOG ([Não lançado] ou [1.6.0])' = @{ text = $clAuto; phrases = $clAutoPhrases }
+    'CHANGELOG ([Não lançado], [1.7.0] ou [1.6.0])' = @{ text = $clAuto; phrases = $clAutoPhrases }
     'release/notes.txt' = @{ text = $notesNorm; phrases = @($lblAuto, $lblOnce, $lblOn, $lblNew, "$debounce segundos", 'Nada vira automático sem uma ação sua', 'por gráfico') }
 }
 foreach ($place in $autoPlaces.Keys) {
@@ -904,8 +910,9 @@ foreach ($n in ($mvAutoPins.Keys | Sort-Object)) {
 }
 
 # ---- Inserir também no slide (1.7.0, Tarefa D3): subseção #ppt-inserir, Recursos e Limitações do README, itens manuais 69 a 74 e a [Não lançado] do
-# CHANGELOG. As linhas da 1.7.0 ficam em [Não lançado] junto com as da 1.6.0 até o publicar-release; se a 1.6.0 sair antes, o publicar-release move
-# tudo para "## [1.6.0]" (ou, se a 1.7.0 sair depois, para "## [1.7.0]"): os pinos leem as três seções e continuam valendo nos dois casos.
+# CHANGELOG. As linhas da 1.7.0 ficam em [Não lançado] (junto com as da 1.6.0) até o publicar-release 1.7.0, que as move para "## [1.7.0]": os pinos
+# leem só essas duas seções. Dentro de "## [1.6.0]" elas anunciariam a 1.7.0 como entregue na 1.6.0 (merge depois do publicar-release 1.6.0, como
+# no delta): um pino recusa (README, "Publicar uma versão").
 $lblIns = 'Inserir também no slide'; $lblFrames = 'Mostrar/ocultar molduras'
 $insNode = $ribbon.SelectSingleNode("//*[@id='chkPptInsert']"); $frNode = $ribbon.SelectSingleNode("//*[@id='btnPptFrames']")
 Check ($null -ne $insNode -and $insNode.LocalName -eq 'checkBox' -and $insNode.GetAttribute('label') -ceq $lblIns) "faixa do Excel: a caixa chkPptInsert tem o rótulo '$lblIns'"
@@ -918,17 +925,29 @@ if ($parsed) {
 $insTut = Get-SubsectionText 'ppt-inserir'
 $insRec = ([regex]::Match($readme, '(?s)\*\*Inserir também no slide \(1\.7\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
 function Get-InsertChangelogBlock([string]$text) {
-    $t = $text -replace "`r`n", "`n"
     $acc = ''
-    foreach ($h in '\[Não lançado\]', '\[1\.7\.0\]', '\[1\.6\.0\]') { $acc += "`n" + [regex]::Match($t, "(?ms)^## $h[^\n]*\n(?<b>.*?)(?=^## \[|\z)").Groups['b'].Value }
+    foreach ($h in '\[Não lançado\]', '\[1\.7\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
     return $acc
+}
+# True se existe "## [1.6.0]" e ela contém linhas da 1.7.0 (a 1.7.0 anunciada como entregue na 1.6.0)
+function Test-InsertInside160([string]$text) {
+    $t = $text -replace "`r`n", "`n"
+    if ($t -notmatch '(?m)^## \[1\.6\.0\]') { return $false }
+    return (Get-ChangelogSection $text '\[1\.6\.0\]').Contains('Inserir no slide (1.7.0)')
 }
 $clInsPhrases = @($lblIns, $lblFrames, 'Inserir no slide (1.7.0)', 'moldura verde', 'não muda o vínculo', 'Alterar dados', 'Atualize o ThinQQ para usar este recurso.', 'não cria nada', 'sem moldura')
 function Get-InsertChangelogMissing([string]$block) { return @($clInsPhrases | Where-Object { -not $block.Contains($_) }) }
 $clIns = Get-InsertChangelogBlock $cl
 Check ($insTut.Length -gt 2500 -and $insRec.Length -gt 1500 -and $clIns.Length -gt 1000) "inserir no slide: subseção do tutorial ($($insTut.Length)), Recursos do README ($($insRec.Length)) e CHANGELOG ($($clIns.Length)) lidos"
 $clInsLine = "- Inserir no slide (1.7.0): " + (($clInsPhrases | Where-Object { $_ -ne 'Inserir no slide (1.7.0)' }) -join ' ') + "`n"
-Check (@(Get-InsertChangelogMissing (Get-InsertChangelogBlock "## [Não lançado]`n`n$clInsLine`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -eq 0 -and @(Get-InsertChangelogMissing (Get-InsertChangelogBlock "## [Não lançado]`n`n## [1.6.0] - 2026-10-20`n`n### Adicionado`n$clInsLine`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -eq 0) 'CHANGELOG (sintético): as linhas da 1.7.0 em [Não lançado] ou, depois do publicar-release 1.6.0, em [1.6.0] satisfazem os pinos'
+Check (@(Get-InsertChangelogMissing (Get-InsertChangelogBlock "## [Não lançado]`n`n$clInsLine`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -eq 0) 'CHANGELOG (sintético): as linhas da 1.7.0 em [Não lançado] satisfazem os pinos'
+$clIn160 = "## [Não lançado]`n`n## [1.6.0] - 2026-10-20`n`n### Adicionado`n$clInsLine`n## [1.5.0] - 2026-10-15`n`n- x`n"
+Check ((Test-InsertInside160 $clIn160) -and @(Get-InsertChangelogMissing (Get-InsertChangelogBlock $clIn160)).Count -gt 0) 'CHANGELOG (sintético): as linhas da 1.7.0 dentro da [1.6.0] (merge depois do publicar-release 1.6.0) = falha'
+# tudo junto como 1.7.0: o publicar-release 1.7.0 move a [Não lançado] inteira (linhas da 1.6.0 e da 1.7.0) para a [1.7.0]: ok para os dois blocos
+$clRoll = "# Changelog`n`n## [Não lançado]`n`n## [1.7.0] - 2026-10-30`n" + ($clIns -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
+Check (@(Get-AutoChangelogMissing (Get-AutoChangelogBlock $clRoll)).Count -eq 0 -and @(Get-InsertChangelogMissing (Get-InsertChangelogBlock $clRoll)).Count -eq 0 -and -not (Test-InsertInside160 $clRoll)) 'CHANGELOG (sintético): 1.6.0 e 1.7.0 publicadas juntas na [1.7.0] satisfazem os pinos das duas'
+Check (-not (Test-InsertInside160 $cl)) 'CHANGELOG: a [1.6.0] não contém linhas "Inserir no slide (1.7.0)" (mova-as para a [Não lançado]; README, Publicar uma versão)'
+Check ($cl -notmatch '\.- [A-Z]') 'CHANGELOG: nenhuma entrada colada no fim de outra (".- X" sem quebra de linha)'
 Check (@(Get-InsertChangelogMissing (Get-InsertChangelogBlock "## [Não lançado]`n`n## [1.7.0] - 2026-10-30`n`n$clInsLine`n## [1.6.0] - 2026-10-20`n`n- outra coisa`n")).Count -eq 0) 'CHANGELOG (sintético): depois do publicar-release 1.7.0 as linhas na [1.7.0] satisfazem os pinos'
 Check (@(Get-InsertChangelogMissing (Get-InsertChangelogBlock "## [Não lançado]`n`n## [1.6.0] - 2026-10-20`n`n- outra coisa`n`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas da 1.7.0 em lugar nenhum = falha'
 $insPlaces = [ordered]@{
@@ -943,7 +962,7 @@ $insPlaces = [ordered]@{
     'README Limitações' = @{ text = $readmeLimTxt; phrases = @(
         'Inserir também no slide (1.7.0)', 'não muda o vínculo', 'só os gráficos inseridos por este caminho ganham moldura', 'vermelha e azul', 'não é impressa',
         'Atualize o ThinQQ para usar este recurso.', 'itens 69 a 74', 'sonda P4', 'Alterar dados') }
-    'CHANGELOG ([Não lançado], [1.7.0] ou [1.6.0])' = @{ text = $clIns; phrases = $clInsPhrases }
+    'CHANGELOG ([Não lançado] ou [1.7.0])' = @{ text = $clIns; phrases = $clInsPhrases }
 }
 foreach ($place in $insPlaces.Keys) {
     $pt = [string]$insPlaces[$place].text

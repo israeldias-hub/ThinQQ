@@ -185,7 +185,7 @@ escolher qualquer um dos 21 tipos: o gráfico nasce no Excel (motor do ThinQQ), 
 nova), já com as setas no tamanho do slide e a opção automática conforme `AutoNew`; o intervalo de origem ganha a **moldura verde** do
 ThinQQ. **Diferente:** o gráfico também existe no Excel (é ele que calcula setas e rótulos: o ThinQQ não tem motor de gráfico no PowerPoint);
 a moldura tem uma cor (verde = intervalo de um gráfico ThinQQ que foi ao PowerPoint) e não muda o vínculo ao ser arrastada (mudar o intervalo
-continua sendo "Alterar dados", que redesenha a moldura). **Fora:** vermelho/azul, transpor, "Edit Data Layout", posicionar com o mouse no slide.
+continua sendo "Alterar dados", que recria o gráfico com id novo: o slide deixa de acompanhá-lo, a moldura sai e o ThinQQ avisa para inserir ou colar de novo; revisão final da Parte D). **Fora:** vermelho/azul, transpor, "Edit Data Layout", posicionar com o mouse no slide.
 
 **(c) Arquitetura:** `Core_InsertToPowerPoint(kind)` = conferência da pasta salva **antes** de criar qualquer coisa + `Core_Insert` + moldura
 (`modLinkFrame`: retângulo `tqqlink_<id>` sem preenchimento, linha verde 2 pt, `Placement = xlMoveAndSize` (S7: acompanha linhas
