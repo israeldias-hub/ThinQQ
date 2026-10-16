@@ -27,7 +27,7 @@ End Sub
 ' Reassocia observadores a todos os gráficos ThinQQ da planilha ativa. Gráficos de planilhas inativas
 ' não têm observador: são atualizados quando a planilha é ativada (SheetActivate -> Rehook -> eventos).
 Public Sub Watchers_Rehook()
-    Dim ws As Object, co As ChartObject, w As clsChartWatcher, wbk As Workbook
+    Dim ws As Object, co As ChartObject, w As clsChartWatcher
     Set mWatchers = New Collection
     On Error Resume Next
     Set ws = ActiveSheet
@@ -52,10 +52,10 @@ Public Sub Watchers_Rehook()
             End If
         End If
     Next
-    ' molduras de intervalos vinculados (1.7.0) cujo grafico nao existe mais: somem aqui
+    ' molduras de intervalos vinculados (1.7.0) cujo grafico nao existe mais: so as da planilha ativada (a varredura da pasta inteira a
+    ' cada ativacao custaria todas as formas de todas as planilhas; ela fica em Core_Insert, Core_Refresh e Alterar dados)
     On Error Resume Next
-    Set wbk = ws.Parent
-    If Not wbk Is Nothing Then LinkFrame_CleanOrphans wbk
+    LinkFrame_CleanOrphansSheet ws
     Err.Clear
 End Sub
 

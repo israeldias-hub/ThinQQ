@@ -57,7 +57,9 @@ Public Sub Test_LinkFrame_OrphansAndToggle()
     Teardown wb
 End Sub
 
-Public Sub Test_LinkFrame_FollowsChangeSource()
+' Alterar dados recria o grafico com id NOVO (o slide deixa de acompanha-lo): a moldura NAO e redesenhada, a do grafico antigo sai e o
+' usuario e avisado para inserir ou colar de novo (revisao final da Parte D, I1). Sem moldura, nenhum aviso.
+Public Sub Test_LinkFrame_ChangeSource_DropsFrameAndNotifies()
     Dim wb As Workbook, rng As Range, c As Chart, s As Shape, ws As Worksheet, nc As Chart
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
     Set ws = rng.Worksheet
@@ -66,14 +68,66 @@ Public Sub Test_LinkFrame_FollowsChangeSource()
     Set c = Core_ActiveChart()
     Set s = LinkFrame_Ensure(c, rng)
     AssertTrue Not s Is Nothing
+    Core_ClearLastNotice
     AssertTrue Core_RebuildFromRange(c, ws.Range("A1:B3")), "Alterar dados refez o grafico"
     Set nc = Core_ActiveChart()
-    Set s = LinkFrame_Find(nc)
-    AssertTrue Not s Is Nothing, "o grafico novo tem moldura"
-    AssertAlmost ws.Range("A1:B3").Width, s.Width, 0.5, "a moldura acompanha a tabela nova"
-    AssertAlmost ws.Range("A1:B3").Height, s.Height, 0.5
-    AssertEqual 1, CountFrames(wb), "a moldura do grafico antigo nao sobra"
+    AssertTrue LinkFrame_Find(nc) Is Nothing, "o grafico novo nao ganha moldura"
+    AssertEqual 0, CountFrames(wb), "a moldura do grafico antigo nao sobra"
+    AssertEqual LINKFRAME_NOTE_REBUILT, Core_LastNotice(), "aviso: o slide nao acompanha mais"
+    Core_ClearLastNotice
+    AssertTrue Core_RebuildFromRange(nc, ws.Range("A1:C3")), "de novo, sem moldura"
+    AssertTrue Core_LastNotice() <> LINKFRAME_NOTE_REBUILT, "sem moldura: sem o aviso"
+    AssertEqual 0, CountFrames(wb)
     Teardown wb
+End Sub
+
+' Revisao final M2: a ativacao (Watchers_Rehook) limpa so a planilha ativada; Core_Refresh varre a pasta inteira.
+Public Sub Test_LinkFrame_CleanOrphans_SheetScopedOnActivate()
+    Dim wb As Workbook, rng As Range, ws1 As Worksheet, ws2 As Worksheet, c As Chart, s As Shape
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    Set ws1 = rng.Worksheet
+    Set ws2 = wb.Worksheets.Add(After:=ws1)
+    ws1.Activate
+    rng.Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    Set s = LinkFrame_Ensure(c, rng)
+    AssertTrue Not s Is Nothing
+    ws1.Shapes.AddShape(msoShapeRectangle, 0, 0, 10, 10).Name = LINKFRAME_PREFIX & "naoexiste1"
+    ws2.Shapes.AddShape(msoShapeRectangle, 0, 0, 10, 10).Name = LINKFRAME_PREFIX & "naoexiste2"
+    AssertEqual 3, CountFrames(wb)
+    LinkFrame_CleanOrphansSheet ws2
+    AssertEqual 2, CountFrames(wb), "so a orfa da planilha pedida sai"
+    ws2.Shapes.AddShape(msoShapeRectangle, 0, 0, 10, 10).Name = LINKFRAME_PREFIX & "naoexiste3"
+    ws1.Activate
+    Watchers_Rehook
+    AssertEqual 2, CountFrames(wb), "ativacao: a orfa da planilha ativada sai, a da outra planilha fica"
+    AssertTrue Not LinkFrame_Find(c) Is Nothing, "a moldura de grafico existente fica"
+    ws1.Range("A1").Select
+    Core_Refresh
+    AssertEqual 1, CountFrames(wb), "Core_Refresh: varre a pasta inteira"
+    AssertTrue Not LinkFrame_Find(c) Is Nothing
+    Teardown wb
+End Sub
+
+' Revisao final M4: falha depois do AddShape nao deixa retangulo (azul, sem nome tqqlink_) na planilha.
+Public Sub Test_LinkFrame_DrawFailure_LeavesNoShape()
+    Dim wb As Workbook, rng As Range, c As Chart, n0 As Long, en As Long, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    n0 = rng.Worksheet.Shapes.Count
+    LinkFrame_SetFailDrawForTest True
+    AssertTrue LinkFrame_Ensure(c, rng) Is Nothing, "falhou: Nothing"
+    AssertEqual n0, rng.Worksheet.Shapes.Count, "nenhuma forma sobra"
+    AssertTrue Not LinkFrame_Ensure(c, rng) Is Nothing, "o gancho foi zerado no uso"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    LinkFrame_SetFailDrawForTest False
+    If Not wb Is Nothing Then Teardown wb
+    If en <> 0 Then Err.Raise en, "TestLinkFrame", ed
 End Sub
 
 Private Function CountFrames(wb As Workbook) As Long

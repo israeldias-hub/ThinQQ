@@ -162,6 +162,7 @@ Public Sub Core_Insert(kind As String)
     End If
     Application.ScreenUpdating = False
     CalcSheet_Cleanup ws.Parent
+    LinkFrame_CleanOrphans ws.Parent                 ' molduras orfas da pasta inteira (1.7.0)
     Set co = Kinds_Insert(ws, data, kind)
     ApplySourceNumFmt co.Chart, kind, data           ' formato inicial dos rotulos pelo formato da tabela (1a celula de valor)
     Application.ScreenUpdating = prevSU
@@ -1007,6 +1008,7 @@ Public Sub Core_Refresh()
     If Not c Is Nothing Then
         Core_SafeRefresh c
         CalcSheet_Cleanup Registry_Workbook(c)
+        LinkFrame_CleanOrphans Registry_Workbook(c)      ' molduras orfas da pasta inteira (a ativacao de planilha so limpa a planilha ativada)
     Else
         If ActiveWorkbook Is Nothing Then Exit Sub
         Set wb = ActiveWorkbook
@@ -1019,6 +1021,7 @@ Public Sub Core_Refresh()
             End If
         End If
         CalcSheet_Cleanup wb
+        LinkFrame_CleanOrphans wb
     End If
     Watchers_Rehook
     Exit Sub
@@ -1067,12 +1070,15 @@ End Function
 ' setas no tamanho do slide e "Novos vinculos atualizam automaticamente"). Pasta nao salva: aviso e NADA criado. Colagem que falhou (ou colada sem vinculo): o grafico
 ' fica no Excel, sem moldura, com o aviso da colagem. Nunca propaga erro.
 Public Sub Core_InsertToPowerPoint(kind As String)
-    Dim rng As Range, c As Chart, data As clsChartData, src As Range, en As Long, ed As String
+    Dim rng As Range, c As Chart, data As clsChartData, src As Range, en As Long, ed As String, msg As String
     On Error GoTo Fail
     mPptPasteOk = False
     If TypeName(Selection) <> "Range" Then Core_Insert kind: Exit Sub        ' o aviso de selecao e o do Core_Insert
     Set rng = Selection
-    If Len(rng.Worksheet.Parent.Path) = 0 Then Core_Notify PPT_ERR_INSERT_UNSAVED, vbExclamation: Exit Sub
+    ' a mesma conferencia da colagem vinculada, ANTES de criar qualquer coisa (so o texto da pasta nao salva diz "Nada foi criado")
+    msg = Ppt_LinkedPrecheck(rng.Worksheet.Parent)
+    If msg = PPT_ERR_UNSAVED Then msg = PPT_ERR_INSERT_UNSAVED
+    If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
     Set data = ChartData_FromRange(rng)
     Set src = data.Source
     Core_Insert kind
@@ -1119,7 +1125,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     kind = Registry_ChartType(c)
     l = oldCo.Left: t = oldCo.Top: w = oldCo.Width: h = oldCo.Height
     opts = CStr(Registry_Block(c).Cells(1, 4).Value)
-    hadFrame = Not LinkFrame_Find(c) Is Nothing  ' moldura do intervalo vinculado (1.7.0): conferida ANTES, o grafico antigo deixa de existir
+    hadFrame = Not LinkFrame_Find(c) Is Nothing  ' grafico que foi ao PowerPoint com moldura (1.7.0): conferido ANTES, o grafico antigo deixa de existir
     Break_TakeNotice                            ' descarta um aviso de corte que tenha sobrado
     Application.ScreenUpdating = False
     ' O novo gráfico nasce na planilha do gráfico antigo (ws), não na da nova fonte.
@@ -1162,9 +1168,11 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     NotifyMekkoNegatives kind, data
     msg = Break_TakeNotice()                    ' corte de eixo: aviso so depois de o grafico antigo ser trocado
     If Len(msg) > 0 Then Core_Notify msg, vbInformation
-    If hadFrame Then                            ' Alterar dados: a moldura acompanha a tabela nova (a do grafico antigo, orfa, sai)
+    ' Alterar dados recria o grafico com id NOVO: o slide (TQQ_CHART = id antigo) deixa de acompanha-lo. A moldura do antigo (orfa) sai e NAO
+    ' e redesenhada (ela afirmaria um vinculo que nao existe); o aviso pede inserir ou colar de novo.
+    If hadFrame Then
         LinkFrame_CleanOrphans wb
-        LinkFrame_Ensure nc, rng
+        Core_Notify LINKFRAME_NOTE_REBUILT, vbInformation
     End If
     Core_RebuildFromRange = True
     Exit Function
