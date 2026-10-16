@@ -169,7 +169,13 @@ $pptXmlPath = Join-Path $RepoRoot 'src\ppt\ribbon\customUI14.xml'
 [xml]$px = [IO.File]::ReadAllText($pptXmlPath, (New-Object Text.UTF8Encoding($false)))
 $pns = New-Object Xml.XmlNamespaceManager($px.NameTable); $pns.AddNamespace('u', 'http://schemas.microsoft.com/office/2009/07/customui')
 Check ($px.customUI.onLoad -eq 'PptRx_OnLoad') 'ppt: onLoad PptRx_OnLoad'
-Check ($null -eq $px.SelectSingleNode('//u:*[@image]', $pns)) 'ppt: nenhum image= (so imageMso)'
+# 1.8.0: o grupo "Inserir gráfico" usa os icones proprios (o build do .ppam embute PNG, como o do Excel): cada image= existe na tabela,
+# nenhum controle tem image= e imageMso juntos, e filhos de menu nao tem size
+$pptImgNames = Assert-TqqRibbonXml -Xml ([IO.File]::ReadAllText($pptXmlPath, (New-Object Text.UTF8Encoding($false)))) -Mode Png -What 'ppt customUI14.xml'
+Check ($pptImgNames.Count -ge 5) "ppt: icones proprios no grupo Inserir gráfico ($($pptImgNames -join ','))"
+Check ($null -eq $px.SelectSingleNode('//u:*[@image and @imageMso]', $pns)) 'ppt: nenhum controle com image= e imageMso juntos'
+Check ($null -eq $px.SelectSingleNode('//u:menu/u:button[@size]', $pns)) 'ppt: botoes de menu sem size'
+Check ($null -eq $px.SelectSingleNode("//u:*[@image and not(ancestor-or-self::u:group[@id='grpPptInsert'])]", $pns)) 'ppt: image= so no grupo Inserir gráfico (os demais seguem com imageMso)'
 Check ($null -ne $px.SelectSingleNode("//u:button[@id='btnPptSyncNow'][@onAction='PptRx_OnSync']", $pns)) 'ppt: Atualizar gráficos'
 Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:toggleButton[@id='tglPptAuto'][@getPressed='PptRx_GetAuto'][@onAction='PptRx_OnAuto'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Atualizar automaticamente'
 Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptUpdateSel'][@onAction='PptRx_OnUpdateSel'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Atualizar uma vez'
@@ -185,6 +191,25 @@ Check ($pptBas -match '(?m)^Public Sub PptRx_GetElemEnabled\(control As IRibbonC
 $pptIds = @($px.SelectNodes('//u:*[@id]', $pns) | ForEach-Object { $_.GetAttribute('id') })
 Check ($pptIds.Count -eq @($pptIds | Sort-Object -Unique).Count) "ppt: ids unicos ($($pptIds.Count))"
 Check ((@($px.SelectNodes("//u:dropDown[@id='ddOpenMode']/u:item", $pns) | ForEach-Object { $_.id }) -join ',') -eq 'modeask,modealways,modenever') 'ppt: itens de Ao abrir'
+# 1.8.0 (G4): "Inserir gráfico" com os 21 tipos do Excel, na mesma ordem, e "Editar dados"
+$xx = New-Object Xml.XmlDocument; $xx.Load((Join-Path $RepoRoot 'src\loader\ribbon\customUI14.xml'))
+$xns = New-Object Xml.XmlNamespaceManager($xx.NameTable); $xns.AddNamespace('u', 'http://schemas.microsoft.com/office/2009/07/customui')
+$excelTags = @($xx.SelectNodes("//u:group[@id='grpInsert']//u:button[@onAction='Rx_OnInsert']", $xns) | ForEach-Object { $_.GetAttribute('tag') })
+$pptTags = @($px.SelectNodes("//u:group[@id='grpPptInsert']//u:button[@onAction='PptRx_OnInsertChart']", $pns) | ForEach-Object { $_.GetAttribute('tag') })
+Check ($pptTags.Count -eq 21) "ppt: 21 tipos em Inserir gráfico ($($pptTags.Count))"
+Check (($excelTags -join ',') -eq ($pptTags -join ',')) 'ppt: mesmos tipos e mesma ordem dos menus do Excel'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptEditData'][@onAction='PptRx_OnEditData'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Editar dados'
+Check ('grpPptInsert' -eq $px.SelectSingleNode("//u:tab[@id='tabThinQQPpt']/u:group[1]", $pns).GetAttribute('id')) 'ppt: Inserir gráfico é o primeiro grupo'
+# mesmos rotulos e ids (prefixo "p") dos menus e botoes do Excel; o estado de "Editar dados" segue a selecao (invalidado com os outros)
+$xlInsNodes = @($xx.SelectNodes("//u:group[@id='grpInsert']//u:*[self::u:menu or self::u:button]", $xns))
+$ppInsNodes = @($px.SelectNodes("//u:group[@id='grpPptInsert']//u:*[self::u:menu or self::u:button]", $pns))
+$sameIns = ($xlInsNodes.Count -eq $ppInsNodes.Count)
+for ($i = 0; $sameIns -and $i -lt $xlInsNodes.Count; $i++) {
+    if (('p' + $xlInsNodes[$i].GetAttribute('id')) -cne $ppInsNodes[$i].GetAttribute('id') -or $xlInsNodes[$i].GetAttribute('label') -cne $ppInsNodes[$i].GetAttribute('label') -or $xlInsNodes[$i].GetAttribute('image') -cne $ppInsNodes[$i].GetAttribute('image')) { $sameIns = $false }
+}
+Check $sameIns "ppt: menus e botoes de Inserir gráfico com os ids (prefixo p), rotulos e icones do Excel ($($ppInsNodes.Count))"
+Check ($pptBas -match 'InvalidateControl "btnPptEditData"') 'ppt: Editar dados invalidado com a selecao'
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnInsertChart\(control As IRibbonControl\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnEditData\(control As IRibbonControl\)') 'ppt: assinaturas de Inserir gráfico e Editar dados'
 # ---- Carimbo do .ppam (Set-PackageDescription): o PowerPoint grava o suplemento sem docProps; pacotes sinteticos, sem Office
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem

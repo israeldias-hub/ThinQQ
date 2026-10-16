@@ -27,14 +27,17 @@ End Sub
 
 Public Sub PptRx_OnAbout(control As IRibbonControl)
     On Error Resume Next
-    PptTqq_Msg "ThinQQ para PowerPoint " & APP_VERSION & vbLf & "Atualiza dados e setas dos gráficos do ThinQQ copiados como gráfico vinculado: ao abrir a apresentação (aba ThinQQ > Ao abrir), pelo botão ou automaticamente (Gráfico selecionado > Atualizar automaticamente).", vbInformation
+    PptTqq_Msg "ThinQQ para PowerPoint " & APP_VERSION & vbLf & "Cria gráficos do ThinQQ direto no slide (Inserir gráfico; os dados ficam numa pasta do Excel ao lado da apresentação) e atualiza dados e setas dos gráficos do ThinQQ vinculados: ao abrir a apresentação (aba ThinQQ > Ao abrir), pelo botão ou automaticamente (Gráfico selecionado > Atualizar automaticamente).", vbInformation
 End Sub
 
 ' ---- Grupo "Grafico selecionado" (1.6.0): estado segue a selecao (clsPptEvents.WindowSelectionChange invalida). ----
 
 Public Sub PptRx_InvalidateElem()
     On Error Resume Next
-    If Not mRibbon Is Nothing Then mRibbon.InvalidateControl "tglPptAuto": mRibbon.InvalidateControl "btnPptUpdateSel"
+    If mRibbon Is Nothing Then Exit Sub
+    mRibbon.InvalidateControl "tglPptAuto"
+    mRibbon.InvalidateControl "btnPptUpdateSel"
+    mRibbon.InvalidateControl "btnPptEditData"
 End Sub
 
 ' Ligado so com pelo menos um grafico do ThinQQ (de um slide) selecionado.
@@ -61,4 +64,23 @@ End Sub
 Public Sub PptRx_OnUpdateSel(control As IRibbonControl)
     On Error Resume Next
     PptTqq_UpdateSelected PptTqq_SelectedTagged()
+End Sub
+
+' ---- Grupo "Inserir grafico" e "Editar dados" (1.8.0): o tipo vem do tag do botao (os mesmos 21 do Excel). ----
+
+Public Sub PptRx_OnInsertChart(control As IRibbonControl)
+    Dim pres As Object
+    On Error Resume Next
+    If Application.Presentations.Count = 0 Then PptTqq_Msg PPT_MSG_NO_PRES: Exit Sub
+    Set pres = Application.ActivePresentation
+    PptTqq_InsertChartIn pres, PptTqq_ActiveSlide(pres), control.Tag
+End Sub
+
+' A apresentacao e a da forma selecionada (sem selecao: o aviso de selecionar).
+Public Sub PptRx_OnEditData(control As IRibbonControl)
+    Dim shapes As Collection
+    On Error Resume Next
+    Set shapes = PptTqq_SelectedTagged()
+    If shapes.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
+    PptTqq_EditShapes shapes(1).Parent.Parent, shapes
 End Sub

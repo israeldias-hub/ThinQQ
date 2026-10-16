@@ -17,6 +17,7 @@ $tmp = Join-Path $env:TEMP ('thinqq_test_ppt_' + [guid]::NewGuid().ToString('N')
 New-Item -ItemType Directory -Force $tmp | Out-Null
 $tpName = ''; $pp = $null; $xl = $null; $xl2 = $null; $wd = $null; $wdx = $null; $wdx2 = $null; $xlPid = 0; $xl2Pid = 0
 $tp = $null; $pres = $null; $slide = $null; $core = $null; $wb = $null; $ws = $null; $vals = $null; $fk = $null; $shp = $null
+$pres3 = $null; $pres4 = $null; $shp3 = $null; $shp4 = $null; $dwb = $null
 $marker = Join-Path ([IO.Path]::GetTempPath()) "thinqq_watchdog_pptaddin_$PID.flag"
 Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
 try {
@@ -126,6 +127,52 @@ try {
     $xl2 = $null; [GC]::Collect(); [GC]::WaitForPendingFinalizers()
     Check (Wait-PidExit $xl2Pid 20) "(b) o Excel criado pelo suplemento recebeu Quit e saiu (PID $xl2Pid)"
 
+    # (c) 1.8.0 (G4): "Inserir gráfico" pelo suplemento com o core de verdade (API 3) no Excel injetado (o do usuario, com o core): o grafico
+    # nasce vinculado a pasta de dados ao lado da apresentacao e a planilha dos dados abre; "Editar dados" reabre; salvar a apresentacao salva a
+    # pasta de dados; apresentacao MOVIDA e RENOMEADA (pasta de dados junto, com o nome antigo): PptTqq_RelinkData reaponta o vinculo
+    $g4 = Join-Path $tmp 'g4'; New-Item -ItemType Directory -Force $g4 | Out-Null
+    $pres3 = $pp.Presentations.Add(0); [void]$pres3.Slides.Add(1, 12)
+    $pres3.SaveAs((Join-Path $g4 'e2e-g4.pptx'))
+    $dataName = 'e2e-g4 - dados ThinQQ.xlsx'
+    $dataPath = Join-Path $g4 $dataName
+    [void]$pp.Run("$tpName!PptTqq_ResetTestHooks")
+    [void]$pp.Run("$tpName!PptTqq_SetExcelForTest", $xl, '', $false)
+    [void]$pp.Run("$tpName!PptTqq_InsertChartIn", $pres3, $pres3.Slides.Item(1), 'stacked')
+    $msg = [string]$pp.Run("$tpName!PptTqq_LastMsg")
+    Check ($msg -like "Digite os dados na planilha do Excel*'$dataName'*") "(c) inserido pelo suplemento, aviso de primeira vez: $msg"
+    Check ($pres3.Slides.Item(1).Shapes.Count -eq 1) "(c) uma forma no slide ($($pres3.Slides.Item(1).Shapes.Count))"
+    $shp3 = $pres3.Slides.Item(1).Shapes.Item(1)
+    Check ([string]$shp3.Tags.Item('TQQ_DATA') -eq '1' -and [string]$shp3.Tags.Item('TQQ_AUTO') -eq '1') '(c) forma marcada TQQ_DATA e automatica'
+    Check ([string]$shp3.LinkFormat.SourceFullName -eq $dataPath -and (Test-Path -LiteralPath $dataPath)) "(c) vinculo com a pasta de dados ao lado da apresentacao ($([string]$shp3.LinkFormat.SourceFullName))"
+    $dwb = $xl.Workbooks.Item($dataName)
+    Check ([string]$xl.ActiveWorkbook.Name -eq $dataName -and [string]$xl.ActiveSheet.Name -eq 'Gráfico 1') "(c) a planilha dos dados abriu ($([string]$xl.ActiveSheet.Name))"
+    $dwb.Worksheets.Item(1).Activate() | Out-Null
+    [void]$pp.Run("$tpName!E2e_EditShape", $shp3)
+    $msg = [string]$pp.Run("$tpName!PptTqq_LastMsg")
+    Check ($msg -like 'edit:*' -and [string]$xl.ActiveSheet.Name -eq 'Gráfico 1') "(c) Editar dados reabre a planilha do grafico ($msg)"
+    $dwb.Worksheets.Item('Gráfico 1').Range('B2').Value2 = 77
+    [void]$pp.Run("$tpName!PptTqq_OnSave", $pres3)
+    Check ([bool]$dwb.Saved) '(c) salvar a apresentacao salvou a pasta de dados alterada (PptTqq_OnSave -> Core_PptDataSave)'
+    $pres3.Save()
+    $dwb.Close($false); $dwb = $null; $shp3 = $null
+    $pres3.Close(); $pres3 = $null
+    $g4b = Join-Path $tmp 'g4b'; New-Item -ItemType Directory -Force $g4b | Out-Null
+    Move-Item -LiteralPath (Join-Path $g4 'e2e-g4.pptx') -Destination (Join-Path $g4b 'e2e-g4-renomeada.pptx')
+    Move-Item -LiteralPath $dataPath -Destination (Join-Path $g4b $dataName)
+    $newData = Join-Path $g4b $dataName
+    $pres4 = $pp.Presentations.Open((Join-Path $g4b 'e2e-g4-renomeada.pptx'), 0, 0, 0)
+    $shp4 = $pres4.Slides.Item(1).Shapes.Item(1)
+    Check ([string]$shp4.LinkFormat.SourceFullName -eq $dataPath) '(c) depois de mover: o vinculo ainda aponta para o caminho antigo (PG4)'
+    $n = [int]$pp.Run("$tpName!PptTqq_RelinkData", $pres4)
+    Check ($n -eq 1) "(c) reapontada 1 forma ($n)"
+    Check ([string]$shp4.LinkFormat.SourceFullName -eq $newData -and [string]$shp4.Tags.Item('TQQ_BOOK') -eq $newData -and [string]$pres4.Tags.Item('TQQ_DATABOOK') -eq $newData) "(c) vinculo, TQQ_BOOK e TQQ_DATABOOK no caminho novo ($([string]$shp4.LinkFormat.SourceFullName))"
+    Check (([string]$pres4.Tags.Item('TQQ_AUTOIDX')).Contains($newData) -and -not ([string]$pres4.Tags.Item('TQQ_AUTOIDX')).Contains($dataPath)) '(c) indice das automaticas acompanha'
+    $n = [int]$pp.Run("$tpName!PptTqq_RelinkData", $pres4)
+    Check ($n -eq 0) "(c) segunda chamada: nada a reapontar ($n)"
+    $shp4 = $null
+    $pres4.Saved = -1; $pres4.Close(); $pres4 = $null
+    [void]$pp.Run("$tpName!PptTqq_ResetTestHooks")
+
     [void]$xl.Run("'$cn'!Ppt_ResetTestHooks")
     $pres.Saved = -1; $pres.Close()
 } catch {
@@ -136,8 +183,9 @@ try {
     if ($xl2) { Close-ExcelApp $xl2; $xl2 = $null }
     if ($xl2Pid -gt 0 -and -not (Wait-PidExit $xl2Pid 10)) { Stop-Process -Id $xl2Pid -Force -ErrorAction SilentlyContinue }   # Excel criado por este script
     # referencias COM soltas antes do Quit (senao o PowerPoint nao fecha e cai no encerramento pelo PID)
-    $owned = @($tp, $pres)
+    $owned = @($tp, $pres, $pres3, $pres4)
     $tp = $null; $pres = $null; $slide = $null; $core = $null; $wb = $null; $ws = $null; $vals = $null; $fk = $null; $shp = $null
+    $pres3 = $null; $pres4 = $null; $shp3 = $null; $shp4 = $null; $dwb = $null
     $sw = [Diagnostics.Stopwatch]::StartNew()
     Close-PptApp $pp -Owned $owned   # watchdog do PowerPoint ainda ativo
     $owned = $null; $pp = $null

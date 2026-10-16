@@ -18,6 +18,11 @@ Public FailOn As String                         ' macro que levanta erro 1004
 Public NoCore As Boolean                        ' Core_Ping nao responde "pong" (Excel sem o core)
 Public AutoOn As Variant                        ' Core_PptGetFlag("autoon") (Empty = True)
 Public DisplayAlerts As Boolean
+Public InsertResult As String                   ' resposta de Core_PptInsertChart ("" = ok)
+Public InsertAddsShape As Boolean               ' Core_PptInsertChart poe uma forma no slide recebido (como a colagem do core)
+Public LastKind As String                       ' tipo recebido por Core_PptInsertChart
+Public InsertSlideIndex As Long                 ' SlideIndex do slide recebido por Core_PptInsertChart
+Public EditResult As String                     ' resposta de Core_PptEditData ("" = "Pasta - Excel")
 Private mBooks As New Collection
 
 Public Property Get Workbooks() As Collection
@@ -39,6 +44,15 @@ Public Function Run(macro As String, Optional a1 As Variant, Optional a2 As Vari
             LastEntries = CStr(a2)
             If Len(ShapesResult) > 0 Then Run = ShapesResult Else Run = "selecionados"
         Case "Core_PptSyncPresentation": Run = "inteira"
+        Case "Core_PptInsertChart"
+            LastKind = CStr(a2)
+            InsertSlideIndex = CLng(a1.SlideIndex)
+            If InsertAddsShape And Len(InsertResult) = 0 Then a1.Shapes.AddShape 1, 10, 10, 50, 50
+            Run = InsertResult
+        Case "Core_PptEditData"
+            LastEntries = CStr(a2)
+            If Len(EditResult) > 0 Then Run = EditResult Else Run = "Pasta - Excel"
+        Case "Core_PptDataSave": Run = 1
     End Select
 End Function
 

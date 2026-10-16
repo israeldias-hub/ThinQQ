@@ -496,6 +496,7 @@ Public Sub Test_PptTqq_ApiPerFeature()
     AssertFalse PptTqq_ShapesApiOk(1), "core 1.5.x: sem Core_PptSyncShapes"
     AssertTrue PptTqq_ShapesApiOk(2): AssertTrue PptTqq_ShapesApiOk(3)
     AssertFalse PptTqq_ShapesApiOk(0)
+    AssertEqual 3, PPT_API_DATA, "criar/editar pelo PowerPoint (1.8.0) pede a API 3"
 End Sub
 
 Private Function NewFakeXl(api As Variant) As TestXlFake
@@ -713,5 +714,237 @@ Public Sub Test_PptRx_ElemCallbacks_NoSelection()
     PptTqq_ClearLastMsg
     PptRx_OnAuto Nothing, True
     AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg()
+    PptTqq_ClearLastMsg
+    PptRx_OnEditData Nothing
+    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg(), "Editar dados sem selecao"
     PptRx_InvalidateElem
+End Sub
+
+' ---- 1.8.0 (Parte G, G4): criar graficos pelo PowerPoint ----
+
+' Mesmas cadeias de TestPptData.Test_PptData_PathFor (contrato core x .ppam).
+Public Sub Test_PptTqq_DataPathFor()
+    AssertEqual "C:\a\Vendas - dados ThinQQ.xlsx", PptTqq_DataPathFor("C:\a\Vendas.pptx")
+    AssertEqual "C:\a\b.c - dados ThinQQ.xlsx", PptTqq_DataPathFor("C:\a\b.c.pptx")
+    AssertEqual "", PptTqq_DataPathFor("https://empresa.sharepoint.com/x/R.pptx")
+    AssertEqual "", PptTqq_DataPathFor("Apresentação1")
+End Sub
+
+Public Sub Test_PptTqq_InsertChartIn_UnsavedAndNoExcel()
+    Dim p As Object, f As String, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptTqq_ClearLastMsg
+    PptTqq_InsertChartIn p, p.Slides(1), "stacked"
+    AssertEqual PPT_MSG_SAVE_FIRST, PptTqq_LastMsg(), "apresentacao nunca salva"
+    f = Environ$("TEMP") & "\tqq-ppam-g4.pptx"
+    p.SaveAs f
+    PptTqq_SetExcelForTest Nothing, ""
+    PptTqq_ClearLastMsg
+    PptTqq_InsertChartIn p, p.Slides(1), "stacked"
+    AssertEqual PPT_MSG_NO_EXCEL, PptTqq_LastMsg(), "sem Excel"
+    AssertEqual 0, p.Slides(1).Shapes.Count
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    If Len(f) > 0 Then
+        If Len(Dir$(f)) > 0 Then Kill f
+    End If
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Reapontar: sem a etiqueta ou com a pasta de dados no lugar, nada; forma que nao e grafico vinculado: nada reapontado (erro so registrado).
+Public Sub Test_PptTqq_RelinkData_Guards()
+    Dim p As Object, s As Object, f As String, d As String, k As Integer, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    AssertEqual 0, PptTqq_RelinkData(p), "sem TQQ_DATABOOK"
+    f = Environ$("TEMP") & "\tqq-relink.pptx": p.SaveAs f
+    d = Environ$("TEMP") & "\tqq-relink - dados ThinQQ.xlsx"
+    k = FreeFile: Open d For Output As #k: Close #k
+    Set s = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50)
+    s.Tags.Add PPT_TAG_DATA, "1": s.Tags.Add PPT_TAG_BOOK, "C:\nao\existe\tqq-relink - dados ThinQQ.xlsx"
+    p.Tags.Add PPT_TAG_DATABOOK, "C:\nao\existe\tqq-relink - dados ThinQQ.xlsx"
+    AssertEqual 0, PptTqq_RelinkData(p), "forma sem vinculo: nao reaponta"
+    AssertEqual "C:\nao\existe\tqq-relink - dados ThinQQ.xlsx", CStr(s.Tags(PPT_TAG_BOOK)), "etiqueta intacta"
+    p.Tags.Add PPT_TAG_DATABOOK, d
+    AssertEqual 0, PptTqq_RelinkData(p), "pasta de dados no lugar: barato, nada"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    Set s = Nothing
+    ClosePres p
+    If Len(f) > 0 Then
+        If Len(Dir$(f)) > 0 Then Kill f
+    End If
+    If Len(d) > 0 Then
+        If Len(Dir$(d)) > 0 Then Kill d
+    End If
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Apresentacao nova salva em %TEMP% (o chamador apaga o arquivo).
+Private Function NewSavedPres(nm As String) As Object
+    Dim p As Object
+    Set p = NewPres()
+    p.SaveAs Environ$("TEMP") & "\" & nm & ".pptx"
+    Set NewSavedPres = p
+End Function
+
+Private Sub KillPres(p As Object)
+    Dim f As String
+    On Error Resume Next
+    f = CStr(p.FullName)
+    ClosePres p
+    If Len(f) > 0 Then
+        If Len(Dir$(f)) > 0 Then Kill f
+    End If
+    Err.Clear
+End Sub
+
+' Excel sem o core (nao criado por nos) e core sem a API 3: recusas proprias, sem chamar Core_PptInsertChart nem criar slide.
+Public Sub Test_PptTqq_InsertChartIn_NoCoreAndOldCore()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String
+    Set p = NewSavedPres("tqq-ppam-g4a")
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    Set f = NewFakeXl(3): f.NoCore = True
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_InsertChartIn p, Nothing, "stacked"
+    AssertEqual PPT_MSG_DATA_NOCORE, PptTqq_LastMsg(), "Excel sem o ThinQQ"
+    Set f = NewFakeXl(2)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_InsertChartIn p, Nothing, "stacked"
+    AssertEqual PPT_MSG_OLD_CORE_DATA, PptTqq_LastMsg(), "core 1.6/1.7 (API 2)"
+    AssertEqual 0, InStr(f.Calls, "Core_PptInsertChart"), f.Calls
+    AssertEqual 1, p.Slides.Count, "nenhum slide criado nas recusas"
+    PptTqq_InsertChartIn p, Nothing, "stacked"
+    AssertEqual PPT_MSG_OLD_CORE_DATA, PptTqq_LastMsg(), "a reentrada foi liberada na recusa"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    KillPres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Core com a API 3: insere no slide dado (ou num slide novo no fim), abre os dados da forma nova (Core_PptEditData com a entrada dela) e
+' mostra o aviso de primeira vez UMA vez por sessao; texto de recusa do core exibido como veio, sem abrir os dados.
+Public Sub Test_PptTqq_InsertChartIn_Api3_InsertsAndOpensData()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String, c As New Collection
+    Set p = NewSavedPres("tqq-ppam-g4b")
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    Set f = NewFakeXl(3): f.InsertAddsShape = True
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_InsertChartIn p, p.Slides(1), "waterfall"
+    AssertEqual "waterfall", f.LastKind
+    AssertEqual 1, f.InsertSlideIndex
+    AssertTrue InStr(f.Calls, "Core_PptInsertChart;Core_PptEditData;") > 0, f.Calls
+    c.Add p.Slides(1).Shapes(1)
+    AssertEqual PptTqq_EntriesOf(c), f.LastEntries, "Editar dados da forma nova"
+    AssertTrue InStr(PptTqq_LastMsg(), "Digite os dados na planilha do Excel") = 1, PptTqq_LastMsg()
+    AssertTrue InStr(PptTqq_LastMsg(), "'tqq-ppam-g4b - dados ThinQQ.xlsx'") > 0, "aviso cita o arquivo de dados: " & PptTqq_LastMsg()
+    PptTqq_InsertChartIn p, Nothing, "pie"
+    AssertEqual 2, p.Slides.Count, "sem slide: um slide novo no fim"
+    AssertEqual 2, f.InsertSlideIndex
+    AssertEqual "edit:Pasta - Excel", PptTqq_LastMsg(), "aviso de primeira vez so uma vez por sessao"
+    f.Calls = "": f.InsertResult = "Tipo de gráfico desconhecido: xyz"
+    PptTqq_InsertChartIn p, p.Slides(1), "xyz"
+    AssertEqual "Tipo de gráfico desconhecido: xyz", PptTqq_LastMsg()
+    AssertEqual 0, InStr(f.Calls, "Core_PptEditData"), f.Calls
+    f.InsertResult = "": f.FailOn = "Core_PptInsertChart"
+    PptTqq_InsertChartIn p, p.Slides(1), "line"
+    AssertTrue InStr(PptTqq_LastMsg(), "Não foi possível criar o gráfico: falha simulada") = 1, PptTqq_LastMsg()
+    f.FailOn = ""
+    PptTqq_InsertChartIn p, p.Slides(1), "line"
+    AssertEqual "line", f.LastKind, "reentrada liberada depois da falha"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set c = Nothing
+    KillPres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Editar dados: sem forma = selecionar; core sem a API 3 = atualizar; "!" do core = a mensagem sem o "!"; legenda = abre (no build Test
+' registra "edit:" + legenda em vez do AppActivate).
+Public Sub Test_PptTqq_EditShapes_Paths()
+    Dim p As Object, s As Object, f As TestXlFake, en As Long, ed As String, c As New Collection
+    Set p = NewSavedPres("tqq-ppam-g4c")
+    On Error GoTo Cleanup
+    Set s = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50)
+    s.Tags.Add PPT_TAG_CHART, "c1"
+    PptTqq_ResetTestHooks
+    PptTqq_EditShapes p, New Collection
+    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg()
+    c.Add s
+    Set f = NewFakeXl(2)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_EditShapes p, c
+    AssertEqual PPT_MSG_OLD_CORE_DATA, PptTqq_LastMsg()
+    Set f = NewFakeXl(3): f.EditResult = "!Pasta de dados não encontrada: C:\x.xlsx"
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_EditShapes p, c
+    AssertEqual "Pasta de dados não encontrada: C:\x.xlsx", PptTqq_LastMsg()
+    f.EditResult = "Vendas - dados ThinQQ.xlsx - Excel"
+    PptTqq_EditShapes p, c
+    AssertEqual "edit:Vendas - dados ThinQQ.xlsx - Excel", PptTqq_LastMsg()
+    AssertEqual PptTqq_EntriesOf(c), f.LastEntries
+    f.FailOn = "Core_PptEditData"
+    PptTqq_EditShapes p, c
+    AssertTrue InStr(PptTqq_LastMsg(), "Não foi possível abrir os dados do gráfico: falha simulada") = 1, PptTqq_LastMsg()
+    f.FailOn = "": f.EditResult = "cap2"
+    PptTqq_EditShapes p, c
+    AssertEqual "edit:cap2", PptTqq_LastMsg(), "reentrada liberada depois da falha"
+    PptTqq_SetExcelForTest Nothing, ""
+    PptTqq_EditShapes p, c
+    AssertEqual PPT_MSG_NO_EXCEL, PptTqq_LastMsg()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set s = Nothing: Set c = Nothing
+    KillPres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Salvar a apresentacao: so com TQQ_DATABOOK e core com a API 3 chama Core_PptDataSave (nunca cria Excel; sem Excel: nada).
+Public Sub Test_PptTqq_OnSave_OnlyWithDataBook()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    Set f = NewFakeXl(3)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_OnSave p
+    AssertEqual "", f.Calls, "sem pasta de dados: nem chama o Excel"
+    p.Tags.Add PPT_TAG_DATABOOK, "C:\x\a - dados ThinQQ.xlsx"
+    PptTqq_OnSave p
+    AssertTrue InStr(f.Calls, "Core_PptDataSave;") > 0, f.Calls
+    Set f = NewFakeXl(2)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_OnSave p
+    AssertEqual 0, InStr(f.Calls, "Core_PptDataSave"), "core sem a API 3: " & f.Calls
+    PptTqq_SetExcelForTest Nothing, ""
+    PptTqq_ClearLastMsg
+    PptTqq_OnSave p
+    AssertEqual "", PptTqq_LastMsg(), "evento de salvar nunca mostra mensagem"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Usado por tests/ps/Test-PptAddin.ps1 (ponta a ponta, passo c): "Editar dados" de uma forma dada, como o botao com ela selecionada.
+Public Sub E2e_EditShape(shp As Object)
+    Dim c As New Collection
+    c.Add shp
+    PptTqq_EditShapes shp.Parent.Parent, c
 End Sub

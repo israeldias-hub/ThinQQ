@@ -28,6 +28,13 @@ Private Sub App_WindowSelectionChange(ByVal Sel As Selection)
     PptRx_InvalidateElem
 End Sub
 
+' Salvar a apresentacao tambem salva a pasta de dados dos graficos criados pelo PowerPoint (1.8.0). Sonda PG5: este evento chega DEPOIS
+' da gravacao do .pptx (e, no Salvar como, com o nome novo); o xl.Run que salva a pasta de dados funciona aqui.
+Private Sub App_PresentationSave(ByVal Pres As Presentation)
+    On Error Resume Next
+    PptTqq_OnSave Pres
+End Sub
+
 ' Fechada de fato (depois de "Salvar?"): esquece a apresentacao, para a proxima abertura perguntar de novo.
 Private Sub App_PresentationCloseFinal(ByVal Pres As Presentation)
     On Error Resume Next
