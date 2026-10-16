@@ -2801,3 +2801,73 @@ Cleanup:
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub
+
+' Review Focus 5 (mesmo padrao de Test_PptSync_HostileSourceMacros_NeverRun_Fake): uma forma de TEXTO vinculado (duble com texto) citando uma
+' .xlsm hostil fechada com Workbook_Open e Workbook_BeforeClose que gravam um marcador. A sincronizacao abre a pasta (prova: o campo recebe o
+' valor da celula), le e fecha COM OS EVENTOS LIGADOS no fechamento (gancho de teste), e mesmo assim nenhuma macro roda: so as macros
+' desligadas (AutomationSecurity 3) seguram. Controle positivo no fim: a mesma pasta aberta com as macros LIGADAS roda o BeforeClose (o
+' teste nao passa a toa). A pasta nunca e salva (data do arquivo igual).
+Public Sub Test_PptText_HostileSourceMacros_NeverRun_Fake()
+    Dim wb As Workbook, dir_ As String, xlsm As String, marker As String, cm As Object, pres As TestPptFake, sl As TestPptFake, t As TestPptTextFake
+    Dim tg As TestPptTags, sec0 As Long, prevEv As Boolean, s As String, n0 As Long, code As String, sheetName As String, d0 As Date, w As Workbook
+    dir_ = TempDir()
+    xlsm = dir_ & "\ppttext-hostil.xlsm": marker = dir_ & "\marcador-texto.txt"
+    Set wb = NewTempWorkbook()
+    sheetName = wb.Worksheets(1).Name
+    wb.Worksheets(1).Range("A1").Value = 42
+    code = "Private Sub Workbook_Open()" & vbCrLf
+    code = code & "    Dim f As Integer: f = FreeFile: Open """ & marker & """ For Output As #f: Print #f, ""macro rodou (open)"": Close #f" & vbCrLf
+    code = code & "End Sub" & vbCrLf
+    code = code & "Private Sub Workbook_BeforeClose(Cancel As Boolean)" & vbCrLf
+    code = code & "    Dim f As Integer: f = FreeFile: Open """ & marker & """ For Output As #f: Print #f, ""macro rodou"": Close #f" & vbCrLf
+    code = code & "End Sub"
+    Set cm = wb.VBProject.VBComponents(wb.CodeName).CodeModule
+    cm.AddFromString code
+    Set cm = Nothing
+    wb.SaveAs xlsm, 52
+    prevEv = Application.EnableEvents: Application.EnableEvents = False
+    wb.Close SaveChanges:=False
+    Application.EnableEvents = prevEv
+    Set wb = Nothing
+    If Len(Dir(marker)) > 0 Then Kill marker
+    d0 = FileDateTime(xlsm)
+    Set tg = New TestPptTags
+    tg.Preset PPTTEXT_TAG, "1"
+    tg.Preset PPTSYNC_TAG_BOOK, xlsm
+    tg.Preset PPTLINK_TAG_NAME, "TQQ_X_naoexiste"
+    tg.Preset PPTLINK_TAG_REF, sheetName & "|$A$1"
+    tg.Preset PPTTEXT_TAG_PRE, PptText_TagEnc("v=")
+    tg.Preset PPTTEXT_TAG_SUF, ""
+    tg.Preset PPTTEXT_TAG_LAST, "X"
+    Set t = New TestPptTextFake: t.HasTextFrame = -1: Set t.Tags = tg: t.Preset "v=X"
+    Set sl = New TestPptFake: Set sl.Shapes = New Collection: sl.Shapes.Add t
+    Set pres = New TestPptFake: Set pres.Slides = New Collection: pres.Slides.Add sl
+    PptSync_ResetTestHooks
+    PptSync_KeepEventsOnCloseForTest
+    Application.EnableEvents = True
+    sec0 = Application.AutomationSecurity
+    n0 = Application.Workbooks.Count
+    s = PptSync_Presentation(pres, True)
+    Application.EnableEvents = prevEv
+    PptSync_ResetTestHooks
+    AssertEqual 0, Len(Dir(marker)), "a macro da pasta de origem NAO rodou (" & s & ")"
+    AssertEqual "v=42", t.Text, "a pasta foi aberta e lida (" & s & ")"
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 1.") = 1, s
+    AssertEqual sec0, CLng(Application.AutomationSecurity), "AutomationSecurity restaurada"
+    AssertEqual n0, Application.Workbooks.Count, "a pasta aberta pela sincronizacao foi fechada"
+    AssertTrue d0 = FileDateTime(xlsm), "a pasta de origem nunca e salva"
+    ' controle positivo: com as macros ligadas o BeforeClose roda e grava o marcador
+    On Error Resume Next
+    Application.AutomationSecurity = 1                              ' msoAutomationSecurityLow (so este Open; restaurada em seguida)
+    Set w = Application.Workbooks.Open(xlsm, 0, True)
+    Application.AutomationSecurity = sec0
+    Application.EnableEvents = True
+    If Not w Is Nothing Then w.Close SaveChanges:=False
+    Application.EnableEvents = prevEv
+    Err.Clear
+    On Error GoTo 0
+    Set w = Nothing
+    AssertEqual sec0, CLng(Application.AutomationSecurity), "AutomationSecurity restaurada depois do controle"
+    AssertTrue Len(Dir(marker)) > 0, "controle positivo: com as macros ligadas a macro roda (senao o teste acima passaria a toa)"
+    If Len(Dir(marker)) > 0 Then Kill marker
+End Sub
