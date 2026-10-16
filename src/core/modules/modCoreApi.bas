@@ -14,7 +14,7 @@ Private mLastConfirm As String      ' ultima pergunta de Core_Confirm (usada pel
 Private mTestRoundDec As Variant    ' gancho de teste: respostas do Arredondar intervalo no build Test (Core_TestSetRoundRangeAnswers)
 Private mTestRoundDest As Range
 Private mTestBreakAnswer As Variant  ' gancho de teste: resposta do InputBox do Corte de eixo no build Test (Core_TestSetAxisBreakAnswer)
-Private mPptPasteOk As Boolean     ' a ultima Core_CopyToPowerPoint colou (1.7.0)
+Private mPptPasteOk As Boolean     ' a ultima Core_CopyToPowerPoint colou e, no vinculado, manteve o vinculo (1.7.0)
 Public Const PPT_ERR_INSERT_UNSAVED As String = "Salve a pasta de trabalho antes de inserir no PowerPoint: o gráfico vinculado aponta para o arquivo salvo. Nada foi criado."
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
 Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,waterfallpair,"
@@ -1056,7 +1056,7 @@ Fail:
     Errors_Handle "Core_ToggleLinkFrames"
 End Sub
 
-' True se a ultima Core_CopyToPowerPoint colou no slide (1.7.0). Nunca propaga erro.
+' True se a ultima Core_CopyToPowerPoint colou no slide e, no vinculado, manteve o vinculo (Ppt_PasteKept; 1.7.0). Nunca propaga erro.
 Public Function Core_LastPptPasteOk() As Boolean
     On Error Resume Next
     Core_LastPptPasteOk = mPptPasteOk
@@ -1064,7 +1064,7 @@ End Function
 
 ' "Inserir tambem no slide" (1.7.0; o "Link To PowerPoint" do think-cell): com a tabela selecionada numa pasta SALVA, insere o grafico do tipo
 ' no Excel, desenha a moldura verde no intervalo de origem e cola o grafico vinculado no slide ativo (Core_CopyToPowerPoint "chart": etiquetas,
-' setas no tamanho do slide e "Novos vinculos atualizam automaticamente"). Pasta nao salva: aviso e NADA criado. Colagem que falhou: o grafico
+' setas no tamanho do slide e "Novos vinculos atualizam automaticamente"). Pasta nao salva: aviso e NADA criado. Colagem que falhou (ou colada sem vinculo): o grafico
 ' fica no Excel, sem moldura, com o aviso da colagem. Nunca propaga erro.
 Public Sub Core_InsertToPowerPoint(kind As String)
     Dim rng As Range, c As Chart, data As clsChartData, src As Range, en As Long, ed As String
@@ -1452,7 +1452,7 @@ Private Sub CopyToPowerPointImpl(mode As String)
     msg = Ppt_DoneText(CLng(slide.SlideIndex), CStr(slide.Parent.Name), linked, linkState)
     If linked And linkState <> 0 And Not wb.Saved Then msg = msg & " " & PPT_NOTE_DIRTY
     Ppt_TestHook "after"
-    mPptPasteOk = True
+    mPptPasteOk = Ppt_PasteKept(linked, linkState)   ' colou; no modo "chart", com o vinculo (linkState 0: o PowerPoint colou sem vinculo)
     Core_Notify msg, vbInformation                   ' ANTES de ativar o PowerPoint: a caixa (Release) nao fica escondida atras dele
     If BUILD_CONFIG <> "Test" Then                   ' nos testes o PowerPoint do teste nao aparece nem rouba o foco
         On Error Resume Next

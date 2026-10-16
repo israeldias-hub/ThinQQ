@@ -294,7 +294,7 @@ formatação inicial fiel, formatar no PowerPoint e atualizar, linhas/colunas in
 sozinho os gráficos marcados como 'Atualizar automaticamente' cerca de 2 segundos depois que um valor da pasta muda. Desmarque para pausar.")
 e `checkBox id="chkPptAutoNew"` "Novos vínculos atualizam automaticamente" (`tag="autonew"`, mesmas chamadas, supertip "Gráficos colados ou
 inseridos no PowerPoint a partir de agora já nascem com 'Atualizar automaticamente' ligado."). 1.7.0: antes de `btnPptImage`,
-`checkBox id="chkPptInsert"` "Inserir também no slide" (`getPressed="Rx_GetPptInsert"`, `onAction="Rx_OnPptInsert"`) e, depois de `msepPptAuto`,
+`checkBox id="chkPptInsert"` "Inserir também no slide" (`getPressed="Rx_GetPptInsert"`, `onAction="Rx_OnPptInsert"`) e, depois de `chkPptAutoNew`,
 `button id="btnPptFrames"` "Mostrar/ocultar molduras" (`onAction="Rx_OnPptFrames"`, `image="tqq_ppt16"`: ícone próprio já existente,
 sem arriscar um `imageMso` não verificado). 1.9.0 (E): `button id="btnPptLinkText"` "Vincular célula ao texto selecionado"
 (`onAction="Rx_OnPptLinkText"`) e, no grupo do gráfico, nada (título: `button id="btnLinkTitle"` "Título ligado a uma célula..." em `mnuMore`,

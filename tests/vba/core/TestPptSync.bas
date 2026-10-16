@@ -2092,6 +2092,7 @@ Public Sub Test_InsertToPpt_NoPowerPoint_FrameRemoved()
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
     wb.SaveAs TempDir() & "\pptins-noppt.xlsx", xlOpenXMLWorkbook
     rng.Select
+    Core_ClearLastNotice
     Core_InsertToPowerPoint "clustered"
     AssertEqual 1, rng.Worksheet.ChartObjects.Count, "o grafico fica no Excel"
     AssertFalse Core_LastPptPasteOk()

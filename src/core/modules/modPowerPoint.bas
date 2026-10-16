@@ -244,6 +244,11 @@ Public Sub Ppt_FitSize(w As Double, h As Double, slideW As Double, slideH As Dou
     outW = w * f: outH = h * f
 End Sub
 
+' True se a colagem conta como feita para a moldura: imagem sempre; vinculado so se o PowerPoint manteve (1) ou nao deu para ler (-1). Nunca propaga erro.
+Public Function Ppt_PasteKept(linked As Boolean, linkState As Long) As Boolean
+    Ppt_PasteKept = (Not linked) Or linkState <> 0
+End Function
+
 ' Estado do vinculo do grafico colado: 1 vinculado, 0 colado sem vinculo, -1 desconhecido (leitura falhou). Nunca propaga erro.
 Public Function Ppt_LinkState(shp As Object) As Long
     Dim v As Variant

@@ -493,3 +493,11 @@ Cleanup:
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPowerPoint", ed
 End Sub
+
+' D2 (revisao I1): a moldura so fica se a colagem vinculada manteve o vinculo (ou a leitura falhou: o aviso diz vinculado); imagem sempre.
+Public Sub Test_Ppt_PasteKept_UnlinkedPasteDropsFrame()
+    AssertTrue Ppt_PasteKept(True, 1)
+    AssertTrue Ppt_PasteKept(True, -1), "leitura falhou: o aviso diz vinculado"
+    AssertFalse Ppt_PasteKept(True, 0), "colado sem vinculo: sem moldura"
+    AssertTrue Ppt_PasteKept(False, -1), "imagem"
+End Sub
