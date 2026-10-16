@@ -207,6 +207,45 @@ Cleanup:
     If en <> 0 Then Err.Raise en, "TestPptData", ed
 End Sub
 
+' G3: Salvar no PowerPoint (Core_PptDataSave) salva so a pasta de DADOS da apresentacao (etiqueta TQQ_DATABOOK) aberta e alterada; nunca
+' abre nada, nunca salva a pasta do usuario nem a somente leitura; sem caixa e com o modo silencioso equilibrado.
+Public Sub Test_PptDataSave_OnlyOpenChangedDataBook()
+    Dim td As String, p As String, pu As String, sl As TestPptDataFake, wb As Workbook, wu As Workbook, en As Long, ed As String
+    td = TempDir()
+    p = td & "\Salva - dados ThinQQ.xlsx": pu = td & "\Usuario.xlsx"
+    On Error GoTo Cleanup
+    Set sl = FakeSlide(td & "\Salva.pptx")
+    AssertEqual 0, Core_PptDataSave(sl.Parent), "sem etiqueta: nada"
+    AssertEqual 0, Core_PptDataSave(Nothing), "nunca propaga erro"
+    sl.Parent.Tags(PPTDATA_MARK) = p                                ' (a leitura acima ja criou a chave vazia no Dictionary)
+    AssertEqual 0, Core_PptDataSave(sl.Parent), "pasta de dados fechada: nada (nunca abre)"
+    AssertTrue OpenBook(p) Is Nothing
+    Set wb = PptData_OpenOrCreate(p, "Salva.pptx")
+    AssertEqual 0, Core_PptDataSave(sl.Parent), "aberta sem alteracao: nada"
+    wb.Worksheets(1).Range("C1").Value = "x"
+    Core_ClearLastNotice
+    AssertEqual 1, Core_PptDataSave(sl.Parent)
+    AssertTrue wb.Saved
+    AssertFalse Core_IsQuiet()
+    AssertEqual 0, Core_ShownCountForTest()
+    PlainBook pu
+    Set wu = Application.Workbooks.Open(pu)
+    wu.Worksheets(1).Range("B1").Value = "y"
+    sl.Parent.Tags(PPTDATA_MARK) = pu
+    AssertEqual 0, Core_PptDataSave(sl.Parent), "pasta do usuario (sem a marca) nunca e salva"
+    AssertFalse wu.Saved
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set wb = Nothing: Set wu = Nothing
+    DropBook p
+    DropBook pu
+    Core_ClearLastNotice
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptData", ed
+End Sub
+
 ' M1: pasta de dados ja aberta SOMENTE LEITURA neste Excel: PPTDATA_MSG_RO (antes falhava no Save com "... (1004)").
 Public Sub Test_PptInsertChart_DataBookOpenReadOnly_Refused()
     Dim td As String, p As String, msg As String, w As Workbook, en As Long, ed As String

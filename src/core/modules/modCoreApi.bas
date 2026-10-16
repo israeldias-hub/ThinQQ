@@ -1677,6 +1677,96 @@ Fail:
     End If
 End Function
 
+' API 3: "Editar dados" (spec 14.3). Abre a pasta da forma (a 1a das entradas) PARA EDICAO com as macros desligadas (de dados ou do usuario; ja
+' aberta = como esta), ativa a planilha do grafico e seleciona os dados (o intervalo da moldura ou a regiao de A1); fora do build Test deixa o
+' Excel visivel. Devolve a legenda da janela (o .ppam faz AppActivate) ou "!" + a mensagem. Nenhuma caixa abre no Excel durante a chamada
+' (Core_QuietBegin/End: o PowerPoint esta parado no xl.Run); o aviso das macros de uma pasta .xlsm do usuario fica no registro e em
+' Core_LastNotice. Nunca chama LinkFormat.Update (PG4). Nunca propaga erro.
+Public Function Core_PptEditData(pres As Object, entries As String) As String
+    On Error Resume Next
+    Core_QuietBegin
+    Core_PptEditData = PptEditDataImpl(pres, entries)
+    Core_QuietEnd
+    Err.Clear
+End Function
+
+Private Function PptEditDataImpl(pres As Object, entries As String) As String
+    Dim items As Collection, shp As Object, path As String, wb As Workbook, co As ChartObject, rng As Range, fr As Shape, en As Long, ed As String
+    Dim wasOpen As Boolean, w As Workbook, prevAlerts As Boolean, alertsOff As Boolean
+    On Error GoTo Fail
+    Set items = PptSync_ResolveEntries(pres, entries)
+    If items.Count = 0 Then PptEditDataImpl = "!" & PPTSYNC_NONE: Exit Function
+    Set shp = items(1)
+    path = PptSync_ItemBook(shp)
+    If Not PptSync_FileExists(path) Then PptEditDataImpl = "!Pasta de dados não encontrada: " & path & ". Se ela foi movida, ponha-a na mesma pasta da apresentação.": Exit Function
+    For Each w In Application.Workbooks
+        If StrComp(w.FullName, path, vbTextCompare) = 0 Then wasOpen = True: Exit For
+    Next
+    Set w = Nothing
+    Set wb = PptData_OpenForEdit(path)
+    Set co = Registry_FindChartObject(wb, PptSync_Tag(shp, PPTSYNC_TAG_CHART))
+    If co Is Nothing Then
+        If Not wasOpen Then                                  ' aberta agora so para isto: fecha (nada foi alterado)
+            prevAlerts = Application.DisplayAlerts: alertsOff = True: Application.DisplayAlerts = False
+            wb.Close SaveChanges:=False
+            Application.DisplayAlerts = prevAlerts: alertsOff = False
+        End If
+        PptEditDataImpl = "!Gráfico não encontrado na pasta de dados (apagado ou recriado).": Exit Function
+    End If
+    If BUILD_CONFIG <> "Test" Then
+        Application.Visible = True
+        If Application.WindowState = xlMinimized Then Application.WindowState = xlNormal
+    End If
+    wb.Activate
+    co.Parent.Activate
+    Set fr = LinkFrame_Find(co.Chart)
+    If Not fr Is Nothing Then
+        Set rng = fr.TopLeftCell.CurrentRegion
+    ElseIf PptData_IsDataBook(wb) Then
+        Set rng = co.Parent.Range("A1").CurrentRegion
+    End If
+    If Not rng Is Nothing Then rng.Select
+    If LCase$(Right$(path, 5)) = ".xlsm" And Not PptData_IsDataBook(wb) Then Core_Notify "As macros desta pasta não rodam quando ela é aberta pelo ThinQQ; abra-a pelo Excel se precisar delas."
+    PptEditDataImpl = CStr(Application.ActiveWindow.Caption)
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If alertsOff Then Application.DisplayAlerts = prevAlerts
+    Errors_Log "Core_PptEditData" & vbTab & en & vbTab & ed
+    If en = vbObjectError + 7130 Then
+        PptEditDataImpl = "!" & ed
+    ElseIf Ppt_IsKnownFailure(en) Then
+        PptEditDataImpl = "!" & Ppt_ErrorText(en, ed)
+    Else
+        PptEditDataImpl = "!Não foi possível abrir os dados: " & ed & " (" & en & ")"
+    End If
+End Function
+
+' API 3: "Salvar" no PowerPoint (evento PresentationSave do .ppam, que chega DEPOIS da gravacao do .pptx: PG5): salva a pasta de DADOS da
+' apresentacao (etiqueta TQQ_DATABOOK) se estiver aberta e alterada neste Excel. Nunca abre nada; pastas do usuario (sem a marca) nunca.
+' Devolve 1 se salvou. Sem caixas (modo silencioso). Nunca propaga erro.
+Public Function Core_PptDataSave(pres As Object) As Long
+    Dim p As String, w As Workbook
+    On Error Resume Next
+    Core_QuietBegin
+    p = PptSync_Tag(pres, PPTDATA_MARK)
+    If Len(p) > 0 Then
+        For Each w In Application.Workbooks
+            If StrComp(w.FullName, p, vbTextCompare) = 0 Then
+                If Not w.Saved And Not w.ReadOnly And PptData_IsDataBook(w) Then
+                    Err.Clear
+                    w.Save
+                    If Err.Number = 0 Then Core_PptDataSave = 1 Else Errors_Log "Core_PptDataSave" & vbTab & Err.Number & vbTab & Err.Description
+                End If
+            End If
+        Next
+    End If
+    Core_QuietEnd
+    Err.Clear
+End Function
+
 ' Botao "Atualizar graficos no PowerPoint": todas as apresentacoes abertas (inclusive as somente leitura: a atualizacao fica so na memoria e o
 ' PowerPoint pergunta se quer salvar ao fechar; so a atualizacao automatica ao abrir pula somente leitura, decisao do suplemento), forcando a
 ' atualizacao; o aviso traz o resumo de cada uma (cada apresentacao e isolada: o erro de uma vira uma linha dela, sem perder o resumo das

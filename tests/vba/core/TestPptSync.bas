@@ -2195,11 +2195,34 @@ Public Sub Test_PptInsertChart_FromPpt_WhenAvailable()
     Ppt_SetAppForTest app
     PptAuto_Tick
     AssertAlmost 999, PptSeriesValue(shp.Chart, "Sul", 1), 0.0001, "o slide acompanhou a planilha"
-    ' G3: AssertTrue wb.Saved, "o ciclo salvou a pasta de dados (G3)"
+    AssertTrue wb.Saved, "o ciclo salvou a pasta de dados (G3)"
     AssertEqual "", Core_PptInsertChart(slide, "pie")
     AssertEqual 2, slide.Shapes.Count
     Set s2 = slide.Shapes(2)
     AssertEqual "Gráfico 2", PptSync_Tag(s2, PPTSYNC_TAG_SHEET)
+    ' G3: Editar dados e Salvar
+    PptSync_ResetTestHooks                               ' o ciclo acima atualizou o grafico (arquivo existe); conta so o que vem agora
+    Core_ClearLastNotice
+    msg = Core_PptEditData(pres, PptIdx_Entry(CLng(slide.SlideID), CStr(shp.Name), ""))
+    AssertTrue Left$(msg, 1) <> "!", msg
+    AssertEqual CStr(Application.ActiveWindow.Caption), msg, "devolve a legenda da janela"
+    AssertFalse Core_IsQuiet(), "modo silencioso fechado depois de Editar dados"
+    AssertEqual 0, Core_ShownCountForTest(), "nenhuma caixa durante a chamada do PowerPoint"
+    AssertEqual 0, PptSync_UpdateCountForTest(), "Editar dados nunca chama LinkFormat.Update"
+    AssertEqual "Gráfico 1", ActiveSheet.Name, "Editar dados ativa a planilha do grafico"
+    AssertEqual "$A$1:$D$5", Selection.Address, "e seleciona os dados"
+    ws.Range("C2").Value = 7
+    AssertFalse wb.Saved
+    AssertEqual 1, Core_PptDataSave(pres), "Salvar no PowerPoint salva a pasta de dados"
+    AssertTrue wb.Saved
+    AssertEqual 0, Core_PptDataSave(pres), "nada alterado: nada a salvar"
+    AssertFalse Core_IsQuiet()
+    AssertEqual "!" & PPTSYNC_NONE, Core_PptEditData(pres, PptIdx_Entry(999999, "nada", ""))
+    ' M9 (revisao da G2): Alterar dados num grafico criado pelo PowerPoint recria o grafico com id novo; a moldura faz o aviso aparecer
+    Core_ClearLastNotice
+    AssertTrue Core_RebuildFromRange(ws.ChartObjects(1).Chart, ws.Range("A1:D5")), "recriado"
+    AssertTrue InStr(1, Core_LastNotice(), LINKFRAME_NOTE_REBUILT, vbBinaryCompare) > 0, "aviso de grafico recriado: " & Core_LastNotice()
+    AssertEqual "!Gráfico não encontrado na pasta de dados (apagado ou recriado).", Core_PptEditData(pres, PptIdx_Entry(CLng(slide.SlideID), CStr(shp.Name), ""))
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
@@ -2211,6 +2234,141 @@ Cleanup:
     If wb Is Nothing And Len(p) > 0 Then Set wb = Workbooks(Dir(p))      ' falha antes de o teste pegar a pasta de dados: fecha mesmo assim
     If Not wb Is Nothing Then wb.Close SaveChanges:=False
     Kill p: Kill pp
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' G3: pasta de dados sumiu (apresentacao enviada sem ela, movida): Editar dados avisa sem abrir nada e sem LinkFormat.Update (PG4: Update com a
+' origem ausente abre uma caixa modal que trava o PowerPoint).
+Public Sub Test_PptEditData_MissingDataBook_WhenAvailable()
+    Dim app As Object, pres As Object, slide As Object, own As New Collection, en As Long, ed As String, msg As String
+    Dim shp As Object, td As String, p As String, pp As String, moved As String, wb As Workbook
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    AutoReset
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set slide = pres.Slides.Add(1, 12)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    td = TempDir()
+    pp = td & "\Sumiu G.pptx": p = td & "\Sumiu G - dados ThinQQ.xlsx": moved = td & "\outro nome.xlsx"
+    pres.SaveAs pp
+    AssertEqual "", Core_PptInsertChart(slide, "stacked")
+    Set shp = slide.Shapes(1)
+    Set wb = Workbooks(Dir(p))
+    Watchers_Stop
+    wb.Close SaveChanges:=False: Set wb = Nothing
+    Name p As moved
+    PptSync_ResetTestHooks
+    Core_ClearLastNotice
+    msg = Core_PptEditData(pres, PptIdx_Entry(CLng(slide.SlideID), CStr(shp.Name), ""))
+    AssertEqual "!Pasta de dados não encontrada: " & p & ". Se ela foi movida, ponha-a na mesma pasta da apresentação.", msg
+    AssertEqual 0, PptSync_UpdateCountForTest(), "sem LinkFormat.Update na origem ausente"
+    AssertEqual "", Dir(p), "nada criado no caminho antigo"
+    AssertFalse Core_IsQuiet()
+    AssertEqual 0, Core_ShownCountForTest()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    AutoReset
+    Set shp = Nothing: Set slide = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    Watchers_Stop
+    If wb Is Nothing And Len(p) > 0 Then Set wb = Workbooks(Dir(p))
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    Kill p: Kill pp: Kill moved
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' G3: Editar dados num grafico colado do Excel (pasta do USUARIO, .xlsm, fechada): abre para edicao com as macros desligadas, ativa a planilha
+' do grafico e o aviso das macros fica so no registro/Core_LastNotice (modo silencioso: nenhuma caixa enquanto o PowerPoint espera). Grafico
+' que nao existe mais na pasta: recusa e a pasta que o ThinQQ abriu e fechada. Sem PowerPoint (duble).
+Public Sub Test_PptEditData_UserXlsm_NoBox_ClosesWhenChartMissing()
+    Dim wb As Workbook, rng As Range, p As String, id As String, shp As TestPptFake, lf As TestPptFake, pres As TestPptFake, msg As String
+    Dim w As Workbook, en As Long, ed As String
+    On Error GoTo Cleanup
+    AutoBegin
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    id = Registry_IdFromChart(rng.Worksheet.ChartObjects(1).Chart)
+    p = TempDir() & "\usuario-g3.xlsm"
+    wb.SaveAs p, 52                                      ' xlOpenXMLWorkbookMacroEnabled
+    Watchers_Stop
+    wb.Close SaveChanges:=False: Set wb = Nothing
+    Set shp = New TestPptFake: Set shp.Tags = CreateObject("Scripting.Dictionary")
+    shp.Tags.Add PPTSYNC_TAG_CHART, id
+    shp.Tags.Add PPTSYNC_TAG_BOOK, p
+    Set lf = New TestPptFake: lf.SourceFullName = p: Set shp.LinkFormat = lf
+    Set pres = FakeAutoPres(shp, p)
+    Core_ClearLastNotice
+    msg = Core_PptEditData(pres, PptIdx_Entry(256, "tqq_x", ""))
+    AssertTrue Left$(msg, 1) <> "!", msg
+    Set wb = Workbooks(Dir(p))
+    AssertFalse wb.ReadOnly, "aberta para edicao"
+    AssertTrue ActiveWorkbook Is wb
+    AssertEqual "Dados", ActiveSheet.Name, "planilha do grafico ativa"
+    AssertTrue InStr(1, Core_LastNotice(), "macros desta pasta", vbTextCompare) > 0, "aviso das macros registrado: " & Core_LastNotice()
+    AssertEqual 0, Core_ShownCountForTest(), "nenhuma caixa durante a chamada do PowerPoint"
+    AssertFalse Core_IsQuiet()
+    AssertEqual 0, lf.UpdateCount, "sem LinkFormat.Update"
+    Watchers_Stop
+    wb.Close SaveChanges:=False: Set wb = Nothing
+    shp.Tags(PPTSYNC_TAG_CHART) = "naoexiste"
+    AssertEqual "!Gráfico não encontrado na pasta de dados (apagado ou recriado).", Core_PptEditData(pres, PptIdx_Entry(256, "tqq_x", ""))
+    For Each w In Application.Workbooks
+        AssertTrue StrComp(w.FullName, p, vbTextCompare) <> 0, "a pasta aberta pelo ThinQQ foi fechada"
+    Next
+    AssertFalse Core_IsQuiet()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Core_ClearLastNotice
+    If wb Is Nothing And Len(p) > 0 Then Set wb = Workbooks(Dir(p))
+    If Not wb Is Nothing Then Teardown wb
+    Kill p
+    AutoEnd
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' G3: o ciclo automatico salva as pastas de DADOS (marca TQQ_DATABOOK) que mudaram; a pasta do usuario nunca e salva pelo ThinQQ. Sem
+' PowerPoint (build Test: Ppt_GetApp devolve so a instancia injetada).
+Public Sub Test_PptAuto_Tick_SavesOnlyDataBooks()
+    Dim wb As Workbook, rng As Range, db As Workbook, co As ChartObject, drng As Range, p As String, en As Long, ed As String
+    On Error GoTo Cleanup
+    AutoBegin
+    Ppt_ResetTestHooks
+    Set wb = AutoBook("pptauto-user.xlsx", rng)
+    p = TempDir() & "\Auto G - dados ThinQQ.xlsx"
+    Set db = PptData_OpenOrCreate(p, "Auto G.pptx")
+    Set co = PptData_NewChart(db, "stacked", drng)
+    db.Save
+    Watchers_Stop                                        ' o Core_Insert religa os vigias: o teste marca as pastas ele mesmo
+    rng.Cells(2, 2).Value = 123
+    drng.Cells(2, 2).Value = 456
+    AssertFalse wb.Saved
+    AssertFalse db.Saved
+    PptAuto_OnChange wb
+    PptAuto_OnChange db
+    AssertEqual 2, PptAuto_PendingCountForTest()
+    PptAuto_Tick
+    AssertEqual 0, PptAuto_PendingCountForTest()
+    AssertTrue db.Saved, "pasta de dados salva pelo ciclo"
+    AssertFalse wb.Saved, "pasta do usuario nunca salva pelo ThinQQ"
+    AssertFalse PptAuto_InTick()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set co = Nothing: Set drng = Nothing
+    If Not db Is Nothing Then db.Close SaveChanges:=False
+    Kill p
+    If Not wb Is Nothing Then Teardown wb
+    AutoEnd
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub

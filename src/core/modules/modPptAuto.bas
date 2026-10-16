@@ -497,6 +497,7 @@ Public Sub PptAuto_Tick()
         End If
     End If
     w = Empty: Set work = Nothing: Set app = Nothing
+    PptAuto_SaveDataBooks mDirty                    ' ainda com mInTick = True: o AfterSave do salvamento e ignorado
     PptAuto_ClearQueue
     mInTick = False
     Exit Sub
@@ -515,4 +516,22 @@ Fail:
         PptAuto_Log "PptAuto: desistiu" & vbTab & en & vbTab & ed
         PptAuto_ClearQueue
     End If
+End Sub
+
+' Pastas de DADOS (graficos criados pelo PowerPoint, marca TQQ_DATABOOK) que mudaram: salvas no fim do ciclo, para o arquivo nunca ficar atras
+' do slide (spec 14.2). Pastas do usuario nunca sao salvas pelo ThinQQ. O AfterSave cai em PptAuto_OnChange com mInTick = True (ignorado).
+Private Sub PptAuto_SaveDataBooks(dirty As Object)
+    Dim w As Workbook
+    On Error Resume Next
+    If dirty Is Nothing Then Exit Sub
+    For Each w In Application.Workbooks
+        If dirty.Exists(w.FullName) Then
+            If Not w.Saved And Not w.ReadOnly And PptData_IsDataBook(w) Then
+                Err.Clear
+                w.Save
+                If Err.Number <> 0 Then PptAuto_Log "PptAuto: pasta de dados nao salva" & vbTab & w.FullName & vbTab & Err.Number & vbTab & Err.Description
+            End If
+        End If
+    Next
+    Err.Clear
 End Sub
