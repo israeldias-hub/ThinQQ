@@ -31,6 +31,7 @@ Private mLastResult As String
 Private mTimerFailures As Long                              ' OnTime que nao pode ser agendado/cancelado (testes: deve ficar 0)
 Private mTestRealTimer As Boolean                           ' gancho: build Test so agenda OnTime real quando o teste pede
 Private mTestBusy As Long                                   ' gancho: quantos ciclos simulam PowerPoint ocupado
+Private mTestNotify As String                               ' gancho: o proximo ciclo chama Core_Notify/Core_Confirm com este texto (uso unico)
 
 Public Sub PptAuto_SetFlagsForTest(enabled As Variant, newAuto As Variant)
     If BUILD_CONFIG <> "Test" Then Exit Sub
@@ -42,6 +43,7 @@ Public Sub PptAuto_ResetTestHooks()
     mTestEnabled = Empty
     mTestNewAuto = Empty
     mTestBusy = 0
+    mTestNotify = ""
     mTimerFailures = 0
     mLogCount = 0
     mTestNow = 0
@@ -94,6 +96,19 @@ Public Sub PptAuto_SetInTickForTest(v As Boolean)
     If BUILD_CONFIG <> "Test" Then Exit Sub
     mInTick = v
 End Sub
+
+' Gancho: o proximo ciclo (depois de marcar "em andamento") chama Core_Notify e Core_Confirm com msg, como um aviso do Core_SafeRefresh
+' (tabela de origem mudou, Mesma escala cortada) chamado de dentro da sincronizacao. Uso unico.
+Public Sub PptAuto_SetNotifyInTickForTest(msg As String)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestNotify = msg
+End Sub
+
+' Ciclo automatico em andamento (OnTime): Core_Notify e Core_Confirm nao abrem caixa nenhuma (so registram), para o ciclo nunca parar o
+' Excel do usuario com uma janela modal que ele nao pediu.
+Public Function PptAuto_InTick() As Boolean
+    PptAuto_InTick = mInTick
+End Function
 
 ' Relogio do motor (0 = o relogio real). So no build Test.
 Public Sub PptAuto_SetNowForTest(d As Date)
@@ -246,6 +261,7 @@ Public Sub PptAuto_Cancel()
     mInTick = False
     mSbSaved = False: mSbPrev = Empty
     mTestBusy = 0
+    mTestNotify = ""
     mTestRealTimer = False
     mTestNow = 0
     mLastResult = ""
@@ -301,51 +317,65 @@ Private Function PptAuto_BookStrict(shp As Object) As String
 End Function
 
 ' Formas automaticas de pres cuja pasta de origem esta em dirty, pelo indice TQQ_AUTOIDX (nunca varre todas as formas). A pasta da entrada
-' so pre-filtra: a forma entra se o vinculo REAL dela aponta para uma pasta de dirty; a mesma forma entra uma vez so. Entradas velhas (slide
-' ou forma apagados, TQQ_AUTO ausente) saem do indice. PowerPoint ocupado sobe (inclusive nas leituras de etiqueta e de vinculo).
+' pre-filtra ANTES de qualquer chamada ao PowerPoint: entrada de pasta que nao mudou fica no indice como esta, sem achar slide nem forma (a
+' entrada velha dela sai na sincronizacao completa, PptSync_RebuildIndex). Entrada da pasta suja: a forma entra se e do ThinQQ
+' (PptSync_ItemKind), tem TQQ_AUTO e o vinculo REAL dela aponta para uma pasta de dirty; a mesma forma entra uma vez so. O indice so e
+' regravado quando uma entrada sai (velha: slide ou forma apagados, sem TQQ_AUTO, nao e do ThinQQ; ou repetida). PowerPoint ocupado sobe
+' (inclusive nas leituras de etiqueta e de vinculo).
 Public Function PptAuto_ItemsFor(pres As Object, dirty As Object) As Collection
-    Dim out As New Collection, keep As New Collection, e As Variant, sl As Object, shp As Object, stale As Boolean, idx As String, en As Long
+    Dim out As New Collection, keep As New Collection, e As Variant, sl As Object, shp As Object, removed As Boolean, idx As String, en As Long
     Dim seen As Object, k As String
     Set PptAuto_ItemsFor = out
     idx = PptAuto_TagStrict(pres, PPTSYNC_TAG_INDEX, "autoidx")
     If Len(idx) = 0 Then Exit Function
     Set seen = CreateObject("Scripting.Dictionary")
     For Each e In PptIdx_Parse(idx)
-        Set sl = Nothing: Set shp = Nothing
-        On Error Resume Next
-        Set sl = pres.Slides.FindBySlideID(CLng(e(0)))
-        If Not sl Is Nothing Then Set shp = sl.Shapes(CStr(e(1)))
-        en = Err.Number
-        Err.Clear
-        On Error GoTo 0
-        If Ppt_IsBusyError(en) Then Err.Raise en, "PptAuto_ItemsFor", "PowerPoint ocupado"
-        If shp Is Nothing Then
-            stale = True
-        ElseIf PptAuto_TagStrict(shp, PPTSYNC_TAG_AUTO, "autotag") <> "1" Then
-            stale = True
+        If Not dirty.Exists(CStr(e(2))) Then
+            k = "n" & CStr(e(0)) & "|" & LCase$(CStr(e(1)))       ' o PowerPoint acha a forma pelo nome sem diferenciar maiusculas
+            If seen.Exists(k) Then removed = True Else seen.Add k, True: keep.Add e
         Else
-            keep.Add e
-            If dirty.Exists(CStr(e(2))) Then
-                If dirty.Exists(PptAuto_BookStrict(shp)) Then
-                    k = PptAuto_ShapeKey(CLng(e(0)), shp, CStr(e(1)))
-                    If Not seen.Exists(k) Then seen.Add k, True: out.Add shp
+            Set sl = Nothing: Set shp = Nothing
+            On Error Resume Next
+            Set sl = pres.Slides.FindBySlideID(CLng(e(0)))
+            If Not sl Is Nothing Then Set shp = sl.Shapes(CStr(e(1)))
+            en = Err.Number
+            Err.Clear
+            On Error GoTo 0
+            If Ppt_IsBusyError(en) Then Err.Raise en, "PptAuto_ItemsFor", "PowerPoint ocupado"
+            If shp Is Nothing Then
+                removed = True
+            ElseIf PptAuto_TagStrict(shp, PPTSYNC_TAG_AUTO, "autotag") <> "1" Then
+                removed = True
+            ElseIf Len(PptSync_ItemKind(shp)) = 0 Then
+                PptAuto_TagStrict shp, PPTSYNC_TAG_CHART, ""      ' a leitura de PptSync_ItemKind engole erro: ocupado nunca vira "entrada velha"
+                removed = True
+            Else
+                k = PptAuto_ShapeKey(CLng(e(0)), shp, CStr(e(1)))
+                If seen.Exists(k) Then
+                    removed = True
+                Else
+                    seen.Add k, True
+                    keep.Add e
+                    If dirty.Exists(PptAuto_BookStrict(shp)) Then out.Add shp
                 End If
             End If
         End If
     Next
-    If stale Then
+    If removed Then
         On Error Resume Next
         If keep.Count = 0 Then PptSync_TagDelete pres, PPTSYNC_TAG_INDEX Else pres.Tags.Add PPTSYNC_TAG_INDEX, PptIdx_Join(keep)
         Err.Clear
+        On Error GoTo 0
     End If
 End Function
 
-' Chave da forma: SlideID e Shape.Id (objetos de outro processo nao se comparam com Is); sem Id legivel, o nome da entrada. Nunca propaga erro.
+' Chave da forma: SlideID e Shape.Id (objetos de outro processo nao se comparam com Is); sem Id legivel, o nome da entrada sem diferenciar
+' maiusculas (como Shapes(nome) do PowerPoint). Nunca propaga erro.
 Private Function PptAuto_ShapeKey(slideId As Long, shp As Object, entryName As String) As String
     Dim id As Long
     On Error Resume Next
     id = CLng(shp.Id)
-    If Err.Number = 0 Then PptAuto_ShapeKey = CStr(slideId) & "#" & CStr(id) Else PptAuto_ShapeKey = CStr(slideId) & Chr$(31) & entryName
+    If Err.Number = 0 Then PptAuto_ShapeKey = CStr(slideId) & "#" & CStr(id) Else PptAuto_ShapeKey = CStr(slideId) & Chr$(31) & LCase$(entryName)
     Err.Clear
 End Function
 
@@ -445,6 +475,11 @@ Public Sub PptAuto_Tick()
     PptAuto_KeepOpenBooks mDirty
     If mDirty.Count = 0 Then PptAuto_ClearQueue: Exit Sub
     mInTick = True
+    If BUILD_CONFIG = "Test" And Len(mTestNotify) > 0 Then
+        Core_Notify mTestNotify, vbExclamation
+        Core_Confirm mTestNotify
+        mTestNotify = ""
+    End If
     If BUILD_CONFIG = "Test" And mTestBusy > 0 Then mTestBusy = mTestBusy - 1: Err.Raise PPTAUTO_ERR_BUSY, "PptAuto_Tick", "ocupado (teste)"
     Set app = Ppt_GetApp(False)
     If Not app Is Nothing Then

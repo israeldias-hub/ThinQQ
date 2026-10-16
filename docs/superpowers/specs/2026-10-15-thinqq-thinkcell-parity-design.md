@@ -143,8 +143,12 @@ não há o que mudar), religar fontes.
 | D. Varredura completa a cada mudança | Sem índice | 6,4 ms × formas (S3) | Rejeitada (índice obrigatório) |
 
 **Modelo**
-- Etiqueta da forma `TQQ_AUTO = "1"`; etiqueta da apresentação `TQQ_AUTOIDX` = entradas separadas por `Chr(30)`, campos por `Chr(31)`:
-  `SlideID`, nome da forma, pasta de origem (`PptSync_SourcePath`). Mantido por: "Atualizar automaticamente" do `.ppam` (C3), a colagem com a
+- Etiqueta da forma `TQQ_AUTO = "1"`; etiqueta da apresentação `TQQ_AUTOIDX` = entradas separadas por quebra de linha (`vbLf`), campos por
+  `|`: `SlideID`, nome da forma, pasta de origem (`PptSync_SourcePath`). **Medido na revisão final da C** (PowerPoint real, salvar `.pptx`,
+  fechar, reabrir): o formato original com `Chr(30)`/`Chr(31)` perdia os separadores (caracteres proibidos no XML: o índice voltava de 43 para
+  38 caracteres); numa etiqueta, Tab vira espaço e CR vira LF; `vbLf` e `|` voltam iguais. Os campos são saneados (`|`, LF, CR, Tab,
+  `Chr(30)`, `Chr(31)` viram `_`). Vale para qualquer etiqueta nova das versões seguintes (ex.: `TQQ_TBLAST` e a referência de reserva do
+  texto vinculado no plano usam `Chr(30)`/`Chr(31)` e precisam trocar de separador). Mantido por: "Atualizar automaticamente" do `.ppam` (C3), a colagem com a
   opção "Novos vínculos atualizam automaticamente" (C1) e **toda** sincronização completa (`PptSync_Presentation` reconstrói o índice das formas
   marcadas que tem — conserta slides copiados de outra apresentação na próxima "Atualizar gráficos"/abertura). Entrada velha (slide ou forma
   apagados, `TQQ_AUTO` ausente) sai do índice quando o motor a encontra. Nome repetido no mesmo slide: o ThinQQ renomeia a forma para

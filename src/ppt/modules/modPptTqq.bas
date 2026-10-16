@@ -25,6 +25,8 @@ Public Const PPT_TAG_INDEX As String = "TQQ_AUTOIDX"
 Public Const PPT_API_SHAPES As Long = 2                     ' Core_PptSyncShapes (core 1.6.0); conferida POR RECURSO (ao abrir basta a 1)
 Public Const PPT_IDX_MAX_ENTRIES As Long = 2000             ' = PPTIDX_MAX_ENTRIES do core
 Public Const PPT_IDX_MAX_LEN As Long = 1000000              ' = PPTIDX_MAX_LEN do core
+Private Const PPT_IDX_FS As String = "|"                    ' indice: separador de campos (= PPTIDX_FS do core)
+Private Const PPT_IDX_ES As String = vbLf                   ' indice: separador de entradas (= PPTIDX_ES do core)
 Public Const PPT_MSG_SELECT As String = "Selecione um ou mais gráficos do ThinQQ vinculados ao Excel."
 Public Const PPT_MSG_AUTO_OLDCORE As String = "Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada)."
 Public Const PPT_MSG_AUTO_NOCORE As String = "Marcado para atualizar automaticamente. Para os gráficos acompanharem a pasta de origem, abra o Excel com o ThinQQ (1.6.0 ou mais novo)."
@@ -707,14 +709,17 @@ End Sub
 
 ' ---- 1.6.0: atualizacao automatica por elemento. Indice: COPIA EXATA das PptIdx_* do core (mesmos testes de cadeia). Puras e totais: a
 ' etiqueta vem da apresentacao (de quem a fez), entao lixo nunca levanta erro, o SlideID so vale com 1 a 9 algarismos, entradas alem de
-' PPT_IDX_MAX_ENTRIES sao ignoradas e uma etiqueta maior que PPT_IDX_MAX_LEN e recusada inteira. Os separadores nunca entram num campo. ----
+' PPT_IDX_MAX_ENTRIES sao ignoradas e uma etiqueta maior que PPT_IDX_MAX_LEN e recusada inteira. Entradas por vbLf, campos por "|" (o .pptx
+' salvo perde Chr(30)/Chr(31) e troca Tab por espaco: medido no core). Os separadores nunca entram num campo. ----
 
 Public Function PptTqq_IdxSafeField(s As String) As String
-    PptTqq_IdxSafeField = Replace(Replace(s, Chr$(30), "_"), Chr$(31), "_")
+    Dim t As String
+    t = Replace(Replace(Replace(s, PPT_IDX_FS, "_"), vbLf, "_"), vbCr, "_")
+    PptTqq_IdxSafeField = Replace(Replace(Replace(t, vbTab, "_"), Chr$(30), "_"), Chr$(31), "_")
 End Function
 
 Public Function PptTqq_IdxEntry(slideId As Long, shapeName As String, book As String) As String
-    PptTqq_IdxEntry = CStr(slideId) & Chr$(31) & PptTqq_IdxSafeField(shapeName) & Chr$(31) & PptTqq_IdxSafeField(book)
+    PptTqq_IdxEntry = CStr(slideId) & PPT_IDX_FS & PptTqq_IdxSafeField(shapeName) & PPT_IDX_FS & PptTqq_IdxSafeField(book)
 End Function
 
 Public Function PptTqq_IdxParse(idx As String) As Collection
@@ -722,11 +727,11 @@ Public Function PptTqq_IdxParse(idx As String) As Collection
     Set PptTqq_IdxParse = out
     On Error GoTo Done
     If Len(idx) = 0 Or Len(idx) > PPT_IDX_MAX_LEN Then Exit Function
-    parts = Split(idx, Chr$(30))
+    parts = Split(idx, PPT_IDX_ES)
     For i = LBound(parts) To UBound(parts)
         If out.Count >= PPT_IDX_MAX_ENTRIES Then Exit For
         If Len(parts(i)) > 0 Then
-            f = Split(parts(i), Chr$(31))
+            f = Split(parts(i), PPT_IDX_FS)
             If UBound(f) = 2 Then
                 If Len(f(0)) > 0 And Len(f(0)) < 10 And Len(f(1)) > 0 Then
                     If Not f(0) Like "*[!0-9]*" Then out.Add Array(CLng(f(0)), f(1), f(2))
@@ -745,7 +750,7 @@ Public Function PptTqq_IdxJoin(entries As Collection) As String
         a(n) = PptTqq_IdxEntry(CLng(e(0)), CStr(e(1)), CStr(e(2)))
         n = n + 1
     Next
-    PptTqq_IdxJoin = Join(a, Chr$(30))
+    PptTqq_IdxJoin = Join(a, PPT_IDX_ES)
 End Function
 
 Public Function PptTqq_IdxSet(idx As String, slideId As Long, shapeName As String, book As String, turnOn As Boolean) As String
@@ -773,8 +778,9 @@ Private Function PptTqq_SlideHasName(sl As Object, nm As String) As Boolean
     Next
 End Function
 
-' Copia de PptSync_EnsureUniqueName do core: separadores do indice no nome viram "_" (medido na revisao da C1: o PowerPoint ACEITA Chr(30) no
-' nome de uma forma) e nome repetido no slide (sem diferenciar maiusculas; outra forma = Shape.Id diferente) vira "_2", "_3"...
+' Copia de PptSync_EnsureUniqueName do core: separadores do indice e caracteres que o .pptx salvo muda viram "_" (PptTqq_IdxSafeField; medido
+' na revisao da C1: o PowerPoint ACEITA Chr(30) no nome de uma forma) e nome repetido no slide (sem diferenciar maiusculas; outra forma =
+' Shape.Id diferente) vira "_2", "_3"...
 Private Sub PptTqq_EnsureUniqueName(shp As Object)
     Dim sl As Object, s As Object, base As String, n As Long, clash As Boolean, myId As Long
     Set sl = shp.Parent

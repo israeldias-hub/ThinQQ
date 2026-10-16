@@ -5,6 +5,7 @@ Private mLoaderPath As String
 Private mApplyBusy As Boolean      ' guarda de reentrada de Core_ApplyPendingLoader
 Private mLastNotice As String      ' última mensagem de Core_Notify (usada pelos testes)
 Private mNoticeCount As Long        ' chamadas a Core_Notify desde Core_ClearLastNotice (testes)
+Private mShownCount As Long         ' caixas de Core_Notify/Core_Confirm abertas (ou que abririam no build Test) desde Core_ClearLastNotice
 Private mMismatchSeen As Collection ' ids de gráficos já avisados de tabela de origem com outro tamanho
 Private mClipSeen As Collection     ' ids de gráficos já avisados de dados acima da escala fixa (Mesma escala)
 Private mCopySeen As Collection     ' ids de gráficos já avisados de cópia em outra planilha (planilha copiada)
@@ -28,6 +29,7 @@ End Function
 Public Sub Core_ClearLastNotice()
     mLastNotice = ""
     mNoticeCount = 0
+    mShownCount = 0
     mLastConfirm = ""
 End Sub
 
@@ -65,24 +67,35 @@ Public Sub Core_RegisterLoader(loaderName As String, loaderFullPath As String)
 End Sub
 
 ' Mensagem ao usuário (suprimida em build de teste para não travar o Excel invisível).
-' logIt=False quando o chamador já registrou a mensagem (Errors_Handle).
+' logIt=False quando o chamador já registrou a mensagem (Errors_Handle). Durante o ciclo automático do PowerPoint (PptAuto_InTick: OnTime,
+' sem o usuário ter pedido nada) só registra: um aviso do Core_SafeRefresh (tabela de origem, Mesma escala) nunca abre uma caixa modal.
 Public Sub Core_Notify(msg As String, Optional style As VbMsgBoxStyle = vbInformation, Optional logIt As Boolean = True)
     On Error Resume Next
     mLastNotice = msg
     mNoticeCount = mNoticeCount + 1
-    If logIt Then Errors_Log "notify" & vbTab & Replace(msg, vbLf, " | ")
+    If logIt Then Errors_Log "notify" & IIf(PptAuto_InTick(), " (ciclo automatico: sem caixa)", "") & vbTab & Replace(msg, vbLf, " | ")
+    If PptAuto_InTick() Then Exit Sub
+    mShownCount = mShownCount + 1
     If BUILD_CONFIG = "Test" Then Exit Sub
     MsgBox msg, style, APP_NAME
 End Sub
 
 ' Pergunta Sim/Não ao usuário; True só com "Sim". Como Core_Notify, é o único ponto de MsgBox de pergunta do core: no build de teste só
-' registra e responde "Não" (um modal travaria o Excel invisível). Nunca propaga erro (falha = "Não").
+' registra e responde "Não" (um modal travaria o Excel invisível); no ciclo automático do PowerPoint também (nunca bloqueia). Nunca propaga
+' erro (falha = "Não").
 Public Function Core_Confirm(msg As String) As Boolean
     On Error Resume Next
     mLastConfirm = msg
-    Errors_Log "confirm" & vbTab & Replace(msg, vbLf, " | ")
+    Errors_Log "confirm" & IIf(PptAuto_InTick(), " (ciclo automatico: Nao, sem caixa)", "") & vbTab & Replace(msg, vbLf, " | ")
+    If PptAuto_InTick() Then Exit Function
+    mShownCount = mShownCount + 1
     If BUILD_CONFIG = "Test" Then Exit Function
     Core_Confirm = (MsgBox(msg, vbQuestion + vbYesNo, APP_NAME) = vbYes)
+End Function
+
+' Caixas que Core_Notify/Core_Confirm abririam (no build Test: as que abririam fora dele). Gancho de teste, zerado por Core_ClearLastNotice.
+Public Function Core_ShownCountForTest() As Long
+    Core_ShownCountForTest = mShownCount
 End Function
 
 ' Última pergunta feita por Core_Confirm ("" se nenhuma desde Core_ClearLastNotice). Gancho de teste (inofensivo em Release).
@@ -1459,13 +1472,14 @@ Public Function Core_PptApiVersion() As Long
 End Function
 
 ' API 2 (1.6.0): "Atualizar uma vez" do .ppam so nas formas listadas (entries no formato do indice, PptIdx_*). Devolve o resumo; nunca propaga.
+' Entradas que nao acham nenhuma forma (renomeada ou apagada depois da selecao): PPTSYNC_NOT_FOUND; nenhuma entrada: PPTSYNC_NONE.
 Public Function Core_PptSyncShapes(pres As Object, entries As String, Optional force As Boolean = True) As String
     Dim items As Collection, en As Long, ed As String
     On Error GoTo Fail
     Ppt_BeginOp                                             ' o ciclo automatico espera (fechada em todo caminho)
     Set items = PptSync_ResolveEntries(pres, entries)
     If items.Count = 0 Then
-        Core_PptSyncShapes = PPTSYNC_NONE
+        If PptIdx_Parse(entries).Count > 0 Then Core_PptSyncShapes = PPTSYNC_NOT_FOUND Else Core_PptSyncShapes = PPTSYNC_NONE
     Else
         Core_PptSyncShapes = PptSync_Items(items, force)
     End If

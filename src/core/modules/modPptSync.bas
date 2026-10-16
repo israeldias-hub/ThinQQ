@@ -19,8 +19,11 @@ Public Const PPTSYNC_TAG_AUTO As String = "TQQ_AUTO"        ' "1" = atualizar au
 Public Const PPTSYNC_TAG_INDEX As String = "TQQ_AUTOIDX"   ' etiqueta da APRESENTACAO: indice das formas automaticas (PptIdx_*)
 Public Const PPTIDX_MAX_ENTRIES As Long = 2000             ' PptIdx_Parse: entradas alem disto sao ignoradas
 Public Const PPTIDX_MAX_LEN As Long = 1000000              ' PptIdx_Parse: etiqueta maior que isto (caracteres) e recusada inteira
+Private Const PPTIDX_FS As String = "|"                    ' indice: separador de campos (PptIdx_*)
+Private Const PPTIDX_ES As String = vbLf                   ' indice: separador de entradas
 Public Const CORE_PPT_API As Long = 2                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0)
 Public Const PPTSYNC_NONE As String = "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."
+Public Const PPTSYNC_NOT_FOUND As String = "Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo."
 Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."
 Public Const PPTSYNC_UNKNOWN_SRC As String = "(origem desconhecida)"      ' forma marcada sem SourceFullName e sem TQQ_BOOK
 Public Const PPTSYNC_C_PROCEED As Long = 0                   ' PptSync_Classify: segue para a pasta de origem
@@ -425,18 +428,22 @@ Public Function PptSync_Fingerprint(co As ChartObject, shp As Object) As String
     PptSync_Fingerprint = Sha256_Bytes(b, UBound(b) - LBound(b) + 1)
 End Function
 
-' ---- Indice das formas automaticas (1.6.0). Formato (igual no .ppam: PptTqq_Idx*): entradas separadas por Chr(30), campos por Chr(31):
-' SlideID, nome da forma, pasta de origem. Puras e totais: a etiqueta vem da apresentacao (de quem a fez), entao lixo nunca levanta erro, o
-' SlideID so vale com 1 a 9 algarismos, entradas alem de PPTIDX_MAX_ENTRIES sao ignoradas e uma etiqueta maior que PPTIDX_MAX_LEN e recusada
-' inteira. Os separadores nunca entram num campo (PptIdx_SafeField). ----
+' ---- Indice das formas automaticas (1.6.0). Formato (igual no .ppam: PptTqq_Idx*): entradas separadas por quebra de linha (vbLf), campos
+' por "|": SlideID, nome da forma, pasta de origem. Medido no PowerPoint real (revisao final da C): ao salvar o .pptx a etiqueta perde
+' Chr(30)/Chr(31) (caracteres proibidos no XML) e troca Tab por espaco e CR por LF; vbLf e "|" voltam iguais depois de reabrir. Puras e
+' totais: a etiqueta vem da apresentacao (de quem a fez), entao lixo nunca levanta erro, o SlideID so vale com 1 a 9 algarismos, entradas alem
+' de PPTIDX_MAX_ENTRIES sao ignoradas e uma etiqueta maior que PPTIDX_MAX_LEN e recusada inteira. Os separadores nunca entram num campo
+' (PptIdx_SafeField). ----
 
-' Campo do indice sem os separadores (Chr(30) e Chr(31) viram "_"). Pura.
+' Campo do indice sem os separadores nem os caracteres que o .pptx salvo muda ("|", LF, CR, Tab, Chr(30), Chr(31) viram "_"). Pura.
 Public Function PptIdx_SafeField(s As String) As String
-    PptIdx_SafeField = Replace(Replace(s, Chr$(30), "_"), Chr$(31), "_")
+    Dim t As String
+    t = Replace(Replace(Replace(s, PPTIDX_FS, "_"), vbLf, "_"), vbCr, "_")
+    PptIdx_SafeField = Replace(Replace(Replace(t, vbTab, "_"), Chr$(30), "_"), Chr$(31), "_")
 End Function
 
 Public Function PptIdx_Entry(slideId As Long, shapeName As String, book As String) As String
-    PptIdx_Entry = CStr(slideId) & Chr$(31) & PptIdx_SafeField(shapeName) & Chr$(31) & PptIdx_SafeField(book)
+    PptIdx_Entry = CStr(slideId) & PPTIDX_FS & PptIdx_SafeField(shapeName) & PPTIDX_FS & PptIdx_SafeField(book)
 End Function
 
 Public Function PptIdx_Parse(idx As String) As Collection
@@ -444,11 +451,11 @@ Public Function PptIdx_Parse(idx As String) As Collection
     Set PptIdx_Parse = out
     On Error GoTo Done
     If Len(idx) = 0 Or Len(idx) > PPTIDX_MAX_LEN Then Exit Function
-    parts = Split(idx, Chr$(30))
+    parts = Split(idx, PPTIDX_ES)
     For i = LBound(parts) To UBound(parts)
         If out.Count >= PPTIDX_MAX_ENTRIES Then Exit For
         If Len(parts(i)) > 0 Then
-            f = Split(parts(i), Chr$(31))
+            f = Split(parts(i), PPTIDX_FS)
             If UBound(f) = 2 Then
                 If Len(f(0)) > 0 And Len(f(0)) < 10 And Len(f(1)) > 0 Then
                     If Not f(0) Like "*[!0-9]*" Then out.Add Array(CLng(f(0)), f(1), f(2))
@@ -467,7 +474,7 @@ Public Function PptIdx_Join(entries As Collection) As String
         a(n) = PptIdx_Entry(CLng(e(0)), CStr(e(1)), CStr(e(2)))
         n = n + 1
     Next
-    PptIdx_Join = Join(a, Chr$(30))
+    PptIdx_Join = Join(a, PPTIDX_ES)
 End Function
 
 ' Tira a forma (slideId, nome) do indice e, com turnOn, a acrescenta no fim. Pura.
@@ -499,8 +506,8 @@ Public Function PptSync_ItemBook(shp As Object) As String
     PptSync_ItemBook = PptSync_SourcePath(PptSync_LinkSource(shp), PptSync_Tag(shp, PPTSYNC_TAG_BOOK))
 End Function
 
-' Nome valido para o indice e unico no slide (o indice acha a forma pelo nome): um nome com os separadores do indice (Chr(30)/Chr(31)) troca
-' eles por "_"; outra forma com o mesmo nome (Shape.Id diferente: objetos de outro processo nao se comparam com Is) faz esta virar
+' Nome valido para o indice e unico no slide (o indice acha a forma pelo nome): um nome com os separadores do indice ou caracteres que o .pptx
+' salvo muda (PptIdx_SafeField) troca eles por "_"; outra forma com o mesmo nome (Shape.Id diferente: objetos de outro processo nao se comparam com Is) faz esta virar
 ' "<nome>_2", "_3"... O nome da forma do slide nao e usado pelo Excel. Nomes comparados SEM diferenciar maiusculas (medido na C3: Shapes(nome)
 ' do PowerPoint ignora a caixa; com "tqq_A" e "tqq_a" no slide, os dois nomes achariam a primeira). Igual a PptTqq_EnsureUniqueName do .ppam.
 Public Sub PptSync_EnsureUniqueName(shp As Object)

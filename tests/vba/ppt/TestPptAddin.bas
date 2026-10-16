@@ -369,32 +369,33 @@ End Sub
 ' Contrato com o core (TestPptSync.Test_PptIdx_Literal tem as MESMAS cadeias).
 Public Sub Test_PptIdx_Literal()
     Dim s As String, a As String, b As String, bad As Variant, g As String, c As Collection
-    a = "256" & Chr$(31) & "tqq_abc" & Chr$(31) & "C:\a\b.xlsx"
-    b = "257" & Chr$(31) & "tqq_def" & Chr$(31) & "C:\a\c.xlsx"
+    a = "256" & "|" & "tqq_abc" & "|" & "C:\a\b.xlsx"
+    b = "257" & "|" & "tqq_def" & "|" & "C:\a\c.xlsx"
     s = PptTqq_IdxSet("", 256, "tqq_abc", "C:\a\b.xlsx", True)
     AssertEqual a, s
     s = PptTqq_IdxSet(s, 257, "tqq_def", "C:\a\c.xlsx", True)
-    AssertEqual a & Chr$(30) & b, s
-    AssertEqual a & Chr$(30) & b, PptTqq_IdxSet(s, 257, "tqq_def", "C:\a\c.xlsx", True), "sem repeticao"
+    AssertEqual a & vbLf & b, s
+    AssertEqual a & vbLf & b, PptTqq_IdxSet(s, 257, "tqq_def", "C:\a\c.xlsx", True), "sem repeticao"
     AssertEqual b, PptTqq_IdxSet(s, 256, "tqq_abc", "", False)
     AssertEqual "", PptTqq_IdxSet(a, 256, "tqq_abc", "", False)
-    AssertEqual 2, PptTqq_IdxParse(s & Chr$(30) & "x" & Chr$(31) & "y" & Chr$(31) & "z" & Chr$(30) & Chr$(30)).Count
+    AssertEqual 2, PptTqq_IdxParse(s & vbLf & "x" & "|" & "y" & "|" & "z" & vbLf & vbLf).Count
     AssertEqual a, PptTqq_IdxEntry(256, "tqq_abc", "C:\a\b.xlsx")
     ' total para lixo da apresentacao: SlideID so com 1 a 9 algarismos; nada levanta erro
     For Each bad In Array("9e9", "1E10", "3d9", "&H10", "(5)", " 1", "-1", "1 ", "+1", "1234567890", "", "1.5", "1,5", ChrW$(1633))
-        g = g & CStr(bad) & Chr$(31) & "n" & Chr$(31) & "" & Chr$(30)
+        g = g & CStr(bad) & "|" & "n" & "|" & "" & vbLf
     Next
     AssertEqual 2, PptTqq_IdxParse(g & s).Count, "SlideID invalido ignorado"
-    AssertEqual 0, PptTqq_IdxParse(Chr$(31) & Chr$(31) & Chr$(31) & Chr$(30) & Chr$(31)).Count, "so separadores"
+    AssertEqual 0, PptTqq_IdxParse("|" & "|" & "|" & vbLf & "|").Count, "so separadores"
     AssertEqual 0, PptTqq_IdxParse("").Count
-    AssertEqual 1, PptTqq_IdxParse("0" & Chr$(31) & "n" & Chr$(31)).Count, "pasta vazia e SlideID 0 sao validos"
-    Set c = PptTqq_IdxParse("999999999" & Chr$(31) & "n" & Chr$(31) & "b")
+    AssertEqual 1, PptTqq_IdxParse("0" & "|" & "n" & "|").Count, "pasta vazia e SlideID 0 sao validos"
+    Set c = PptTqq_IdxParse("999999999" & "|" & "n" & "|" & "b")
     AssertEqual 1, c.Count, "9 algarismos"
     AssertEqual 999999999, IdxSlide(c, 1)
     ' separadores nunca entram num campo
-    AssertEqual "1" & Chr$(31) & "a_b" & Chr$(31) & "c_d", PptTqq_IdxEntry(1, "a" & Chr$(30) & "b", "c" & Chr$(31) & "d")
-    AssertEqual 1, PptTqq_IdxParse(PptTqq_IdxSet("", 1, "x" & Chr$(30) & "y" & Chr$(31) & "z", "p" & Chr$(30), True)).Count, "nome com separadores: uma entrada"
-    AssertEqual "", PptTqq_IdxSet(PptTqq_IdxSet("", 1, "x" & Chr$(30) & "y", "", True), 1, "x" & Chr$(30) & "y", "", False), "desligar acha o nome saneado"
+    AssertEqual "1" & "|" & "a_b" & "|" & "c_d", PptTqq_IdxEntry(1, "a" & vbLf & "b", "c" & "|" & "d")
+    AssertEqual "2|a_b_c_d|e_f", PptTqq_IdxEntry(2, "a" & Chr$(30) & "b" & Chr$(31) & "c" & vbTab & "d", "e" & vbCr & "f"), "o que o .pptx salvo muda"
+    AssertEqual 1, PptTqq_IdxParse(PptTqq_IdxSet("", 1, "x" & vbLf & "y" & "|" & "z", "p" & vbLf, True)).Count, "nome com separadores: uma entrada"
+    AssertEqual "", PptTqq_IdxSet(PptTqq_IdxSet("", 1, "x" & vbLf & "y", "", True), 1, "x" & vbLf & "y", "", False), "desligar acha o nome saneado"
 End Sub
 
 ' Tetos do indice (iguais aos do core): entradas alem de PPT_IDX_MAX_ENTRIES ignoradas; etiqueta acima de PPT_IDX_MAX_LEN recusada inteira.
@@ -404,15 +405,15 @@ Public Sub Test_PptIdx_Caps()
     For i = 0 To 2499
         a(i) = PptTqq_IdxEntry(i + 1, "tqq_" & i, "")
     Next
-    Set c = PptTqq_IdxParse(Join(a, Chr$(30)))
+    Set c = PptTqq_IdxParse(Join(a, vbLf))
     AssertEqual 2000, c.Count, "2500 entradas: as 2000 primeiras"
     AssertEqual 1, IdxSlide(c, 1)
     AssertEqual 2000, IdxSlide(c, 2000)
-    AssertEqual 2000, PptTqq_IdxParse(PptTqq_IdxSet(Join(a, Chr$(30)), 9999, "nova", "", True)).Count
+    AssertEqual 2000, PptTqq_IdxParse(PptTqq_IdxSet(Join(a, vbLf), 9999, "nova", "", True)).Count
     For i = 0 To 2499
         a(i) = PptTqq_IdxEntry(i + 1, "tqq_" & i, "C:\" & String$(480, "a") & ".xlsx")
     Next
-    big = Join(a, Chr$(30))
+    big = Join(a, vbLf)
     AssertTrue Len(big) > 1200000, CStr(Len(big))
     AssertEqual 0, PptTqq_IdxParse(big).Count, "etiqueta de 1,2 MB recusada"
     AssertEqual 0, PptTqq_IdxParse(Left$(big, PPT_IDX_MAX_LEN + 1)).Count, "um caractere acima do teto"
@@ -442,7 +443,7 @@ Public Sub Test_PptTqq_SetAutoShapes_TagsAndIndex()
     PptTqq_SetAutoShapes c, False
     AssertEqual "", p.Tags(PPT_TAG_INDEX)
     AssertFalse PptTqq_ShapesAuto(c)
-    AssertEqual PptTqq_IdxEntry(p.Slides(1).SlideID, s1.Name, "") & Chr$(30) & PptTqq_IdxEntry(p.Slides(1).SlideID, s2.Name, ""), PptTqq_EntriesOf(c)
+    AssertEqual PptTqq_IdxEntry(p.Slides(1).SlideID, s1.Name, "") & vbLf & PptTqq_IdxEntry(p.Slides(1).SlideID, s2.Name, ""), PptTqq_EntriesOf(c)
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo 0

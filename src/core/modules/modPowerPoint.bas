@@ -133,14 +133,25 @@ Public Function Ppt_InOperation() As Boolean
 End Function
 
 ' create = False: so um PowerPoint ja aberto (GetObject), sem mexer no indicador de "aberto por nos" (Ppt_AppWasCreated) de uma colagem em
-' andamento; create = True: abre um se nao houver e registra se foi aberto por esta chamada.
+' andamento; GetObject recusado pelo PowerPoint ocupado (caixa de dialogo aberta: Ppt_IsBusyError) LEVANTA esse erro (quem chama trata o
+' ocupado: o ciclo automatico tenta de novo, o botao do Excel avisa), em vez de parecer "sem PowerPoint"; outro erro = Nothing. create =
+' True: abre um se nao houver e registra se foi aberto por esta chamada (nunca levanta).
 Public Function Ppt_GetApp(create As Boolean) As Object
-    Dim o As Object, procs As Long
+    Dim o As Object, procs As Long, en As Long, ed As String
     If create Then mCreatedApp = False
-    If BUILD_CONFIG = "Test" Then Set Ppt_GetApp = mTestApp: Exit Function     ' testes: so a instancia injetada (sem ela, Nothing): nunca o PowerPoint do usuario
     On Error Resume Next
-    Set o = GetObject(, "PowerPoint.Application")
+    If BUILD_CONFIG = "Test" Then
+        PptSync_TestPoint "getapp"                 ' gancho: GetObject recusado (o numero do erro vem do teste)
+        If Err.Number = 0 Then Set o = mTestApp     ' testes: so a instancia injetada (sem ela, Nothing): nunca o PowerPoint do usuario
+    Else
+        Set o = GetObject(, "PowerPoint.Application")
+    End If
+    en = Err.Number: ed = Err.Description
     Err.Clear
+    On Error GoTo 0
+    If o Is Nothing And Not create And Ppt_IsBusyError(en) Then Err.Raise en, "Ppt_GetApp", ed
+    If BUILD_CONFIG = "Test" Then Set Ppt_GetApp = o: Exit Function
+    On Error Resume Next
     If o Is Nothing And create Then
         procs = Ppt_ProcessCount()
         Set o = CreateObject("PowerPoint.Application")
