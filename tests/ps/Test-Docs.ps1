@@ -514,6 +514,7 @@ $pptMessages = @(
     # motor do core (modPptSync.bas, modCoreApi.bas): o resumo
     @('core', 'powerpoint', "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."),
     @('core', 'powerpoint', "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."),
+    @('core', 'powerpoint', 'Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo.'),
     @('core', 'powerpoint', 'Gráficos do ThinQQ atualizados: '),
     @('core', 'powerpoint', ' Sem mudança: '),
     @('core', 'powerpoint', 'Pasta de origem não encontrada ou sem acesso (o gráfico ficou como estava): '),
@@ -816,10 +817,34 @@ $autoTut = Get-SubsectionText 'ppt-auto'
 $recRaw = [regex]::Match($readme, '(?s)\*\*Atualização automática no PowerPoint \(1\.6\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value
 $autoRec = ($recRaw -replace '\s+', ' ')
 $clUnrel = [regex]::Match(($cl -replace "`r`n", "`n"), '(?ms)^## \[Não lançado\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
+# As linhas da 1.6.0 ficam em [Não lançado] até o publicar-release 1.6.0, que as move para "## [1.6.0] - data" e deixa a [Não lançado] vazia
+# (mesma classe do incidente do delta, dc446b0): os pinos leem a [Não lançado] enquanto ela tem as linhas (TQQ_AUTOIDX), senão a [1.6.0].
+function Get-AutoChangelogBlock([string]$text) {
+    $t = $text -replace "`r`n", "`n"
+    $un = [regex]::Match($t, '(?ms)^## \[Não lançado\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
+    if ($un.Contains('TQQ_AUTOIDX')) { return $un }
+    return [regex]::Match($t, '(?ms)^## \[1\.6\.0\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
+}
+$clAuto = Get-AutoChangelogBlock $cl
 $notesNorm = ($notesText -replace '\s+', ' ')
-Check ($autoTut.Length -gt 3000 -and $autoRec.Length -gt 1500 -and $clUnrel.Length -gt 1000) "atualização automática: subseção do tutorial ($($autoTut.Length)), Recursos do README ($($autoRec.Length)) e [Não lançado] ($($clUnrel.Length)) lidos"
+Check ($autoTut.Length -gt 3000 -and $autoRec.Length -gt 1500 -and $clAuto.Length -gt 1000) "atualização automática: subseção do tutorial ($($autoTut.Length)), Recursos do README ($($autoRec.Length)) e CHANGELOG da 1.6.0 ($($clAuto.Length)) lidos"
 
 $labelPins = @($lblOn, $lblNew, $lblAuto, $lblOnce)
+$clAutoPhrases = @(
+    $lblOn, $lblNew, $lblAuto, $lblOnce, $debTextLong, $waitText, $retryText, $tagAuto, $tagIdx, 'nunca abre pasta', 'Core_PptSyncShapes', 'verificado em PowerPoint real',
+    '### Adicionado', '### Alterado', 'sem diferenciar maiúsculas', 'Desfazer do Excel')
+# Estrutura que o publicar-release espera no bloco da 1.6.0: "### Adicionado" e pelo menos 4 entradas "- ". Devolve as frases que faltam.
+function Get-AutoChangelogMissing([string]$block) {
+    $miss = @($clAutoPhrases | Where-Object { -not $block.Contains($_) })
+    if (-not ($block -match '(?m)^### Adicionado\s*$' -and @([regex]::Matches($block, '(?m)^\s*[-*]\s+\S')).Count -ge 4)) { $miss += 'estrutura (### Adicionado e 4 entradas)' }
+    return $miss
+}
+# sintético: o CHANGELOG depois do publicar-release 1.6.0 ([Não lançado] vazia, as linhas na [1.6.0]) passa; sem as linhas, falha
+$clRel = "# Changelog`r`n`r`n## [Não lançado]`r`n`r`n## [1.6.0] - 2026-10-20`r`n" + ($clAuto -replace "`n", "`r`n") + "## [1.5.0] - 2026-10-15`r`n`r`n- x`r`n"
+$clRelEmpty = "# Changelog`n`n## [Não lançado]`n`n## [1.6.0] - 2026-10-20`n`n- outra coisa`n`n## [1.5.0] - 2026-10-15`n`n- x`n"
+Check (@(Get-AutoChangelogMissing (Get-AutoChangelogBlock $clRel)).Count -eq 0) 'CHANGELOG (sintético): depois do publicar-release 1.6.0 as linhas na [1.6.0] satisfazem os pinos'
+Check (@(Get-AutoChangelogMissing (Get-AutoChangelogBlock $clRelEmpty)).Count -gt 0) 'CHANGELOG (sintético): [1.6.0] publicada sem as linhas da atualização automática = falha'
+Check (@(Get-AutoChangelogMissing (Get-AutoChangelogBlock "## [Não lançado]`n`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas em [Não lançado] nem [1.6.0] = falha'
 $autoPlaces = [ordered]@{
     'tutorial #ppt-auto' = @{ text = $autoTut; phrases = @(
         'por gráfico', $tagAuto, $tagIdx, 'Nada vira automático sem uma ação sua', '(padrão: ligada)', '(padrão: desligada)',
@@ -836,9 +861,7 @@ $autoPlaces = [ordered]@{
         'Atualização automática no PowerPoint (1.6.0)', 'nada vira automático sem uma ação do usuário', 'já abertas', 'nunca abre o PowerPoint, uma apresentação nem uma pasta',
         $debText, $waitText, $retryText, 'Desfazer do Excel pode ser limpo', 'marca a apresentação como modificada', 'Atualize o ThinQQ no Excel para a atualização automática funcionar',
         'verificado em PowerPoint real', 'itens 61 a 68', 'Slides copiados de outra apresentação', 'somente leitura') }
-    'CHANGELOG [Não lançado]' = @{ text = $clUnrel; phrases = @(
-        $lblOn, $lblNew, $lblAuto, $lblOnce, $debTextLong, $waitText, $retryText, $tagAuto, $tagIdx, 'nunca abre pasta', 'Core_PptSyncShapes', 'verificado em PowerPoint real',
-        '### Adicionado', '### Alterado', 'sem diferenciar maiúsculas', 'Desfazer do Excel') }
+    'CHANGELOG ([Não lançado] ou [1.6.0])' = @{ text = $clAuto; phrases = $clAutoPhrases }
     'release/notes.txt' = @{ text = $notesNorm; phrases = @($lblAuto, $lblOnce, $lblOn, $lblNew, "$debounce segundos", 'Nada vira automático sem uma ação sua', 'por gráfico') }
 }
 foreach ($place in $autoPlaces.Keys) {
@@ -850,7 +873,7 @@ foreach ($l in $labelPins) { Check ($autoRec.Contains($l)) "README Recursos cita
 Check ($autoRec.Contains('aba ThinQQ > Gráfico selecionado > Atualizar automaticamente') -and $autoRec.Contains('No Excel, ThinQQ > PowerPoint:')) 'README Recursos: caminhos de menu do PowerPoint e do Excel'
 Check ($readmeText.Contains('Arquitetura') -and $readme.Contains('**Atualização automática (1.6.0):** `clsAppEvents`') -and $readme.Contains('`PptAuto_Tick`') -and $readme.Contains('API 2')) 'README (Arquitetura): o motor automático (clsAppEvents, PptAuto_OnChange, PptAuto_Tick, API 2)'
 # a CHANGELOG: estrutura que o publicar-release espera (cabeçalho, ### e entradas "- ") e as linhas do delta ficam em [1.5.0]
-Check ($clUnrel -match '(?m)^### Adicionado\s*$' -and @([regex]::Matches($clUnrel, '(?m)^\s*[-*]\s+\S')).Count -ge 4) 'CHANGELOG [Não lançado]: seção ### Adicionado e pelo menos 4 entradas "- "'
+Check ($clAuto -match '(?m)^### Adicionado\s*$' -and @([regex]::Matches($clAuto, '(?m)^\s*[-*]\s+\S')).Count -ge 4) 'CHANGELOG da 1.6.0 ([Não lançado] ou, depois do publicar-release, [1.6.0]): seção ### Adicionado e pelo menos 4 entradas "- "'
 Check ($clUnrel -notmatch 'Delta \(1\.5\.0\)') 'CHANGELOG [Não lançado]: sem linhas da 1.5.0 (o delta já está na [1.5.0])'
 # notes.txt (1.6.0): de 1 a 8 linhas com o marcador, sem texto da 1.5.0
 Check ($notesLines.Count -ge 3 -and $notesLines.Count -le 8) "notes.txt (1.6.0): de 3 a 8 linhas ($($notesLines.Count))"
