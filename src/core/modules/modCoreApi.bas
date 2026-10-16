@@ -1581,6 +1581,68 @@ Public Sub Core_PptSetFlag(key As String, value As Boolean)
     End Select
 End Sub
 
+' API 3 (1.8.0): grafico do ThinQQ criado PELO POWERPOINT (spec 14). slide = slide de destino (objeto do PowerPoint, passado pelo .ppam).
+' Cria a planilha na pasta de dados da apresentacao, insere o grafico, destaca os dados (moldura), salva, cola VINCULADO no slide (o mesmo
+' caminho do "Copiar como grafico vinculado": etiquetas e setas no tamanho do slide), marca TQQ_DATA e liga "Atualizar automaticamente".
+' Devolve "" (ok) ou a mensagem; falha desfaz a forma e a planilha criadas. Nunca propaga erro. Nunca chama LinkFormat.Update (a colagem
+' acabou de trazer os dados; PG4: Update com a origem ausente abre uma caixa modal que trava o PowerPoint). O ciclo automatico espera
+' (Ppt_BeginOp/Ppt_EndOp, como no Core_CopyToPowerPoint).
+Public Function Core_PptInsertChart(slide As Object, kind As String) As String
+    On Error Resume Next
+    Ppt_BeginOp
+    Core_PptInsertChart = PptInsertChartImpl(slide, kind)
+    Ppt_EndOp
+    Err.Clear
+End Function
+
+Private Function PptInsertChartImpl(slide As Object, kind As String) As String
+    Dim pres As Object, path As String, wb As Workbook, co As ChartObject, rng As Range, shp As Object, ws As Worksheet
+    Dim en As Long, ed As String, prevAlerts As Boolean
+    On Error GoTo Fail
+    If Not Kinds_IsValid(kind) Then PptInsertChartImpl = "Tipo de gráfico desconhecido: " & kind: Exit Function
+    Set pres = slide.Parent
+    If Len(CStr(pres.Path)) = 0 Then PptInsertChartImpl = PPTDATA_MSG_UNSAVED: Exit Function
+    path = PptData_PathFor(CStr(pres.FullName))
+    If Len(path) = 0 Then PptInsertChartImpl = PPTDATA_MSG_WEB: Exit Function
+    Set wb = PptData_OpenOrCreate(path, CStr(pres.Name))
+    Set co = PptData_NewChart(wb, kind, rng)
+    Set ws = co.Parent
+    LinkFrame_Ensure co.Chart, rng
+    wb.Save
+    Set shp = Ppt_PasteChart(co, slide)
+    On Error Resume Next: Application.CutCopyMode = False: Err.Clear: On Error GoTo Fail
+    If Ppt_LinkState(shp) <> 1 Then Err.Raise vbObjectError + 7133, "PptData", "O PowerPoint colou o gráfico sem o vínculo com a pasta de dados; tente de novo."
+    PptSyncAfterPaste shp, co
+    shp.Tags.Add PPTDATA_TAG, "1"
+    pres.Tags.Add PPTDATA_MARK, path
+    PptSync_SetAuto shp, True                        ' por ultimo: a ultima gravacao e a do indice (falha antes dele nao deixa entrada orfa)
+    PptInsertChartImpl = ""
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Application.CutCopyMode = False
+    If Not shp Is Nothing Then
+        PptSync_SetAuto shp, False                   ' tira do indice se a colagem ja a tinha ligado (opcao "Novos vinculos")
+        shp.Delete
+    End If
+    If Not ws Is Nothing Then
+        prevAlerts = Application.DisplayAlerts: Application.DisplayAlerts = False
+        ws.Delete
+        Application.DisplayAlerts = prevAlerts
+        wb.Save
+    End If
+    Errors_Log "Core_PptInsertChart(" & kind & ")" & vbTab & en & vbTab & ed
+    If en >= vbObjectError + 7130 And en <= vbObjectError + 7133 Then
+        PptInsertChartImpl = ed
+    ElseIf Ppt_IsKnownFailure(en) Then
+        PptInsertChartImpl = Ppt_ErrorText(en, ed)
+    Else
+        PptInsertChartImpl = "Não foi possível criar o gráfico: " & ed & " (" & en & ")"
+    End If
+End Function
+
 ' Botao "Atualizar graficos no PowerPoint": todas as apresentacoes abertas (inclusive as somente leitura: a atualizacao fica so na memoria e o
 ' PowerPoint pergunta se quer salvar ao fechar; so a atualizacao automatica ao abrir pula somente leitura, decisao do suplemento), forcando a
 ' atualizacao; o aviso traz o resumo de cada uma (cada apresentacao e isolada: o erro de uma vira uma linha dela, sem perder o resumo das

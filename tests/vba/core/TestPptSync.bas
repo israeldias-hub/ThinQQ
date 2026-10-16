@@ -463,7 +463,7 @@ Public Sub Test_PptSync_SummaryText()
 End Sub
 
 Public Sub Test_Core_PptApiVersion()
-    AssertEqual 2, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9; 2 = 1.6.0)"
+    AssertEqual 3, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9; 2 = 1.6.0; 3 = 1.8.0)"
 End Sub
 
 Public Sub Test_Core_PptSyncPresentation_NeverRaises()
@@ -2129,6 +2129,87 @@ Cleanup:
     Set shp = Nothing: Set slide = Nothing: Set pres = Nothing
     StopScratchPowerPoint app, own
     If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' ---- Parte G: grafico criado pelo PowerPoint ----
+
+Public Sub Test_PptInsertChart_UnsavedPres_NothingCreated_WhenAvailable()
+    Dim app As Object, pres As Object, slide As Object, own As New Collection, en As Long, ed As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set slide = pres.Slides.Add(1, 12)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    AssertEqual PPTDATA_MSG_UNSAVED, Core_PptInsertChart(slide, "stacked")
+    AssertEqual 0, slide.Shapes.Count
+    AssertEqual "Tipo de gráfico desconhecido: xyz", Core_PptInsertChart(slide, "xyz")
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set slide = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Review Focus 6: criar pelo PowerPoint, digitar no "datasheet" (planilha de dados), o ciclo leva ao slide e salva a pasta.
+Public Sub Test_PptInsertChart_FromPpt_WhenAvailable()
+    Dim app As Object, pres As Object, slide As Object, own As New Collection, en As Long, ed As String, msg As String
+    Dim shp As Object, s2 As Object, p As String, pp As String, wb As Workbook, ws As Worksheet
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    AutoReset
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set slide = pres.Slides.Add(1, 12)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    pp = TempDir()                                       ' TempDir() cria uma pasta nova a cada chamada: as duas na MESMA pasta
+    p = pp & "\Vendas G - dados ThinQQ.xlsx": pp = pp & "\Vendas G.pptx"
+    If Len(Dir(p)) > 0 Then Kill p
+    pres.SaveAs pp
+    msg = Core_PptInsertChart(slide, "clustered")
+    AssertEqual "", msg
+    AssertEqual 0, PptSync_UpdateCountForTest(), "a colagem nunca chama LinkFormat.Update (PG4: origem ausente trava o PowerPoint)"
+    AssertEqual 1, slide.Shapes.Count
+    Set shp = slide.Shapes(1)
+    AssertEqual "1", PptSync_Tag(shp, PPTDATA_TAG)
+    AssertEqual "1", PptSync_Tag(shp, PPTSYNC_TAG_AUTO), "nasce automatico (datasheet ao vivo)"
+    AssertEqual 1, Ppt_LinkState(shp)
+    AssertEqual LCase$(p), LCase$(PptSync_ItemBook(shp))
+    AssertEqual "Gráfico 1", PptSync_Tag(shp, PPTSYNC_TAG_SHEET)
+    AssertEqual LCase$(p), LCase$(PptSync_Tag(pres, PPTDATA_MARK))
+    AssertTrue InStr(1, PptSync_Tag(pres, PPTSYNC_TAG_INDEX), CStr(shp.Name), vbBinaryCompare) > 0, "no indice das formas automaticas"
+    Set wb = Workbooks(Dir(p))
+    AssertTrue PptData_IsDataBook(wb), "pasta de dados marcada"
+    AssertTrue wb.Saved, "pasta de dados salva"
+    Set ws = wb.Worksheets("Gráfico 1")
+    AssertTrue Not LinkFrame_Find(ws.ChartObjects(1).Chart) Is Nothing, "dados destacados pela moldura"
+    Watchers_Start
+    ws.Range("B2").Value = 999
+    AssertTrue PptAuto_PendingCountForTest() >= 1
+    Ppt_SetAppForTest app
+    PptAuto_Tick
+    AssertAlmost 999, PptSeriesValue(shp.Chart, "Sul", 1), 0.0001, "o slide acompanhou a planilha"
+    ' G3: AssertTrue wb.Saved, "o ciclo salvou a pasta de dados (G3)"
+    AssertEqual "", Core_PptInsertChart(slide, "pie")
+    AssertEqual 2, slide.Shapes.Count
+    Set s2 = slide.Shapes(2)
+    AssertEqual "Gráfico 2", PptSync_Tag(s2, PPTSYNC_TAG_SHEET)
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    AutoReset
+    Set shp = Nothing: Set s2 = Nothing: Set slide = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    Watchers_Stop
+    If wb Is Nothing And Len(p) > 0 Then Set wb = Workbooks(Dir(p))      ' falha antes de o teste pegar a pasta de dados: fecha mesmo assim
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    Kill p: Kill pp
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub

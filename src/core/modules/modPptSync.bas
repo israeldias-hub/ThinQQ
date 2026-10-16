@@ -21,7 +21,8 @@ Public Const PPTIDX_MAX_ENTRIES As Long = 2000             ' PptIdx_Parse: entra
 Public Const PPTIDX_MAX_LEN As Long = 1000000              ' PptIdx_Parse: etiqueta maior que isto (caracteres) e recusada inteira
 Private Const PPTIDX_FS As String = "|"                    ' indice: separador de campos (PptIdx_*)
 Private Const PPTIDX_ES As String = vbLf                   ' indice: separador de entradas
-Public Const CORE_PPT_API As Long = 2                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0)
+Public Const CORE_PPT_API As Long = 3                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
+                                                           ' 3 = Core_PptInsertChart, Core_PptEditData, Core_PptDataSave (1.8.0)
 Public Const PPTSYNC_NONE As String = "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."
 Public Const PPTSYNC_NOT_FOUND As String = "Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo."
 Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."

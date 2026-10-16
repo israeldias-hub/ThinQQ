@@ -791,7 +791,7 @@ Check ($autoSrc.Contains('If CLng(pres.ReadOnly) <> 0 Then Exit Sub') -and $auto
 Check ($autoSrc.Contains('If Len(wb.Path) = 0 Then Exit Function') -and $autoSrc.Contains('Set ws = wb.Worksheets(CALC_SHEET)')) 'atualização automática (código): só pastas salvas e com gráficos do ThinQQ são candidatas'
 Check ($autoSrc.Contains('PptAuto_Log "PptAuto: desistiu"') -and $autoSrc.Contains('If mInTick Or Ppt_InOperation() Then PptAuto_Schedule PPTAUTO_DEBOUNCE_S')) 'atualização automática (código): desiste com o registro "PptAuto: desistiu" e espera uma operação do core em andamento'
 Check ($pptTqqSrc -match '(?s)If turnOn Then PptTqq_SyncEntries pres, PptTqq_EntriesOf\(shapes\), True, True') 'atualização automática (código): ligar o automático já atualiza uma vez só as formas do botão'
-Check ($pptTqqSrc.Contains('PPT_API_SHAPES As Long = 2') -and $syncSrc.Contains('CORE_PPT_API As Long = 2')) 'atualização automática (código): o contrato do suplemento com o core passa à API 2'
+Check ($pptTqqSrc.Contains('PPT_API_SHAPES As Long = 2') -and $syncSrc -match 'CORE_PPT_API As Long = ([2-9]|\d{2,})\b') 'atualização automática (código): o contrato do suplemento com o core passa à API 2 (ou maior: 3 = 1.8.0)'
 
 # rótulos exatos das duas faixas (a do Excel tem as caixas, a do PowerPoint o botão de alternância e o botão)
 $lblOn = 'Atualização automática ligada'; $lblNew = 'Novos vínculos atualizam automaticamente'; $lblAuto = 'Atualizar automaticamente'; $lblOnce = 'Atualizar uma vez'
