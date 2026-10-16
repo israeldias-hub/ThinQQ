@@ -463,7 +463,7 @@ Public Sub Test_PptSync_SummaryText()
 End Sub
 
 Public Sub Test_Core_PptApiVersion()
-    AssertEqual 4, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9; 2 = 1.6.0; 3 = 1.8.0; 4 = 1.9.0)"
+    AssertEqual 5, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9; 2 = 1.6.0; 3 = 1.8.0; 4 = 1.9.0 comandos; 5 = 1.9.0 texto vinculado)"
 End Sub
 
 Public Sub Test_Core_PptSyncPresentation_NeverRaises()
@@ -2661,6 +2661,143 @@ Cleanup:
     If wb Is Nothing And Len(p) > 0 Then Set wb = Workbooks(Dir(p))
     If Not wb Is Nothing Then wb.Close SaveChanges:=False
     Kill p: Kill pp
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' ---- Parte E1: texto vinculado ----
+
+Private Function NewTextBox(pres As Object, txt As String) As Object
+    Dim sl As Object
+    Set sl = pres.Slides.Add(pres.Slides.Count + 1, 12)
+    Set NewTextBox = sl.Shapes.AddTextbox(1, 20, 20, 400, 40)
+    NewTextBox.TextFrame.TextRange.Text = txt
+End Function
+
+Public Sub Test_PptText_LinkAndSync_WhenAvailable()
+    Dim wb As Workbook, ws As Worksheet, app As Object, pres As Object, tb As Object, own As New Collection, en As Long, ed As String, s As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    ws.Range("E1").Value = 123
+    wb.SaveAs TempDir() & "\ppttext-sync.xlsx", xlOpenXMLWorkbook
+    Set tb = NewTextBox(pres, "Receita de X mil")
+    tb.TextFrame.TextRange.Characters(12, 1).Font.Bold = -1
+    AssertEqual "", PptText_Link(tb, 12, 1, ws.Range("E1"))
+    AssertEqual "Receita de 123 mil", tb.TextFrame.TextRange.Text
+    AssertEqual "text", PptSync_ItemKind(tb)
+    ws.Range("E1").Value = 4567
+    s = PptSync_Presentation(pres, False)
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 1.") = 1, s
+    AssertEqual "Receita de 4567 mil", tb.TextFrame.TextRange.Text
+    AssertEqual -1, CLng(tb.TextFrame.TextRange.Characters(12, 4).Font.Bold), "formatacao do campo mantida"
+    AssertEqual 0, CLng(tb.TextFrame.TextRange.Characters(1, 7).Font.Bold), "resto do texto intacto"
+    s = PptSync_Presentation(pres, False)
+    AssertTrue InStr(s, "Sem mudança: 1.") > 0, s
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set tb = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Review Focus 4: o usuario editou o texto fora do campo: nada e sobrescrito; o resumo conta.
+Public Sub Test_PptText_Sync_EditedOutsideField_NotTouched_WhenAvailable()
+    Dim wb As Workbook, ws As Worksheet, app As Object, pres As Object, tb As Object, own As New Collection, en As Long, ed As String, s As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    ws.Range("A1").Value = 10
+    wb.SaveAs TempDir() & "\ppttext-edit.xlsx", xlOpenXMLWorkbook
+    Set tb = NewTextBox(pres, "Total: X")
+    AssertEqual "", PptText_Link(tb, 8, 1, ws.Range("A1"))
+    tb.TextFrame.TextRange.Text = "Outro texto do usuario"
+    ws.Range("A1").Value = 20
+    s = PptSync_Presentation(pres, True)
+    AssertEqual "Outro texto do usuario", tb.TextFrame.TextRange.Text
+    AssertTrue InStr(s, "Texto editado no PowerPoint fora do campo vinculado (vincule de novo): 1.") > 0, s
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set tb = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Adendo do controlador: as etiquetas do texto vinculado (prefixo com quebra de paragrafo, quebra de linha e Tab; reserva planilha|endereco)
+' sobrevivem a Salvar como .pptx, fechar e reabrir: a sincronizacao depois de reabrir diz "sem mudanca" (nao "editado"), atualiza quando a
+' celula muda, e a forma automatica continua no indice que o ciclo automatico le (PptAuto_ItemsFor).
+Public Sub Test_PptText_TagsPersistSaveReopen_WhenAvailable()
+    Dim wb As Workbook, ws As Worksheet, app As Object, pres As Object, p2 As Object, tb As Object, tb2 As Object, own As New Collection
+    Dim en As Long, ed As String, s As String, tmp As String, cur0 As String, st As Long, k As Variant, saved As Object, items As Collection
+    Dim dirty As Object
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    PptAuto_ResetTestHooks
+    PptAuto_SetNewLinksAuto True
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    ws.Range("B2").Value = 10
+    tmp = TempDir()
+    wb.SaveAs tmp & "\ppttext-persist.xlsx", xlOpenXMLWorkbook
+    Set tb = NewTextBox(pres, "Linha 1" & vbCr & "A" & Chr$(11) & "Total:" & vbTab & "X fim")
+    cur0 = CStr(tb.TextFrame.TextRange.Text)
+    st = InStr(cur0, "X")
+    AssertTrue st > 0, "premissa: o X esta no texto (" & cur0 & ")"
+    AssertEqual "", PptText_Link(tb, st, 1, ws.Range("B2"))
+    AssertEqual Left$(cur0, st - 1) & "10" & Mid$(cur0, st + 1), CStr(tb.TextFrame.TextRange.Text)
+    AssertEqual "1", PptSync_Tag(tb, PPTSYNC_TAG_AUTO), "novo vinculo automatico"
+    Set saved = CreateObject("Scripting.Dictionary")
+    For Each k In Array(PPTTEXT_TAG, PPTSYNC_TAG_BOOK, PPTLINK_TAG_NAME, PPTLINK_TAG_REF, PPTTEXT_TAG_PRE, PPTTEXT_TAG_SUF, PPTTEXT_TAG_LAST)
+        saved.Add CStr(k), PptSync_Tag(tb, CStr(k))
+    Next
+    AssertEqual Left$(cur0, st - 1), PptText_TagDec(CStr(saved(PPTTEXT_TAG_PRE))), "prefixo gravado"
+    pres.SaveAs tmp & "\ppttext-persist.pptx"
+    Set tb = Nothing
+    pres.Close
+    Set pres = Nothing
+    Set own = New Collection
+    Set p2 = app.Presentations.Open(tmp & "\ppttext-persist.pptx", -1, 0, 0): own.Add p2
+    Set tb2 = p2.Slides(1).Shapes(1)
+    For Each k In saved.Keys
+        AssertEqual CStr(saved(k)), PptSync_Tag(tb2, CStr(k)), "etiqueta " & k & " igual depois de reabrir"
+    Next
+    AssertEqual "text", PptSync_ItemKind(tb2)
+    s = PptSync_Presentation(p2, False)
+    AssertTrue InStr(s, "Sem mudança: 1.") > 0, "depois de reabrir: " & s
+    AssertTrue InStr(s, "Texto editado") = 0, s
+    Set dirty = CreateObject("Scripting.Dictionary")
+    dirty.CompareMode = 1
+    dirty.Add wb.FullName, True
+    Set items = PptAuto_ItemsFor(p2, dirty)
+    AssertEqual 1, items.Count, "o ciclo automatico acha o texto vinculado pelo indice"
+    ws.Range("B2").Value = 20
+    s = PptSync_Items(items, False, True)
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 1.") = 1, s
+    AssertEqual Left$(cur0, st - 1) & "20" & Mid$(cur0, st + 1), CStr(tb2.TextFrame.TextRange.Text)
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptAuto_ResetTestHooks
+    Set items = Nothing: Set tb = Nothing: Set tb2 = Nothing: Set pres = Nothing: Set p2 = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then CloseTemp wb
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub

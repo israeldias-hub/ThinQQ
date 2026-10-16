@@ -1703,6 +1703,8 @@ Private Function PptEditDataImpl(pres As Object, entries As String) As String
     Set items = PptSync_ResolveEntries(pres, entries)
     If items.Count = 0 Then PptEditDataImpl = "!" & PPTSYNC_NONE: Exit Function
     Set shp = items(1)
+    ' texto vinculado (1.9.0): nao ha grafico a editar e a pasta do usuario nunca e aberta para edicao por ele
+    If PptSync_ItemKind(shp) <> "chart" Then PptEditDataImpl = "!" & PPTTEXT_MSG_EDITDATA: Exit Function
     path = PptSync_ItemBook(shp)
     isData = (PptSync_Tag(shp, PPTDATA_TAG) = "1")
     ' o caminho vem da apresentacao (de quem a fez): so pastas do Excel, e grafico criado pelo PowerPoint so com a pasta de dados do ThinQQ,
@@ -1864,6 +1866,7 @@ End Function
 Private Function PptCmd_One(shp As Object, cmd As String, arg As String, opened As Collection) As String
     Dim wb As Workbook, co As ChartObject, c As Chart, p() As String, msg As String, n As Long, a As Long, b As Long, key As String, v As String
     On Error GoTo Fail
+    If PptSync_ItemKind(shp) <> "chart" Then PptCmd_One = PPTTEXT_MSG_NOTCHART: Exit Function   ' texto vinculado: nada a aplicar
     Set wb = PptCmd_Book(shp, opened, msg)
     If wb Is Nothing Then PptCmd_One = msg: Exit Function
     Set co = Registry_FindChartObject(wb, PptSync_Tag(shp, PPTSYNC_TAG_CHART))
@@ -2019,6 +2022,36 @@ Fail:
     PptCmd_CloseOpened opened
     Errors_Log "Core_PptCategories" & vbTab & en & vbTab & ed
     PptCategoriesImpl = ""
+End Function
+
+' API 5 (1.9.0): o .ppam vincula a forma do slide (shp; trecho [startPos, startPos + length) do texto, length 0 = no cursor) a celula ATIVA
+' deste Excel (a acao explicita do usuario: so ela cria o nome definido oculto na pasta dele, que precisa estar aberta e salva). Devolve ""
+' (ok), PPTTEXT_MSG_CUT (vinculado com o valor cortado) ou a mensagem. Sem caixas (modo silencioso) e com o ciclo automatico esperando
+' (Ppt_BeginOp/EndOp), equilibrados em todo caminho. Nunca propaga erro.
+Public Function Core_PptLinkText(shp As Object, startPos As Long, length As Long) As String
+    On Error Resume Next
+    Core_QuietBegin
+    Ppt_BeginOp
+    Core_PptLinkText = PptLinkTextImpl(shp, startPos, length)
+    Ppt_EndOp
+    Core_QuietEnd
+    Err.Clear
+End Function
+
+Private Function PptLinkTextImpl(shp As Object, startPos As Long, length As Long) As String
+    Dim en As Long, ed As String, cell As Range
+    On Error GoTo Fail
+    If TypeName(Selection) <> "Range" Then PptLinkTextImpl = PPTTEXT_MSG_NOCELL: Exit Function
+    Set cell = ActiveCell
+    If cell Is Nothing Then PptLinkTextImpl = PPTTEXT_MSG_NOCELL: Exit Function
+    PptLinkTextImpl = PptText_Link(shp, startPos, length, cell)
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Errors_Log "Core_PptLinkText" & vbTab & en & vbTab & ed
+    If Ppt_IsBusyError(en) Then PptLinkTextImpl = PPT_ERR_BUSY Else PptLinkTextImpl = "Não foi possível vincular o texto: " & ed & " (" & en & ")"
 End Function
 
 ' Botao "Atualizar graficos no PowerPoint": todas as apresentacoes abertas (inclusive as somente leitura: a atualizacao fica so na memoria e o

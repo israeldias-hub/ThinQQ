@@ -169,14 +169,19 @@ Private Sub PptAuto_Log(msg As String)
 End Sub
 
 ' Pasta que pode ter elementos no PowerPoint: salva (o vinculo aponta para o arquivo) e com a planilha _ThinQQ (graficos do ThinQQ). As
-' versoes 1.8.0/1.9.0 acrescentam os nomes definidos TQQ_X_/TQQ_T_. Nunca propaga erro.
+' versoes 1.9.0/1.10.0 acrescentam os nomes definidos TQQ_X_ (texto vinculado) / TQQ_T_ (tabela). Nunca propaga erro.
 Public Function PptAuto_IsCandidate(wb As Workbook) As Boolean
-    Dim ws As Object
+    Dim ws As Object, n As Object
     On Error Resume Next
     If wb Is Nothing Then Exit Function
     If Len(wb.Path) = 0 Then Exit Function
     Set ws = wb.Worksheets(CALC_SHEET)
     PptAuto_IsCandidate = Not ws Is Nothing
+    If Not PptAuto_IsCandidate Then
+        For Each n In wb.Names
+            If Left$(n.Name, 6) = "TQQ_X_" Or Left$(n.Name, 6) = "TQQ_T_" Then PptAuto_IsCandidate = True: Exit For
+        Next
+    End If
     Err.Clear
 End Function
 
@@ -303,6 +308,12 @@ Private Function PptAuto_TagStrict(o As Object, key As String, hookPoint As Stri
     If en = 0 And Not IsNull(v) And Not IsObject(v) Then PptAuto_TagStrict = CStr(v)
 End Function
 
+' A forma e um elemento do ThinQQ (grafico TQQ_CHART ou texto vinculado TQQ_TEXT = "1"; a regra de PptSync_ItemKind) sem engolir o ocupado.
+Private Function PptAuto_IsItemStrict(shp As Object) As Boolean
+    If Len(PptAuto_TagStrict(shp, PPTSYNC_TAG_CHART, "")) > 0 Then PptAuto_IsItemStrict = True: Exit Function
+    PptAuto_IsItemStrict = (PptAuto_TagStrict(shp, PPTTEXT_TAG, "") = "1")
+End Function
+
 ' Pasta de origem da forma (como PptSync_ItemBook: vinculo nativo ou TQQ_BOOK), sem engolir o PowerPoint ocupado.
 Private Function PptAuto_BookStrict(shp As Object) As String
     Dim lk As String, en As Long, ed As String
@@ -346,7 +357,7 @@ Public Function PptAuto_ItemsFor(pres As Object, dirty As Object) As Collection
                 removed = True
             ElseIf PptAuto_TagStrict(shp, PPTSYNC_TAG_AUTO, "autotag") <> "1" Then
                 removed = True
-            ElseIf Len(PptAuto_TagStrict(shp, PPTSYNC_TAG_CHART, "")) = 0 Then   ' = PptSync_ItemKind (TQQ_CHART), lida sem engolir o ocupado
+            ElseIf Not PptAuto_IsItemStrict(shp) Then          ' = PptSync_ItemKind (grafico ou texto vinculado), lida sem engolir o ocupado
                 removed = True
             Else
                 k = PptAuto_ShapeKey(CLng(e(0)), shp, CStr(e(1)))

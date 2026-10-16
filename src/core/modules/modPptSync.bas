@@ -23,9 +23,9 @@ Private Const PPTIDX_FS As String = "|"                    ' indice: separador d
 Private Const PPTIDX_ES As String = vbLf                   ' indice: separador de entradas
 Public Const PPTSYNC_TAG_KIND As String = "TQQ_KIND"        ' tipo do grafico (a faixa do PowerPoint le sem chamar o Excel; spec 14.5)
 Public Const PPTSYNC_TAG_OPTS As String = "TQQ_OPTS"        ' estado das opcoes (PptSync_OptsText) para getPressed/getEnabled do .ppam
-Public Const CORE_PPT_API As Long = 4                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
+Public Const CORE_PPT_API As Long = 5                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
                                                            ' 3 = Core_PptInsertChart, Core_PptEditData, Core_PptDataSave (1.8.0);
-                                                           ' 4 = Core_PptCommand, Core_PptCategories (1.9.0)
+                                                           ' 4 = Core_PptCommand, Core_PptCategories (1.9.0); 5 = Core_PptLinkText (1.9.0)
 Public Const PPTSYNC_NONE As String = "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."
 Public Const PPTSYNC_NOT_FOUND As String = "Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo."
 Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."
@@ -34,11 +34,12 @@ Public Const PPTSYNC_C_PROCEED As Long = 0                   ' PptSync_Classify:
 Public Const PPTSYNC_C_UNLINKED As Long = 1                  ' colado sem vinculo ("Sem vinculo com o Excel")
 Public Const PPTSYNC_C_UNKNOWN As Long = 2                   ' estado do vinculo ilegivel (falha)
 Public Const PPTSYNC_C_NOPATH As Long = 3                    ' vinculado, mas sem caminho de origem (origem desconhecida)
-Private Const PPTSYNC_R_OK As Long = 1                       ' resultado de PptSync_SyncOne
-Private Const PPTSYNC_R_SAME As Long = 2
-Private Const PPTSYNC_R_NOCHART As Long = 3
-Private Const PPTSYNC_R_FAIL As Long = 4
-Private Const PPTSYNC_R_SKIPPED As Long = 5
+Public Const PPTSYNC_R_OK As Long = 1                        ' resultado de PptSync_SyncOne e PptText_Sync
+Public Const PPTSYNC_R_SAME As Long = 2
+Public Const PPTSYNC_R_NOCHART As Long = 3
+Public Const PPTSYNC_R_FAIL As Long = 4
+Public Const PPTSYNC_R_SKIPPED As Long = 5
+Public Const PPTSYNC_R_EDITED As Long = 6                    ' texto vinculado editado fora do campo (nada tocado)
 Private Const MSO_AUTOSHAPE As Long = 1
 Private Const MSO_LINE As Long = 9
 Private Const MSO_TEXTBOX As Long = 17
@@ -499,10 +500,14 @@ Public Sub PptSync_TagDelete(o As Object, key As String)
     Err.Clear
 End Sub
 
-' Tipo do elemento do ThinQQ na forma do slide: "chart" (TQQ_CHART); "" = nao e do ThinQQ. As versoes seguintes acrescentam "text" e
-' "table". Nunca propaga erro.
+' Tipo do elemento do ThinQQ na forma do slide: "chart" (TQQ_CHART), "text" (TQQ_TEXT = "1": texto vinculado a celula, 1.9.0); "" = nao e
+' do ThinQQ. A versao seguinte acrescenta "table". Nunca propaga erro.
 Public Function PptSync_ItemKind(shp As Object) As String
-    If Len(PptSync_Tag(shp, PPTSYNC_TAG_CHART)) > 0 Then PptSync_ItemKind = "chart"
+    If Len(PptSync_Tag(shp, PPTSYNC_TAG_CHART)) > 0 Then
+        PptSync_ItemKind = "chart"
+    ElseIf PptSync_Tag(shp, PPTTEXT_TAG) = "1" Then
+        PptSync_ItemKind = "text"
+    End If
 End Function
 
 ' Pasta de origem do elemento (vinculo nativo ou TQQ_BOOK). Nunca propaga erro.
@@ -659,13 +664,14 @@ End Function
 ' ---- Sincronizacao da apresentacao inteira (Tarefa A2) ----
 
 ' Resumo para o usuario (textos exatos da spec 4.2). missing = nomes dos arquivos ja separados por ", ". Pura.
-Public Function PptSync_SummaryText(nOk As Long, nSame As Long, missing As String, nNoChart As Long, nUnlinked As Long, nFail As Long) As String
+Public Function PptSync_SummaryText(nOk As Long, nSame As Long, missing As String, nNoChart As Long, nUnlinked As Long, nFail As Long, Optional nEdited As Long = 0) As String
     Dim s As String
     s = "Gráficos do ThinQQ atualizados: " & nOk & "."
     If nSame > 0 Then s = s & " Sem mudança: " & nSame & "."
     If Len(missing) > 0 Then s = s & vbLf & "Pasta de origem não encontrada ou sem acesso (o gráfico ficou como estava): " & missing & ". Se ela foi movida ou renomeada, use no PowerPoint Arquivo > Informações > Editar Links para Arquivos > Alterar Origem."
     If nNoChart > 0 Then s = s & vbLf & "Gráfico não encontrado na pasta de origem (apagado ou recriado): " & nNoChart & "."
     If nUnlinked > 0 Then s = s & vbLf & "Sem vínculo com o Excel (Quebrar Vínculo no PowerPoint): " & nUnlinked & "."
+    If nEdited > 0 Then s = s & vbLf & "Texto editado no PowerPoint fora do campo vinculado (vincule de novo): " & nEdited & "."
     If nFail > 0 Then s = s & vbLf & "Falha ao atualizar: " & nFail & " (veja o log do ThinQQ)."
     PptSync_SummaryText = s
 End Function
@@ -845,7 +851,7 @@ End Function
 Public Function PptSync_Items(items As Collection, force As Boolean, Optional noOpen As Boolean = False) As String
     Dim shp As Object, opened As Collection, books As Object, missingSet As Object, path As String, k As Long
     Dim wb As Workbook, missing As String, en As Long, ed As String, prevSU As Boolean, ls As Long
-    Dim nOk As Long, nSame As Long, nNoChart As Long, nUnlinked As Long, nFail As Long
+    Dim nOk As Long, nSame As Long, nNoChart As Long, nUnlinked As Long, nFail As Long, kind As String, r As Long, nEdited As Long
     Set opened = New Collection
     Set books = CreateObject("Scripting.Dictionary")
     books.CompareMode = 1
@@ -857,9 +863,10 @@ Public Function PptSync_Items(items As Collection, force As Boolean, Optional no
     For Each shp In items
         k = k + 1
         Application.StatusBar = "ThinQQ: atualizando gráfico " & k & " de " & items.Count & " do PowerPoint..."
-        ls = Ppt_LinkState(shp)
+        kind = PptSync_ItemKind(shp)
+        If kind = "chart" Then ls = Ppt_LinkState(shp) Else ls = 1  ' texto vinculado: sem vinculo nativo (a pasta vem de TQQ_BOOK)
         path = ""
-        If ls = 1 Then path = PptSync_SourcePath(PptSync_LinkSource(shp), PptSync_Tag(shp, PPTSYNC_TAG_BOOK))
+        If ls = 1 Then path = PptSync_ItemBook(shp)
         Select Case PptSync_Classify(ls, path)
             Case PPTSYNC_C_UNLINKED
                 nUnlinked = nUnlinked + 1
@@ -881,11 +888,13 @@ Public Function PptSync_Items(items As Collection, force As Boolean, Optional no
                 End If
                 Set wb = books.Item(path)
                 If Not wb Is Nothing Then
-                    Select Case PptSync_SyncOne(shp, wb, force)
+                    If kind = "text" Then r = PptText_Sync(shp, wb, force) Else r = PptSync_SyncOne(shp, wb, force)
+                    Select Case r
                         Case PPTSYNC_R_OK: nOk = nOk + 1
                         Case PPTSYNC_R_SAME: nSame = nSame + 1
                         Case PPTSYNC_R_NOCHART: nNoChart = nNoChart + 1
                         Case PPTSYNC_R_SKIPPED: missingSet(path) = True
+                        Case PPTSYNC_R_EDITED: nEdited = nEdited + 1
                         Case Else: nFail = nFail + 1
                     End Select
                 End If
@@ -895,7 +904,7 @@ Public Function PptSync_Items(items As Collection, force As Boolean, Optional no
     Application.ScreenUpdating = prevSU
     Application.StatusBar = False
     If missingSet.Count > 0 Then missing = PptSync_MissingText(missingSet.Keys)
-    PptSync_Items = PptSync_SummaryText(nOk, nSame, missing, nNoChart, nUnlinked, nFail)
+    PptSync_Items = PptSync_SummaryText(nOk, nSame, missing, nNoChart, nUnlinked, nFail, nEdited)
     Exit Function
 Fail:
     en = Err.Number: ed = Err.Description
