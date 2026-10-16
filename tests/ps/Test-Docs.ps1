@@ -1316,7 +1316,7 @@ Check ($pptTqqSrc.Contains('PPT_API_TEXT As Long = 5') -and $syncSrc -match 'COR
 Check ($coreSrc.Contains('Public Function Core_PptLinkText(') -and $coreSrc.Contains('Public Sub Core_PptLinkTextFromPpt(') -and $coreSrc.Contains('Public Sub Core_LinkTitle(') -and $pptTqqSrc.Contains('Public Sub PptTqq_LinkText(')) 'texto vinculado (código): Core_PptLinkText, Core_PptLinkTextFromPpt, Core_LinkTitle e PptTqq_LinkText existem'
 $textTags = @('TQQ_TEXT', 'TQQ_TNAME', 'TQQ_TREF', 'TQQ_TPRE', 'TQQ_TSUF', 'TQQ_TLAST')
 $textTagsFound = @([regex]::Matches($coreSrc, 'Public Const PPT(?:TEXT|LINK)_TAG\w* As String = "(TQQ_T[A-Z]+)"') | ForEach-Object { $_.Groups[1].Value })
-Check (($textTags | Where-Object { $textTagsFound -notcontains $_ }).Count -eq 0 -and $pptTqqSrc.Contains('PPT_TAG_TEXT As String = "TQQ_TEXT"')) "texto vinculado (código): as etiquetas $($textTags -join ', ') existem no core e TQQ_TEXT no suplemento"
+Check (@($textTags | Where-Object { $textTagsFound -notcontains $_ }).Count -eq 0 -and $pptTqqSrc.Contains('PPT_TAG_TEXT As String = "TQQ_TEXT"')) "texto vinculado (código): as etiquetas $($textTags -join ', ') existem no core e TQQ_TEXT no suplemento"
 Check ($coreSrc.Contains('PPTTEXT_MAX_LEN As Long = 255') -and $coreSrc.Contains('PptLink_DefineName(cell.Cells(1, 1), "TQQ_X_")')) 'texto vinculado (código): o valor é cortado em 255 caracteres e o nome oculto começa por TQQ_X_'
 $textoTut = Get-SubsectionText 'ppt-texto'
 $foraTut = Get-SubsectionText 'ppt-fora'
