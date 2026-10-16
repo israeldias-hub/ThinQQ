@@ -908,6 +908,7 @@ Private Sub NotifySourceMismatchOnce(cht As Chart)
     id = Registry_IdFromChart(cht)
     If Len(id) = 0 Then Exit Sub
     If Not Core_ChartSourceMismatch(cht) Then Exit Sub
+    If PptAuto_InTick() Then Errors_Log "aviso adiado (ciclo automatico): tabela de origem mudou de tamanho" & vbTab & id: Exit Sub   ' sem marcar: o proximo refresh fora do ciclo avisa
     If mMismatchSeen Is Nothing Then Set mMismatchSeen = New Collection
     Err.Clear
     mMismatchSeen.Add id, id
@@ -935,6 +936,7 @@ Public Sub Core_NotifyCopiedChartOnce(co As ChartObject)
         Err.Clear
     Next
     If n < 2 Then Exit Sub
+    If PptAuto_InTick() Then Errors_Log "aviso adiado (ciclo automatico): grafico em planilha copiada" & vbTab & id: Exit Sub   ' (hoje so os vigias chamam; por garantia)
     If mCopySeen Is Nothing Then Set mCopySeen = New Collection
     mCopySeen.Add id, id
     Core_Notify "Este gráfico do ThinQQ também existe em outra planilha (planilha copiada): a cópia continua ligada aos dados e às opções do gráfico original. Use 'Alterar dados' no gráfico da cópia para separá-lo.", vbExclamation
@@ -953,6 +955,7 @@ Private Sub NotifyScaleClippedOnce(cht As Chart)
         Err.Clear
     End If
     If Not Deco_ScaleClipped(cht) Then Exit Sub
+    If PptAuto_InTick() Then Errors_Log "aviso adiado (ciclo automatico): dados acima da escala fixa" & vbTab & id: Exit Sub   ' sem marcar: o proximo refresh fora do ciclo avisa
     If mClipSeen Is Nothing Then Set mClipSeen = New Collection
     mClipSeen.Add id, id
     ' cascata comparativa com as barras dentro da escala: so a sala das setas passou do maximo (Mesma escala de novo daria a mesma uniao)

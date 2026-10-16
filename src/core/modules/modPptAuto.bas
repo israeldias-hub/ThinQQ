@@ -346,8 +346,7 @@ Public Function PptAuto_ItemsFor(pres As Object, dirty As Object) As Collection
                 removed = True
             ElseIf PptAuto_TagStrict(shp, PPTSYNC_TAG_AUTO, "autotag") <> "1" Then
                 removed = True
-            ElseIf Len(PptSync_ItemKind(shp)) = 0 Then
-                PptAuto_TagStrict shp, PPTSYNC_TAG_CHART, ""      ' a leitura de PptSync_ItemKind engole erro: ocupado nunca vira "entrada velha"
+            ElseIf Len(PptAuto_TagStrict(shp, PPTSYNC_TAG_CHART, "")) = 0 Then   ' = PptSync_ItemKind (TQQ_CHART), lida sem engolir o ocupado
                 removed = True
             Else
                 k = PptAuto_ShapeKey(CLng(e(0)), shp, CStr(e(1)))

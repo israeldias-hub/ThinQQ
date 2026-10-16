@@ -1339,8 +1339,13 @@ Public Sub Test_PptSync_IndexPersistsSaveReopen_WhenAvailable()
     Set c = sl.Shapes.AddShape(1, 130, 10, 50, 50): c.Name = "tqq_c"
     On Error Resume Next
     c.Name = "tqq|c" & vbLf & "d" & Chr$(30) & "e"              ' o PowerPoint pode recusar parte disto: o nome que ficou e saneado ao ligar
+    If CStr(c.Name) = "tqq_c" Then c.Name = "tqq|c" & Chr$(30) & "e"
     Err.Clear
     On Error GoTo Cleanup
+    nmC = CStr(c.Name)
+    Errors_Log "TestPptSync: nome hostil aceito pelo PowerPoint: " & Replace(Replace(nmC, vbLf, "<LF>"), Chr$(30), "<30>")
+    AssertTrue nmC <> "tqq_c", "premissa: o nome hostil foi aceito (" & nmC & ")"
+    AssertTrue nmC <> PptIdx_SafeField(nmC), "premissa: o nome tem caracteres a sanear"
     a.Tags.Add PPTSYNC_TAG_CHART, "c1": a.Tags.Add PPTSYNC_TAG_BOOK, "C:\t\a.xlsx"
     b.Tags.Add PPTSYNC_TAG_CHART, "c2": b.Tags.Add PPTSYNC_TAG_BOOK, "C:\t\b.xlsx"
     c.Tags.Add PPTSYNC_TAG_CHART, "c3": c.Tags.Add PPTSYNC_TAG_BOOK, "C:\t\c|d.xlsx"
@@ -1352,6 +1357,7 @@ Public Sub Test_PptSync_IndexPersistsSaveReopen_WhenAvailable()
     PptSync_SetAuto c, True
     nmC = CStr(c.Name)
     AssertEqual nmC, PptIdx_SafeField(nmC), "nome saneado ao ligar"
+    AssertTrue InStr(nmC, "tqq_c") = 1, "o nome saneado vem do hostil (" & nmC & ")"
     idx = PptSync_Tag(pres, PPTSYNC_TAG_INDEX)
     AssertEqual 3, PptIdx_Parse(idx).Count, "antes de salvar"
     dir_ = TempDir()
