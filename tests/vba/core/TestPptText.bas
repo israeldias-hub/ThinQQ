@@ -298,6 +298,106 @@ Public Sub Test_PptText_EditDataAndCommand_RefuseTextShape()
     AssertEqual "v=1", t.Text
 End Sub
 
+' Titulo ligado a uma celula (E2; sonda P6 medida aqui): acompanha a celula; Core_SafeRefresh o mantem; "Alterar dados" (grafico recriado)
+' o religa, na celula de AGORA (linha inserida acima); Cancelar nao muda nada; remover tira so o titulo ligado.
+Public Sub Test_LinkTitle_FollowsCellRefreshAndRebuild()
+    Dim wb As Workbook, ws As Worksheet, c As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Ano", "Sul", "Norte")
+    ws.Range("A2:C2").Value = Array("T1", 10, 5): ws.Range("A3:C3").Value = Array("T2", 20, 6)
+    ws.Range("E1").Value = "Receita por região"
+    ws.Range("A1:C3").Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    AssertTrue Not c Is Nothing, "grafico inserido"
+    AssertFalse c.HasTitle, "nasce sem titulo"
+    Core_LinkTitle
+    AssertFalse c.HasTitle, "build Test sem o gancho: nada (sem InputBox)"
+    Core_TestSetTitleCell ws.Range("E1")
+    Core_LinkTitle
+    AssertTrue c.HasTitle
+    AssertEqual "Receita por região", c.ChartTitle.Text
+    AssertEqual "Dados|$E$1", Registry_GetOption(c, "titleref", ""), "formato de PptLink_RefOf"
+    ws.Range("E1").Value = "Novo título"
+    AssertEqual "Novo título", c.ChartTitle.Text, "acompanha a celula"
+    Core_SafeRefresh c
+    AssertTrue c.HasTitle, "P6: refresh mantem"
+    AssertEqual "Novo título", c.ChartTitle.Text, "P6: refresh mantem o texto"
+    ws.Rows(1).Insert                                   ' dados em A2:C4, titulo em E2 (a formula do titulo acompanha)
+    AssertEqual "Novo título", c.ChartTitle.Text
+    AssertTrue Core_RebuildFromRange(c, ws.Range("A2:C4")), "Alterar dados"
+    Set c = Core_ActiveChart()                          ' o grafico foi recriado (o antigo nao existe mais)
+    AssertTrue c.HasTitle, "Alterar dados religa o titulo"
+    AssertEqual "Novo título", c.ChartTitle.Text
+    AssertEqual "Dados|$E$2", Registry_GetOption(c, "titleref", ""), "a celula de agora (linha inserida), nao o endereco gravado"
+    ws.Range("E2").Value = "Depois"
+    AssertEqual "Depois", c.ChartTitle.Text, "o grafico novo acompanha a celula"
+    Core_TestSetTitleCell Nothing, True
+    Core_LinkTitle
+    AssertEqual "Dados|$E$2", Registry_GetOption(c, "titleref", ""), "cancelar nao muda nada"
+    AssertTrue c.HasTitle, "cancelar mantem o titulo"
+    Core_TestSetTitleCell Nothing
+    Core_LinkTitle
+    AssertFalse c.HasTitle, "sem celula: remove o titulo ligado"
+    AssertEqual "", Registry_GetOption(c, "titleref", "")
+    AssertTrue Core_RebuildFromRange(c, ws.Range("A2:C4"))
+    Set c = Core_ActiveChart()
+    AssertFalse c.HasTitle, "removido: Alterar dados nao o recria"
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
+' Celula de outra pasta: aviso, nada muda. Planilha com ";" "=" "%" "|" "'" no nome (a opcao codifica). Titulo que o ThinQQ nao ligou
+' (texto do usuario) nao e removido por "remover"; titulo ligado que o usuario apagou nao volta no "Alterar dados".
+Public Sub Test_LinkTitle_OtherBookOddSheetAndUserTitle()
+    Dim wb As Workbook, wb2 As Workbook, ws As Worksheet, ws2 As Worksheet, c As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:C1").Value = Array("Ano", "Sul", "Norte")
+    ws.Range("A2:C2").Value = Array("T1", 10, 5): ws.Range("A3:C3").Value = Array("T2", 20, 6)
+    Set ws2 = wb.Worksheets.Add(After:=ws): ws2.Name = "a;b=c%3B|d'e"
+    ws2.Range("B2").Value = "Título estranho"
+    ws.Activate
+    ws.Range("A1:C3").Select
+    Core_Insert "clustered"
+    Set c = Core_ActiveChart()
+    Set wb2 = NewTempWorkbook()
+    wb2.Worksheets(1).Range("A1").Value = "fora"
+    wb.Activate: c.Parent.Activate                      ' a pasta nova roubou a janela: o grafico volta a ser o ativo
+    AssertTrue Not Core_ActiveChart() Is Nothing, "grafico ativo"
+    Core_ClearLastNotice
+    Core_TestSetTitleCell wb2.Worksheets(1).Range("A1")
+    Core_LinkTitle
+    AssertEqual LINKTITLE_MSG_OTHERBOOK, Core_LastNotice(), "outra pasta: aviso"
+    AssertFalse c.HasTitle, "outra pasta: nada muda"
+    AssertEqual "", Registry_GetOption(c, "titleref", "")
+    CloseTemp wb2
+    Core_TestSetTitleCell ws2.Range("B2")
+    Core_LinkTitle
+    AssertEqual "Título estranho", c.ChartTitle.Text
+    AssertEqual "a;b=c%3B|d'e|$B$2", LinkTitle_Dec(Registry_GetOption(c, "titleref", "")), "opcao codificada volta igual"
+    AssertEqual "Título estranho", CStr(LinkTitle_Cell(c).Value)
+    AssertTrue Core_RebuildFromRange(c, ws.Range("A1:C3"))
+    Set c = Core_ActiveChart()
+    AssertEqual "Título estranho", c.ChartTitle.Text, "religado na planilha de nome estranho"
+    ' titulo ligado que o usuario apagou: Alterar dados nao o recria
+    c.HasTitle = False
+    AssertTrue LinkTitle_Cell(c) Is Nothing
+    AssertTrue Core_RebuildFromRange(c, ws.Range("A1:C3"))
+    Set c = Core_ActiveChart()
+    AssertFalse c.HasTitle, "apagado pelo usuario: fica apagado"
+    AssertEqual "", Registry_GetOption(c, "titleref", ""), "e a opcao copiada sai"
+    ' titulo do usuario (nao ligado pelo ThinQQ): remover nao o toca
+    c.HasTitle = True: c.ChartTitle.Text = "Meu título"
+    Core_TestSetTitleCell Nothing
+    Core_LinkTitle
+    AssertTrue c.HasTitle, "titulo do usuario fica"
+    AssertEqual "Meu título", c.ChartTitle.Text
+    AssertEqual "a%25b%3Bc%3Dd", LinkTitle_Enc("a%b;c=d")
+    AssertEqual "%3B;=", LinkTitle_Dec(LinkTitle_Enc("%3B;="))
+    Watchers_Stop
+    CloseTemp wb
+End Sub
+
 ' API 5: a celula ATIVA deste Excel; modo silencioso e operacao equilibrados; nenhuma caixa; nunca propaga.
 Public Sub Test_Core_PptLinkText_ActiveCellQuietBalanced()
     Dim wb As Workbook, ws As Worksheet, t As TestPptTextFake, s As String

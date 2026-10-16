@@ -16,6 +16,9 @@ Private mTestRoundDest As Range
 Private mTestBreakAnswer As Variant  ' gancho de teste: resposta do InputBox do Corte de eixo no build Test (Core_TestSetAxisBreakAnswer)
 Private mPptPasteOk As Boolean     ' a ultima Core_CopyToPowerPoint colou e, no vinculado, manteve o vinculo (1.7.0)
 Private mQuietDepth As Long        ' Core_QuietBegin/End: chamada vinda do PowerPoint em andamento (sem caixas; Core_IsQuiet)
+Private mTestTitleCell As Range     ' gancho de teste do Titulo ligado (Core_TestSetTitleCell; so no build Test, uso unico)
+Private mTestTitleCancel As Boolean
+Private mTestTitleSet As Boolean
 Public Const PPT_ERR_INSERT_UNSAVED As String = "Salve a pasta de trabalho antes de inserir no PowerPoint: o gráfico vinculado aponta para o arquivo salvo. Nada foi criado."
 ' Comandos do grafico pelo PowerPoint (API 4, 1.9.0; spec 14.5)
 Public Const PPTCMD_MSG_OPEN_SOURCE As String = "Abra a pasta de origem no Excel para mudar este gráfico (o ThinQQ não altera pastas fechadas do usuário)."
@@ -1072,6 +1075,55 @@ Fail:
     Errors_Handle "Core_ChangeSource"
 End Sub
 
+' Gancho de teste do Titulo ligado: a celula que o "InputBox" devolveria (Nothing = remover, como confirmar a remocao) ou cancel = Cancelar.
+' Uso unico (consumido na entrada de Core_LinkTitle). Inerte fora do build Test.
+Public Sub Core_TestSetTitleCell(cell As Range, Optional cancel As Boolean = False)
+    On Error Resume Next
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    Set mTestTitleCell = cell
+    mTestTitleCancel = cancel
+    mTestTitleSet = True
+End Sub
+
+' Titulo ligado a uma celula (1.9.0): pergunta a celula (InputBox de referencia) e liga o titulo do grafico ativo a ela. Cancelar com o titulo
+' ja ligado pergunta se e para remover a ligacao (Sim = remove o titulo ligado). Celula de outra pasta: aviso, nada muda. Em build Test sem o
+' gancho, sai antes do InputBox (modal travaria o Excel invisivel). Nunca propaga erro.
+Public Sub Core_LinkTitle()
+    Dim c As Chart, cell As Range, useHook As Boolean, hookCell As Range, hookCancel As Boolean
+    On Error GoTo Fail
+    useHook = mTestTitleSet: Set hookCell = mTestTitleCell: hookCancel = mTestTitleCancel
+    mTestTitleSet = False: Set mTestTitleCell = Nothing: mTestTitleCancel = False
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Sub
+    If BUILD_CONFIG = "Test" Then
+        If Not useHook Then Exit Sub
+        If hookCancel Then Exit Sub
+        Set cell = hookCell
+    Else
+        On Error Resume Next
+        Set cell = Application.InputBox("Clique na célula com o texto do título do gráfico:", APP_NAME, LinkTitle_Default(c), Type:=8)
+        Err.Clear
+        On Error GoTo Fail
+        If cell Is Nothing Then                                        ' Cancelar
+            If Len(Registry_GetOption(c, "titleref", "")) = 0 Then Exit Sub
+            If Not Core_Confirm("Remover a ligação do título com a célula? (o título sai do gráfico)") Then Exit Sub
+        End If
+    End If
+    LinkTitle_Apply c, cell
+    Core_SafeRefresh c
+    Exit Sub
+Fail:
+    If Err.Number = vbObjectError + 7110 Then Core_Notify Err.Description, vbExclamation Else Errors_Handle "Core_LinkTitle"
+End Sub
+
+' Sugestao do InputBox: a celula ligada hoje ("" se nenhuma). Nunca propaga erro.
+Private Function LinkTitle_Default(c As Chart) As String
+    Dim r As Range
+    On Error Resume Next
+    Set r = LinkTitle_Cell(c)
+    If Not r Is Nothing Then LinkTitle_Default = "='" & Replace(r.Worksheet.Name, "'", "''") & "'!" & r.Address
+End Function
+
 ' Mostrar/ocultar as molduras dos intervalos vinculados da pasta ativa (1.7.0). Nunca propaga erro.
 Public Sub Core_ToggleLinkFrames()
     Dim r As Long
@@ -1128,7 +1180,7 @@ End Sub
 ' Anotações (setas) não são preservadas. Retorna True se recriou.
 Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     On Error GoTo Fail
-    Dim hadFrame As Boolean
+    Dim hadFrame As Boolean, titleCell As Range
     Dim co As ChartObject, oldCo As ChartObject, data As clsChartData, msg As String
     Dim kind As String, opts As String, ws As Worksheet, wb As Workbook, nc As Chart, prevSU As Boolean
     Dim l As Double, t As Double, w As Double, h As Double, keepKeys As Variant, keepVals(5) As String, ki As Long
@@ -1151,6 +1203,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     l = oldCo.Left: t = oldCo.Top: w = oldCo.Width: h = oldCo.Height
     opts = CStr(Registry_Block(c).Cells(1, 4).Value)
     hadFrame = Not LinkFrame_Find(c) Is Nothing  ' grafico que foi ao PowerPoint com moldura (1.7.0): conferido ANTES, o grafico antigo deixa de existir
+    Set titleCell = LinkTitle_Cell(c)           ' titulo ligado (1.9.0): a celula de AGORA (a formula acompanha linhas inseridas); o novo nasce sem titulo
     Break_TakeNotice                            ' descarta um aviso de corte que tenha sobrado
     Application.ScreenUpdating = False
     ' O novo gráfico nasce na planilha do gráfico antigo (ws), não na da nova fonte.
@@ -1188,6 +1241,7 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     End If
     co.Select
     If Err.Number <> 0 Then Errors_Log "Core_RebuildFromRange/final" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    LinkTitle_Reapply nc, titleCell             ' antes do refresh: o titulo ocupa espaco no grafico
     Core_SafeRefresh nc
     NotifyPieIgnoredColumns kind, data
     NotifyMekkoNegatives kind, data

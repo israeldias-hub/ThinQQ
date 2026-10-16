@@ -24,6 +24,7 @@ Public Const PPTTEXT_MSG_NOCELL As String = "Selecione no Excel a célula com o 
 Public Const PPTTEXT_MSG_CUT As String = "Texto vinculado. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255."
 Public Const PPTTEXT_MSG_EDITDATA As String = "Editar dados vale para gráficos do ThinQQ. Para mudar o texto vinculado, altere a célula no Excel e atualize."
 Public Const PPTTEXT_MSG_NOTCHART As String = "Este comando vale só para gráficos do ThinQQ (não para texto vinculado)."
+Public Const LINKTITLE_MSG_OTHERBOOK As String = "Escolha uma célula da mesma pasta de trabalho do gráfico."
 Private Const PPTLINK_REF_SEP As String = "|"
 
 ' Onde esta o campo no texto atual: texto = prefixo + ultimo + sufixo, ou ainda comeca pelo prefixo e termina pelo sufixo (o usuario editou so
@@ -279,4 +280,72 @@ Fail:
     If Ppt_IsBusyError(bn) Then Err.Raise bn, "PptText_Sync", bd
     Errors_Log "PptText_Sync" & vbTab & bn & vbTab & bd
     PptText_Sync = PPTSYNC_R_FAIL
+End Function
+
+' ---- Titulo do grafico ligado a uma celula (1.9.0; spec 5.3 (b)(2)) ----
+' Nativo do Excel (ChartTitle.Formula): o titulo acompanha a celula (e linhas inseridas) e segue para o PowerPoint pelo vinculo do grafico.
+' A opcao "titleref" do grafico (formato de PptLink_RefOf: planilha & "|" & endereco, com ";" "=" "%" codificados por causa do formato das
+' opcoes) marca o titulo como LIGADO pelo ThinQQ: "Alterar dados" recria o grafico (o titulo some) e o religa (LinkTitle_Reapply).
+
+' Liga o titulo de c a cell (mesma pasta do grafico; erro 7110 se outra). cell Nothing = remove o titulo ligado (um titulo que o ThinQQ nao
+' ligou fica como esta). A opcao so e gravada depois de o titulo estar ligado.
+Public Sub LinkTitle_Apply(c As Chart, cell As Range)
+    Dim r As Range
+    If cell Is Nothing Then
+        If Len(Registry_GetOption(c, "titleref", "")) = 0 Then Exit Sub
+        c.HasTitle = False
+        Registry_SetOption c, "titleref", ""
+        Exit Sub
+    End If
+    If Not cell.Worksheet.Parent Is Registry_Workbook(c) Then Err.Raise vbObjectError + 7110, "LinkTitle", LINKTITLE_MSG_OTHERBOOK
+    Set r = cell.Cells(1, 1)
+    c.HasTitle = True
+    c.ChartTitle.Formula = "='" & Replace(r.Worksheet.Name, "'", "''") & "'!" & r.Address
+    Registry_SetOption c, "titleref", LinkTitle_Enc(PptLink_RefOf(r))
+End Sub
+
+' Celula a que o titulo de c esta ligado agora (Nothing se o ThinQQ nao o ligou, ou se o usuario apagou o titulo ou trocou por texto). Le a
+' formula do titulo (que o Excel ajusta quando linhas/colunas sao inseridas); sem ela, o endereco gravado. Nunca propaga erro.
+Public Function LinkTitle_Cell(c As Chart) As Range
+    Dim ref As String, f As String, p As Long, sh As String, r As Range, wb As Workbook
+    On Error Resume Next
+    ref = LinkTitle_Dec(Registry_GetOption(c, "titleref", ""))
+    If Len(ref) = 0 Then Exit Function
+    If Not CBool(c.HasTitle) Then Exit Function
+    f = CStr(c.ChartTitle.Formula)
+    If Left$(f, 1) <> "=" Then Exit Function
+    Set wb = Registry_Workbook(c)
+    f = Mid$(f, 2)
+    p = InStrRev(f, "!")
+    If p > 1 Then
+        sh = Left$(f, p - 1)
+        If Len(sh) >= 2 And Left$(sh, 1) = "'" And Right$(sh, 1) = "'" Then sh = Replace(Mid$(sh, 2, Len(sh) - 2), "''", "'")
+        If InStr(sh, "[") = 0 Then Set r = wb.Worksheets(sh).Range(Mid$(f, p + 1))
+        Err.Clear
+    End If
+    If r Is Nothing Then Set r = PptLink_ResolveRange(wb, "", ref)
+    Err.Clear
+    Set LinkTitle_Cell = r
+End Function
+
+' Depois de recriar o grafico ("Alterar dados": as opcoes vem do antigo, o titulo nao): liga o titulo do grafico novo c a cell (a celula do
+' antigo, LinkTitle_Cell) ou, sem ela, limpa a opcao copiada. Nunca propaga erro.
+Public Sub LinkTitle_Reapply(c As Chart, cell As Range)
+    On Error Resume Next
+    If cell Is Nothing Then
+        If Len(Registry_GetOption(c, "titleref", "")) > 0 Then Registry_SetOption c, "titleref", ""
+    Else
+        LinkTitle_Apply c, cell
+    End If
+    If Err.Number <> 0 Then Errors_Log "LinkTitle_Reapply" & vbTab & Err.Number & vbTab & Err.Description
+    Err.Clear
+End Sub
+
+' O valor de uma opcao nao aceita ";" nem "=" (Registry_SetOption): nomes de planilha podem te-los. Pura.
+Public Function LinkTitle_Enc(s As String) As String
+    LinkTitle_Enc = Replace(Replace(Replace(s, "%", "%25"), ";", "%3B"), "=", "%3D")
+End Function
+
+Public Function LinkTitle_Dec(s As String) As String
+    LinkTitle_Dec = Replace(Replace(Replace(s, "%3B", ";"), "%3D", "="), "%25", "%")
 End Function
