@@ -554,6 +554,26 @@ $pptMessages = @(
     @('core', 'powerpoint', 'Gráfico não encontrado na pasta de origem (apagado ou recriado).'),
     @('core', 'powerpoint', 'O ThinQQ só abre pastas do Excel (.xlsx, .xlsm, .xlsb ou .xls); o gráfico aponta para: '),
     @('core', 'powerpoint', 'O gráfico criado pelo PowerPoint aponta para um arquivo que não é uma pasta de dados do ThinQQ ('),
+    # Mudar o gráfico pelo PowerPoint e Empacotar para enviar (1.9.0): suplemento (modPptTqq.bas) e core (modCoreApi.bas)
+    @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint.'),
+    @('ppt', 'powerpoint', 'Escolha duas categorias diferentes do gráfico, a primeira antes da segunda.'),
+    @('core', 'powerpoint', 'Escolha duas categorias diferentes do gráfico, a primeira antes da segunda.'),
+    @('core', 'powerpoint', 'Abra a pasta de origem no Excel para mudar este gráfico (o ThinQQ não altera pastas fechadas do usuário).'),
+    @('core', 'powerpoint', 'Comando desconhecido: '),
+    @('ppt', 'powerpoint', 'Não foi possível aplicar: '),
+    @('core', 'powerpoint', 'Não foi possível aplicar: '),
+    @('ppt', 'powerpoint', 'Salve a apresentação numa pasta do computador antes de empacotar.'),
+    @('ppt', 'powerpoint', 'Pronto: a apresentação e '),
+    @('ppt', 'powerpoint', ' pasta(s) de dados do ThinQQ foram copiadas para '),
+    @('ppt', 'powerpoint', "'. Envie a pasta "),
+    @('ppt', 'powerpoint', 'inteira (por exemplo, compactada): quem abrir a apresentação dessa pasta com o ThinQQ terá os gráficos criados pelo PowerPoint ligados aos dados ao lado.'),
+    @('ppt', 'powerpoint', 'A apresentação está somente leitura: foi copiada a versão salva no disco (sem as alterações abertas).'),
+    @('ppt', 'powerpoint', 'Gráficos colados do Excel continuam ligados às pastas de origem, que não entram no pacote.'),
+    @('ppt', 'powerpoint', 'Não foi possível copiar (feche-a no Excel e empacote de novo): '),
+    @('ppt', 'powerpoint', 'Não encontrada(s) (os gráficos ficam com os últimos dados): '),
+    @('ppt', 'powerpoint', 'Não copiada(s), num endereço de rede: '),
+    @('ppt', 'powerpoint', 'Não copiada(s), mesmo nome de outra já copiada: '),
+    @('ppt', 'powerpoint', 'Não foi possível empacotar: '),
     # atualizador do loader (modUpdater.bas: Updater_PpamStatusText; modRibbon.bas: a pergunta de ThinQQ > Configurações)
     @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado.'),
     @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado: feche e abra o PowerPoint para usar a versão nova.'),
@@ -850,13 +870,13 @@ $autoRec = ($recRaw -replace '\s+', ' ')
 $clUnrel = [regex]::Match(($cl -replace "`r`n", "`n"), '(?ms)^## \[Não lançado\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
 # As linhas da 1.6.0 ficam em [Não lançado] até o publicar-release, que as move para "## [1.6.0] - data" (1.6.0 publicada antes) ou, se a 1.6.0
 # e a 1.7.0 saírem juntas, para "## [1.7.0] - data" (mesma classe do incidente do delta, dc446b0): os pinos leem a primeira seção que tem as
-# linhas (TQQ_AUTOIDX), nesta ordem: [Não lançado], [1.8.0], [1.7.0], [1.6.0] (a [1.8.0] e a [1.7.0] quando as versões empilhadas saem juntas).
+# linhas (TQQ_AUTOIDX), nesta ordem: [Não lançado], [1.9.0], [1.8.0], [1.7.0], [1.6.0] (a mais nova quando as versões empilhadas saem juntas).
 function Get-ChangelogSection([string]$text, [string]$head) {
     $t = $text -replace "`r`n", "`n"
     return [regex]::Match($t, "(?ms)^## $head[^\n]*\n(?<b>.*?)(?=^## \[|\z)").Groups['b'].Value
 }
 function Get-AutoChangelogBlock([string]$text) {
-    foreach ($h in '\[Não lançado\]', '\[1\.8\.0\]', '\[1\.7\.0\]') {
+    foreach ($h in '\[Não lançado\]', '\[1\.9\.0\]', '\[1\.8\.0\]', '\[1\.7\.0\]') {
         $b = Get-ChangelogSection $text $h
         if ($b.Contains('TQQ_AUTOIDX')) { return $b }
     }
@@ -953,7 +973,7 @@ $insTut = Get-SubsectionText 'ppt-inserir'
 $insRec = ([regex]::Match($readme, '(?s)\*\*Inserir também no slide \(1\.7\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
 function Get-InsertChangelogBlock([string]$text) {
     $acc = ''
-    foreach ($h in '\[Não lançado\]', '\[1\.8\.0\]', '\[1\.7\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
+    foreach ($h in '\[Não lançado\]', '\[1\.9\.0\]', '\[1\.8\.0\]', '\[1\.7\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
     return $acc
 }
 # True se existe "## [1.6.0]" e ela contém linhas da 1.7.0 (a 1.7.0 anunciada como entregue na 1.6.0)
@@ -1040,7 +1060,7 @@ $criarTut = Get-SubsectionText 'ppt-criar'
 $criarRec = ([regex]::Match($readme, '(?s)\*\*Criar gráficos pelo PowerPoint \(1\.8\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
 function Get-CriarChangelogBlock([string]$text) {
     $acc = ''
-    foreach ($h in '\[Não lançado\]', '\[1\.8\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
+    foreach ($h in '\[Não lançado\]', '\[1\.9\.0\]', '\[1\.8\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
     return $acc
 }
 # True se a seção dada (por exemplo '\[1\.7\.0\]') existe e contém linhas da 1.8.0 (a 1.8.0 anunciada como entregue numa versão anterior)
@@ -1120,6 +1140,132 @@ $mvCriarPins = @{
 foreach ($n in ($mvCriarPins.Keys | Sort-Object)) {
     $line = @($mvCriarLines | Where-Object { $_ -match "^$n\. " })
     foreach ($ph in $mvCriarPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
+}
+# ---- Mudar o gráfico e Empacotar pelo PowerPoint (1.9.0, Tarefa G10): subseções #ppt-mudar e #ppt-empacotar (h4 dentro de #ppt-criar), Recursos, Arquitetura,
+# Limitações, "Publicar uma versão" e itens manuais 86 a 92 do README e a [Não lançado] do CHANGELOG. As linhas da 1.9.0 ficam em [Não lançado] até o
+# publicar-release 1.9.0, que as move para "## [1.9.0]" (a fase G-II e a Parte E saem juntas como 1.9.0): os pinos leem só essas duas seções. Dentro de
+# "## [1.8.0]", "## [1.7.0]" ou "## [1.6.0]" elas anunciariam a 1.9.0 como entregue antes (merge depois do publicar-release de uma versão anterior): um pino
+# recusa. Se todas as versões saírem juntas, a [Não lançado] inteira vira "## [1.9.0]" e os pinos de todas as versões leem as linhas ali.
+$lblCmdGroup = 'Gráfico do ThinQQ'; $lblPack = 'Empacotar para enviar'
+$cmdLabels = @('Rótulos', 'Totais', 'Conectores', 'Formato', 'Legenda', 'Seta CAGR', 'Seta diferença', 'Remover setas')
+$gCmdNode = $pptRibbon.SelectSingleNode("//*[@id='grpPptChart']"); $packNode = $pptRibbon.SelectSingleNode("//*[@id='btnPptPackage']")
+Check ($null -ne $gCmdNode -and $gCmdNode.LocalName -eq 'group' -and $gCmdNode.GetAttribute('label') -ceq $lblCmdGroup) "faixa do PowerPoint: o grupo grpPptChart tem o rótulo '$lblCmdGroup'"
+$gCmdLabels = @(); if ($null -ne $gCmdNode) { $gCmdLabels = @($gCmdNode.SelectNodes("*[local-name()='toggleButton' or local-name()='dropDown' or local-name()='button']") | ForEach-Object { $_.GetAttribute('label') }) }
+Check (($gCmdLabels -join '|') -ceq ($cmdLabels -join '|')) "faixa do PowerPoint: os 8 controles do grupo '$lblCmdGroup' são $($cmdLabels -join ', ') (nesta ordem: $($gCmdLabels -join ', '))"
+Check ($null -ne $packNode -and $packNode.LocalName -eq 'button' -and $packNode.GetAttribute('label') -ceq $lblPack -and $packNode.ParentNode.GetAttribute('id') -ceq 'grpPptSync') "faixa do PowerPoint: o botão btnPptPackage ('$lblPack') está no grupo grpPptSync"
+$coreOptsTag = [regex]::Match($syncSrc, 'Public Const PPTSYNC_TAG_OPTS As String = "([^"]+)"').Groups[1].Value
+$coreKindTag = [regex]::Match($syncSrc, 'Public Const PPTSYNC_TAG_KIND As String = "([^"]+)"').Groups[1].Value
+Check ($coreOptsTag -ceq 'TQQ_OPTS' -and $coreKindTag -ceq 'TQQ_KIND' -and $pptTqqSrc.Contains('PPT_TAG_OPTS As String = "TQQ_OPTS"')) 'mudar o gráfico pelo PowerPoint: as etiquetas TQQ_KIND e TQQ_OPTS são as mesmas no core e no suplemento'
+Check ($pptTqqSrc.Contains('PPT_API_CMD As Long = 4') -and $syncSrc -match 'CORE_PPT_API As Long = ([4-9]|\d{2,})\b') 'mudar o gráfico pelo PowerPoint (código): o contrato do suplemento com o core é a API 4 (comandos e categorias)'
+Check ($coreSrc.Contains('Public Function Core_PptCommand(') -and $coreSrc.Contains('Public Function Core_PptCategories(')) 'mudar o gráfico pelo PowerPoint (código): Core_PptCommand e Core_PptCategories existem no core'
+$packSuffix = [regex]::Match($pptTqqSrc, 'Public Const PPT_PACK_SUFFIX As String = "([^"]+)"').Groups[1].Value
+Check ($packSuffix -ceq ' (ThinQQ)') "empacotar para enviar: o sufixo da pasta do pacote é ' (ThinQQ)' no suplemento ('$packSuffix')"
+Check ($pptTqqSrc.Contains('Public Function PptTqq_Package(') -and $pptTqqSrc.Contains('Public Function PptTqq_DataBooksOf(') -and $pptTqqSrc.Contains('Public Sub PptTqq_CommandShapes(')) 'empacotar e comandos (código): PptTqq_Package, PptTqq_DataBooksOf e PptTqq_CommandShapes existem no suplemento'
+function Get-H4Text([string]$id) {
+    $h = $xml.SelectSingleNode("//*[@id='$id']")
+    if ($null -eq $h) { return '' }
+    $sb = New-Object Text.StringBuilder
+    [void]$sb.Append($h.InnerText).Append(' ')
+    $n = $h.NextSibling
+    while ($null -ne $n -and -not ($n.NodeType -eq 'Element' -and ($n.LocalName -eq 'h3' -or $n.LocalName -eq 'h4'))) { [void]$sb.Append($n.InnerText).Append(' '); $n = $n.NextSibling }
+    return (($sb.ToString() -replace '\s+', ' ').Trim())
+}
+if ($parsed) {
+    foreach ($a in 'ppt-mudar', 'ppt-empacotar') {
+        Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']//*[local-name()='h3'][@id='ppt-criar']/following-sibling::*[local-name()='h4'][@id='$a']")) "tutorial: a subseção id=""$a"" é um h4 depois de #ppt-criar, dentro de #powerpoint"
+        Check ($xml.SelectNodes("//a[@href='#$a']").Count -ge 2) "tutorial: a subseção #$a tem links da introdução de #ppt-criar, da tabela do suplemento e dos limites"
+    }
+    foreach ($l in $cmdLabels + @($lblCmdGroup, $lblPack)) { Check ($pptUi -contains $l) "tutorial: '$l' citado como span.ui dentro de #powerpoint" }
+}
+$mudarTut = Get-H4Text 'ppt-mudar'
+$packTut = Get-H4Text 'ppt-empacotar'
+$cmdRec = ([regex]::Match($readme, '(?s)\*\*Mudar o gráfico e empacotar pelo PowerPoint \(1\.9\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
+function Get-CmdChangelogBlock([string]$text) {
+    $acc = ''
+    foreach ($h in '\[Não lançado\]', '\[1\.9\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
+    return $acc
+}
+# True se a seção dada (por exemplo '\[1\.8\.0\]') existe e contém linhas da 1.9.0 (a 1.9.0 anunciada como entregue numa versão anterior)
+function Test-CmdInside([string]$text, [string]$head) {
+    $t = $text -replace "`r`n", "`n"
+    if ($t -notmatch "(?m)^## $head") { return $false }
+    return (Get-ChangelogSection $text $head).Contains('Mudar o gráfico pelo PowerPoint (1.9.0)')
+}
+$clCmdPhrases = @('Mudar o gráfico pelo PowerPoint (1.9.0)', $lblCmdGroup, 'Rótulos', 'Seta CAGR', 'Seta diferença', 'Remover setas', 'Core_PptCommand', 'Core_PptCategories', 'API 4', 'TQQ_OPTS',
+    'Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint.', 'Escolha duas categorias diferentes do gráfico, a primeira antes da segunda.', 'Abra a pasta de origem no Excel para mudar este gráfico',
+    'Comando desconhecido: ', 'Não foi possível aplicar: ', 'Empacotar para enviar (1.9.0)', 'Pronto: a apresentação e ', 'Não foi possível empacotar: ',
+    'Salve a apresentação numa pasta do computador antes de empacotar.', 'PG10', 'Não verificado em PowerPoint e Excel reais', 'Documentação (1.9.0)')
+function Get-CmdChangelogMissing([string]$block) { return @($clCmdPhrases | Where-Object { -not $block.Contains($_) }) }
+$clCmd = Get-CmdChangelogBlock $cl
+Check ($mudarTut.Length -gt 1500 -and $packTut.Length -gt 800 -and $cmdRec.Length -gt 3000 -and $clCmd.Length -gt 1500) "mudar o gráfico e empacotar: subseções do tutorial ($($mudarTut.Length), $($packTut.Length)), Recursos do README ($($cmdRec.Length)) e CHANGELOG ($($clCmd.Length)) lidos"
+$clCmdLine = "- Mudar o gráfico pelo PowerPoint (1.9.0): " + (($clCmdPhrases | Where-Object { $_ -ne 'Mudar o gráfico pelo PowerPoint (1.9.0)' }) -join ' ') + "`n"
+Check (@(Get-CmdChangelogMissing (Get-CmdChangelogBlock "## [Não lançado]`n`n$clCmdLine`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -eq 0) 'CHANGELOG (sintético): as linhas da 1.9.0 em [Não lançado] satisfazem os pinos'
+Check (@(Get-CmdChangelogMissing (Get-CmdChangelogBlock "## [Não lançado]`n`n## [1.9.0] - 2026-11-20`n`n$clCmdLine`n## [1.8.0] - 2026-11-10`n`n- outra coisa`n")).Count -eq 0) 'CHANGELOG (sintético): depois do publicar-release 1.9.0 as linhas na [1.9.0] satisfazem os pinos'
+foreach ($old in '1.8.0', '1.7.0', '1.6.0') {
+    $oldHead = [regex]::Escape("[$old]")
+    $clIn = "## [Não lançado]`n`n## $("[$old]") - 2026-10-30`n`n### Adicionado`n$clCmdLine`n## [1.5.0] - 2026-10-15`n`n- x`n"
+    Check ((Test-CmdInside $clIn $oldHead) -and @(Get-CmdChangelogMissing (Get-CmdChangelogBlock $clIn)).Count -gt 0) "CHANGELOG (sintético): as linhas da 1.9.0 dentro da [$old] (merge depois do publicar-release dela) = falha"
+    Check (-not (Test-CmdInside $cl $oldHead)) "CHANGELOG: a [$old] não contém linhas ""Mudar o gráfico pelo PowerPoint (1.9.0)"" (mova-as para a [Não lançado]; README, Publicar uma versão)"
+}
+Check (@(Get-CmdChangelogMissing (Get-CmdChangelogBlock "## [Não lançado]`n`n## [1.8.0] - 2026-11-10`n`n- outra coisa`n`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas da 1.9.0 em lugar nenhum = falha'
+# todas as versões juntas como 1.9.0: o publicar-release 1.9.0 move a [Não lançado] inteira (linhas da 1.6.0 a 1.9.0) para a [1.9.0]: ok para os quatro blocos
+$clRoll9 = "# Changelog`n`n## [Não lançado]`n`n## [1.9.0] - 2026-11-20`n" + ($clUnrel -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
+Check (@(Get-AutoChangelogMissing (Get-AutoChangelogBlock $clRoll9)).Count -eq 0 -and @(Get-InsertChangelogMissing (Get-InsertChangelogBlock $clRoll9)).Count -eq 0 -and @(Get-CriarChangelogMissing (Get-CriarChangelogBlock $clRoll9)).Count -eq 0 -and @(Get-CmdChangelogMissing (Get-CmdChangelogBlock $clRoll9)).Count -eq 0 -and -not (Test-InsertInside160 $clRoll9) -and -not (Test-CriarInside $clRoll9 '\[1\.7\.0\]') -and -not (Test-CmdInside $clRoll9 '\[1\.8\.0\]')) 'CHANGELOG (sintético): 1.6.0 a 1.9.0 publicadas juntas na [1.9.0] satisfazem os pinos das quatro'
+# a 1.8.0 e a 1.9.0 juntas (as anteriores já publicadas): a [Não lançado] sem as da 1.6.0 e da 1.7.0 vira a [1.9.0]
+$clRoll89 = "# Changelog`n`n## [Não lançado]`n`n## [1.9.0] - 2026-11-20`n" + (($clCriar + "`n" + $clCmd) -replace "`r`n", "`n") + "`n## [1.7.0] - 2026-10-30`n`n- outra coisa`n"
+Check (@(Get-CriarChangelogMissing (Get-CriarChangelogBlock $clRoll89)).Count -eq 0 -and @(Get-CmdChangelogMissing (Get-CmdChangelogBlock $clRoll89)).Count -eq 0) 'CHANGELOG (sintético): 1.8.0 e 1.9.0 publicadas juntas na [1.9.0] satisfazem os pinos das duas'
+$cmdPlaces = [ordered]@{
+    'tutorial #ppt-mudar' = @{ text = $mudarTut; phrases = @(
+        'Mudar o gráfico pelo PowerPoint', $lblCmdGroup, 'Rótulos', 'Totais', 'Conectores', 'Formato', 'Legenda', 'Seta CAGR', 'Seta diferença', 'Remover setas', 'Direita', 'Nenhuma',
+        'por número, não por cliques', 'Da categoria número:', 'Até a categoria número:', 'Cancelar não faz nada', 'delta por cliques', 'Editar dados', 'Pastas de dados', 'Pastas suas',
+        'precisa estar aberta no Excel', 'nunca salva uma pasta sua', 'Gráficos de antes da 1.9.0', 'Atualizar uma vez', 'Remover setas continua ativo', 'Excel invisível',
+        'Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint.', 'Escolha duas categorias diferentes do gráfico, a primeira antes da segunda.') }
+    'tutorial #ppt-empacotar' = @{ text = $packTut; phrases = @(
+        $lblPack, ' (ThinQQ)', 'Não gera ZIP', 'não usa o Excel', 'Salve a apresentação numa pasta do computador antes de empacotar.', 'somente leitura', 'versão salva no disco', 'Salvar como',
+        'Gráficos colados do Excel não entram', 'fora da pasta da apresentação', 'aberta no Excel pode falhar ao copiar', 'item 90', 'feche-a no Excel e empacote de novo', 'continuam lá') }
+    'tutorial #ppt-criar (mensagens e limites)' = @{ text = $criarTut; phrases = @(
+        'Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint.', 'Escolha duas categorias diferentes do gráfico, a primeira antes da segunda.', 'Abra a pasta de origem no Excel para mudar este gráfico',
+        'Comando desconhecido: ', 'Não foi possível aplicar: ', 'Salve a apresentação numa pasta do computador antes de empacotar.', 'Pronto: a apresentação e N pasta(s) de dados do ThinQQ foram copiadas para',
+        'Não foi possível copiar (feche-a no Excel e empacote de novo): ', 'Não encontrada(s) (os gráficos ficam com os últimos dados): ', 'Não copiada(s), num endereço de rede: ',
+        'Não copiada(s), mesmo nome de outra já copiada: ', 'A apresentação está somente leitura: foi copiada a versão salva no disco (sem as alterações abertas).',
+        'Gráficos colados do Excel continuam ligados às pastas de origem, que não entram no pacote.', 'Não foi possível empacotar: ', 'PG10', 'itens 86 a 92') }
+    'README Recursos' = @{ text = $cmdRec; phrases = @(
+        $lblCmdGroup, 'Rótulos', 'Totais', 'Conectores', 'Formato', 'Legenda', 'Seta CAGR', 'Seta diferença', 'Remover setas', 'Da categoria número:', 'Até a categoria número:', 'delta por cliques',
+        'TQQ_KIND', 'TQQ_OPTS', 'nunca abre uma pasta do usuário fechada', 'nunca salva uma pasta do usuário', 'precisa estar aberta no Excel', 'Atualizar uma vez',
+        'Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint.', 'Escolha duas categorias diferentes do gráfico, a primeira antes da segunda.', 'Abra a pasta de origem no Excel para mudar este gráfico',
+        'Comando desconhecido: ', 'Não foi possível aplicar: ', $lblPack, '<nome> (ThinQQ)', 'sem ZIP', 'Salve a apresentação numa pasta do computador antes de empacotar.', 'Pronto: a apresentação e N pasta(s) de dados do ThinQQ foram copiadas para',
+        'Não foi possível copiar (feche-a no Excel e empacote de novo): ', 'Não encontrada(s) (os gráficos ficam com os últimos dados): ', 'Não copiada(s), num endereço de rede: ',
+        'Não copiada(s), mesmo nome de outra já copiada: ', 'A apresentação está somente leitura: foi copiada a versão salva no disco (sem as alterações abertas).',
+        'Gráficos colados do Excel continuam ligados às pastas de origem, que não entram no pacote.', 'Não foi possível empacotar: ', 'PG10', 'itens 86 a 92', 'Não verificado em PowerPoint e Excel reais') }
+    'README Limitações' = @{ text = $readmeLimTxt; phrases = @(
+        'Mudar o gráfico e empacotar pelo PowerPoint (1.9.0)', 'precisa estar aberta no Excel', 'nunca abre uma pasta do usuário fechada', 'nem salva uma pasta do usuário', 'Abra a pasta de origem no Excel para mudar este gráfico',
+        'delta por cliques', 'TQQ_OPTS', 'Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint.', 'não gera ZIP', 'PG10', 'itens 86 a 92', 'Não verificado em PowerPoint e Excel reais') }
+    'CHANGELOG ([Não lançado] ou [1.9.0])' = @{ text = $clCmd; phrases = $clCmdPhrases }
+}
+foreach ($place in $cmdPlaces.Keys) {
+    $pt = [string]$cmdPlaces[$place].text
+    foreach ($ph in $cmdPlaces[$place].phrases) { Check ($pt.Contains($ph)) "mudar o gráfico e empacotar, $place cita '$ph'" }
+}
+Check ($readme.Contains('`Core_PptCommand(pres, entries, cmd, arg)`') -and $readme.Contains('`Core_PptCategories`') -and $readme.Contains('`PptTqq_CommandShapes`') -and $readme.Contains('`PptTqq_Package`') -and $readme.Contains('`PptSync_TagOpts`') -and $readme.Contains('`PptTqq_DataBooksOf`')) 'README (Arquitetura): o fluxo dos comandos e do Empacotar (Core_PptCommand, Core_PptCategories, PptTqq_CommandShapes, PptSync_TagOpts, PptTqq_Package, PptTqq_DataBooksOf)'
+Check ($readme.Contains('seções 14.5 e 14.2 da mesma especificação') -and (Test-Path (Join-Path $RepoRoot 'docs\superpowers\specs\2026-10-15-thinqq-thinkcell-parity-design.md'))) 'README (Estrutura): as seções 14.5 e 14.2 da especificação (comandos e Empacotar) são citadas'
+foreach ($ph in 'Publicando a 1.9.0', 'feat/ppt-comandos', 'junto com a Parte E', 'saem **juntas** como 1.9.0', 'antes de mesclar o ramo da 1.9.0', 'Mudar o gráfico pelo PowerPoint (1.9.0):', 'Empacotar para enviar (1.9.0):', 'Documentação (1.9.0):', 'a `[1.8.0]`, a `[1.7.0]` e a `[1.6.0]`') {
+    Check ($pubRelease.Contains($ph)) "README (Publicar uma versão): a ordem da 1.9.0 (G-II e Parte E juntas) cita '$ph'"
+}
+$mvCmdLines = @(($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 86 -and [int]$Matches[1] -le 92 })
+Check ($mvCmdLines.Count -eq 7 -and @($mvNums | Where-Object { $_ -ge 86 -and $_ -le 92 }).Count -eq 7 -and $mvNums.Count -ge 92) "README: os itens manuais 86 a 92 existem, numerados sem buracos ($($mvCmdLines.Count); total $($mvNums.Count))"
+Check (@($mvCmdLines | Where-Object { $_ -notmatch 'não verificado em PowerPoint real' }).Count -eq 0) 'README (itens 86 a 92): todo item marca "não verificado em PowerPoint real"'
+$mvCmdPins = @{
+    86 = @($lblCmdGroup, 'Rótulos', 'Totais', 'Conectores', 'Formato', 'Legenda', 'Seta CAGR', 'Seta diferença', 'Remover setas', 'Mekko (%)', 'cinco tipos')
+    87 = @('Abra a pasta de origem no Excel para mudar este gráfico', 'não a salva', 'alterações não salvas')
+    88 = @('Da categoria número:', 'Até a categoria número:', 'Escolha duas categorias diferentes do gráfico, a primeira antes da segunda.', 'Excel invisível', 'Gerenciador de Tarefas')
+    89 = @('core 1.8.0', '.ppam` 1.9.0', 'Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint.')
+    90 = @('PG10', 'Pronto: a apresentação e 1 pasta(s)', 'feche-a no Excel e empacote de novo', 'Não encontrada(s)', 'somente leitura')
+    91 = @('outro computador', 'vínculo indisponível', 'Editar dados', 'reapontados')
+    92 = @('TQQ_OPTS', 'Remover setas', 'Atualizar uma vez')
+}
+foreach ($n in ($mvCmdPins.Keys | Sort-Object)) {
+    $line = @($mvCmdLines | Where-Object { $_ -match "^$n\. " })
+    foreach ($ph in $mvCmdPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
 }
 if ($script:fail -gt 0) { Write-Host "FALHAS Test-Docs: $script:fail"; exit 1 }
 Write-Host 'Test-Docs: OK'
