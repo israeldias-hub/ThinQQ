@@ -17,7 +17,7 @@ $tmp = Join-Path $env:TEMP ('thinqq_test_ppt_' + [guid]::NewGuid().ToString('N')
 New-Item -ItemType Directory -Force $tmp | Out-Null
 $tpName = ''; $pp = $null; $xl = $null; $xl2 = $null; $wd = $null; $wdx = $null; $wdx2 = $null; $xlPid = 0; $xl2Pid = 0
 $tp = $null; $pres = $null; $slide = $null; $core = $null; $wb = $null; $ws = $null; $vals = $null; $fk = $null; $shp = $null
-$pres3 = $null; $pres4 = $null; $shp3 = $null; $shp4 = $null; $dwb = $null
+$pres3 = $null; $pres4 = $null; $pres5 = $null; $shp3 = $null; $shp4 = $null; $shp5 = $null; $s5 = $null; $dwb = $null
 $marker = Join-Path ([IO.Path]::GetTempPath()) "thinqq_watchdog_pptaddin_$PID.flag"
 Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
 try {
@@ -138,8 +138,9 @@ try {
     [void]$pp.Run("$tpName!PptTqq_ResetTestHooks")
     [void]$pp.Run("$tpName!PptTqq_SetExcelForTest", $xl, '', $false)
     [void]$pp.Run("$tpName!PptTqq_InsertChartIn", $pres3, $pres3.Slides.Item(1), 'stacked')
-    $msg = [string]$pp.Run("$tpName!PptTqq_LastMsg")
-    Check ($msg -like "Digite os dados na planilha do Excel*'$dataName'*") "(c) inserido pelo suplemento, aviso de primeira vez: $msg"
+    $hint = [string]$pp.Run("$tpName!PptTqq_LastHintForTest")
+    $trail = [string]$pp.Run("$tpName!PptTqq_TrailForTest")
+    Check ($hint -like "Gráfico criado. Clique em OK e digite os dados*'$dataName'*" -and $trail -eq 'hint;edit;') "(c) inserido pelo suplemento, aviso de primeira vez antes de abrir os dados ($trail): $hint"
     Check ($pres3.Slides.Item(1).Shapes.Count -eq 1) "(c) uma forma no slide ($($pres3.Slides.Item(1).Shapes.Count))"
     $shp3 = $pres3.Slides.Item(1).Shapes.Item(1)
     Check ([string]$shp3.Tags.Item('TQQ_DATA') -eq '1' -and [string]$shp3.Tags.Item('TQQ_AUTO') -eq '1') '(c) forma marcada TQQ_DATA e automatica'
@@ -151,26 +152,54 @@ try {
     $msg = [string]$pp.Run("$tpName!PptTqq_LastMsg")
     Check ($msg -like 'edit:*' -and [string]$xl.ActiveSheet.Name -eq 'Gráfico 1') "(c) Editar dados reabre a planilha do grafico ($msg)"
     $dwb.Worksheets.Item('Gráfico 1').Range('B2').Value2 = 77
+    Check (-not [bool]$dwb.Saved) '(c) pre-condicao: a pasta de dados ficou alterada'
     [void]$pp.Run("$tpName!PptTqq_OnSave", $pres3)
     Check ([bool]$dwb.Saved) '(c) salvar a apresentacao salvou a pasta de dados alterada (PptTqq_OnSave -> Core_PptDataSave)'
+    # Salvar como B na mesma pasta + inserir: segunda pasta de dados ao lado da primeira; a marca da apresentacao passa a ser a de B
+    $pres3.SaveAs((Join-Path $g4 'e2e-g4b.pptx'))
+    $dataNameB = 'e2e-g4b - dados ThinQQ.xlsx'
+    [void]$pp.Run("$tpName!PptTqq_InsertChartIn", $pres3, $pres3.Slides.Item(1), 'line')
+    Check ($pres3.Slides.Item(1).Shapes.Count -eq 2) "(c) Salvar como + inserir: segunda forma ($($pres3.Slides.Item(1).Shapes.Count))"
+    Check ([string]$pres3.Slides.Item(1).Shapes.Item(2).LinkFormat.SourceFullName -eq (Join-Path $g4 $dataNameB) -and [string]$pres3.Tags.Item('TQQ_DATABOOK') -eq (Join-Path $g4 $dataNameB)) '(c) a segunda forma usa a pasta de dados de B (marca de B)'
     $pres3.Save()
     $dwb.Close($false); $dwb = $null; $shp3 = $null
+    $xl.Workbooks.Item($dataNameB).Close($true)
     $pres3.Close(); $pres3 = $null
+    # pasta inteira movida, mas a pasta de dados de A ainda nao chegou (guardada com outro nome): a forma de A NAO pode ir para a de B (revisao I1)
     $g4b = Join-Path $tmp 'g4b'; New-Item -ItemType Directory -Force $g4b | Out-Null
-    Move-Item -LiteralPath (Join-Path $g4 'e2e-g4.pptx') -Destination (Join-Path $g4b 'e2e-g4-renomeada.pptx')
-    Move-Item -LiteralPath $dataPath -Destination (Join-Path $g4b $dataName)
-    $newData = Join-Path $g4b $dataName
-    $pres4 = $pp.Presentations.Open((Join-Path $g4b 'e2e-g4-renomeada.pptx'), 0, 0, 0)
-    $shp4 = $pres4.Slides.Item(1).Shapes.Item(1)
+    Move-Item -LiteralPath (Join-Path $g4 'e2e-g4b.pptx') -Destination (Join-Path $g4b 'e2e-g4b.pptx')
+    Move-Item -LiteralPath (Join-Path $g4 $dataNameB) -Destination (Join-Path $g4b $dataNameB)
+    Move-Item -LiteralPath $dataPath -Destination (Join-Path $g4b 'guardada.xlsx')
+    Remove-Item -LiteralPath (Join-Path $g4 'e2e-g4.pptx') -Force
+    $newData = Join-Path $g4b $dataName; $newDataB = Join-Path $g4b $dataNameB
+    $pres4 = $pp.Presentations.Open((Join-Path $g4b 'e2e-g4b.pptx'), 0, 0, 0)
+    $shp4 = $pres4.Slides.Item(1).Shapes.Item(1); $shp5 = $pres4.Slides.Item(1).Shapes.Item(2)
     Check ([string]$shp4.LinkFormat.SourceFullName -eq $dataPath) '(c) depois de mover: o vinculo ainda aponta para o caminho antigo (PG4)'
     $n = [int]$pp.Run("$tpName!PptTqq_RelinkData", $pres4)
-    Check ($n -eq 1) "(c) reapontada 1 forma ($n)"
-    Check ([string]$shp4.LinkFormat.SourceFullName -eq $newData -and [string]$shp4.Tags.Item('TQQ_BOOK') -eq $newData -and [string]$pres4.Tags.Item('TQQ_DATABOOK') -eq $newData) "(c) vinculo, TQQ_BOOK e TQQ_DATABOOK no caminho novo ($([string]$shp4.LinkFormat.SourceFullName))"
-    Check (([string]$pres4.Tags.Item('TQQ_AUTOIDX')).Contains($newData) -and -not ([string]$pres4.Tags.Item('TQQ_AUTOIDX')).Contains($dataPath)) '(c) indice das automaticas acompanha'
+    Check ($n -eq 1) "(c) so a forma de B reapontada ($n)"
+    Check ([string]$shp5.LinkFormat.SourceFullName -eq $newDataB -and [string]$shp5.Tags.Item('TQQ_BOOK') -eq $newDataB -and [string]$pres4.Tags.Item('TQQ_DATABOOK') -eq $newDataB) "(c) forma de B: vinculo, TQQ_BOOK e TQQ_DATABOOK no caminho novo ($([string]$shp5.LinkFormat.SourceFullName))"
+    Check ([string]$shp4.LinkFormat.SourceFullName -eq $dataPath) "(c) forma de A NAO foi para a pasta de dados de B ($([string]$shp4.LinkFormat.SourceFullName))"
+    Rename-Item -LiteralPath (Join-Path $g4b 'guardada.xlsx') -NewName $dataName
     $n = [int]$pp.Run("$tpName!PptTqq_RelinkData", $pres4)
-    Check ($n -eq 0) "(c) segunda chamada: nada a reapontar ($n)"
-    $shp4 = $null
-    $pres4.Saved = -1; $pres4.Close(); $pres4 = $null
+    Check ($n -eq 1 -and [string]$shp4.LinkFormat.SourceFullName -eq $newData -and [string]$shp4.Tags.Item('TQQ_BOOK') -eq $newData) "(c) a pasta de dados de A chegou: forma de A reapontada para ela ($n, $([string]$shp4.LinkFormat.SourceFullName))"
+    Check ([string]$pres4.Tags.Item('TQQ_DATABOOK') -eq $newDataB) '(c) a marca continua a de B'
+    $idx = [string]$pres4.Tags.Item('TQQ_AUTOIDX')
+    Check ($idx.Contains($newData) -and $idx.Contains($newDataB) -and -not $idx.Contains($dataPath) -and -not $idx.Contains((Join-Path $g4 $dataNameB))) '(c) indice das automaticas acompanha'
+    $n = [int]$pp.Run("$tpName!PptTqq_RelinkData", $pres4)
+    Check ($n -eq 0) "(c) terceira chamada: nada a reapontar ($n)"
+    $pres4.Save()
+    $shp4 = $null; $shp5 = $null
+    $pres4.Close(); $pres4 = $null
+    # apresentacao e pasta de dados RENOMEADAS juntas: a forma da pasta marcada vai para a pasta de dados do nome atual
+    $dataNameR = 'e2e-g4-renomeada - dados ThinQQ.xlsx'
+    Rename-Item -LiteralPath (Join-Path $g4b 'e2e-g4b.pptx') -NewName 'e2e-g4-renomeada.pptx'
+    Rename-Item -LiteralPath $newDataB -NewName $dataNameR
+    $pres5 = $pp.Presentations.Open((Join-Path $g4b 'e2e-g4-renomeada.pptx'), 0, 0, 0)
+    $n = [int]$pp.Run("$tpName!PptTqq_RelinkData", $pres5)
+    $s5 = $pres5.Slides.Item(1).Shapes
+    Check ($n -eq 1 -and [string]$s5.Item(2).LinkFormat.SourceFullName -eq (Join-Path $g4b $dataNameR) -and [string]$s5.Item(1).LinkFormat.SourceFullName -eq $newData -and [string]$pres5.Tags.Item('TQQ_DATABOOK') -eq (Join-Path $g4b $dataNameR)) "(c) renomeadas juntas: so a forma da pasta marcada reapontada ($n)"
+    $s5 = $null
+    $pres5.Saved = -1; $pres5.Close(); $pres5 = $null
     [void]$pp.Run("$tpName!PptTqq_ResetTestHooks")
 
     [void]$xl.Run("'$cn'!Ppt_ResetTestHooks")
@@ -183,9 +212,9 @@ try {
     if ($xl2) { Close-ExcelApp $xl2; $xl2 = $null }
     if ($xl2Pid -gt 0 -and -not (Wait-PidExit $xl2Pid 10)) { Stop-Process -Id $xl2Pid -Force -ErrorAction SilentlyContinue }   # Excel criado por este script
     # referencias COM soltas antes do Quit (senao o PowerPoint nao fecha e cai no encerramento pelo PID)
-    $owned = @($tp, $pres, $pres3, $pres4)
+    $owned = @($tp, $pres, $pres3, $pres4, $pres5)
     $tp = $null; $pres = $null; $slide = $null; $core = $null; $wb = $null; $ws = $null; $vals = $null; $fk = $null; $shp = $null
-    $pres3 = $null; $pres4 = $null; $shp3 = $null; $shp4 = $null; $dwb = $null
+    $pres3 = $null; $pres4 = $null; $pres5 = $null; $shp3 = $null; $shp4 = $null; $shp5 = $null; $s5 = $null; $dwb = $null
     $sw = [Diagnostics.Stopwatch]::StartNew()
     Close-PptApp $pp -Owned $owned   # watchdog do PowerPoint ainda ativo
     $owned = $null; $pp = $null

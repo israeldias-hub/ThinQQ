@@ -726,8 +726,12 @@ End Sub
 Public Sub Test_PptTqq_DataPathFor()
     AssertEqual "C:\a\Vendas - dados ThinQQ.xlsx", PptTqq_DataPathFor("C:\a\Vendas.pptx")
     AssertEqual "C:\a\b.c - dados ThinQQ.xlsx", PptTqq_DataPathFor("C:\a\b.c.pptx")
+    AssertEqual "\\srv\x\R - dados ThinQQ.xlsx", PptTqq_DataPathFor("\\srv\x\R.pptx")
     AssertEqual "", PptTqq_DataPathFor("https://empresa.sharepoint.com/x/R.pptx")
     AssertEqual "", PptTqq_DataPathFor("Apresentação1")
+    AssertEqual "a - dados ThinQQ.xlsx", PptTqq_FileNameOf("\\srv\x\a - dados ThinQQ.xlsx")
+    AssertEqual "b.xlsx", PptTqq_FileNameOf("C:/x/b.xlsx")
+    AssertEqual "", PptTqq_FileNameOf("C:\x\")
 End Sub
 
 Public Sub Test_PptTqq_InsertChartIn_UnsavedAndNoExcel()
@@ -743,7 +747,7 @@ Public Sub Test_PptTqq_InsertChartIn_UnsavedAndNoExcel()
     PptTqq_SetExcelForTest Nothing, ""
     PptTqq_ClearLastMsg
     PptTqq_InsertChartIn p, p.Slides(1), "stacked"
-    AssertEqual PPT_MSG_NO_EXCEL, PptTqq_LastMsg(), "sem Excel"
+    AssertEqual PPT_MSG_NO_EXCEL_DATA, PptTqq_LastMsg(), "sem Excel"
     AssertEqual 0, p.Slides(1).Shapes.Count
 Cleanup:
     en = Err.Number: ed = Err.Description
@@ -831,6 +835,40 @@ Cleanup:
     If en <> 0 Then Err.Raise en, "TestPptAddin", ed
 End Sub
 
+' Revisao G4 (I3): Excel CRIADO nesta chamada sem um core utilizavel (nenhum core na pasta de versoes, ou core sem a API 3) recebe Quit na
+' hora e nao fica guardado (o clique seguinte nao acha Excel); o do usuario (nao criado) nunca recebe Quit.
+Public Sub Test_PptTqq_GetEditExcel_CreatedWithoutUsableCore_Quits()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String
+    Set p = NewSavedPres("tqq-ppam-g4d")
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    Set f = NewFakeXl(3): f.NoCore = True
+    PptTqq_SetExcelForTest f, "", True
+    PptTqq_InsertChartIn p, Nothing, "stacked"
+    AssertEqual PPT_MSG_DATA_NOCORE, PptTqq_LastMsg(), "sem core instalado"
+    AssertEqual 1, f.QuitCount, "o Excel criado recebeu Quit"
+    PptTqq_InsertChartIn p, Nothing, "stacked"
+    AssertEqual PPT_MSG_NO_EXCEL_DATA, PptTqq_LastMsg(), "nada guardado depois do Quit"
+    Set f = NewFakeXl(2)
+    PptTqq_SetExcelForTest f, "", True
+    PptTqq_InsertChartIn p, Nothing, "stacked"
+    AssertEqual PPT_MSG_OLD_CORE_DATA, PptTqq_LastMsg(), "core sem a API 3"
+    AssertEqual 1, f.QuitCount, "o Excel criado com core antigo recebeu Quit"
+    AssertEqual 0, InStr(f.Calls, "Core_PptInsertChart"), f.Calls
+    Set f = NewFakeXl(2)
+    PptTqq_SetExcelForTest f, "", False
+    PptTqq_InsertChartIn p, Nothing, "stacked"
+    AssertEqual PPT_MSG_OLD_CORE_DATA, PptTqq_LastMsg()
+    AssertEqual 0, f.QuitCount, "o Excel do usuario nunca recebe Quit"
+    AssertEqual 1, p.Slides.Count, "nenhum slide criado"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    KillPres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
 ' Core com a API 3: insere no slide dado (ou num slide novo no fim), abre os dados da forma nova (Core_PptEditData com a entrada dela) e
 ' mostra o aviso de primeira vez UMA vez por sessao; texto de recusa do core exibido como veio, sem abrir os dados.
 Public Sub Test_PptTqq_InsertChartIn_Api3_InsertsAndOpensData()
@@ -846,19 +884,26 @@ Public Sub Test_PptTqq_InsertChartIn_Api3_InsertsAndOpensData()
     AssertTrue InStr(f.Calls, "Core_PptInsertChart;Core_PptEditData;") > 0, f.Calls
     c.Add p.Slides(1).Shapes(1)
     AssertEqual PptTqq_EntriesOf(c), f.LastEntries, "Editar dados da forma nova"
-    AssertTrue InStr(PptTqq_LastMsg(), "Digite os dados na planilha do Excel") = 1, PptTqq_LastMsg()
-    AssertTrue InStr(PptTqq_LastMsg(), "'tqq-ppam-g4b - dados ThinQQ.xlsx'") > 0, "aviso cita o arquivo de dados: " & PptTqq_LastMsg()
+    AssertEqual "hint;edit;", PptTqq_TrailForTest(), "aviso de primeira vez ANTES de abrir os dados (revisao I2)"
+    AssertEqual "edit:Pasta - Excel", PptTqq_LastMsg()
+    AssertTrue InStr(PptTqq_LastHintForTest(), "Gráfico criado. Clique em OK e digite os dados") = 1, PptTqq_LastHintForTest()
+    AssertTrue InStr(PptTqq_LastHintForTest(), "'tqq-ppam-g4b - dados ThinQQ.xlsx'") > 0, "aviso cita o arquivo de dados: " & PptTqq_LastHintForTest()
     PptTqq_InsertChartIn p, Nothing, "pie"
     AssertEqual 2, p.Slides.Count, "sem slide: um slide novo no fim"
     AssertEqual 2, f.InsertSlideIndex
-    AssertEqual "edit:Pasta - Excel", PptTqq_LastMsg(), "aviso de primeira vez so uma vez por sessao"
+    AssertEqual "hint;edit;edit;", PptTqq_TrailForTest(), "aviso de primeira vez so uma vez por sessao"
     f.Calls = "": f.InsertResult = "Tipo de gráfico desconhecido: xyz"
     PptTqq_InsertChartIn p, p.Slides(1), "xyz"
     AssertEqual "Tipo de gráfico desconhecido: xyz", PptTqq_LastMsg()
     AssertEqual 0, InStr(f.Calls, "Core_PptEditData"), f.Calls
+    PptTqq_InsertChartIn p, Nothing, "xyz"
+    AssertEqual 2, p.Slides.Count, "recusa do core: o slide em branco criado aqui foi apagado (revisao M2)"
     f.InsertResult = "": f.FailOn = "Core_PptInsertChart"
+    PptTqq_InsertChartIn p, Nothing, "line"
+    AssertEqual 2, p.Slides.Count, "falha: o slide em branco criado aqui foi apagado"
     PptTqq_InsertChartIn p, p.Slides(1), "line"
     AssertTrue InStr(PptTqq_LastMsg(), "Não foi possível criar o gráfico: falha simulada") = 1, PptTqq_LastMsg()
+    AssertEqual 2, p.Slides.Count, "slide dado: nunca apagado"
     f.FailOn = ""
     PptTqq_InsertChartIn p, p.Slides(1), "line"
     AssertEqual "line", f.LastKind, "reentrada liberada depois da falha"
@@ -903,7 +948,7 @@ Public Sub Test_PptTqq_EditShapes_Paths()
     AssertEqual "edit:cap2", PptTqq_LastMsg(), "reentrada liberada depois da falha"
     PptTqq_SetExcelForTest Nothing, ""
     PptTqq_EditShapes p, c
-    AssertEqual PPT_MSG_NO_EXCEL, PptTqq_LastMsg()
+    AssertEqual PPT_MSG_NO_EXCEL_DATA, PptTqq_LastMsg()
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo 0

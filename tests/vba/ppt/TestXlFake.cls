@@ -23,6 +23,7 @@ Public InsertAddsShape As Boolean               ' Core_PptInsertChart poe uma fo
 Public LastKind As String                       ' tipo recebido por Core_PptInsertChart
 Public InsertSlideIndex As Long                 ' SlideIndex do slide recebido por Core_PptInsertChart
 Public EditResult As String                     ' resposta de Core_PptEditData ("" = "Pasta - Excel")
+Public QuitCount As Long                        ' Quit recebidos
 Private mBooks As New Collection
 
 Public Property Get Workbooks() As Collection
@@ -57,4 +58,5 @@ Public Function Run(macro As String, Optional a1 As Variant, Optional a2 As Vari
 End Function
 
 Public Sub Quit()
+    QuitCount = QuitCount + 1
 End Sub

@@ -79,8 +79,8 @@ if ($parsed) {
     $pptSec = $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']")
     $pptUi = @()
     if ($pptSec) { $pptUi = @($pptSec.SelectNodes(".//*[contains(concat(' ', normalize-space(@class), ' '), ' ui ')]") | ForEach-Object { ($_.InnerText -replace '\s+', ' ').Trim() } | Sort-Object -Unique) }
-    $pptCtl = @($pptRibbon.SelectNodes("//*[local-name()='tab' or local-name()='group' or local-name()='button' or local-name()='toggleButton' or local-name()='dropDown' or local-name()='item']"))
-    Check ($pptCtl.Count -eq 34) "faixa do PowerPoint: 34 controles (aba, 3 grupos, 25 botões (21 tipos de Inserir gráfico), 1 alternância, lista e 3 itens: $($pptCtl.Count))"
+    $pptCtl = @($pptRibbon.SelectNodes("//*[local-name()='tab' or local-name()='group' or local-name()='menu' or local-name()='button' or local-name()='toggleButton' or local-name()='dropDown' or local-name()='item']"))
+    Check ($pptCtl.Count -eq 39) "faixa do PowerPoint: 39 controles (aba, 3 grupos, 5 menus, 25 botões (21 tipos de Inserir gráfico), 1 alternância, lista e 3 itens: $($pptCtl.Count))"
     foreach ($n in $pptCtl) {
         $l = $n.GetAttribute('label')
         Check ($pptUi -contains $l) "#powerpoint cita o controle da faixa do PowerPoint '$l'"
