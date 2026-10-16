@@ -528,7 +528,7 @@ Private Sub PptAuto_SaveDataBooks(dirty As Object)
         If dirty.Exists(w.FullName) Then
             If Not w.Saved And Not w.ReadOnly And PptData_IsDataBook(w) Then
                 Err.Clear
-                w.Save
+                PptData_SaveQuiet w                                     ' sem caixas do Excel no Save (revisao final M5)
                 If Err.Number <> 0 Then PptAuto_Log "PptAuto: pasta de dados nao salva" & vbTab & w.FullName & vbTab & Err.Number & vbTab & Err.Description
             End If
         End If

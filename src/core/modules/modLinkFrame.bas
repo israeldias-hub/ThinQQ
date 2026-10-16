@@ -6,7 +6,7 @@ Option Explicit
 ' Alterar dados recria o grafico com id novo e o slide deixa de acompanha-lo: a moldura sai (nao e redesenhada) e o usuario e avisado para
 ' inserir ou colar de novo (LINKFRAME_NOTE_REBUILT). Nada aqui propaga erro.
 Public Const LINKFRAME_PREFIX As String = "tqqlink_"
-Public Const LINKFRAME_NOTE_REBUILT As String = "O gráfico foi recriado: o slide do PowerPoint não o acompanha mais. Use 'Inserir também no slide' ou 'Copiar como gráfico vinculado' de novo."
+Public Const LINKFRAME_NOTE_REBUILT As String = "O gráfico foi recriado: o slide do PowerPoint não o acompanha mais. Insira ou cole o gráfico de novo no slide."
 Private mTestFailDraw As Boolean    ' gancho de teste (LinkFrame_SetFailDrawForTest): falha logo depois de criar o retangulo; so no build Test
 
 Public Function LinkFrame_Name(cht As Chart) As String

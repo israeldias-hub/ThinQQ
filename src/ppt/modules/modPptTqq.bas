@@ -57,6 +57,7 @@ Private mEditXl As Object                       ' Excel criado aqui para criar/e
 Private mHintShown As Boolean                   ' aviso de primeira vez de "Inserir grafico" ja mostrado nesta sessao
 Private mTestTrail As String                    ' gancho de teste: ordem dos passos de inserir ("hint;edit;")
 Private mLastHint As String                     ' gancho de teste: texto do aviso de primeira vez
+Private mTestProbes As Long                     ' gancho de teste: FileExists do caminho antigo em PptTqq_RelinkData
 
 ' Carga do suplemento: liga os eventos do PowerPoint e trata as apresentacoes ja abertas (o projeto de teste .pptm nao liga).
 Public Sub Auto_Open()
@@ -106,7 +107,12 @@ Public Sub PptTqq_ResetTestHooks()
     mHintShown = False
     mTestTrail = ""
     mLastHint = ""
+    mTestProbes = 0
 End Sub
+
+Public Function PptTqq_RelinkProbesForTest() As Long
+    PptTqq_RelinkProbesForTest = mTestProbes
+End Function
 
 Public Function PptTqq_CoreInfoForTest() As String
     PptTqq_CoreInfoForTest = mTestCoreInfo
@@ -705,7 +711,7 @@ Public Sub PptTqq_HandleOpen(pres As Object)
     seen = PptTqq_Seen(key)
     PptTqq_MarkSeen key
     If Not seen Then
-        PptTqq_RelinkData pres                    ' apresentacao movida: graficos criados pelo PowerPoint voltam a achar os dados
+        PptTqq_RelinkData pres, False             ' apresentacao movida: graficos criados pelo PowerPoint voltam a achar os dados (sem tocar a rede)
         Set srcs = New Collection
         n = PptTqq_CountTagged(pres, srcs)
         md = PptTqq_OpenMode()
@@ -1046,21 +1052,26 @@ Private Function PptTqq_UsableEditExcel(xl As Object, created As Boolean, core A
     Set PptTqq_UsableEditExcel = xl
 End Function
 
-' Excel para criar/editar dados, que FICA com o usuario (spec 14.3): (1) o criado antes por aqui, se ainda responde com o core; (2) o Excel
-' aberto COM o core; (3) senao, se ha um core instalado, um novo: carregado INVISIVEL (alertas desligados, loader instalado somente leitura,
-' que carrega core e faixa, ou o core pelo caminho de sempre) e so entao VISIVEL e UserControl. Nunca carrega o ThinQQ num Excel do usuario
-' que nao o tem. O criado aqui que nao carregou um core com a API 3 recebe Quit na hora (nada de janela vazia sobrando a cada clique); o que
-' deu certo fica com o usuario (sonda PG1: sobrevive ao fim da referencia e ao fechamento do PowerPoint; mEditXl e atalho para reencontra-lo).
-' Nothing: why = o aviso (vazio = sem Excel). Ocupado: erro de ocupado.
-Public Function PptTqq_GetEditExcel(ByRef core As String, Optional ByRef why As String) As Object
+' Excel para criar/editar dados, que FICA com o usuario (spec 14.3): (1) o criado antes por aqui, se ainda esta VISIVEL e responde com o
+' core; (2) o Excel aberto COM o core; (3) senao, se ha um core instalado, um novo (created = True): carregado INVISIVEL (alertas desligados,
+' loader instalado somente leitura, que carrega core e faixa, ou o core pelo caminho de sempre). Nunca carrega o ThinQQ num Excel do usuario
+' que nao o tem. O criado aqui que nao carregou um core com a API 3 recebe Quit na hora; o que deu certo continua INVISIVEL ate o chamador
+' conseguir criar/abrir os dados (PptTqq_HandOver: visivel, UserControl, fica com o usuario) ou desistir (PptTqq_Discard: Quit) — numa recusa
+' do core nenhum Excel vazio fica a vista (revisao final M2). Nothing: why = o aviso (vazio = sem Excel). Ocupado: erro de ocupado.
+' mEditXl (revisao final M1): o usuario fechar o Excel pelo X so esconde a janela enquanto o PowerPoint segura a referencia; instancia
+' guardada INVISIVEL = fechada: a referencia e solta (o processo termina) e nunca e reaproveitada.
+Public Function PptTqq_GetEditExcel(ByRef core As String, Optional ByRef why As String, Optional ByRef created As Boolean) As Object
     Dim xl As Object, st As Long
-    core = "": why = ""
+    core = "": why = "": created = False
     If BUILD_CONFIG = "Test" Then
         If mTestXl Is Nothing Then Exit Function
+        created = mTestCreated
         core = PptTqq_EnsureCore(mTestXl, mTestCreated)
         Set PptTqq_GetEditExcel = PptTqq_UsableEditExcel(mTestXl, mTestCreated, core, why)
+        If PptTqq_GetEditExcel Is Nothing Then created = False
         Exit Function
     End If
+    PptTqq_ForgetClosedEditExcel
     If Not mEditXl Is Nothing Then
         st = PptTqq_PingState(mEditXl)
         If st = -1 Then PptTqq_RaiseBusy
@@ -1103,15 +1114,43 @@ Public Function PptTqq_GetEditExcel(ByRef core As String, Optional ByRef why As 
     On Error GoTo 0
     Set xl = PptTqq_UsableEditExcel(xl, True, core, why)
     If xl Is Nothing Then core = "": Exit Function
-    Set mEditXl = xl
+    created = True
+    Set PptTqq_GetEditExcel = xl
+End Function
+
+' mEditXl invisivel (o usuario fechou pelo X) ou morto: solta a referencia. Ocupado: erro de ocupado. Fora do build Test.
+Private Sub PptTqq_ForgetClosedEditExcel()
+    Dim v As Boolean, en As Long
+    If mEditXl Is Nothing Then Exit Sub
     On Error Resume Next
+    v = CBool(mEditXl.Visible)
+    en = Err.Number
+    Err.Clear
+    On Error GoTo 0
+    If en = RPC_E_CALL_REJECTED Or en = RPC_E_RETRYLATER Then PptTqq_RaiseBusy
+    If en <> 0 Or Not v Then Set mEditXl = Nothing
+End Sub
+
+' Excel criado nesta chamada e que deu certo: alertas de volta, visivel, UserControl e guardado (fica com o usuario; sonda PG1). Nunca propaga.
+Private Sub PptTqq_HandOver(xl As Object)
+    On Error Resume Next
+    If BUILD_CONFIG = "Test" Then Exit Sub
     xl.DisplayAlerts = True                                         ' do usuario: "Salvar?" ao fechar volta a aparecer (spec 14.2)
     xl.Visible = True
     xl.UserControl = True
+    Set mEditXl = xl
     Err.Clear
-    On Error GoTo 0
-    Set PptTqq_GetEditExcel = xl
-End Function
+End Sub
+
+' Excel criado nesta chamada e que nao serviu (recusa ou falha do core): Quit, nada guardado. Nunca propaga.
+Private Sub PptTqq_Discard(xl As Object)
+    On Error Resume Next
+    If Not mEditXl Is Nothing Then
+        If mEditXl Is xl Then Set mEditXl = Nothing
+    End If
+    PptTqq_Release xl, True
+    Err.Clear
+End Sub
 
 ' Texto de falha de criar/editar dados: ocupado e Excel ausente com os textos de sempre; o resto com o prefixo da acao. Pura.
 Private Function PptTqq_DataErrorText(prefix As String, en As Long, ed As String) As String
@@ -1125,23 +1164,36 @@ Private Function PptTqq_DataErrorText(prefix As String, en As Long, ed As String
 End Function
 
 ' Abre a planilha dos dados da forma no Excel dado e traz a janela a frente (AppActivate com a legenda devolvida pelo core; sonda PG2,
-' verificacao manual). "!" do core = a mensagem. Falha: aviso proprio (o grafico ja inserido continua). Nunca propaga.
-Private Sub PptTqq_EditShape(shp As Object, xl As Object, core As String)
+' verificacao manual). "!" do core = a mensagem. Falha: aviso proprio (o grafico ja inserido continua). Devolve True se os dados abriram.
+' Excel criado nesta chamada (created): entregue ao usuario (PptTqq_HandOver) antes do AppActivate, ou Quit se os dados nao abriram (e o
+' grafico nao foi inserido agora: keepXl False). Nunca propaga.
+Private Function PptTqq_EditShape(shp As Object, xl As Object, core As String, Optional created As Boolean, Optional keepXl As Boolean) As Boolean
     Dim cap As String, c As New Collection, en As Long, ed As String
     On Error GoTo Fail
     c.Add shp
     cap = CStr(xl.Run("'" & core & "'!Core_PptEditData", shp.Parent.Parent, PptTqq_EntriesOf(c)))
-    If Left$(cap, 1) = "!" Then PptTqq_Msg Mid$(cap, 2), vbExclamation: Exit Sub
-    If BUILD_CONFIG = "Test" Then mLastMsg = "edit:" & cap: mTestTrail = mTestTrail & "edit;": Exit Sub
+    If Left$(cap, 1) = "!" Then
+        If created Then
+            If keepXl Then PptTqq_HandOver xl Else PptTqq_Discard xl
+        End If
+        PptTqq_Msg Mid$(cap, 2), vbExclamation
+        Exit Function
+    End If
+    PptTqq_EditShape = True
+    If created Then PptTqq_HandOver xl
+    If BUILD_CONFIG = "Test" Then mLastMsg = "edit:" & cap: mTestTrail = mTestTrail & "edit;": Exit Function
     On Error Resume Next
     AppActivate cap
     If Err.Number <> 0 Then Err.Clear: PptTqq_Msg "O Excel abriu a planilha de dados do gráfico (veja a barra de tarefas)."
-    Exit Sub
+    Exit Function
 Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
+    If created Then
+        If keepXl Then PptTqq_HandOver xl Else PptTqq_Discard xl
+    End If
     PptTqq_Msg PptTqq_DataErrorText("Não foi possível abrir os dados do gráfico: ", en, ed), vbExclamation
-End Sub
+End Function
 
 ' Aviso unico por sessao no primeiro grafico criado, ANTES de abrir os dados: com o PowerPoint ainda a frente (depois do AppActivate a caixa
 ' ficaria atras do Excel e, aberta, o PowerPoint recusaria as chamadas do ciclo automatico: o slide nao acompanharia).
@@ -1152,7 +1204,7 @@ Private Sub PptTqq_FirstHint(pres As Object)
     d = PptTqq_DataPathFor(CStr(pres.FullName))
     If BUILD_CONFIG = "Test" Then mTestTrail = mTestTrail & "hint;"
     PptTqq_Msg "Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida: o slide acompanha em cerca de 2 segundos." & vbLf & _
-               "Os dados ficam em '" & Mid$(d, InStrRev(d, "\") + 1) & "', ao lado da apresentação: envie os dois arquivos juntos (ThinQQ > Empacotar para enviar)."
+               "Os dados ficam em '" & Mid$(d, InStrRev(d, "\") + 1) & "', ao lado da apresentação: envie os dois arquivos juntos."
     If BUILD_CONFIG = "Test" Then mLastHint = mLastMsg
 End Sub
 
@@ -1169,12 +1221,14 @@ End Function
 ' (fica com o usuario), core com a API 3; o core cria o grafico na pasta de dados e cola no slide; depois abre a planilha dos dados. Nunca propaga.
 Public Sub PptTqq_InsertChartIn(pres As Object, slide As Object, kind As String)
     Dim xl As Object, core As String, msg As String, sl As Object, n0 As Long, en As Long, ed As String, why As String, newSl As Boolean
+    Dim created As Boolean
     If mBusy Then Exit Sub
+    If pres Is Nothing Then PptTqq_Msg PPT_MSG_NO_PRES: Exit Sub      ' Modo de Exibicao Protegido: sem ActivePresentation (revisao final M8)
     On Error GoTo Fail
     If Len(CStr(pres.Path)) = 0 Then PptTqq_Msg PPT_MSG_SAVE_FIRST: Exit Sub
     If Len(PptTqq_DataPathFor(CStr(pres.FullName))) = 0 Then PptTqq_Msg PPT_MSG_WEB_PRES: Exit Sub
     mBusy = True
-    Set xl = PptTqq_GetEditExcel(core, why)
+    Set xl = PptTqq_GetEditExcel(core, why, created)
     If xl Is Nothing Then
         mBusy = False
         If Len(why) = 0 Then why = PPT_MSG_NO_EXCEL_DATA
@@ -1188,13 +1242,16 @@ Public Sub PptTqq_InsertChartIn(pres As Object, slide As Object, kind As String)
     mBusy = False
     If Len(msg) > 0 Then
         If newSl Then PptTqq_DropNewSlide sl, n0                     ' recusa do core: o slide em branco criado aqui sai
+        If created Then PptTqq_Discard xl                            ' e o Excel criado agora nao fica vazio a vista
         PptTqq_Msg msg, vbExclamation
         Exit Sub
     End If
     PptRx_InvalidateElem
     If sl.Shapes.Count > n0 Then
         PptTqq_FirstHint pres                                        ' antes de trazer o Excel a frente (revisao G4, I2)
-        PptTqq_EditShape sl.Shapes(sl.Shapes.Count), xl, core
+        PptTqq_EditShape sl.Shapes(sl.Shapes.Count), xl, core, created, True
+    ElseIf created Then
+        PptTqq_HandOver xl
     End If
     Exit Sub
 Fail:
@@ -1202,7 +1259,18 @@ Fail:
     On Error GoTo -1
     mBusy = False
     If newSl Then PptTqq_DropNewSlide sl, n0
+    If created Then PptTqq_AfterFail xl, sl, n0
     PptTqq_Msg PptTqq_DataErrorText("Não foi possível criar o gráfico: ", en, ed), vbExclamation
+End Sub
+
+' Falha de "Inserir grafico" num Excel criado nesta chamada: com o grafico ja no slide, o Excel fica com o usuario; sem, Quit. Nunca propaga.
+Private Sub PptTqq_AfterFail(xl As Object, sl As Object, n0 As Long)
+    Dim n As Long
+    On Error Resume Next
+    n = -1
+    If Not sl Is Nothing Then n = CLng(sl.Shapes.Count)
+    If n > n0 Then PptTqq_HandOver xl Else PptTqq_Discard xl
+    Err.Clear
 End Sub
 
 ' Apaga o slide criado por "Inserir grafico" se ele continua so com as n0 formas do layout (nada colado). Nunca propaga.
@@ -1215,26 +1283,27 @@ End Sub
 
 ' "Editar dados" das formas dadas (a 1a): reaponta antes (apresentacao movida), Excel para editar, Core_PptEditData. Nunca propaga.
 Public Sub PptTqq_EditShapes(pres As Object, shapes As Collection)
-    Dim xl As Object, core As String, en As Long, ed As String, why As String
+    Dim xl As Object, core As String, en As Long, ed As String, why As String, created As Boolean
     If mBusy Then Exit Sub
     If shapes.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
     On Error GoTo Fail
-    PptTqq_RelinkData pres
+    PptTqq_RelinkData pres, True                                     ' acao do usuario: pode conferir o caminho antigo remoto
     mBusy = True
-    Set xl = PptTqq_GetEditExcel(core, why)
+    Set xl = PptTqq_GetEditExcel(core, why, created)
     If xl Is Nothing Then
         mBusy = False
         If Len(why) = 0 Then why = PPT_MSG_NO_EXCEL_DATA
         PptTqq_Msg why, vbExclamation
         Exit Sub
     End If
-    PptTqq_EditShape shapes(1), xl, core
+    PptTqq_EditShape shapes(1), xl, core, created, False             ' recusa num Excel criado agora: Quit (revisao final M2)
     mBusy = False
     Exit Sub
 Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     mBusy = False
+    If created Then PptTqq_Discard xl
     PptTqq_Msg PptTqq_DataErrorText("Não foi possível abrir os dados do gráfico: ", en, ed), vbExclamation
 End Sub
 
@@ -1247,12 +1316,18 @@ End Sub
 ' - so caminhos LOCAIS antes: nenhum candidato existe (ou o candidato e o proprio vinculo) => nada, sem tocar o caminho antigo (que pode ser
 '   \\servidor de outra maquina: o FileExists esperaria o tempo-limite da rede na abertura). O caminho antigo so e conferido quando ha um
 '   candidato local diferente (vinculo antigo ainda valido = nao mexe).
+' - so pastas criadas pelo ThinQQ: o nome do arquivo do vinculo termina em PPT_DATA_SUFFIX (revisao final M3: uma forma TQQ_DATA de terceiros
+'   apontando para "Orcamento.xlsx" nunca e reapontada para o Orcamento.xlsx do usuario na mesma pasta).
+' - probeRemote False (abertura, revisao final I1): um caminho antigo REMOTO (\\servidor, http) nunca e testado; com o candidato local
+'   presente, reaponta sem tocar a rede (nada de SMB/NTLM para um host escolhido por quem fez o deck, nem tempo-limite da rede ao abrir).
+'   True so em "Editar dados" (acao do usuario).
 ' Sonda PG4: SourceFullName e gravavel (persiste, mantem forma e animacao) e o PowerPoint NAO resolve caminho relativo. LinkFormat.Update com o
 ' arquivo ausente abre uma caixa modal que trava a chamada: aqui o candidato e conferido (FileExists) ANTES de gravar e nunca ha Update.
-Public Function PptTqq_RelinkData(pres As Object) As Long
+Public Function PptTqq_RelinkData(pres As Object, Optional probeRemote As Boolean = False) As Long
     Dim fso As Object, mark As String, markName As String, sl As Object, shp As Object, oldP As String, oldName As String
-    Dim cand As String, c As String, dirP As String, idx As String, curData As String
+    Dim cand As String, c As String, dirP As String, idx As String, curData As String, sfx As String
     On Error Resume Next
+    sfx = LCase$(PPT_DATA_SUFFIX)
     mark = PptTqq_Tag(pres, PPT_TAG_DATABOOK)
     If Len(mark) = 0 Then Exit Function
     dirP = CStr(pres.Path)
@@ -1267,7 +1342,7 @@ Public Function PptTqq_RelinkData(pres As Object) As Long
                 oldP = PptTqq_SourcePath(PptTqq_LinkSource(shp), PptTqq_Tag(shp, PPT_TAG_BOOK))
                 oldName = PptTqq_FileNameOf(oldP)
                 cand = ""
-                If Len(oldName) > 0 Then
+                If Len(oldName) > Len(sfx) And LCase$(Right$(oldName, Len(sfx))) = sfx Then
                     c = dirP & "\" & oldName
                     If StrComp(c, oldP, vbTextCompare) <> 0 Then
                         If CBool(fso.FileExists(c)) Then cand = c
@@ -1280,8 +1355,11 @@ Public Function PptTqq_RelinkData(pres As Object) As Long
                 End If
                 If Len(cand) > 0 Then
                     Err.Clear
-                    If CBool(fso.FileExists(oldP)) Then cand = ""                  ' o vinculo antigo ainda vale: nao mexe
-                    If Err.Number <> 0 Then cand = ""
+                    If probeRemote Or Not PptTqq_IsRemotePath(oldP) Then
+                        If BUILD_CONFIG = "Test" Then mTestProbes = mTestProbes + 1
+                        If CBool(fso.FileExists(oldP)) Then cand = ""              ' o vinculo antigo ainda vale: nao mexe
+                        If Err.Number <> 0 Then cand = ""
+                    End If
                     Err.Clear
                 End If
                 If Len(cand) > 0 Then
@@ -1323,6 +1401,8 @@ Public Sub PptTqq_OnSave(pres As Object)
     If BUILD_CONFIG = "Test" Then
         Set xl = mTestXl
     Else
+        PptTqq_ForgetClosedEditExcel                               ' fechado pelo X (invisivel): solta a referencia
+        Err.Clear
         If Not mEditXl Is Nothing Then
             Select Case PptTqq_PingState(mEditXl)
                 Case 1: Set xl = mEditXl

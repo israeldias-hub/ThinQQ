@@ -2317,7 +2317,7 @@ Public Sub Test_PptEditData_UserXlsm_NoBox_ClosesWhenChartMissing()
     Watchers_Stop
     wb.Close SaveChanges:=False: Set wb = Nothing
     shp.Tags(PPTSYNC_TAG_CHART) = "naoexiste"
-    AssertEqual "!Gráfico não encontrado na pasta de dados (apagado ou recriado).", Core_PptEditData(pres, PptIdx_Entry(256, "tqq_x", ""))
+    AssertEqual "!Gráfico não encontrado na pasta de origem (apagado ou recriado).", Core_PptEditData(pres, PptIdx_Entry(256, "tqq_x", ""))
     For Each w In Application.Workbooks
         AssertTrue StrComp(w.FullName, p, vbTextCompare) <> 0, "a pasta aberta pelo ThinQQ foi fechada"
     Next
@@ -2330,6 +2330,78 @@ Cleanup:
     If wb Is Nothing And Len(p) > 0 Then Set wb = Workbooks(Dir(p))
     If Not wb Is Nothing Then Teardown wb
     Kill p
+    AutoEnd
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Revisao final (I2): regra pura das extensoes aceitas e do nome da pasta de dados.
+Public Sub Test_PptData_ExtensionAndDataNameRules()
+    AssertTrue PptData_IsWorkbookExt("C:\a\b.xlsx"): AssertTrue PptData_IsWorkbookExt("C:\a\b.XLSM")
+    AssertTrue PptData_IsWorkbookExt("\\s\x\b.xlsb"): AssertTrue PptData_IsWorkbookExt("C:\a\b.xls")
+    AssertTrue PptData_IsWorkbookExt("https://e.sharepoint.com/x/b.xlsx")
+    AssertFalse PptData_IsWorkbookExt("C:\a\b.xll"), "suplemento nativo (DLL)"
+    AssertFalse PptData_IsWorkbookExt("C:\a\b.iqy"): AssertFalse PptData_IsWorkbookExt("C:\a\b.csv")
+    AssertFalse PptData_IsWorkbookExt("C:\a\b.slk"): AssertFalse PptData_IsWorkbookExt("C:\a\b.htm")
+    AssertFalse PptData_IsWorkbookExt("C:\a.xlsx\b"), "extensao so do nome do arquivo"
+    AssertFalse PptData_IsWorkbookExt(""): AssertFalse PptData_IsWorkbookExt("C:\a\b")
+    AssertTrue PptData_IsDataBookName("C:\a\Vendas - dados ThinQQ.xlsx")
+    AssertTrue PptData_IsDataBookName("\\s\x\v - DADOS thinqq.XLSX")
+    AssertFalse PptData_IsDataBookName("C:\a\ - dados ThinQQ.xlsx"), "so o sufixo"
+    AssertFalse PptData_IsDataBookName("C:\a\Orcamento.xlsx")
+    AssertFalse PptData_IsDataBookName("C:\a\Vendas - dados ThinQQ.xlsm")
+End Sub
+
+' Revisao final (I2, M4), duble sem PowerPoint: Editar dados numa forma cuja TQQ_BOOK e um .xll recusa SEM abrir (o arquivo existe); forma
+' TQQ_DATA apontando para uma pasta que nao e de dados do ThinQQ recusa sem abrir; pasta de origem do usuario ja aberta SOMENTE LEITURA e
+' usada como esta (spec 14.3).
+Public Sub Test_PptEditData_RefusesNonWorkbookAndForeignDataPath_UsesOpenReadOnlyUserBook()
+    Dim wb As Workbook, rng As Range, p As String, x As String, id As String, shp As TestPptFake, lf As TestPptFake, pres As TestPptFake
+    Dim msg As String, k As Integer, w As Workbook, en As Long, ed As String
+    On Error GoTo Cleanup
+    AutoBegin
+    x = TempDir() & "\hostil.xll"
+    k = FreeFile: Open x For Output As #k: Print #k, "x": Close #k
+    Set shp = New TestPptFake: Set shp.Tags = CreateObject("Scripting.Dictionary")
+    shp.Tags.Add PPTSYNC_TAG_CHART, "abc"
+    shp.Tags.Add PPTSYNC_TAG_BOOK, x
+    Set lf = New TestPptFake: lf.SourceFullName = x: Set shp.LinkFormat = lf
+    Set pres = FakeAutoPres(shp, x)
+    msg = Core_PptEditData(pres, PptIdx_Entry(256, "tqq_x", ""))
+    AssertEqual "!" & PPTDATA_MSG_NOTBOOK & x, msg
+    For Each w In Application.Workbooks
+        AssertTrue StrComp(w.FullName, x, vbTextCompare) <> 0, ".xll nunca aberto"
+    Next
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    id = Registry_IdFromChart(rng.Worksheet.ChartObjects(1).Chart)
+    p = TempDir() & "\usuario-final.xlsx"
+    wb.SaveAs p, 51
+    Watchers_Stop
+    wb.Close SaveChanges:=False: Set wb = Nothing
+    shp.Tags(PPTSYNC_TAG_CHART) = id
+    shp.Tags(PPTSYNC_TAG_BOOK) = p
+    lf.SourceFullName = p
+    shp.Tags(PPTDATA_TAG) = "1"                          ' atribuicao: a leitura anterior do Dictionary ja criou a chave
+    AssertEqual "!" & PPTDATA_MSG_NOTDATANAME & p, Core_PptEditData(pres, PptIdx_Entry(256, "tqq_x", "")), "TQQ_DATA so com a pasta de dados do ThinQQ"
+    For Each w In Application.Workbooks
+        AssertTrue StrComp(w.FullName, p, vbTextCompare) <> 0, "nao abriu a pasta do usuario"
+    Next
+    shp.Tags(PPTDATA_TAG) = ""
+    Set wb = Workbooks.Open(Filename:=p, ReadOnly:=True)
+    msg = Core_PptEditData(pres, PptIdx_Entry(256, "tqq_x", ""))
+    AssertTrue Left$(msg, 1) <> "!", "pasta do usuario ja aberta somente leitura: usada como esta: " & msg
+    AssertTrue ActiveWorkbook Is wb
+    AssertFalse Core_IsQuiet()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If wb Is Nothing And Len(p) > 0 Then Set wb = Workbooks(Dir(p))
+    If Not wb Is Nothing Then Teardown wb
+    If Len(p) > 0 Then Kill p
+    If Len(x) > 0 Then Kill x
     AutoEnd
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed

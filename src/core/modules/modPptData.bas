@@ -12,6 +12,10 @@ Public Const PPTDATA_MSG_UNSAVED As String = "Salve a apresentação primeiro: o
 Public Const PPTDATA_MSG_WEB As String = "A apresentação está aberta por um endereço da Web (OneDrive/SharePoint). Salve-a numa pasta do computador (ou na pasta sincronizada do OneDrive) para inserir gráficos do ThinQQ."
 Public Const PPTDATA_MSG_RO As String = "A pasta de dados está aberta por outra pessoa ou é somente leitura: "
 Public Const PPTDATA_MSG_SAMENAME As String = "Feche no Excel a pasta '%1': ela tem o mesmo nome da pasta de dados desta apresentação."
+Public Const PPTDATA_MSG_RO_USER As String = "A pasta está aberta por outra pessoa ou é somente leitura: "
+Public Const PPTDATA_MSG_SAMENAME_USER As String = "Feche no Excel a pasta '%1': ela tem o mesmo nome da pasta de origem deste gráfico."
+Public Const PPTDATA_MSG_NOTBOOK As String = "O ThinQQ só abre pastas do Excel (.xlsx, .xlsm, .xlsb ou .xls); o gráfico aponta para: "
+Public Const PPTDATA_MSG_NOTDATANAME As String = "O gráfico criado pelo PowerPoint aponta para um arquivo que não é uma pasta de dados do ThinQQ (""<nome> - dados ThinQQ.xlsx""): "
 Public Const PPTDATA_MSG_NOTMARKED As String = "Já existe o arquivo '%1' e ele não é uma pasta de dados do ThinQQ (nada foi alterado nele). Renomeie ou mova esse arquivo para inserir gráficos nesta apresentação."
 Private mTestTable As Variant           ' gancho de teste: tabela usada no lugar da de exemplo (so no build Test; Empty = a de exemplo)
 Private mTestFail As String             ' gancho de teste: ponto de Core_PptInsertChart que falha uma vez (so no build Test)
@@ -71,6 +75,43 @@ Private Function PptData_SheetNames(wb As Workbook) As String
     PptData_SheetNames = s
 End Function
 
+' O caminho e de uma pasta do Excel que o ThinQQ aceita abrir (.xlsx, .xlsm, .xlsb, .xls). O caminho vem da apresentacao (de quem a fez):
+' Workbooks.Open tambem abriria .xll (suplemento nativo, DLL), .iqy, .slk, .htm, .csv..., que AutomationSecurity nao cobre (revisao final
+' I2). Pura.
+Public Function PptData_IsWorkbookExt(path As String) As Boolean
+    Dim f As String, k As Long
+    f = LCase$(Trim$(path))
+    k = InStrRev(f, ".")
+    If k = 0 Then Exit Function                             ' (o Or do VBA nao para no primeiro: InStr(0, ...) daria erro 5)
+    If InStr(k, f, "\") > 0 Or InStr(k, f, "/") > 0 Then Exit Function
+    Select Case Mid$(f, k)
+        Case ".xlsx", ".xlsm", ".xlsb", ".xls": PptData_IsWorkbookExt = True
+    End Select
+End Function
+
+' O nome do arquivo e o de uma pasta de dados criada pelo ThinQQ ("<nome> - dados ThinQQ.xlsx", com algo antes do sufixo). Pura.
+Public Function PptData_IsDataBookName(path As String) As Boolean
+    Dim f As String
+    f = Mid$(Trim$(path), InStrRev(Replace(Trim$(path), "/", "\"), "\") + 1)
+    PptData_IsDataBookName = (Len(f) > Len(PPTDATA_SUFFIX) And StrComp(Right$(f, Len(PPTDATA_SUFFIX)), PPTDATA_SUFFIX, vbTextCompare) = 0)
+End Function
+
+' Salva sem as caixas do proprio Excel (inspetor de privacidade, arquivo alterado no disco ou bloqueado pela sincronizacao do OneDrive), que o
+' modo silencioso nao cobre e travariam o PowerPoint parado no xl.Run (revisao final M5). DisplayAlerts restaurado em todo caminho. Propaga
+' o erro do Save.
+Public Sub PptData_SaveQuiet(wb As Workbook)
+    Dim prevAlerts As Boolean, en As Long, ed As String
+    prevAlerts = Application.DisplayAlerts
+    Application.DisplayAlerts = False
+    On Error Resume Next
+    wb.Save
+    en = Err.Number: ed = Err.Description
+    Err.Clear
+    On Error GoTo 0
+    Application.DisplayAlerts = prevAlerts
+    If en <> 0 Then Err.Raise en, "PptData_SaveQuiet", ed
+End Sub
+
 ' A pasta tem a marca TQQ_DATABOOK. Nunca propaga erro.
 Public Function PptData_IsDataBook(wb As Workbook) As Boolean
     Dim n As Name
@@ -83,7 +124,7 @@ End Function
 ' Pasta ja aberta neste Excel com o caminho dado (Nothing se nao). Outra pasta aberta com o MESMO NOME de arquivo mas de outro lugar (o Excel
 ' nao abre duas pastas de mesmo nome: duas versoes do deck, pasta copiada, unidade mapeada x UNC) = erro 7130 com o texto para o usuario.
 ' Propaga erro.
-Private Function PptData_FindOpen(path As String) As Workbook
+Private Function PptData_FindOpen(path As String, Optional userBook As Boolean) As Workbook
     Dim w As Workbook, fileName As String
     fileName = Mid$(path, InStrRev(path, "\") + 1)
     For Each w In Application.Workbooks
@@ -91,18 +132,28 @@ Private Function PptData_FindOpen(path As String) As Workbook
             Set PptData_FindOpen = w
             Exit Function
         End If
-        If StrComp(w.Name, fileName, vbTextCompare) = 0 Then Err.Raise vbObjectError + 7130, "PptData", Replace(PPTDATA_MSG_SAMENAME, "%1", w.FullName)
+        If StrComp(w.Name, fileName, vbTextCompare) = 0 Then
+            If userBook Then
+                Err.Raise vbObjectError + 7130, "PptData", Replace(PPTDATA_MSG_SAMENAME_USER, "%1", w.FullName)
+            Else
+                Err.Raise vbObjectError + 7130, "PptData", Replace(PPTDATA_MSG_SAMENAME, "%1", w.FullName)
+            End If
+        End If
     Next
 End Function
 
 ' Abre para EDICAO (macros desligadas e eventos desligados durante o Open, sem atualizar vinculos, sem MRU, sem a caixa de senha) ou devolve a
-' ja aberta neste Excel. Somente leitura (aberta por outra pessoa, ou ja aberta somente leitura neste Excel) = erro 7130 (a que este codigo
-' abriu e fechada antes); outra pasta de mesmo nome aberta = 7130 (PptData_FindOpen). Propaga erro.
-Public Function PptData_OpenForEdit(path As String) As Workbook
-    Dim w As Workbook, prevSec As Long, prevAlerts As Boolean, prevEv As Boolean, en As Long, ed As String
-    Set w = PptData_FindOpen(path)
+' ja aberta neste Excel. Extensao fora de .xlsx/.xlsm/.xlsb/.xls = erro 7130 sem abrir nada (revisao final I2). Somente leitura (aberta por
+' outra pessoa, ou ja aberta somente leitura neste Excel) = erro 7130 (a que este codigo abriu e fechada antes); outra pasta de mesmo nome
+' aberta = 7130 (PptData_FindOpen). userBook (pasta de origem do usuario, sem a marca; revisao final M4): a ja aberta e usada como esta, mesmo
+' somente leitura (spec 14.3), e os textos nao dizem "pasta de dados". Propaga erro.
+Public Function PptData_OpenForEdit(path As String, Optional userBook As Boolean) As Workbook
+    Dim w As Workbook, prevSec As Long, prevAlerts As Boolean, prevEv As Boolean, en As Long, ed As String, roMsg As String
+    If Not PptData_IsWorkbookExt(path) Then Err.Raise vbObjectError + 7130, "PptData", PPTDATA_MSG_NOTBOOK & path
+    If userBook Then roMsg = PPTDATA_MSG_RO_USER Else roMsg = PPTDATA_MSG_RO
+    Set w = PptData_FindOpen(path, userBook)
     If Not w Is Nothing Then
-        If w.ReadOnly Then Err.Raise vbObjectError + 7130, "PptData", PPTDATA_MSG_RO & path
+        If w.ReadOnly And Not userBook Then Err.Raise vbObjectError + 7130, "PptData", roMsg & path
         Set PptData_OpenForEdit = w
         Exit Function
     End If
@@ -114,7 +165,7 @@ Public Function PptData_OpenForEdit(path As String) As Workbook
     en = Err.Number: ed = Err.Description
     Err.Clear
     If en = 0 And Not w Is Nothing Then
-        If w.ReadOnly Then w.Close SaveChanges:=False: en = vbObjectError + 7130: ed = PPTDATA_MSG_RO & path
+        If w.ReadOnly Then w.Close SaveChanges:=False: en = vbObjectError + 7130: ed = roMsg & path
     End If
     On Error GoTo 0
     Application.AutomationSecurity = prevSec
@@ -150,7 +201,7 @@ Public Function PptData_OpenOrCreate(path As String, presName As String) As Work
     Set w = Application.Workbooks.Add(xlWBATWorksheet)
     w.Worksheets(1).Name = "Leia-me"
     w.Worksheets(1).Range("A1").Value = "Dados dos gráficos do ThinQQ da apresentação '" & presName & "'."
-    w.Worksheets(1).Range("A2").Value = "Cada planilha 'Gráfico N' alimenta um gráfico do slide. Envie este arquivo junto com a apresentação (PowerPoint: ThinQQ > Empacotar para enviar)."
+    w.Worksheets(1).Range("A2").Value = "Cada planilha 'Gráfico N' alimenta um gráfico do slide. Envie este arquivo junto com a apresentação."
     w.Names.Add Name:=PPTDATA_MARK, RefersTo:="=""1""", Visible:=False
     Application.DisplayAlerts = False
     w.SaveAs Filename:=path, FileFormat:=xlOpenXMLWorkbook, AddToMru:=False

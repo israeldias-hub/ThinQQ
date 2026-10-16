@@ -649,6 +649,8 @@ Private Function PptSync_OpenBook(path As String, opened As Collection) As Workb
     For Each w In Application.Workbooks
         If StrComp(w.FullName, path, vbTextCompare) = 0 Then Set PptSync_OpenBook = w: Exit Function
     Next
+    ' so pastas do Excel: .xll (DLL), .iqy, .slk, .htm, .csv... nunca sao abertos por um caminho vindo da apresentacao (revisao final I2)
+    If Not PptData_IsWorkbookExt(path) Then Errors_Log "PptSync_OpenBook" & vbTab & "extensao recusada" & vbTab & path: Exit Function
     prevAlerts = Application.DisplayAlerts: prevEvents = Application.EnableEvents
     Application.DisplayAlerts = False: Application.EnableEvents = False
     On Error Resume Next

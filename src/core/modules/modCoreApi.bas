@@ -1632,7 +1632,7 @@ Private Function PptInsertChartImpl(slide As Object, kind As String) As String
     Set co = PptData_NewChart(wb, kind, rng)
     Set ws = co.Parent
     LinkFrame_Ensure co.Chart, rng
-    wb.Save
+    PptData_SaveQuiet wb                             ' sem caixas do proprio Excel no Save (revisao final M5); falha sobe
     Set shp = Ppt_PasteChart(co, slide)
     On Error Resume Next: Application.CutCopyMode = False: Err.Clear: On Error GoTo Fail
     If Ppt_LinkState(shp) <> 1 Then Err.Raise vbObjectError + 7133, "PptData", "O PowerPoint colou o gráfico sem o vínculo com a pasta de dados; tente de novo."
@@ -1692,18 +1692,30 @@ End Function
 
 Private Function PptEditDataImpl(pres As Object, entries As String) As String
     Dim items As Collection, shp As Object, path As String, wb As Workbook, co As ChartObject, rng As Range, fr As Shape, en As Long, ed As String
-    Dim wasOpen As Boolean, w As Workbook, prevAlerts As Boolean, alertsOff As Boolean
+    Dim wasOpen As Boolean, w As Workbook, prevAlerts As Boolean, alertsOff As Boolean, isData As Boolean
     On Error GoTo Fail
     Set items = PptSync_ResolveEntries(pres, entries)
     If items.Count = 0 Then PptEditDataImpl = "!" & PPTSYNC_NONE: Exit Function
     Set shp = items(1)
     path = PptSync_ItemBook(shp)
-    If Not PptSync_FileExists(path) Then PptEditDataImpl = "!Pasta de dados não encontrada: " & path & ". Se ela foi movida, ponha-a na mesma pasta da apresentação.": Exit Function
+    isData = (PptSync_Tag(shp, PPTDATA_TAG) = "1")
+    ' o caminho vem da apresentacao (de quem a fez): so pastas do Excel, e grafico criado pelo PowerPoint so com a pasta de dados do ThinQQ,
+    ' conferidos ANTES de tocar o disco (revisao final I2)
+    If Not PptData_IsWorkbookExt(path) Then PptEditDataImpl = "!" & PPTDATA_MSG_NOTBOOK & path: Exit Function
+    If isData And Not PptData_IsDataBookName(path) Then PptEditDataImpl = "!" & PPTDATA_MSG_NOTDATANAME & path: Exit Function
+    If Not PptSync_FileExists(path) Then
+        If isData Then
+            PptEditDataImpl = "!Pasta de dados não encontrada: " & path & ". Se ela foi movida, ponha-a na mesma pasta da apresentação."
+        Else
+            PptEditDataImpl = "!Pasta de origem não encontrada: " & path & "."
+        End If
+        Exit Function
+    End If
     For Each w In Application.Workbooks
         If StrComp(w.FullName, path, vbTextCompare) = 0 Then wasOpen = True: Exit For
     Next
     Set w = Nothing
-    Set wb = PptData_OpenForEdit(path)
+    Set wb = PptData_OpenForEdit(path, Not isData)
     Set co = Registry_FindChartObject(wb, PptSync_Tag(shp, PPTSYNC_TAG_CHART))
     If co Is Nothing Then
         If Not wasOpen Then                                  ' aberta agora so para isto: fecha (nada foi alterado)
@@ -1711,7 +1723,12 @@ Private Function PptEditDataImpl(pres As Object, entries As String) As String
             wb.Close SaveChanges:=False
             Application.DisplayAlerts = prevAlerts: alertsOff = False
         End If
-        PptEditDataImpl = "!Gráfico não encontrado na pasta de dados (apagado ou recriado).": Exit Function
+        If isData Then
+            PptEditDataImpl = "!Gráfico não encontrado na pasta de dados (apagado ou recriado)."
+        Else
+            PptEditDataImpl = "!Gráfico não encontrado na pasta de origem (apagado ou recriado)."
+        End If
+        Exit Function
     End If
     If BUILD_CONFIG <> "Test" Then
         Application.Visible = True
@@ -1757,7 +1774,7 @@ Public Function Core_PptDataSave(pres As Object) As Long
             If StrComp(w.FullName, p, vbTextCompare) = 0 Then
                 If Not w.Saved And Not w.ReadOnly And PptData_IsDataBook(w) Then
                     Err.Clear
-                    w.Save
+                    PptData_SaveQuiet w
                     If Err.Number = 0 Then Core_PptDataSave = 1 Else Errors_Log "Core_PptDataSave" & vbTab & Err.Number & vbTab & Err.Description
                 End If
             End If

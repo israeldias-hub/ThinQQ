@@ -56,7 +56,7 @@
           <button id="btnPptUpdateSel" label="Atualizar uma vez" imageMso="Refresh" onAction="PptRx_OnUpdateSel" getEnabled="PptRx_GetElemEnabled"
                   screentip="Atualizar uma vez" supertip="Atualiza agora dados e setas só dos gráficos do ThinQQ selecionados."/>
           <button id="btnPptEditData" label="Editar dados" imageMso="TableInsert" onAction="PptRx_OnEditData" getEnabled="PptRx_GetElemEnabled"
-                  screentip="Editar dados" supertip="Abre no Excel a planilha com os dados do gráfico selecionado (para gráficos criados aqui, a pasta de dados ao lado da apresentação). O slide acompanha o que você digita."/>
+                  screentip="Editar dados" supertip="Abre no Excel a planilha com os dados do gráfico selecionado (para gráficos criados aqui, a pasta de dados ao lado da apresentação). Gráficos automáticos: o slide acompanha o que você digita."/>
         </group>
       </tab>
     </tabs>

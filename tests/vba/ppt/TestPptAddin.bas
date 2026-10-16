@@ -869,6 +869,90 @@ Cleanup:
     If en <> 0 Then Err.Raise en, "TestPptAddin", ed
 End Sub
 
+' Revisao final (M2, M8): Excel criado nesta chamada com core API 3 mas o core RECUSA (inserir ou editar): Quit, nenhum Excel vazio; deu certo:
+' fica (sem Quit). Apresentacao Nothing (Modo de Exibicao Protegido): "Abra uma apresentacao".
+Public Sub Test_PptTqq_CreatedExcel_QuitOnRefusal_KeptOnSuccess()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String, c As New Collection
+    Set p = NewSavedPres("tqq-ppam-g4e")
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptTqq_InsertChartIn Nothing, Nothing, "stacked"
+    AssertEqual PPT_MSG_NO_PRES, PptTqq_LastMsg(), "sem apresentacao ativa"
+    Set f = NewFakeXl(3): f.InsertResult = "A pasta de dados está aberta por outra pessoa."
+    PptTqq_SetExcelForTest f, "", True
+    PptTqq_InsertChartIn p, p.Slides(1), "stacked"
+    AssertEqual "A pasta de dados está aberta por outra pessoa.", PptTqq_LastMsg()
+    AssertEqual 1, f.QuitCount, "recusa do core: o Excel criado agora recebeu Quit"
+    Set f = NewFakeXl(3): f.InsertAddsShape = True
+    PptTqq_SetExcelForTest f, "", True
+    PptTqq_InsertChartIn p, p.Slides(1), "stacked"
+    AssertEqual "edit:Pasta - Excel", PptTqq_LastMsg()
+    AssertEqual 0, f.QuitCount, "deu certo: o Excel fica com o usuario"
+    c.Add p.Slides(1).Shapes(1)
+    Set f = NewFakeXl(3): f.EditResult = "!Gráfico não encontrado na pasta de dados (apagado ou recriado)."
+    PptTqq_SetExcelForTest f, "", True
+    PptTqq_EditShapes p, c
+    AssertEqual "Gráfico não encontrado na pasta de dados (apagado ou recriado).", PptTqq_LastMsg()
+    AssertEqual 1, f.QuitCount, "Editar dados recusado num Excel criado agora: Quit"
+    Set f = NewFakeXl(3): f.EditResult = "!x"
+    PptTqq_SetExcelForTest f, "", False
+    PptTqq_EditShapes p, c
+    AssertEqual 0, f.QuitCount, "o Excel do usuario nunca recebe Quit"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set c = Nothing
+    KillPres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Revisao final (I1, M3): na abertura (probeRemote False) um caminho antigo REMOTO nunca e testado (reaponta para o candidato local sem tocar a
+' rede); um caminho antigo local e testado; um vinculo cujo arquivo nao termina em " - dados ThinQQ.xlsx" nunca e reapontado (nem testado).
+' A forma do teste nao e um grafico vinculado: a tentativa de gravar o vinculo fica no registro (prova que o reapontar foi tentado).
+Public Sub Test_PptTqq_RelinkData_NoRemoteProbeOnOpen_OnlyDataBooks()
+    Dim p As Object, s As Object, f As String, d As String, o As String, k As Integer, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    f = Environ$("TEMP") & "\tqq-relink3.pptx": p.SaveAs f
+    d = Environ$("TEMP") & "\tqq-relink3 - dados ThinQQ.xlsx"
+    o = Environ$("TEMP") & "\Orcamento-tqq.xlsx"
+    k = FreeFile: Open d For Output As #k: Close #k
+    k = FreeFile: Open o For Output As #k: Close #k
+    Set s = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50)
+    s.Tags.Add PPT_TAG_DATA, "1": s.Tags.Add PPT_TAG_BOOK, "\\tqq-host-que-nao-existe\s\tqq-relink3 - dados ThinQQ.xlsx"
+    p.Tags.Add PPT_TAG_DATABOOK, "\\tqq-host-que-nao-existe\s\tqq-relink3 - dados ThinQQ.xlsx"
+    PptTqq_ResetTestHooks
+    AssertEqual 0, PptTqq_RelinkData(p, False)
+    AssertEqual 0, PptTqq_RelinkProbesForTest(), "abertura: o caminho remoto antigo nao foi testado"
+    AssertTrue InStr(PptTqq_LastLog(), "PptTqq_RelinkData:") = 1, "reapontar para o candidato local foi tentado: " & PptTqq_LastLog()
+    PptTqq_ResetTestHooks
+    s.Tags.Add PPT_TAG_BOOK, "C:\nao\existe\tqq-relink3 - dados ThinQQ.xlsx"
+    AssertEqual 0, PptTqq_RelinkData(p, False)
+    AssertEqual 1, PptTqq_RelinkProbesForTest(), "caminho antigo local: testado"
+    PptTqq_ResetTestHooks
+    s.Tags.Add PPT_TAG_BOOK, "C:\nao\existe\Orcamento-tqq.xlsx"
+    AssertEqual 0, PptTqq_RelinkData(p, True)
+    AssertEqual 0, PptTqq_RelinkProbesForTest(), "pasta que nao e de dados do ThinQQ: nem testada"
+    AssertEqual "", PptTqq_LastLog(), "nem tentada"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set s = Nothing
+    ClosePres p
+    If Len(f) > 0 Then
+        If Len(Dir$(f)) > 0 Then Kill f
+    End If
+    If Len(d) > 0 Then
+        If Len(Dir$(d)) > 0 Then Kill d
+    End If
+    If Len(o) > 0 Then
+        If Len(Dir$(o)) > 0 Then Kill o
+    End If
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
 ' Core com a API 3: insere no slide dado (ou num slide novo no fim), abre os dados da forma nova (Core_PptEditData com a entrada dela) e
 ' mostra o aviso de primeira vez UMA vez por sessao; texto de recusa do core exibido como veio, sem abrir os dados.
 Public Sub Test_PptTqq_InsertChartIn_Api3_InsertsAndOpensData()
