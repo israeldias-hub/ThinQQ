@@ -565,14 +565,14 @@ $pptMessages = @(
     @('ppt', 'powerpoint', 'Salve a apresentação numa pasta do computador antes de empacotar.'),
     @('ppt', 'powerpoint', 'Pronto: a apresentação e '),
     @('ppt', 'powerpoint', ' pasta(s) de dados do ThinQQ foram copiadas para '),
-    @('ppt', 'powerpoint', "'. Envie a pasta "),
+    @('ppt', 'powerpoint', '. Envie a pasta '),
     @('ppt', 'powerpoint', 'inteira (por exemplo, compactada): quem abrir a apresentação dessa pasta com o ThinQQ terá os gráficos criados pelo PowerPoint ligados aos dados ao lado.'),
     @('ppt', 'powerpoint', 'A apresentação está somente leitura: foi copiada a versão salva no disco (sem as alterações abertas).'),
     @('ppt', 'powerpoint', 'Gráficos colados do Excel continuam ligados às pastas de origem, que não entram no pacote.'),
     @('ppt', 'powerpoint', 'Não foi possível copiar (feche-a no Excel e empacote de novo): '),
     @('ppt', 'powerpoint', 'Não encontrada(s) (os gráficos ficam com os últimos dados): '),
-    @('ppt', 'powerpoint', 'Não copiada(s), num endereço de rede: '),
-    @('ppt', 'powerpoint', 'Não copiada(s), mesmo nome de outra já copiada: '),
+    @('ppt', 'powerpoint', 'Não copiada(s): fora da pasta da apresentação: '),
+    @('ppt', 'powerpoint', 'Copiada(s) a versão salva no disco (aberta(s) no Excel com alterações não salvas; salve-a(s) no Excel e empacote de novo para levá-las): '),
     @('ppt', 'powerpoint', 'Não foi possível empacotar: '),
     # atualizador do loader (modUpdater.bas: Updater_PpamStatusText; modRibbon.bas: a pergunta de ThinQQ > Configurações)
     @('loader', 'atualizar', 'Suplemento do PowerPoint atualizado.'),
@@ -1222,20 +1222,20 @@ $cmdPlaces = [ordered]@{
         'Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint.', 'Escolha duas categorias diferentes do gráfico, a primeira antes da segunda.') }
     'tutorial #ppt-empacotar' = @{ text = $packTut; phrases = @(
         $lblPack, ' (ThinQQ)', 'Não gera ZIP', 'não usa o Excel', 'Salve a apresentação numa pasta do computador antes de empacotar.', 'somente leitura', 'versão salva no disco', 'Salvar como',
-        'Gráficos colados do Excel não entram', 'fora da pasta da apresentação', 'aberta no Excel pode falhar ao copiar', 'item 90', 'feche-a no Excel e empacote de novo', 'continuam lá') }
+        'Gráficos colados do Excel não entram', 'fora da pasta da apresentação', 'na pasta da apresentação', 'outra pasta', 'lista cada arquivo copiado', 'aberta no Excel pode falhar ao copiar', 'item 90', 'feche-a no Excel e empacote de novo', 'continuam lá') }
     'tutorial #ppt-criar (mensagens e limites)' = @{ text = $criarTut; phrases = @(
         'Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint.', 'Escolha duas categorias diferentes do gráfico, a primeira antes da segunda.', 'Abra a pasta de origem no Excel para mudar este gráfico',
         'Comando desconhecido: ', 'Não foi possível aplicar: ', 'Salve a apresentação numa pasta do computador antes de empacotar.', 'Pronto: a apresentação e N pasta(s) de dados do ThinQQ foram copiadas para',
-        'Não foi possível copiar (feche-a no Excel e empacote de novo): ', 'Não encontrada(s) (os gráficos ficam com os últimos dados): ', 'Não copiada(s), num endereço de rede: ',
-        'Não copiada(s), mesmo nome de outra já copiada: ', 'A apresentação está somente leitura: foi copiada a versão salva no disco (sem as alterações abertas).',
+        'Não foi possível copiar (feche-a no Excel e empacote de novo): ', 'Não encontrada(s) (os gráficos ficam com os últimos dados): ', 'Não copiada(s): fora da pasta da apresentação: ',
+        'Copiada(s) a versão salva no disco (aberta(s) no Excel com alterações não salvas; salve-a(s) no Excel e empacote de novo para levá-las): ', 'A apresentação está somente leitura: foi copiada a versão salva no disco (sem as alterações abertas).',
         'Gráficos colados do Excel continuam ligados às pastas de origem, que não entram no pacote.', 'Não foi possível empacotar: ', 'PG10', 'itens 86 a 92') }
     'README Recursos' = @{ text = $cmdRec; phrases = @(
         $lblCmdGroup, 'Rótulos', 'Totais', 'Conectores', 'Formato', 'Legenda', 'Seta CAGR', 'Seta diferença', 'Remover setas', 'Da categoria número:', 'Até a categoria número:', 'delta por cliques',
         'TQQ_KIND', 'TQQ_OPTS', 'nunca abre uma pasta do usuário fechada', 'nunca salva uma pasta do usuário', 'precisa estar aberta no Excel', 'Atualizar uma vez',
         'Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint.', 'Escolha duas categorias diferentes do gráfico, a primeira antes da segunda.', 'Abra a pasta de origem no Excel para mudar este gráfico',
-        'Comando desconhecido: ', 'Não foi possível aplicar: ', $lblPack, '<nome> (ThinQQ)', 'sem ZIP', 'Salve a apresentação numa pasta do computador antes de empacotar.', 'Pronto: a apresentação e N pasta(s) de dados do ThinQQ foram copiadas para',
-        'Não foi possível copiar (feche-a no Excel e empacote de novo): ', 'Não encontrada(s) (os gráficos ficam com os últimos dados): ', 'Não copiada(s), num endereço de rede: ',
-        'Não copiada(s), mesmo nome de outra já copiada: ', 'A apresentação está somente leitura: foi copiada a versão salva no disco (sem as alterações abertas).',
+        'Comando desconhecido: ', 'Não foi possível aplicar: ', $lblPack, '<nome> (ThinQQ)', 'na pasta da apresentação', 'outra pasta', 'sem ZIP', 'Salve a apresentação numa pasta do computador antes de empacotar.', 'Pronto: a apresentação e N pasta(s) de dados do ThinQQ foram copiadas para',
+        'Não foi possível copiar (feche-a no Excel e empacote de novo): ', 'Não encontrada(s) (os gráficos ficam com os últimos dados): ', 'Não copiada(s): fora da pasta da apresentação: ',
+        'Copiada(s) a versão salva no disco (aberta(s) no Excel com alterações não salvas; salve-a(s) no Excel e empacote de novo para levá-las): ', 'A apresentação está somente leitura: foi copiada a versão salva no disco (sem as alterações abertas).',
         'Gráficos colados do Excel continuam ligados às pastas de origem, que não entram no pacote.', 'Não foi possível empacotar: ', 'PG10', 'itens 86 a 92', 'Não verificado em PowerPoint e Excel reais') }
     'README Limitações' = @{ text = $readmeLimTxt; phrases = @(
         'Mudar o gráfico e empacotar pelo PowerPoint (1.9.0)', 'precisa estar aberta no Excel', 'nunca abre uma pasta do usuário fechada', 'nem salva uma pasta do usuário', 'Abra a pasta de origem no Excel para mudar este gráfico',
@@ -1259,7 +1259,7 @@ $mvCmdPins = @{
     87 = @('Abra a pasta de origem no Excel para mudar este gráfico', 'não a salva', 'alterações não salvas')
     88 = @('Da categoria número:', 'Até a categoria número:', 'Escolha duas categorias diferentes do gráfico, a primeira antes da segunda.', 'Excel invisível', 'Gerenciador de Tarefas')
     89 = @('core 1.8.0', '.ppam` 1.9.0', 'Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint.')
-    90 = @('PG10', 'Pronto: a apresentação e 1 pasta(s)', 'feche-a no Excel e empacote de novo', 'Não encontrada(s)', 'somente leitura')
+    90 = @('PG10', 'Pronto: a apresentação e 1 pasta(s)', 'pasta de dados de outra pasta é citada no aviso', 'Não copiada(s): fora da pasta da apresentação: ', 'feche-a no Excel e empacote de novo', 'Não encontrada(s)', 'somente leitura')
     91 = @('outro computador', 'vínculo indisponível', 'Editar dados', 'reapontados')
     92 = @('TQQ_OPTS', 'Remover setas', 'Atualizar uma vez')
 }
