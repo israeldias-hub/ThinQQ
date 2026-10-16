@@ -463,7 +463,7 @@ Public Sub Test_PptSync_SummaryText()
 End Sub
 
 Public Sub Test_Core_PptApiVersion()
-    AssertEqual 3, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9; 2 = 1.6.0; 3 = 1.8.0)"
+    AssertEqual 4, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9; 2 = 1.6.0; 3 = 1.8.0; 4 = 1.9.0)"
 End Sub
 
 Public Sub Test_Core_PptSyncPresentation_NeverRaises()
@@ -2322,6 +2322,147 @@ Public Sub Test_PptEditData_UserXlsm_NoBox_ClosesWhenChartMissing()
         AssertTrue StrComp(w.FullName, p, vbTextCompare) <> 0, "a pasta aberta pelo ThinQQ foi fechada"
     Next
     AssertFalse Core_IsQuiet()
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Core_ClearLastNotice
+    If wb Is Nothing And Len(p) > 0 Then Set wb = Workbooks(Dir(p))
+    If Not wb Is Nothing Then Teardown wb
+    Kill p
+    AutoEnd
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' G7 (1.9.0): comandos do grafico pelo PowerPoint (API 4) num grafico criado pelo PowerPoint: o mesmo codigo da faixa do Excel na pasta de
+' dados, que fica salva; o slide acompanha (setas clonadas e removidas); TQQ_KIND/TQQ_OPTS para a faixa do PowerPoint; recusa da matriz em
+' texto; pasta de dados FECHADA e aberta so para o comando e fechada de novo; sem caixas e com o modo silencioso e a operacao fechados.
+Public Sub Test_PptCommand_FromPpt_WhenAvailable()
+    Dim app As Object, pres As Object, slide As Object, own As New Collection, en As Long, ed As String
+    Dim shp As Object, td As String, p As String, pp As String, wb As Workbook, e As String, n0 As Long, w As Workbook, o0 As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    AutoReset
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set slide = pres.Slides.Add(1, 12)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    td = TempDir()                                       ' TempDir() cria uma pasta nova a cada chamada: as duas na MESMA pasta
+    pp = td & "\Cmd G.pptx": p = td & "\Cmd G - dados ThinQQ.xlsx"
+    If Len(Dir(p)) > 0 Then Kill p
+    pres.SaveAs pp
+    AssertEqual "", Core_PptInsertChart(slide, "clustered")
+    Set shp = slide.Shapes(1)
+    Set wb = Workbooks(Dir(p))
+    e = PptIdx_Entry(CLng(slide.SlideID), CStr(shp.Name), "")
+    Ppt_SetAppForTest app
+    AssertEqual "clustered", PptSync_Tag(shp, PPTSYNC_TAG_KIND), "TQQ_KIND gravado na colagem"
+    AssertTrue InStr(PptSync_Tag(shp, PPTSYNC_TAG_OPTS), "caps=labels,") > 0, PptSync_Tag(shp, PPTSYNC_TAG_OPTS)
+    AssertEqual 0, InStr(PptSync_Tag(shp, PPTSYNC_TAG_OPTS), "totals,"), "agrupadas nao tem totais na faixa"
+    Core_ClearLastNotice
+    AssertEqual "", Core_PptCommand(pres, e, "numfmt", "pct0")
+    AssertTrue InStr(PptSync_Tag(shp, PPTSYNC_TAG_OPTS), "numfmt=pct0") > 0, PptSync_Tag(shp, PPTSYNC_TAG_OPTS)
+    AssertTrue wb.Saved, "pasta de dados salva depois do comando"
+    AssertFalse Core_IsQuiet(), "modo silencioso fechado"
+    AssertFalse Ppt_InOperation(), "operacao do PowerPoint fechada"
+    AssertEqual 0, Core_ShownCountForTest(), "nenhuma caixa durante a chamada do PowerPoint"
+    AssertEqual "2022" & Chr$(31) & "2023" & Chr$(31) & "2024" & Chr$(31) & "2025", Core_PptCategories(pres, e)
+    n0 = shp.Chart.Shapes.Count
+    AssertEqual "", Core_PptCommand(pres, e, "cagr", "1,4")
+    AssertTrue shp.Chart.Shapes.Count > n0, "seta CAGR clonada no slide"
+    AssertEqual PPTCMD_MSG_CATS, Core_PptCommand(pres, e, "diff", "3,2"), "de depois de ate"
+    AssertEqual PPTCMD_MSG_CATS, Core_PptCommand(pres, e, "diff", "1,9"), "fora do grafico"
+    AssertEqual PPTCMD_MSG_CATS, Core_PptCommand(pres, e, "diff", "x"), "sem as duas categorias"
+    AssertEqual "", Core_PptCommand(pres, e, "clear", "")
+    AssertEqual 0, CountAnn(shp.Chart), "setas removidas no slide"
+    AssertEqual Kinds_NotApplicableText("totals"), Core_PptCommand(pres, e, "toggle", "totals"), "agrupadas nao tem totais: recusa da matriz em texto"
+    AssertEqual PPTCMD_MSG_UNKNOWN & "toggle palette", Core_PptCommand(pres, e, "toggle", "palette")
+    AssertEqual "Formato numérico desconhecido: abc", Core_PptCommand(pres, e, "numfmt", "abc")
+    AssertEqual PPTCMD_MSG_UNKNOWN & "xyz", Core_PptCommand(pres, e, "xyz", "")
+    AssertEqual PPTSYNC_NOT_FOUND, Core_PptCommand(pres, PptIdx_Entry(999999, "nada", ""), "clear", "")
+    ' pasta de dados FECHADA: aberta para o comando (macros desligadas), salva e fechada de novo
+    Watchers_Stop
+    wb.Close SaveChanges:=False: Set wb = Nothing
+    o0 = PptSync_Tag(shp, PPTSYNC_TAG_OPTS)
+    AssertEqual "", Core_PptCommand(pres, e, "toggle", "labels")
+    AssertTrue o0 <> PptSync_Tag(shp, PPTSYNC_TAG_OPTS), "rotulos invertidos no slide: " & PptSync_Tag(shp, PPTSYNC_TAG_OPTS)
+    For Each w In Application.Workbooks
+        AssertTrue StrComp(w.FullName, p, vbTextCompare) <> 0, "a pasta de dados aberta pelo comando foi fechada"
+    Next
+    AssertEqual "2022" & Chr$(31) & "2023" & Chr$(31) & "2024" & Chr$(31) & "2025", Core_PptCategories(pres, e), "categorias com a pasta fechada"
+    For Each w In Application.Workbooks
+        AssertTrue StrComp(w.FullName, p, vbTextCompare) <> 0, "e fechada de novo depois das categorias"
+    Next
+    Set wb = Application.Workbooks.Open(p)
+    AssertEqual Mid$(o0, InStr(o0, "labels=") + 7, 1) = "1", Not (Registry_GetOption(Registry_FindChartObject(wb, PptSync_Tag(shp, PPTSYNC_TAG_CHART)).Chart, "labels", "0") = "1"), "o comando foi salvo na pasta de dados"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    AutoReset
+    Set shp = Nothing: Set slide = Nothing: Set pres = Nothing: Set w = Nothing
+    StopScratchPowerPoint app, own
+    Watchers_Stop
+    If wb Is Nothing And Len(p) > 0 Then Set wb = Workbooks(Dir(p))
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    Kill p: Kill pp
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+Private Function CountAnn(pc As Object) As Long
+    Dim i As Long
+    For i = 1 To pc.Shapes.Count
+        If Left$(CStr(pc.Shapes(i).Name), Len(ANN_PREFIX)) = ANN_PREFIX Then CountAnn = CountAnn + 1
+    Next
+End Function
+
+' G7 (seguranca): grafico colado de uma pasta do USUARIO. Fechada: o comando recusa (PPTCMD_MSG_OPEN_SOURCE) e o ThinQQ NUNCA a abre (nem
+' para as categorias). Aberta pelo usuario: o comando aplica e a pasta fica alterada e NAO salva (o usuario decide). Sem PowerPoint (duble:
+' sem grafico no slide, a sincronizacao conta falha e o resumo volta como mensagem).
+Public Sub Test_PptCommand_UserBook_OnlyWhenOpen_NeverSaved()
+    Dim wb As Workbook, rng As Range, p As String, id As String, shp As TestPptFake, lf As TestPptFake, pres As TestPptFake, msg As String
+    Dim w As Workbook, en As Long, ed As String, t0 As Date, e As String, v0 As String
+    On Error GoTo Cleanup
+    AutoBegin
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    id = Registry_IdFromChart(rng.Worksheet.ChartObjects(1).Chart)
+    p = TempDir() & "\usuario-g7.xlsx"
+    wb.SaveAs p, xlOpenXMLWorkbook
+    Watchers_Stop
+    wb.Close SaveChanges:=False: Set wb = Nothing
+    t0 = FileDateTime(p)
+    Set shp = New TestPptFake: Set shp.Tags = CreateObject("Scripting.Dictionary")
+    shp.Tags.Add PPTSYNC_TAG_CHART, id
+    shp.Tags.Add PPTSYNC_TAG_BOOK, p
+    Set lf = New TestPptFake: lf.SourceFullName = p: Set shp.LinkFormat = lf
+    Set pres = FakeAutoPres(shp, p)
+    e = PptIdx_Entry(256, "tqq_x", "")
+    Core_ClearLastNotice
+    AssertEqual PPTCMD_MSG_OPEN_SOURCE, Core_PptCommand(pres, e, "toggle", "totals")
+    AssertEqual "", Core_PptCategories(pres, e), "categorias: pasta do usuario fechada nunca e aberta"
+    shp.Tags(PPTDATA_TAG) = "1"                           ' etiqueta forjada: o nome nao e de pasta de dados => nada e aberto
+    AssertEqual PPTDATA_MSG_NOTDATANAME & p, Core_PptCommand(pres, e, "toggle", "totals")
+    shp.Tags.Remove PPTDATA_TAG
+    For Each w In Application.Workbooks
+        AssertTrue StrComp(w.FullName, p, vbTextCompare) <> 0, "a pasta do usuario nao foi aberta"
+    Next
+    AssertTrue FileDateTime(p) = t0, "a pasta do usuario nao foi gravada"
+    AssertEqual 0, lf.UpdateCount, "sem LinkFormat.Update"
+    Set wb = Application.Workbooks.Open(p)                ' o usuario abre a pasta
+    v0 = Registry_GetOption(Registry_FindChartObject(wb, id).Chart, "totals", "0")
+    msg = Core_PptCommand(pres, e, "toggle", "totals")
+    AssertTrue InStr(msg, "Falha ao atualizar: 1") > 0, "o slide (duble sem grafico) nao acompanhou: o resumo volta: " & msg
+    AssertEqual IIf(v0 = "1", "0", "1"), Registry_GetOption(Registry_FindChartObject(wb, id).Chart, "totals", "0"), "comando aplicado (invertido) na pasta aberta"
+    AssertFalse wb.Saved, "pasta do usuario alterada e NAO salva"
+    AssertTrue FileDateTime(p) = t0, "arquivo do usuario intacto"
+    AssertEqual "T1" & Chr$(31) & "T2", Core_PptCategories(pres, e), "categorias da pasta aberta"
+    AssertFalse Core_IsQuiet()
+    AssertFalse Ppt_InOperation()
+    AssertEqual 0, Core_ShownCountForTest()
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1

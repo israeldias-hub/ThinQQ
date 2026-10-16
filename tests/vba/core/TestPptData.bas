@@ -246,6 +246,48 @@ Cleanup:
     If en <> 0 Then Err.Raise en, "TestPptData", ed
 End Sub
 
+' G7 (1.9.0): estado das opcoes que a faixa do PowerPoint le na etiqueta TQQ_OPTS, sem chamar o Excel. Um valor alterado no registro do
+' grafico nunca leva separadores nem Chr(30)/Chr(31)/quebras de linha para a etiqueta.
+Public Sub Test_PptSync_OptsText()
+    Dim wb As Workbook, ws As Worksheet, c As Chart, s As String, en As Long, ed As String
+    On Error GoTo Cleanup
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    Samples_WriteTable(ws.Range("A1"), Samples_TableFor("stacked")).Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    s = PptSync_OptsText(c)
+    AssertTrue InStr(s, "numfmt=") > 0 And InStr(s, "legend=") > 0, s
+    AssertTrue InStr(s, "caps=") > 0 And InStr(s, "totals,") > 0 And InStr(s, "cagr,") > 0, "empilhadas: totais e CAGR (" & s & ")"
+    Core_SetToggle "totals", True
+    AssertTrue InStr(PptSync_OptsText(c), "totals=1") > 0
+    Core_SetToggle "totals", False
+    AssertTrue InStr(PptSync_OptsText(c), "totals=0") > 0
+    Registry_SetOption c, "numfmt", "pct0,x" & Chr$(31) & vbLf & "1" & vbTab & "y"      ' (o registro ja recusa ';' e '=')
+    s = PptSync_OptsText(c)
+    AssertTrue InStr(s, "numfmt=pct0x1y;legend=") > 0, "so letras e digitos: " & s
+    AssertEqual 0, InStr(s, Chr$(31)) + InStr(s, Chr$(30)) + InStr(s, vbLf) + InStr(s, vbCr) + InStr(s, vbTab)
+    AssertEqual "abc123", PptSync_OptValue("a,b;c=1" & Chr$(30) & "2 3")
+    AssertEqual 20, Len(PptSync_OptValue(String$(50, "a"))), "no maximo 20 caracteres"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set c = Nothing: Set ws = Nothing
+    Watchers_Stop
+    CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptData", ed
+End Sub
+
+' G7: a API 4 nunca propaga erro e recusa um comando desconhecido antes de procurar as formas.
+Public Sub Test_PptCommand_NeverRaises_NoPowerPoint()
+    AssertEqual PPTCMD_MSG_UNKNOWN & "xyz", Core_PptCommand(Nothing, "", "xyz", "")
+    AssertTrue Len(Core_PptCommand(Nothing, "256|a|", "clear", "")) > 0, "apresentacao Nothing: mensagem, sem erro"
+    AssertEqual "", Core_PptCategories(Nothing, "256|a|")
+    AssertFalse Core_IsQuiet(), "modo silencioso fechado"
+    AssertFalse Ppt_InOperation(), "operacao do PowerPoint fechada"
+End Sub
+
 ' M1: pasta de dados ja aberta SOMENTE LEITURA neste Excel: PPTDATA_MSG_RO (antes falhava no Save com "... (1004)").
 Public Sub Test_PptInsertChart_DataBookOpenReadOnly_Refused()
     Dim td As String, p As String, msg As String, w As Workbook, en As Long, ed As String

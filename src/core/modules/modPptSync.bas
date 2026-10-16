@@ -21,8 +21,11 @@ Public Const PPTIDX_MAX_ENTRIES As Long = 2000             ' PptIdx_Parse: entra
 Public Const PPTIDX_MAX_LEN As Long = 1000000              ' PptIdx_Parse: etiqueta maior que isto (caracteres) e recusada inteira
 Private Const PPTIDX_FS As String = "|"                    ' indice: separador de campos (PptIdx_*)
 Private Const PPTIDX_ES As String = vbLf                   ' indice: separador de entradas
-Public Const CORE_PPT_API As Long = 3                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
-                                                           ' 3 = Core_PptInsertChart, Core_PptEditData, Core_PptDataSave (1.8.0)
+Public Const PPTSYNC_TAG_KIND As String = "TQQ_KIND"        ' tipo do grafico (a faixa do PowerPoint le sem chamar o Excel; spec 14.5)
+Public Const PPTSYNC_TAG_OPTS As String = "TQQ_OPTS"        ' estado das opcoes (PptSync_OptsText) para getPressed/getEnabled do .ppam
+Public Const CORE_PPT_API As Long = 4                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
+                                                           ' 3 = Core_PptInsertChart, Core_PptEditData, Core_PptDataSave (1.8.0);
+                                                           ' 4 = Core_PptCommand, Core_PptCategories (1.9.0)
 Public Const PPTSYNC_NONE As String = "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."
 Public Const PPTSYNC_NOT_FOUND As String = "Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo."
 Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."
@@ -507,6 +510,41 @@ Public Function PptSync_ItemBook(shp As Object) As String
     PptSync_ItemBook = PptSync_SourcePath(PptSync_LinkSource(shp), PptSync_Tag(shp, PPTSYNC_TAG_BOOK))
 End Function
 
+' Estado das opcoes do grafico para a faixa do PowerPoint ler SEM chamar o Excel (spec 14.5): "labels=1;totals=0;connectors=1;numfmt=int;
+' legend=right;caps=labels,totals,...,". Pura sobre o grafico. Os valores vem do registro do grafico (que a pasta pode trazer alterado): so
+' letras e digitos passam (PptSync_OptValue), entao o texto nunca tem ";", "=", ",", quebras de linha nem Chr(30)/Chr(31) fora da estrutura.
+Public Function PptSync_OptsText(c As Chart) As String
+    Dim k As Variant, s As String, caps As String
+    For Each k In Array("labels", "totals", "connectors")
+        s = s & k & "=" & IIf(Registry_GetOption(c, CStr(k), "0") = "1", "1", "0") & ";"
+    Next
+    s = s & "numfmt=" & PptSync_OptValue(Registry_GetOption(c, "numfmt", "int")) & ";legend=" & PptSync_OptValue(Registry_GetOption(c, "legend", "right")) & ";"
+    For Each k In Array("labels", "totals", "connectors", "numfmt", "legend", "cagr", "diff")
+        If Kinds_SupportsChart(c, CStr(k)) Then caps = caps & k & ","
+    Next
+    PptSync_OptsText = s & "caps=" & caps
+End Function
+
+' Valor de opcao seguro para a etiqueta TQQ_OPTS: so a-z, A-Z e 0-9, no maximo 20 caracteres. Pura.
+Public Function PptSync_OptValue(v As String) As String
+    Dim i As Long, ch As String, s As String
+    For i = 1 To Len(v)
+        ch = Mid$(v, i, 1)
+        If ch Like "[a-zA-Z0-9]" Then s = s & ch
+        If Len(s) >= 20 Then Exit For
+    Next
+    PptSync_OptValue = s
+End Function
+
+' Grava TQQ_KIND e TQQ_OPTS na forma do slide (a cada sincronizacao e colagem). Nunca propaga erro.
+Public Sub PptSync_TagOpts(shp As Object, c As Chart)
+    On Error Resume Next
+    shp.Tags.Add PPTSYNC_TAG_KIND, PptSync_OptValue(Registry_ChartType(c))
+    shp.Tags.Add PPTSYNC_TAG_OPTS, PptSync_OptsText(c)
+    If Err.Number <> 0 Then Errors_Log "PptSync_TagOpts" & vbTab & Err.Number & vbTab & Err.Description
+    Err.Clear
+End Sub
+
 ' Nome valido para o indice e unico no slide (o indice acha a forma pelo nome): um nome com os separadores do indice ou caracteres que o .pptx
 ' salvo muda (PptIdx_SafeField) troca eles por "_"; outra forma com o mesmo nome (Shape.Id diferente: objetos de outro processo nao se comparam com Is) faz esta virar
 ' "<nome>_2", "_3"... O nome da forma do slide nao e usado pelo Excel. Nomes comparados SEM diferenciar maiusculas (medido na C3: Shapes(nome)
@@ -754,6 +792,7 @@ Private Function PptSync_SyncOne(shp As Object, wb As Workbook, force As Boolean
     PptSync_SyncShape shp, co, True, skipped
     If skipped Then PptSync_SyncOne = PPTSYNC_R_SKIPPED: Exit Function   ' Update ignorado: sem TQQ_FP, sem contar como atualizado
     PptSync_SyncOne = PPTSYNC_R_OK
+    PptSync_TagOpts shp, co.Chart                      ' estado das opcoes para a faixa do PowerPoint (nunca propaga erro)
     On Error GoTo FpFail
     PptSync_Hook "tagfp"
     shp.Tags.Add PPTSYNC_TAG_FP, PptSync_Fingerprint(co, shp)
