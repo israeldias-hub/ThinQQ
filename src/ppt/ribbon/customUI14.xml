@@ -58,6 +58,34 @@
           <button id="btnPptEditData" label="Editar dados" imageMso="TableInsert" onAction="PptRx_OnEditData" getEnabled="PptRx_GetElemEnabled"
                   screentip="Editar dados" supertip="Abre no Excel a planilha com os dados do gráfico selecionado (para gráficos criados aqui, a pasta de dados ao lado da apresentação). Gráficos automáticos: o slide acompanha o que você digita."/>
         </group>
+        <!-- 1.9.0: opcoes do grafico selecionado pelo PowerPoint (Core_PptCommand, API 4). Estado e capacidades vem da etiqueta TQQ_OPTS da forma. -->
+        <group id="grpPptChart" label="Gráfico do ThinQQ">
+          <toggleButton id="tglPptLabels" label="Rótulos" imageMso="TextBoxInsert" tag="labels" getPressed="PptRx_GetOpt" onAction="PptRx_OnToggleOpt" getEnabled="PptRx_GetOptEnabled"
+                        screentip="Rótulos de valor" supertip="Liga ou desliga os rótulos de valor do gráfico do ThinQQ selecionado (o mesmo botão da faixa do Excel). Exige o ThinQQ 1.9.0 ou mais novo no Excel."/>
+          <toggleButton id="tglPptTotals" label="Totais" imageMso="AutoSum" tag="totals" getPressed="PptRx_GetOpt" onAction="PptRx_OnToggleOpt" getEnabled="PptRx_GetOptEnabled"
+                        screentip="Totais de cada categoria" supertip="Liga ou desliga os totais (colunas, barras e áreas empilhadas ou 100%, combinação e Mekko)."/>
+          <toggleButton id="tglPptConnectors" label="Conectores" imageMso="ShapeStraightConnector" tag="connectors" getPressed="PptRx_GetOpt" onAction="PptRx_OnToggleOpt" getEnabled="PptRx_GetOptEnabled"
+                        screentip="Conectores" supertip="Liga ou desliga as linhas entre os segmentos de colunas e barras empilhadas e as barras da cascata."/>
+          <dropDown id="ddPptNumFmt" label="Formato" tag="numfmt" getSelectedItemID="PptRx_GetOptItem" onAction="PptRx_OnOptItem" getEnabled="PptRx_GetOptEnabled" screentip="Formato dos números">
+            <item id="numfmtint" label="1.234"/>
+            <item id="numfmtdec1" label="1.234,5"/>
+            <item id="numfmtdec2" label="1.234,56"/>
+            <item id="numfmtpct0" label="12%"/>
+            <item id="numfmtpct1" label="12,3%"/>
+            <item id="numfmtmil" label="Milhares (1.234 → 1)"/>
+            <item id="numfmtmi" label="Milhões (1,2)"/>
+          </dropDown>
+          <dropDown id="ddPptLegend" label="Legenda" tag="legend" getSelectedItemID="PptRx_GetOptItem" onAction="PptRx_OnOptItem" getEnabled="PptRx_GetOptEnabled" screentip="Legenda do gráfico">
+            <item id="legendright" label="Direita"/>
+            <item id="legendnone" label="Nenhuma"/>
+          </dropDown>
+          <button id="btnPptCagr" label="Seta CAGR" imageMso="ArrowsMore" tag="cagr" onAction="PptRx_OnArrow" getEnabled="PptRx_GetOptEnabled"
+                  screentip="Seta CAGR" supertip="Acrescenta a seta da taxa de crescimento anual composta entre duas categorias, escolhidas pelo número numa lista."/>
+          <button id="btnPptDiff" label="Seta diferença" imageMso="ShapeUpArrow" tag="diff" onAction="PptRx_OnArrow" getEnabled="PptRx_GetOptEnabled"
+                  screentip="Seta diferença" supertip="Acrescenta a seta da diferença entre duas categorias, escolhidas pelo número numa lista."/>
+          <button id="btnPptClearAnn" label="Remover setas" imageMso="Delete" onAction="PptRx_OnClearAnn" getEnabled="PptRx_GetElemEnabled"
+                  screentip="Remover setas" supertip="Remove as setas de CAGR e de diferença do gráfico do ThinQQ selecionado."/>
+        </group>
       </tab>
     </tabs>
   </ribbon>

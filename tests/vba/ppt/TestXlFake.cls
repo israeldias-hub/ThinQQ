@@ -24,13 +24,17 @@ Public LastKind As String                       ' tipo recebido por Core_PptInse
 Public InsertSlideIndex As Long                 ' SlideIndex do slide recebido por Core_PptInsertChart
 Public EditResult As String                     ' resposta de Core_PptEditData ("" = "Pasta - Excel")
 Public QuitCount As Long                        ' Quit recebidos
+Public CommandResult As String                  ' resposta de Core_PptCommand ("" = ok)
+Public LastCmd As String                        ' "cmd:arg" recebidos por Core_PptCommand (o ultimo)
+Public CmdLog As String                         ' "cmd:arg;" de todas as chamadas de Core_PptCommand
+Public CatsResult As String                     ' resposta de Core_PptCategories
 Private mBooks As New Collection
 
 Public Property Get Workbooks() As Collection
     Set Workbooks = mBooks
 End Property
 
-Public Function Run(macro As String, Optional a1 As Variant, Optional a2 As Variant, Optional a3 As Variant) As Variant
+Public Function Run(macro As String, Optional a1 As Variant, Optional a2 As Variant, Optional a3 As Variant, Optional a4 As Variant) As Variant
     Dim nm As String
     nm = Mid$(macro, InStr(macro, "!") + 1)
     Calls = Calls & nm & ";"
@@ -54,6 +58,14 @@ Public Function Run(macro As String, Optional a1 As Variant, Optional a2 As Vari
             LastEntries = CStr(a2)
             If Len(EditResult) > 0 Then Run = EditResult Else Run = "Pasta - Excel"
         Case "Core_PptDataSave": Run = 1
+        Case "Core_PptCommand"
+            LastEntries = CStr(a2)
+            LastCmd = CStr(a3) & ":" & CStr(a4)
+            CmdLog = CmdLog & LastCmd & ";"
+            Run = CommandResult
+        Case "Core_PptCategories"
+            LastEntries = CStr(a2)
+            Run = CatsResult
     End Select
 End Function
 

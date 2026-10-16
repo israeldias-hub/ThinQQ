@@ -1077,3 +1077,174 @@ Public Sub E2e_EditShape(shp As Object)
     c.Add shp
     PptTqq_EditShapes shp.Parent.Parent, c
 End Sub
+
+' ---- 1.9.0 (Parte G-II, G8): grupo "Grafico do ThinQQ" ----
+
+Public Sub Test_PptTqq_OptValueAndCap()
+    Dim o As String
+    o = "labels=1;totals=0;connectors=1;numfmt=pct0;legend=right;caps=labels,totals,cagr,"
+    AssertEqual "1", PptTqq_OptValue(o, "labels")
+    AssertEqual "pct0", PptTqq_OptValue(o, "numfmt")
+    AssertEqual "", PptTqq_OptValue(o, "nada")
+    AssertTrue PptTqq_OptCap(o, "cagr")
+    AssertFalse PptTqq_OptCap(o, "diff")
+    AssertFalse PptTqq_OptCap(o, "tal"), "nao confunde prefixo (totals)"
+    AssertEqual "", PptTqq_OptValue("", "labels"), "forma sem TQQ_OPTS (colada por um core anterior)"
+    AssertFalse PptTqq_OptCap("", "labels")
+    AssertFalse PptTqq_OptCap(o, ""), "controle sem tag"
+    AssertEqual "", PptTqq_OptValue(o, ""), "chave vazia"
+    AssertEqual 4, PPT_API_CMD, "comandos pelo PowerPoint (1.9.0) pedem a API 4"
+End Sub
+
+Public Sub Test_PptTqq_PickTwo_TestHook()
+    Dim a As Long, b As Long
+    PptTqq_SetPickForTest 1, 3
+    AssertTrue PptTqq_PickTwo("A" & Chr$(31) & "B" & Chr$(31) & "C", a, b)
+    AssertEqual 1, a: AssertEqual 3, b
+    PptTqq_SetPickForTest 3, 3
+    AssertFalse PptTqq_PickTwo("A" & Chr$(31) & "B" & Chr$(31) & "C", a, b), "de = ate: recusado"
+    PptTqq_SetPickForTest 1, 4
+    AssertFalse PptTqq_PickTwo("A" & Chr$(31) & "B" & Chr$(31) & "C", a, b), "ate alem das categorias"
+    PptTqq_SetPickForTest 1, 2
+    AssertFalse PptTqq_PickTwo("A", a, b), "uma categoria so: nada a escolher"
+    AssertEqual 0, a
+    PptTqq_ResetTestHooks
+    AssertFalse PptTqq_PickTwo("A" & Chr$(31) & "B", a, b), "gancho zerado: cancelado"
+    AssertEqual 0, a: AssertEqual 0, b
+End Sub
+
+' Comandos (G8): sem selecao; sem Excel; Excel criado sem o core (Quit); core sem a API 4 (nenhum Core_PptCommand); API 4: comando, valor e
+' entradas chegam ao core; texto do core exibido como veio; falha com texto proprio e reentrada liberada; o Excel do usuario nunca recebe Quit.
+Public Sub Test_PptTqq_CommandShapes_Paths()
+    Dim p As Object, s As Object, f As TestXlFake, en As Long, ed As String, c As New Collection
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set s = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50)
+    s.Tags.Add PPT_TAG_CHART, "c1"
+    PptTqq_ResetTestHooks
+    PptTqq_ClearLastMsg
+    PptTqq_CommandShapes p, New Collection, "toggle", "labels"
+    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg(), "sem selecao"
+    c.Add s
+    PptTqq_SetExcelForTest Nothing, ""
+    PptTqq_CommandShapes p, c, "toggle", "labels"
+    AssertEqual PPT_MSG_NO_EXCEL_DATA, PptTqq_LastMsg(), "sem Excel"
+    Set f = NewFakeXl(4): f.NoCore = True
+    PptTqq_SetExcelForTest f, "", True
+    PptTqq_CommandShapes p, c, "toggle", "labels"
+    AssertEqual PPT_MSG_DATA_NOCORE, PptTqq_LastMsg(), "Excel sem o ThinQQ"
+    AssertEqual 1, f.QuitCount, "o Excel criado recebeu Quit"
+    Set f = NewFakeXl(3)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_CommandShapes p, c, "toggle", "labels"
+    AssertEqual PPT_MSG_OLD_CORE_CMD, PptTqq_LastMsg(), "core 1.8.0 (API 3)"
+    AssertEqual 0, InStr(f.Calls, "Core_PptCommand"), f.Calls
+    Set f = NewFakeXl(4)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_ClearLastMsg
+    PptTqq_CommandShapes p, c, "toggle", "labels"
+    AssertEqual "toggle:labels", f.LastCmd
+    AssertEqual PptTqq_EntriesOf(c), f.LastEntries
+    AssertEqual "", PptTqq_LastMsg(), "deu certo: sem aviso"
+    f.CommandResult = "Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo."
+    PptTqq_CommandShapes Nothing, c, "numfmt", "pct0"
+    AssertEqual "numfmt:pct0", f.LastCmd, "apresentacao Nothing: a da forma"
+    AssertEqual f.CommandResult, PptTqq_LastMsg(), "texto do core exibido como veio"
+    f.CommandResult = "": f.FailOn = "Core_PptCommand"
+    PptTqq_CommandShapes p, c, "clear", ""
+    AssertTrue InStr(PptTqq_LastMsg(), "Não foi possível aplicar: falha simulada") = 1, PptTqq_LastMsg()
+    f.FailOn = ""
+    PptTqq_ClearLastMsg
+    PptTqq_CommandShapes p, c, "clear", ""
+    AssertEqual "clear:", f.LastCmd, "reentrada liberada depois da falha"
+    AssertEqual "", PptTqq_LastMsg()
+    AssertEqual 0, f.QuitCount, "o Excel do usuario nunca recebe Quit"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set s = Nothing: Set c = Nothing
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' CAGR e diferenca (G8): categorias do core -> escolha de/ate -> "de,ate"; cancelado = nada (nem Core_PptCommand nem aviso); resposta
+' invalida = aviso sem chamar o core; uma categoria so = aviso; sem categorias (pasta indisponivel) = o core e chamado com "0,0" e o motivo
+' dele e exibido; nomes repetidos no slide ficam unicos antes de montar as entradas.
+Public Sub Test_PptTqq_CommandShapes_Arrows()
+    Dim p As Object, s As Object, s2 As Object, f As TestXlFake, en As Long, ed As String, c As New Collection
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set s = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): s.Name = "tqq_y": s.Tags.Add PPT_TAG_CHART, "c1"
+    Set s2 = p.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50): s2.Name = "tqq_y": s2.Tags.Add PPT_TAG_CHART, "c2"
+    c.Add s2
+    PptTqq_ResetTestHooks
+    Set f = NewFakeXl(4)
+    PptTqq_SetExcelForTest f, ""
+    f.CatsResult = "2020" & Chr$(31) & "2021" & Chr$(31) & "2022"
+    PptTqq_SetPickForTest 1, 3
+    PptTqq_ClearLastMsg
+    PptTqq_CommandShapes p, c, "cagr", ""
+    AssertTrue InStr(f.Calls, "Core_PptCategories;Core_PptCommand;") > 0, f.Calls
+    AssertEqual "cagr:1,3;", f.CmdLog
+    AssertEqual "", PptTqq_LastMsg()
+    AssertTrue StrComp(CStr(s.Name), CStr(s2.Name), vbTextCompare) <> 0, "nomes unicos no slide: " & s2.Name
+    AssertEqual PptTqq_EntriesOf(c), f.LastEntries
+    f.CmdLog = ""
+    PptTqq_SetPickForTest 0, 0
+    PptTqq_CommandShapes p, c, "diff", ""
+    AssertEqual "", f.CmdLog, "cancelado: nada"
+    AssertEqual "", PptTqq_LastMsg()
+    PptTqq_SetPickForTest 3, 2
+    PptTqq_CommandShapes p, c, "diff", ""
+    AssertEqual "", f.CmdLog, "de > ate: o core nao e chamado"
+    AssertEqual PPT_MSG_CATS, PptTqq_LastMsg()
+    PptTqq_SetPickForTest 2, 3
+    PptTqq_CommandShapes p, c, "diff", ""
+    AssertEqual "diff:2,3;", f.CmdLog
+    f.CmdLog = "": f.CatsResult = "2020"
+    PptTqq_ClearLastMsg
+    PptTqq_CommandShapes p, c, "diff", ""
+    AssertEqual "", f.CmdLog, "uma categoria so"
+    AssertEqual PPT_MSG_CATS, PptTqq_LastMsg()
+    f.CatsResult = "": f.CommandResult = "Abra a pasta de origem no Excel para mudar este gráfico (o ThinQQ não altera pastas fechadas do usuário)."
+    PptTqq_CommandShapes p, c, "cagr", ""
+    AssertEqual "cagr:0,0;", f.CmdLog, "sem categorias: o core diz o motivo"
+    AssertEqual f.CommandResult, PptTqq_LastMsg()
+    f.CmdLog = "": f.CommandResult = ""
+    PptTqq_CommandShapes p, c, "cagr", ""
+    AssertEqual PPT_MSG_CATS, PptTqq_LastMsg(), "sem categorias e sem motivo: o aviso das categorias"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set s = Nothing: Set s2 = Nothing: Set c = Nothing
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Faixa sem selecao: o grupo "Grafico do ThinQQ" fica solto e desligado, e cada clique avisa para selecionar (controle sem tag: nada quebra).
+Public Sub Test_PptRx_ChartCallbacks_NoSelection()
+    Dim v As Variant
+    PptTqq_ResetTestHooks
+    AssertEqual "", PptTqq_SelectedOpts()
+    v = True: PptRx_GetOpt Nothing, v
+    AssertFalse CBool(v)
+    v = True: PptRx_GetOptEnabled Nothing, v
+    AssertFalse CBool(v)
+    v = "x": PptRx_GetOptItem Nothing, v
+    AssertEqual "", CStr(v)
+    PptTqq_ClearLastMsg
+    PptRx_OnToggleOpt Nothing, True
+    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg(), "alternancia"
+    PptTqq_ClearLastMsg
+    PptRx_OnOptItem Nothing, "numfmtpct0", 3
+    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg(), "lista"
+    PptTqq_ClearLastMsg
+    PptRx_OnArrow Nothing
+    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg(), "seta"
+    PptTqq_ClearLastMsg
+    PptRx_OnClearAnn Nothing
+    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg(), "remover setas"
+    PptRx_InvalidateElem
+End Sub

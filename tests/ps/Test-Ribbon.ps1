@@ -210,6 +210,39 @@ for ($i = 0; $sameIns -and $i -lt $xlInsNodes.Count; $i++) {
 Check $sameIns "ppt: menus e botoes de Inserir gráfico com os ids (prefixo p), rotulos e icones do Excel ($($ppInsNodes.Count))"
 Check ($pptBas -match 'InvalidateControl "btnPptEditData"') 'ppt: Editar dados invalidado com a selecao'
 Check ($pptBas -match '(?m)^Public Sub PptRx_OnInsertChart\(control As IRibbonControl\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnEditData\(control As IRibbonControl\)') 'ppt: assinaturas de Inserir gráfico e Editar dados'
+# 1.9.0 (G8): grupo "Gráfico do ThinQQ" depois do "Gráfico selecionado": 3 alternâncias, 2 listas e 3 botões, com os callbacks e os tags das opções
+$gc = $px.SelectSingleNode("//u:group[@id='grpPptChart']", $pns)
+Check ($null -ne $gc -and $gc.GetAttribute('label') -ceq 'Gráfico do ThinQQ') 'ppt: grupo Gráfico do ThinQQ'
+$gcPrev = $px.SelectSingleNode("//u:group[@id='grpPptChart']/preceding-sibling::u:group[1]", $pns)
+Check ($null -ne $gcPrev -and $gcPrev.GetAttribute('id') -eq 'grpPptElem') 'ppt: Gráfico do ThinQQ logo depois de Gráfico selecionado'
+foreach ($t in @(@('tglPptLabels', 'labels'), @('tglPptTotals', 'totals'), @('tglPptConnectors', 'connectors'))) {
+    Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:toggleButton[@id='$($t[0])'][@tag='$($t[1])'][@getPressed='PptRx_GetOpt'][@onAction='PptRx_OnToggleOpt'][@getEnabled='PptRx_GetOptEnabled']", $pns)) "ppt: alternância $($t[0])"
+}
+foreach ($t in @(@('ddPptNumFmt', 'numfmt', 'int,dec1,dec2,pct0,pct1,mil,mi'), @('ddPptLegend', 'legend', 'right,none'))) {
+    $dd = $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:dropDown[@id='$($t[0])'][@tag='$($t[1])'][@getSelectedItemID='PptRx_GetOptItem'][@onAction='PptRx_OnOptItem'][@getEnabled='PptRx_GetOptEnabled']", $pns)
+    Check ($null -ne $dd) "ppt: lista $($t[0])"
+    $want = @($t[2] -split ',' | ForEach-Object { $t[1] + $_ }) -join ','
+    Check ($null -ne $dd -and (@($dd.SelectNodes('u:item', $pns) | ForEach-Object { $_.GetAttribute('id') }) -join ',') -ceq $want) "ppt: itens de $($t[0]) = tag + valor do core ($want)"
+}
+# mesmos rotulos dos itens do Excel (ids do Excel = valor do core)
+foreach ($t in @(@('ddPptNumFmt', 'ddFormat', 'numfmt'), @('ddPptLegend', 'ddLegend', 'legend'))) {
+    $ok = $true
+    foreach ($it in @($px.SelectNodes("//u:dropDown[@id='$($t[0])']/u:item", $pns))) {
+        $xi = $xx.SelectSingleNode("//u:dropDown[@id='$($t[1])']/u:item[@id='$($it.GetAttribute('id').Substring($t[2].Length))']", $xns)
+        if ($null -eq $xi -or $xi.GetAttribute('label') -cne $it.GetAttribute('label')) { $ok = $false }
+    }
+    Check $ok "ppt: itens de $($t[0]) com os valores e rotulos do $($t[1]) do Excel"
+}
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:button[@id='btnPptCagr'][@tag='cagr'][@onAction='PptRx_OnArrow'][@getEnabled='PptRx_GetOptEnabled']", $pns)) 'ppt: Seta CAGR'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:button[@id='btnPptDiff'][@tag='diff'][@onAction='PptRx_OnArrow'][@getEnabled='PptRx_GetOptEnabled']", $pns)) 'ppt: Seta diferença'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:button[@id='btnPptClearAnn'][@onAction='PptRx_OnClearAnn'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Remover setas'
+Check (@($px.SelectNodes("//u:group[@id='grpPptChart']/u:*", $pns)).Count -eq 8) 'ppt: Gráfico do ThinQQ com 8 controles'
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnToggleOpt\(control As IRibbonControl, pressed As Boolean\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetOpt\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetOptEnabled\(control As IRibbonControl, ByRef \w+\)') 'ppt: assinaturas das alternâncias do Gráfico do ThinQQ'
+Check ($pptBas -match '(?m)^Public Sub PptRx_GetOptItem\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnOptItem\(control As IRibbonControl, selectedId As String, selectedIndex As Integer\)') 'ppt: assinaturas das listas do Gráfico do ThinQQ'
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnArrow\(control As IRibbonControl\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnClearAnn\(control As IRibbonControl\)') 'ppt: assinaturas das setas do Gráfico do ThinQQ'
+foreach ($id in 'tglPptLabels', 'tglPptTotals', 'tglPptConnectors', 'ddPptNumFmt', 'ddPptLegend', 'btnPptCagr', 'btnPptDiff', 'btnPptClearAnn') {
+    Check ($pptBas.Contains('"' + $id + '"')) "ppt: $id invalidado com a selecao"
+}
 # ---- Carimbo do .ppam (Set-PackageDescription): o PowerPoint grava o suplemento sem docProps; pacotes sinteticos, sem Office
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem

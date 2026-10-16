@@ -41,6 +41,10 @@ Public Const PPT_MSG_WEB_PRES As String = "A apresentação está aberta por um 
 Public Const PPT_MSG_DATA_NOCORE As String = "O ThinQQ não está instalado no Excel deste computador: não é possível criar nem editar gráficos do ThinQQ."
 Public Const PPT_MSG_OLD_CORE_DATA As String = "Atualize o ThinQQ no Excel para criar gráficos e editar dados pelo PowerPoint."
 Public Const PPT_MSG_NO_EXCEL_DATA As String = "O Excel não está instalado (ou não pôde ser iniciado): o ThinQQ precisa dele para criar gráficos e editar dados."
+Public Const PPT_API_CMD As Long = 4                        ' Core_PptCommand, Core_PptCategories (core 1.9.0)
+Public Const PPT_TAG_OPTS As String = "TQQ_OPTS"            ' estado das opcoes gravado pelo core na forma ("labels=1;...;caps=labels,...,")
+Public Const PPT_MSG_OLD_CORE_CMD As String = "Atualize o ThinQQ no Excel para mudar o gráfico pelo PowerPoint."
+Public Const PPT_MSG_CATS As String = "Escolha duas categorias diferentes do gráfico, a primeira antes da segunda."
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
 Private Const RPC_E_RETRYLATER As Long = -2147417846
 Private mEvents As clsPptEvents
@@ -58,6 +62,8 @@ Private mHintShown As Boolean                   ' aviso de primeira vez de "Inse
 Private mTestTrail As String                    ' gancho de teste: ordem dos passos de inserir ("hint;edit;")
 Private mLastHint As String                     ' gancho de teste: texto do aviso de primeira vez
 Private mTestProbes As Long                     ' gancho de teste: FileExists do caminho antigo em PptTqq_RelinkData
+Private mTestPickA As Long                      ' gancho de teste: respostas de PptTqq_PickTwo (de, ate)
+Private mTestPickB As Long
 
 ' Carga do suplemento: liga os eventos do PowerPoint e trata as apresentacoes ja abertas (o projeto de teste .pptm nao liga).
 Public Sub Auto_Open()
@@ -108,6 +114,8 @@ Public Sub PptTqq_ResetTestHooks()
     mTestTrail = ""
     mLastHint = ""
     mTestProbes = 0
+    mTestPickA = 0
+    mTestPickB = 0
 End Sub
 
 Public Function PptTqq_RelinkProbesForTest() As Long
@@ -1418,4 +1426,149 @@ Public Sub PptTqq_OnSave(pres As Object)
     If PptTqq_CoreApi(xl, PptTqq_CoreFileName()) < PPT_API_DATA Then Exit Sub
     xl.Run "'" & PptTqq_CoreFileName() & "'!Core_PptDataSave", pres
     Err.Clear
+End Sub
+
+' ---- 1.9.0 (Parte G-II, G8): grupo "Grafico do ThinQQ" (spec 14.5). O estado da faixa vem da etiqueta TQQ_OPTS (sem chamar o Excel). ----
+
+Public Sub PptTqq_SetPickForTest(a As Long, b As Long)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mTestPickA = a: mTestPickB = b
+End Sub
+
+' Valor de uma chave em TQQ_OPTS ("a=1;b=x;caps=..."); "" sem a chave. Pura.
+Public Function PptTqq_OptValue(opts As String, key As String) As String
+    Dim p As Variant, k As Long
+    If Len(key) = 0 Then Exit Function
+    For Each p In Split(opts, ";")
+        k = InStr(CStr(p), "=")
+        If k > 1 Then
+            If Left$(CStr(p), k - 1) = key Then PptTqq_OptValue = Mid$(CStr(p), k + 1): Exit Function
+        End If
+    Next
+End Function
+
+' O recurso esta na lista caps de TQQ_OPTS (nome inteiro: "tal" nao casa com "totals"). Pura.
+Public Function PptTqq_OptCap(opts As String, feature As String) As Boolean
+    If Len(feature) = 0 Then Exit Function
+    PptTqq_OptCap = InStr("," & PptTqq_OptValue(opts, "caps"), "," & feature & ",") > 0
+End Function
+
+' TQQ_OPTS da 1a forma do ThinQQ selecionada ("" sem selecao ou forma colada por um core anterior ao 1.9.0, ate a proxima atualizacao).
+Public Function PptTqq_SelectedOpts() As String
+    Dim sel As Collection
+    On Error Resume Next
+    Set sel = PptTqq_SelectedTagged()
+    If sel.Count > 0 Then PptTqq_SelectedOpts = PptTqq_Tag(sel(1), PPT_TAG_OPTS)
+    Err.Clear
+End Function
+
+' Numero de categoria digitado (so algarismos, ate 6); -1 se invalido. Pura.
+Private Function PptTqq_PickNumber(v As String) As Long
+    Dim t As String
+    t = Trim$(v)
+    PptTqq_PickNumber = -1
+    If Len(t) = 0 Or Len(t) > 6 Then Exit Function
+    If t Like "*[!0-9]*" Then Exit Function
+    PptTqq_PickNumber = CLng(t)
+End Function
+
+' Escolha de/ate pela lista numerada das categorias (cats: nomes separados por Chr(31), valor devolvido pelo Core_PptCategories; so na
+' memoria, nunca gravado numa etiqueta). InputBox do PowerPoint. True so com 1 <= de < ate <= n. Cancelado: a = b = 0; resposta invalida:
+' a e b diferentes de 0 (o chamador avisa). No build Test responde com o gancho (PptTqq_SetPickForTest).
+Public Function PptTqq_PickTwo(cats As String, ByRef a As Long, ByRef b As Long) As Boolean
+    Dim c() As String, i As Long, lst As String, n As Long, v As String
+    a = 0: b = 0
+    c = Split(cats, Chr$(31)): n = UBound(c) + 1
+    If n < 2 Then Exit Function
+    If BUILD_CONFIG = "Test" Then
+        a = mTestPickA: b = mTestPickB
+    Else
+        For i = 0 To n - 1
+            lst = lst & (i + 1) & " - " & Left$(c(i), 60) & vbLf
+            If Len(lst) > 600 Then lst = lst & "..." & vbLf: Exit For
+        Next
+        v = InputBox(lst & vbLf & "Da categoria número:", PPT_APP_NAME, "1")
+        If Len(v) = 0 Then Exit Function
+        a = PptTqq_PickNumber(v)
+        If a < 0 Then b = -1: Exit Function
+        v = InputBox(lst & vbLf & "Até a categoria número:", PPT_APP_NAME, CStr(n))
+        If Len(v) = 0 Then a = 0: Exit Function
+        b = PptTqq_PickNumber(v)
+    End If
+    PptTqq_PickTwo = (a >= 1 And b <= n And a < b)
+End Function
+
+' Excel para um comando: o de edicao guardado (visivel, com o core: a pasta de dados aberta nele e usada como esta) ou o de sempre
+' (PptTqq_GetExcel: o aberto com o core, senao uma instancia nova e invisivel, fechada no fim). Ocupado: erro de ocupado.
+Private Function PptTqq_CmdExcel(ByRef created As Boolean) As Object
+    Dim st As Long
+    created = False
+    If BUILD_CONFIG <> "Test" Then
+        PptTqq_ForgetClosedEditExcel
+        If Not mEditXl Is Nothing Then
+            st = PptTqq_PingState(mEditXl)
+            If st = -1 Then PptTqq_RaiseBusy
+            If st = 1 Then Set PptTqq_CmdExcel = mEditXl: Exit Function
+        End If
+    End If
+    Set PptTqq_CmdExcel = PptTqq_GetExcel(created)
+End Function
+
+' Comando do grupo "Grafico do ThinQQ" nas formas dadas (spec 14.5): Core_PptCommand com a API 4 (core antigo: PPT_MSG_OLD_CORE_CMD). CAGR e
+' diferenca: categorias do 1o grafico (Core_PptCategories), escolha de/ate e "de,ate"; sem categorias (pasta indisponivel) o core e chamado
+' com "0,0" so para devolver o motivo (pasta do usuario fechada, pasta de dados ausente ou somente leitura, recusa da matriz). Os nomes das
+' formas ficam unicos no slide antes de montar as entradas (como "Atualizar uma vez"). O texto do core (resumo, ocupado, recusa) e exibido
+' pelo PowerPoint, depois de soltar o Excel. Reentrada ignorada; mBusy liberado em todo caminho. Nunca propaga.
+Public Sub PptTqq_CommandShapes(pres As Object, shapes As Collection, cmd As String, arg As String)
+    Dim xl As Object, created As Boolean, core As String, msg As String, cats As String, a As Long, b As Long, a2 As String
+    Dim s As Object, entries As String, en As Long, ed As String
+    If mBusy Then Exit Sub
+    If shapes Is Nothing Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
+    If shapes.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
+    mBusy = True
+    On Error GoTo Fail
+    If pres Is Nothing Then Set pres = shapes(1).Parent.Parent
+    For Each s In shapes
+        PptTqq_EnsureUniqueName s
+    Next
+    entries = PptTqq_EntriesOf(shapes)
+    Set xl = PptTqq_CmdExcel(created)
+    If xl Is Nothing Then mBusy = False: PptTqq_Msg PPT_MSG_NO_EXCEL_DATA, vbExclamation: Exit Sub
+    core = PptTqq_EnsureCore(xl, created)
+    a2 = arg
+    If Len(core) = 0 Then
+        msg = PPT_MSG_DATA_NOCORE
+    ElseIf PptTqq_CoreApi(xl, core) < PPT_API_CMD Then
+        msg = PPT_MSG_OLD_CORE_CMD
+    Else
+        If cmd = "cagr" Or cmd = "diff" Then
+            cats = CStr(xl.Run("'" & core & "'!Core_PptCategories", pres, entries))
+            If Len(cats) = 0 Then
+                a2 = "0,0"                                          ' so o motivo: o core recusa antes de mudar qualquer coisa
+            ElseIf UBound(Split(cats, Chr$(31))) < 1 Then
+                msg = PPT_MSG_CATS: cmd = ""
+            ElseIf PptTqq_PickTwo(cats, a, b) Then
+                a2 = a & "," & b
+            Else
+                If a <> 0 And b <> 0 Then msg = PPT_MSG_CATS        ' resposta invalida (cancelado: nada)
+                cmd = ""
+            End If
+        End If
+        If Len(cmd) > 0 Then
+            msg = CStr(xl.Run("'" & core & "'!Core_PptCommand", pres, entries, cmd, a2))
+            If a2 = "0,0" And Len(msg) = 0 Then msg = PPT_MSG_CATS
+        End If
+    End If
+    PptTqq_Release xl, created
+    mBusy = False
+    If Len(msg) > 0 Then PptTqq_Msg msg, vbExclamation
+    PptRx_InvalidateElem
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptTqq_Release xl, created
+    mBusy = False
+    PptTqq_Msg PptTqq_DataErrorText("Não foi possível aplicar: ", en, ed), vbExclamation
 End Sub
