@@ -1486,3 +1486,21 @@ Cleanup:
     ClosePres p
     If en <> 0 Then Err.Raise en, "TestPptAddin", ed
 End Sub
+
+' 1.10.0: tabela vinculada (TQQ_TABLE = "1") tambem conta, com a pasta de TQQ_BOOK; TQQ_TABLE diferente de "1" nao conta.
+Public Sub Test_PptTqq_CountTagged_LinkedTable()
+    Dim p As Object, s As Object, srcs As New Collection, en As Long, ed As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    AssertEqual "TQQ_TABLE", PPT_TAG_TABLE
+    Set s = p.Slides(1).Shapes.AddTable(2, 2, 10, 10, 200, 50): s.Tags.Add PPT_TAG_TABLE, "1": s.Tags.Add PPT_TAG_BOOK, "C:\Dados\Tab.xlsx"
+    Set s = p.Slides(1).Shapes.AddTable(2, 2, 10, 80, 200, 50): s.Tags.Add PPT_TAG_TABLE, "x": s.Tags.Add PPT_TAG_BOOK, "C:\Dados\V.xlsx"
+    AssertEqual 1, PptTqq_CountTagged(p, srcs)
+    AssertEqual 1, srcs.Count
+    AssertEqual "C:\Dados\Tab.xlsx", CStr(srcs(1)), "a pasta vem de TQQ_BOOK"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    Set s = Nothing
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub

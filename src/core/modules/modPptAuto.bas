@@ -305,10 +305,12 @@ Private Function PptAuto_TagStrict(o As Object, key As String, hookPoint As Stri
     If en = 0 And Not IsNull(v) And Not IsObject(v) Then PptAuto_TagStrict = CStr(v)
 End Function
 
-' A forma e um elemento do ThinQQ (grafico TQQ_CHART ou texto vinculado TQQ_TEXT = "1"; a regra de PptSync_ItemKind) sem engolir o ocupado.
+' A forma e um elemento do ThinQQ (grafico TQQ_CHART, texto vinculado TQQ_TEXT = "1" ou tabela vinculada TQQ_TABLE = "1"; a regra de
+' PptSync_ItemKind) sem engolir o ocupado.
 Private Function PptAuto_IsItemStrict(shp As Object) As Boolean
     If Len(PptAuto_TagStrict(shp, PPTSYNC_TAG_CHART, "")) > 0 Then PptAuto_IsItemStrict = True: Exit Function
-    PptAuto_IsItemStrict = (PptAuto_TagStrict(shp, PPTTEXT_TAG, "") = "1")
+    If PptAuto_TagStrict(shp, PPTTEXT_TAG, "") = "1" Then PptAuto_IsItemStrict = True: Exit Function
+    PptAuto_IsItemStrict = (PptAuto_TagStrict(shp, PPTTABLE_TAG, "") = "1")
 End Function
 
 ' Pasta de origem da forma (como PptSync_ItemBook: vinculo nativo ou TQQ_BOOK), sem engolir o PowerPoint ocupado.

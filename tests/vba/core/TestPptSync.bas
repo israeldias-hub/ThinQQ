@@ -2931,3 +2931,203 @@ Public Sub Test_PptText_HostileSourceMacros_NeverRun_Fake()
     AssertTrue Len(Dir(marker)) > 0, "controle positivo: com as macros ligadas a macro roda (senao o teste acima passaria a toa)"
     If Len(Dir(marker)) > 0 Then Kill marker
 End Sub
+
+' ---- Parte F2: tabela vinculada ----
+
+Public Sub Test_PptTable_InsertAndSync_WhenAvailable()
+    Dim wb As Workbook, ws As Worksheet, app As Object, pres As Object, slide As Object, own As New Collection, en As Long, ed As String
+    Dim shp As Object, t As Object, s As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set slide = pres.Slides.Add(1, 12)
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    ws.Range("A1:C1").Value = Array("Região", "2025", "2026"): ws.Range("A1:C1").Font.Bold = True
+    ws.Range("A2:C2").Value = Array("Sul", 10, 12): ws.Range("A3:C3").Value = Array("Norte", 5, 7)
+    ws.Range("C3").Interior.Color = RGB(255, 200, 0): ws.Range("A3").Font.Color = RGB(200, 0, 0)
+    wb.SaveAs TempDir() & "\ppttable.xlsx", xlOpenXMLWorkbook
+    Set shp = PptTable_Insert(ws.Range("A1:C3"), slide)
+    Set t = shp.Table
+    AssertEqual 3, t.Rows.Count: AssertEqual 3, t.Columns.Count
+    AssertEqual "Norte", t.Cell(3, 1).Shape.TextFrame.TextRange.Text
+    AssertEqual -1, CLng(t.Cell(1, 2).Shape.TextFrame.TextRange.Font.Bold), "negrito do Excel"
+    AssertEqual 0, CLng(t.Cell(2, 1).Shape.TextFrame.TextRange.Font.Bold), "sem negrito no corpo"
+    AssertEqual 3, CLng(t.Cell(2, 2).Shape.TextFrame.TextRange.ParagraphFormat.Alignment), "numero a direita (alinhamento Geral)"
+    AssertEqual 1, CLng(t.Cell(2, 1).Shape.TextFrame.TextRange.ParagraphFormat.Alignment), "texto a esquerda"
+    AssertEqual RGB(255, 200, 0), CLng(t.Cell(3, 3).Shape.Fill.ForeColor.RGB), "preenchimento do Excel"
+    AssertEqual RGB(200, 0, 0), CLng(t.Cell(3, 1).Shape.TextFrame.TextRange.Font.Color.RGB), "cor da fonte do Excel"
+    AssertEqual CLng(ws.Range("A2").Font.Size), CLng(t.Cell(2, 1).Shape.TextFrame.TextRange.Font.Size), "tamanho da fonte do Excel"
+    AssertEqual "table", PptSync_ItemKind(shp)
+    AssertEqual "TQQ_T_", Left$(PptSync_Tag(shp, PPTLINK_TAG_NAME), 6), "nome oculto TQQ_T_"
+    AssertTrue PptLink_HasMark(wb), "a marca TQQ_XLINK"
+    t.Cell(2, 2).Shape.TextFrame.TextRange.Font.Italic = -1          ' formatacao feita no PowerPoint
+    ws.Range("B2").Value = 99
+    ws.Rows(4).Insert: ws.Range("A4:C4").Value = Array("Leste", 1, 2)   ' fora do nome: nao entra
+    ws.Rows(3).Insert: ws.Range("A3:C3").Value = Array("Oeste", 3, 4)   ' dentro: entra
+    s = PptSync_Presentation(pres, False)
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 1.") = 1, s
+    AssertEqual "99", t.Cell(2, 2).Shape.TextFrame.TextRange.Text
+    AssertEqual -1, CLng(t.Cell(2, 2).Shape.TextFrame.TextRange.Font.Italic), "formatacao do PowerPoint mantida"
+    AssertEqual 4, t.Rows.Count, "linha inserida dentro do intervalo"
+    AssertEqual "Oeste", t.Cell(3, 1).Shape.TextFrame.TextRange.Text
+    AssertEqual "Norte", t.Cell(4, 1).Shape.TextFrame.TextRange.Text
+    ws.Rows(3).Delete
+    s = PptSync_Presentation(pres, False)
+    AssertEqual 3, t.Rows.Count, "linha apagada"
+    AssertEqual "Norte", t.Cell(3, 1).Shape.TextFrame.TextRange.Text
+    s = PptSync_Presentation(pres, False)
+    AssertTrue InStr(s, "Sem mudança: 1.") > 0, s
+    t.Cell(3, 1).Shape.TextFrame.TextRange.Text = "editado no slide"   ' texto mudado no PowerPoint, origem igual: fica (sem forcar)
+    s = PptSync_Presentation(pres, False)
+    AssertTrue InStr(s, "Sem mudança: 1.") > 0, s
+    AssertEqual "editado no slide", t.Cell(3, 1).Shape.TextFrame.TextRange.Text
+    s = PptSync_Presentation(pres, True)                              ' forcar: o texto volta ao do Excel
+    AssertEqual "Norte", t.Cell(3, 1).Shape.TextFrame.TextRange.Text
+    AssertEqual 1, slide.Shapes.Count, "nenhuma forma criada ou apagada"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set t = Nothing: Set shp = Nothing: Set slide = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+Public Sub Test_PptInsertTable_Unsaved_NothingCreated()
+    Dim wb As Workbook
+    Set wb = NewTempWorkbook()
+    wb.Worksheets(1).Range("A1:B2").Value = 1
+    wb.Worksheets(1).Range("A1:B2").Select
+    Core_ClearLastNotice
+    Core_PptInsertTable
+    AssertEqual PPTTEXT_MSG_UNSAVED, Core_LastNotice()
+    AssertEqual 0, wb.Names.Count, "nenhum nome criado"
+    AssertFalse Ppt_InOperation(), "operacao fechada"
+    CloseTemp wb
+End Sub
+
+' O botao do Excel (Core_PptInsertTable) com o PowerPoint do teste e o slide fixado: mescladas recusadas sem nada criado; falha depois da
+' tabela desfeita (sem tabela, sem nome oculto, sem marca); 30 x 10 criada em poucos segundos (tempo medido no texto do assert).
+Public Sub Test_PptInsertTable_Core_RefusalUndoAndSize_WhenAvailable()
+    Dim wb As Workbook, ws As Worksheet, app As Object, pres As Object, slide As Object, own As New Collection, en As Long, ed As String
+    Dim t0 As Single, dt As Single, shp As Object, n0 As Long
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set slide = pres.Slides.Add(1, 12)
+    Ppt_PinTargetForTest slide
+    Ppt_SetAppForTest app
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    ws.Range("A1:J30").Formula = "=ROW()*10+COLUMN()"
+    ws.Range("A1:J1").Value = Array("a", "b", "c", "d", "e", "f", "g", "h", "i", "j")
+    ws.Range("L1:M1").Merge
+    wb.SaveAs TempDir() & "\ppttable-core.xlsx", xlOpenXMLWorkbook
+    n0 = wb.Names.Count
+    wb.Activate: ws.Activate
+    ws.Range("K1:M2").Select
+    Core_ClearLastNotice
+    Core_PptInsertTable
+    AssertTrue InStr(Core_LastNotice(), "mescladas") > 0, Core_LastNotice()
+    AssertEqual 0, slide.Shapes.Count, "mescladas: nada criado"
+    ws.Range("A1:B2").Select
+    Util_FailThinSyncForTest = "ppttable-tags:1"
+    Core_PptInsertTable
+    Util_FailThinSyncForTest = ""
+    AssertEqual 0, slide.Shapes.Count, "falha depois da tabela: tabela apagada"
+    AssertEqual n0, wb.Names.Count, "falha: nome oculto e marca apagados"
+    AssertFalse Ppt_InOperation(), "operacao fechada na falha"
+    ws.Range("A1:J30").Select
+    t0 = Timer
+    Core_PptInsertTable
+    dt = Timer - t0
+    AssertTrue InStr(Core_LastNotice(), "Tabela vinculada criada no slide 1") = 1, Core_LastNotice()
+    AssertEqual 1, slide.Shapes.Count
+    Set shp = slide.Shapes(1)
+    AssertEqual 30, shp.Table.Rows.Count: AssertEqual 10, shp.Table.Columns.Count
+    AssertEqual ws.Range("J30").Text, shp.Table.Cell(30, 10).Shape.TextFrame.TextRange.Text
+    AssertEqual 1, CLng(shp.Table.Cell(1, 10).Shape.TextFrame.TextRange.ParagraphFormat.Alignment), "cabecalho (texto) a esquerda"
+    AssertEqual 3, CLng(shp.Table.Cell(30, 10).Shape.TextFrame.TextRange.ParagraphFormat.Alignment), "numero a direita na ultima linha (herdada)"
+    AssertEqual CLng(ws.Range("J30").Font.Size), CLng(shp.Table.Cell(30, 10).Shape.TextFrame.TextRange.Font.Size), "tamanho na ultima linha (herdado)"
+    AssertEqual 0, CLng(shp.Table.Cell(30, 10).Shape.TextFrame.TextRange.Font.Bold), "sem negrito"
+    AssertEqual n0 + 2, wb.Names.Count, "o nome oculto TQQ_T_ e a marca"
+    AssertFalse Ppt_InOperation(), "operacao fechada"
+    AssertTrue dt < 20, "30 x 10 em " & Format$(dt, "0.0") & " s"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Util_FailThinSyncForTest = ""
+    Set shp = Nothing: Set slide = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Adendo do controlador: as etiquetas da tabela vinculada (celulas com "|", "\", quebra de linha, Tab; reserva planilha|endereco) sobrevivem a
+' Salvar como .pptx, fechar e reabrir: a sincronizacao depois de reabrir diz "sem mudanca", atualiza quando a celula muda, e a forma automatica
+' continua no indice que o ciclo automatico le (PptAuto_ItemsFor).
+Public Sub Test_PptTable_TagsPersistSaveReopen_WhenAvailable()
+    Dim wb As Workbook, ws As Worksheet, app As Object, pres As Object, p2 As Object, shp As Object, shp2 As Object, own As New Collection
+    Dim en As Long, ed As String, s As String, tmp As String, k As Variant, saved As Object, items As Collection, dirty As Object, slide As Object
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    PptAuto_ResetTestHooks
+    PptAuto_SetNewLinksAuto True
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set slide = pres.Slides.Add(1, 12)
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    ws.Range("A1:B1").Value = Array("a|b\c", "linha 1" & vbLf & "linha 2")
+    ws.Range("A2:B2").Value = Array("x" & vbTab & "y", 10)
+    tmp = TempDir()
+    wb.SaveAs tmp & "\ppttable-persist.xlsx", xlOpenXMLWorkbook
+    Set shp = PptTable_Insert(ws.Range("A1:B2"), slide)
+    AssertEqual "1", PptSync_Tag(shp, PPTSYNC_TAG_AUTO), "novo vinculo automatico"
+    AssertEqual "a|b\c", shp.Table.Cell(1, 1).Shape.TextFrame.TextRange.Text
+    AssertEqual "linha 1" & Chr$(11) & "linha 2", shp.Table.Cell(1, 2).Shape.TextFrame.TextRange.Text, "quebra de linha da celula"
+    Set saved = CreateObject("Scripting.Dictionary")
+    For Each k In Array(PPTTABLE_TAG, PPTSYNC_TAG_BOOK, PPTLINK_TAG_NAME, PPTLINK_TAG_REF, PPTTABLE_TAG_LAST)
+        saved.Add CStr(k), PptSync_Tag(shp, CStr(k))
+    Next
+    AssertTrue InStr(CStr(saved(PPTTABLE_TAG_LAST)), vbLf) > 0, "premissa: duas linhas na etiqueta"
+    pres.SaveAs tmp & "\ppttable-persist.pptx"
+    Set shp = Nothing: Set slide = Nothing
+    pres.Close
+    Set pres = Nothing
+    Set own = New Collection
+    Set p2 = app.Presentations.Open(tmp & "\ppttable-persist.pptx", -1, 0, 0): own.Add p2
+    Set shp2 = p2.Slides(1).Shapes(1)
+    For Each k In saved.Keys
+        AssertEqual CStr(saved(k)), PptSync_Tag(shp2, CStr(k)), "etiqueta " & k & " igual depois de reabrir"
+    Next
+    AssertEqual "table", PptSync_ItemKind(shp2)
+    s = PptSync_Presentation(p2, False)
+    AssertTrue InStr(s, "Sem mudança: 1.") > 0, "depois de reabrir: " & s
+    Set dirty = CreateObject("Scripting.Dictionary")
+    dirty.CompareMode = 1
+    dirty.Add wb.FullName, True
+    Set items = PptAuto_ItemsFor(p2, dirty)
+    AssertEqual 1, items.Count, "o ciclo automatico acha a tabela pelo indice"
+    ws.Range("B2").Value = 20
+    s = PptSync_Items(items, False, True)
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 1.") = 1, s
+    AssertEqual "20", shp2.Table.Cell(2, 2).Shape.TextFrame.TextRange.Text
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptAuto_ResetTestHooks
+    Set items = Nothing: Set shp = Nothing: Set shp2 = Nothing: Set slide = Nothing: Set pres = Nothing: Set p2 = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then CloseTemp wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub

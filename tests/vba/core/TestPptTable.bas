@@ -103,3 +103,69 @@ Public Sub Test_PptTable_SafeCell()
     s = PptTable_SafeCell(String$(PPTTEXT_MAX_LEN - 1, "a") & emo)
     AssertEqual PPTTEXT_MAX_LEN - 1, Len(s), "nao parte o emoji"
 End Sub
+
+' ---- F2: seguranca e roteamento com dubles (sem PowerPoint) ----
+
+Private Function SavedBook(fileName As String) As Workbook
+    Dim wb As Workbook
+    Set wb = NewTempWorkbook()
+    wb.Worksheets(1).Name = "Dados"
+    wb.SaveAs TempDir() & "\" & fileName, xlOpenXMLWorkbook
+    Set SavedBook = wb
+End Function
+
+' Forma "tabela vinculada" de um deck hostil (duble sem Table): etiquetas forjadas por quem fez o deck.
+Private Function HostileTable(nm As String, ref As String, book As String) As TestPptTextFake
+    Dim t As TestPptTextFake
+    Set t = New TestPptTextFake
+    t.HasTextFrame = 0
+    Set t.Tags = New TestPptTags
+    t.Tags.Preset PPTTABLE_TAG, "1"
+    t.Tags.Preset PPTSYNC_TAG_BOOK, book
+    t.Tags.Preset PPTLINK_TAG_NAME, nm
+    t.Tags.Preset PPTLINK_TAG_REF, ref
+    Set HostileTable = t
+End Function
+
+' Seguranca (regra da revisao final E, I1, para tabelas): um deck hostil so faz a sincronizacao LER um nome TQQ_T_ criado pela acao de
+' inserir; nome do usuario, nome TQQ_X_ (do texto) e endereco de reserva numa pasta sem a marca sao recusados sem tocar a forma. Com a marca,
+' a reserva resolve, mas uma forma que nao e tabela falha sem gravar nada.
+Public Sub Test_PptTable_Sync_HostileTagsRefused_Fake()
+    Dim wb As Workbook, ws As Worksheet, t As TestPptTextFake
+    Set wb = SavedBook("ppttable-hostil.xlsx"): Set ws = wb.Worksheets(1)
+    ws.Range("A1:B2").Value = "segredo"
+    wb.Names.Add Name:="Total_Salarios", RefersTo:="='Dados'!$A$1:$B$2"
+    AssertEqual "table", PptSync_ItemKind(HostileTable("", "", wb.FullName))
+    Set t = HostileTable("Total_Salarios", "", wb.FullName)
+    AssertEqual PPTSYNC_R_NOCHART, PptTable_Sync(t, wb, True), "nome do usuario"
+    Set t = HostileTable("", "Dados|$A$1:$B$2", wb.FullName)
+    AssertEqual PPTSYNC_R_NOCHART, PptTable_Sync(t, wb, True), "reserva numa pasta sem vinculos do ThinQQ"
+    Set t = HostileTable(PptLink_DefineName(ws.Range("A1:B2"), "TQQ_X_"), "", wb.FullName)
+    AssertEqual PPTSYNC_R_NOCHART, PptTable_Sync(t, wb, True), "nome TQQ_X_ (texto vinculado) nao vale para tabela"
+    AssertTrue PptLink_HasMark(wb), "premissa: a marca"
+    Set t = HostileTable("Total_Salarios", "", wb.FullName)
+    AssertEqual PPTSYNC_R_NOCHART, PptTable_Sync(t, wb, True), "nome do usuario, mesmo com a marca"
+    Set t = HostileTable("", "Dados|$A$1:$B$2", wb.FullName)
+    AssertEqual PPTSYNC_R_FAIL, PptTable_Sync(t, wb, True), "com a marca a reserva resolve; a forma nao e tabela: falha"
+    AssertEqual 0, t.TextWrites, "nada gravado"
+    AssertEqual "", CStr(t.Tags.Item(PPTTABLE_TAG_LAST)), "etiqueta intacta"
+    AssertTrue InStr(PptSync_SummaryText(0, 0, "", 0, 0, 0, 0, 0, 1), "Intervalo da tabela vinculada não encontrado") > 0, "resumo proprio"
+    CloseTemp wb
+End Sub
+
+' Editar dados e os comandos do grafico numa tabela vinculada: recusa propria, e a pasta do usuario (fechada) nunca e aberta.
+Public Sub Test_PptTable_EditDataAndCommand_RefuseTable()
+    Dim wb As Workbook, p As String, t As TestPptTextFake, sl As TestPptFake, slides As TestPptFake, pres As TestPptFake, e As String, n0 As Long
+    Set wb = SavedBook("ppttable-editdata.xlsx")
+    p = wb.FullName
+    CloseTemp wb
+    Set t = HostileTable("TQQ_T_x", "", p)
+    Set sl = New TestPptFake: Set sl.Shapes = New Collection: sl.Shapes.Add t, "tqq_tab"
+    Set slides = New TestPptFake: slides.SlideIdValue = 256: Set slides.Slide = sl
+    Set pres = New TestPptFake: Set pres.Slides = slides
+    e = PptIdx_Entry(256, "tqq_tab", p)
+    n0 = Application.Workbooks.Count
+    AssertEqual "!" & PPTTABLE_MSG_EDITDATA, Core_PptEditData(pres, e)
+    AssertEqual PPTTABLE_MSG_NOTCHART, Core_PptCommand(pres, e, "clear", "")
+    AssertEqual n0, Application.Workbooks.Count, "nenhuma pasta aberta"
+End Sub

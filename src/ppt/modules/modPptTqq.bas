@@ -49,6 +49,7 @@ Public Const PPT_MSG_PACK_SAVE_FIRST As String = "Salve a apresentação numa pa
 Public Const PPT_PACK_SUFFIX As String = " (ThinQQ)"            ' pasta do pacote: "<pasta da apresentacao>\<nome> (ThinQQ)"
 Public Const PPT_API_TEXT As Long = 5                       ' Core_PptLinkText (core 1.9.0)
 Public Const PPT_TAG_TEXT As String = "TQQ_TEXT"            ' forma de texto vinculado a celula ("1"; = PPTTEXT_TAG do core)
+Public Const PPT_TAG_TABLE As String = "TQQ_TABLE"          ' tabela vinculada a intervalo ("1"; = PPTTABLE_TAG do core, 1.10.0)
 Public Const PPT_MSG_OPEN_EXCEL As String = "Abra a pasta no Excel (com o ThinQQ), selecione a célula com o valor e clique de novo em Texto vinculado ao Excel."
 Public Const PPTTEXT_MSG_NOTEXT_PPT As String = "Selecione uma caixa de texto (ou parte do texto dela)."
 Public Const PPT_MSG_OLD_CORE_TEXT As String = "Atualize o ThinQQ no Excel para vincular texto pelo PowerPoint."
@@ -337,14 +338,15 @@ Private Function PptTqq_Tag(shp As Object, key As String) As String
 End Function
 
 ' Formas soltas marcadas pelo ThinQQ na apresentacao: graficos (TQQ_CHART) e, desde a 1.9.0, textos vinculados (TQQ_TEXT = "1": uma
-' apresentacao so com textos vinculados tambem pergunta/atualiza ao abrir e pelo botao). sources (opcional): recebe as pastas de origem
+' apresentacao so com textos vinculados tambem pergunta/atualiza ao abrir e pelo botao) e, desde a 1.10.0, tabelas vinculadas (TQQ_TABLE =
+' "1"; com um core anterior a 1.10.0 o core nao as atualiza: inofensivo). sources (opcional): recebe as pastas de origem
 ' distintas (sem diferenciar maiusculas), na ordem em que aparecem: PptTqq_SourcePath(LinkFormat.SourceFullName, TQQ_BOOK); so le o
 ' vinculo e as etiquetas (nunca o arquivo).
 Public Function PptTqq_CountTagged(pres As Object, Optional sources As Collection) As Long
     Dim sl As Object, shp As Object, p As String
     For Each sl In pres.Slides
         For Each shp In sl.Shapes
-            If Len(PptTqq_Tag(shp, PPT_TAG_CHART)) > 0 Or PptTqq_Tag(shp, PPT_TAG_TEXT) = "1" Then
+            If Len(PptTqq_Tag(shp, PPT_TAG_CHART)) > 0 Or PptTqq_Tag(shp, PPT_TAG_TEXT) = "1" Or PptTqq_Tag(shp, PPT_TAG_TABLE) = "1" Then
                 PptTqq_CountTagged = PptTqq_CountTagged + 1
                 If Not sources Is Nothing Then
                     p = PptTqq_SourcePath(PptTqq_LinkSource(shp), PptTqq_Tag(shp, PPT_TAG_BOOK))

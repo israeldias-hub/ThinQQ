@@ -1758,6 +1758,7 @@ Private Function PptEditDataImpl(pres As Object, entries As String) As String
     If items.Count = 0 Then PptEditDataImpl = "!" & PPTSYNC_NONE: Exit Function
     Set shp = items(1)
     ' texto vinculado (1.9.0): nao ha grafico a editar e a pasta do usuario nunca e aberta para edicao por ele
+    If PptSync_ItemKind(shp) = "table" Then PptEditDataImpl = "!" & PPTTABLE_MSG_EDITDATA: Exit Function   ' tabela vinculada (1.10.0): idem
     If PptSync_ItemKind(shp) <> "chart" Then PptEditDataImpl = "!" & PPTTEXT_MSG_EDITDATA: Exit Function
     path = PptSync_ItemBook(shp)
     isData = (PptSync_Tag(shp, PPTDATA_TAG) = "1")
@@ -1920,6 +1921,7 @@ End Function
 Private Function PptCmd_One(shp As Object, cmd As String, arg As String, opened As Collection) As String
     Dim wb As Workbook, co As ChartObject, c As Chart, p() As String, msg As String, n As Long, a As Long, b As Long, key As String, v As String
     On Error GoTo Fail
+    If PptSync_ItemKind(shp) = "table" Then PptCmd_One = PPTTABLE_MSG_NOTCHART: Exit Function   ' tabela vinculada: nada a aplicar
     If PptSync_ItemKind(shp) <> "chart" Then PptCmd_One = PPTTEXT_MSG_NOTCHART: Exit Function   ' texto vinculado: nada a aplicar
     Set wb = PptCmd_Book(shp, opened, msg)
     If wb Is Nothing Then PptCmd_One = msg: Exit Function
@@ -2144,6 +2146,67 @@ Fail:
         Core_Notify Ppt_ErrorText(en, ed), vbExclamation
     Else
         Errors_HandleErr "Core_PptLinkTextFromPpt", en, ed
+    End If
+End Sub
+
+' "Inserir tabela vinculada no slide" (1.10.0): tabela do PowerPoint a partir das celulas selecionadas neste Excel (pasta salva), no slide
+' ativo (ou numa apresentacao nova), com a formatacao inicial do Excel (PptTable_Insert). Falha: desfaz o que criou (tabela, nome oculto,
+' slide/apresentacao novos e o PowerPoint aberto por esta chamada). O ciclo automatico espera (Ppt_BeginOp/EndOp, equilibrados em todo
+' caminho, antes do aviso). Nunca propaga erro.
+Public Sub Core_PptInsertTable()
+    Dim rng As Range, app As Object, slide As Object, shp As Object, newPres As Object, newSlide As Object, msg As String, en As Long, ed As String
+    Dim created As Boolean, began As Boolean, wb As Workbook
+    On Error GoTo Fail
+    If TypeName(Selection) <> "Range" Then Core_Notify PPTTABLE_MSG_NOSEL: Exit Sub
+    Set rng = Selection
+    Set wb = rng.Worksheet.Parent
+    If Len(wb.Path) = 0 Then Core_Notify PPTTEXT_MSG_UNSAVED, vbExclamation: Exit Sub
+    If Not PptData_IsWorkbookExt(wb.FullName) Then Core_Notify PPTTEXT_MSG_NOTBOOK, vbExclamation: Exit Sub
+    msg = PptTable_RefusalText(rng)
+    If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
+    Ppt_BeginOp
+    began = True
+    Set app = Ppt_GetApp(True)
+    created = Ppt_AppWasCreated()
+    If app Is Nothing Then
+        began = False: Ppt_EndOp
+        Core_Notify PPT_ERR_NOT_INSTALLED, vbExclamation
+        Exit Sub
+    End If
+    Set slide = Ppt_TargetSlide(app, newPres, newSlide)
+    Set shp = PptTable_Insert(rng, slide)                       ' transacional: falha nao deixa tabela nem nome
+    msg = "Tabela vinculada criada no slide " & slide.SlideIndex & " de '" & slide.Parent.Name & "'. Ela acompanha a pasta nas atualizações (manual, ao abrir ou automática). " & PPTTABLE_MSG_SAVEHINT
+    began = False: Ppt_EndOp
+    Core_Notify msg, vbInformation                              ' ANTES de ativar o PowerPoint: a caixa nao fica escondida atras dele
+    If BUILD_CONFIG <> "Test" Then
+        On Error Resume Next
+        app.Visible = -1: app.Activate
+        Err.Clear
+    End If
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If Not newSlide Is Nothing Then
+        If newPres Is Nothing Then newSlide.Delete
+    End If
+    If Not newPres Is Nothing Then
+        newPres.Saved = -1
+        newPres.Close
+    End If
+    If created And Not app Is Nothing Then
+        If app.Presentations.Count = 0 Then app.Quit
+    End If
+    If began Then Ppt_EndOp
+    Err.Clear
+    On Error GoTo 0
+    If en = vbObjectError + 7120 Then
+        Core_Notify ed, vbExclamation
+    ElseIf Ppt_IsKnownFailure(en) Then
+        Core_Notify Ppt_ErrorText(en, ed), vbExclamation
+    Else
+        Errors_HandleErr "Core_PptInsertTable", en, ed
     End If
 End Sub
 

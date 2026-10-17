@@ -527,13 +527,15 @@ Public Sub PptSync_TagDelete(o As Object, key As String)
     Err.Clear
 End Sub
 
-' Tipo do elemento do ThinQQ na forma do slide: "chart" (TQQ_CHART), "text" (TQQ_TEXT = "1": texto vinculado a celula, 1.9.0); "" = nao e
-' do ThinQQ. A versao seguinte acrescenta "table". Nunca propaga erro.
+' Tipo do elemento do ThinQQ na forma do slide: "chart" (TQQ_CHART), "text" (TQQ_TEXT = "1": texto vinculado a celula, 1.9.0), "table"
+' (TQQ_TABLE = "1": tabela vinculada a intervalo, 1.10.0); "" = nao e do ThinQQ. Nunca propaga erro.
 Public Function PptSync_ItemKind(shp As Object) As String
     If Len(PptSync_Tag(shp, PPTSYNC_TAG_CHART)) > 0 Then
         PptSync_ItemKind = "chart"
     ElseIf PptSync_Tag(shp, PPTTEXT_TAG) = "1" Then
         PptSync_ItemKind = "text"
+    ElseIf PptSync_Tag(shp, PPTTABLE_TAG) = "1" Then
+        PptSync_ItemKind = "table"
     End If
 End Function
 
@@ -691,7 +693,7 @@ End Function
 ' ---- Sincronizacao da apresentacao inteira (Tarefa A2) ----
 
 ' Resumo para o usuario (textos exatos da spec 4.2). missing = nomes dos arquivos ja separados por ", ". Pura.
-Public Function PptSync_SummaryText(nOk As Long, nSame As Long, missing As String, nNoChart As Long, nUnlinked As Long, nFail As Long, Optional nEdited As Long = 0, Optional nNoCell As Long = 0) As String
+Public Function PptSync_SummaryText(nOk As Long, nSame As Long, missing As String, nNoChart As Long, nUnlinked As Long, nFail As Long, Optional nEdited As Long = 0, Optional nNoCell As Long = 0, Optional nNoRange As Long = 0) As String
     Dim s As String
     s = "Gráficos do ThinQQ atualizados: " & nOk & "."
     If nSame > 0 Then s = s & " Sem mudança: " & nSame & "."
@@ -699,6 +701,7 @@ Public Function PptSync_SummaryText(nOk As Long, nSame As Long, missing As Strin
     If nNoChart > 0 Then s = s & vbLf & "Gráfico não encontrado na pasta de origem (apagado ou recriado): " & nNoChart & "."
     If nUnlinked > 0 Then s = s & vbLf & "Sem vínculo com o Excel (Quebrar Vínculo no PowerPoint): " & nUnlinked & "."
     If nNoCell > 0 Then s = s & vbLf & "Célula do texto vinculado não encontrada na pasta de origem (apagada, ou a pasta não tem vínculos do ThinQQ): " & nNoCell & "."
+    If nNoRange > 0 Then s = s & vbLf & "Intervalo da tabela vinculada não encontrado na pasta de origem (apagado, ou a pasta não tem vínculos do ThinQQ): " & nNoRange & "."
     If nEdited > 0 Then s = s & vbLf & "Texto editado no PowerPoint fora do campo vinculado (vincule de novo): " & nEdited & "."
     If nFail > 0 Then s = s & vbLf & "Falha ao atualizar: " & nFail & " (veja o log do ThinQQ)."
     PptSync_SummaryText = s
@@ -879,7 +882,7 @@ End Function
 Public Function PptSync_Items(items As Collection, force As Boolean, Optional noOpen As Boolean = False) As String
     Dim shp As Object, opened As Collection, books As Object, missingSet As Object, path As String, k As Long
     Dim wb As Workbook, missing As String, en As Long, ed As String, prevSU As Boolean, ls As Long
-    Dim nOk As Long, nSame As Long, nNoChart As Long, nUnlinked As Long, nFail As Long, kind As String, r As Long, nEdited As Long, nNoCell As Long
+    Dim nOk As Long, nSame As Long, nNoChart As Long, nUnlinked As Long, nFail As Long, kind As String, r As Long, nEdited As Long, nNoCell As Long, nNoRange As Long
     Set opened = New Collection
     Set books = CreateObject("Scripting.Dictionary")
     books.CompareMode = 1
@@ -892,7 +895,7 @@ Public Function PptSync_Items(items As Collection, force As Boolean, Optional no
         k = k + 1
         Application.StatusBar = "ThinQQ: atualizando elemento " & k & " de " & items.Count & " do PowerPoint..."
         kind = PptSync_ItemKind(shp)
-        If kind = "chart" Then ls = Ppt_LinkState(shp) Else ls = 1  ' texto vinculado: sem vinculo nativo (a pasta vem de TQQ_BOOK)
+        If kind = "chart" Then ls = Ppt_LinkState(shp) Else ls = 1  ' texto/tabela vinculados: sem vinculo nativo (a pasta vem de TQQ_BOOK)
         path = ""
         If ls = 1 Then path = PptSync_ItemBook(shp)
         Select Case PptSync_Classify(ls, path)
@@ -916,12 +919,24 @@ Public Function PptSync_Items(items As Collection, force As Boolean, Optional no
                 End If
                 Set wb = books.Item(path)
                 If Not wb Is Nothing Then
-                    If kind = "text" Then r = PptText_Sync(shp, wb, force) Else r = PptSync_SyncOne(shp, wb, force)
+                    If kind = "text" Then
+                        r = PptText_Sync(shp, wb, force)
+                    ElseIf kind = "table" Then
+                        r = PptTable_Sync(shp, wb, force)
+                    Else
+                        r = PptSync_SyncOne(shp, wb, force)
+                    End If
                     Select Case r
                         Case PPTSYNC_R_OK: nOk = nOk + 1
                         Case PPTSYNC_R_SAME: nSame = nSame + 1
                         Case PPTSYNC_R_NOCHART
-                            If kind = "text" Then nNoCell = nNoCell + 1 Else nNoChart = nNoChart + 1
+                            If kind = "text" Then
+                                nNoCell = nNoCell + 1
+                            ElseIf kind = "table" Then
+                                nNoRange = nNoRange + 1
+                            Else
+                                nNoChart = nNoChart + 1
+                            End If
                         Case PPTSYNC_R_SKIPPED: missingSet(path) = True
                         Case PPTSYNC_R_EDITED: nEdited = nEdited + 1
                         Case Else: nFail = nFail + 1
@@ -933,7 +948,7 @@ Public Function PptSync_Items(items As Collection, force As Boolean, Optional no
     Application.ScreenUpdating = prevSU
     Application.StatusBar = False
     If missingSet.Count > 0 Then missing = PptSync_MissingText(missingSet.Keys)
-    PptSync_Items = PptSync_SummaryText(nOk, nSame, missing, nNoChart, nUnlinked, nFail, nEdited, nNoCell)
+    PptSync_Items = PptSync_SummaryText(nOk, nSame, missing, nNoChart, nUnlinked, nFail, nEdited, nNoCell, nNoRange)
     Exit Function
 Fail:
     en = Err.Number: ed = Err.Description
