@@ -192,6 +192,9 @@ try {
     $bcText = [IO.File]::ReadAllText((Join-Path $repo 'build\lib\Build-Common.ps1'))
     $fnReady = [regex]::Match($bcText, '(?s)function Assert-PptBuildReady \{.*?\n\}').Value
     Assert ($fnReady -match 'POWERPNT' -and $fnReady -match 'Feche o PowerPoint' -and $fnReady -match 'Assert-PptVbomTrusted') 'Build-Common: Assert-PptBuildReady recusa PowerPoint aberto (mensagem clara) e reusa Assert-PptVbomTrusted'
+    # Com o ThinQQ.ppam instalado o PowerPoint do build carrega o suplemento "ThinQQ": SaveAs direto para ...\ThinQQ.ppam falha (0x80004005, release 1.10.0)
+    $bText = [IO.File]::ReadAllText((Join-Path $repo 'build\build.ps1'))
+    Assert (-not $bText.Contains('$pres.SaveAs($outPath') -and $bText.Contains('$pres.SaveAs($savePath') -and $bText -match '"build-\$PID-\$outName"' -and $bText -match 'Move-Item -LiteralPath \$savePath -Destination \$outPath') 'build.ps1: o .ppam e gravado com nome temporario e renomeado (o ThinQQ.ppam instalado nao bloqueia o build)'
     $rpText = [IO.File]::ReadAllText((Join-Path $repo 'tools\lib\Release-Publish.ps1'))
     $chk = [regex]::Match($rpText, '(?s)\$script:RpDefaultChecks = \{.*?\n\}').Value
     Assert ($chk -match 'POWERPNT' -and $chk -match 'AccessVBOM') 'publicar-release (Preparar): as verificacoes de pre-condicao recusam PowerPoint aberto e VBOM do PowerPoint desligado'
