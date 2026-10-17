@@ -32,6 +32,10 @@ if ($Target -eq 'ppt') {
     $stamp = "ThinQQ ppt $($versions.core) ($Configuration)"
     $outPath = Join-Path $DistDir $outName
     if (Test-Path $outPath) { Remove-Item $outPath -Force }
+    # Grava com outro nome e renomeia depois de fechar o PowerPoint: com o ThinQQ.ppam instalado, o PowerPoint do build carrega o
+    # suplemento "ThinQQ" e o SaveAs para outro arquivo de mesmo nome base (ThinQQ.ppam) falha com 0x80004005 (medido no release 1.10.0).
+    $savePath = Join-Path $DistDir "build-$PID-$outName"
+    if (Test-Path $savePath) { Remove-Item $savePath -Force }
     $buildInfo = Join-Path $env:TEMP 'modBuildInfo_ppt.bas'
     Write-BuildInfoModule -Version $versions.core -Configuration $Configuration -OutPath $buildInfo
     $dispatch = Join-Path $env:TEMP 'modTestDispatch_ppt.bas'
@@ -56,10 +60,10 @@ if ($Target -eq 'ppt') {
         }
         Set-DocProperty $pres 'Comments' $stamp   # carimbo lido sem abrir (docProps/core.xml), como o do loader (o .ppam perde: Set-PackageDescription)
         $fmt = if ($Configuration -eq 'Test') { 25 } else { 30 }     # ppSaveAsOpenXMLPresentationMacroEnabled / ppSaveAsOpenXMLAddin
-        $pres.SaveAs($outPath, $fmt)
+        $pres.SaveAs($savePath, $fmt)
         $pres.Close()
     } catch {
-        if (Test-Path -LiteralPath $marker) { $timedOut = $true } else { throw }
+        if (Test-Path -LiteralPath $marker) { $timedOut = $true } else { Remove-Item -LiteralPath $savePath -Force -ErrorAction SilentlyContinue; throw }
     } finally {
         $vbproj = $null   # referencias COM soltas antes do Quit (senao o PowerPoint nao fecha)
         $owned = @($pres); $pres = $null
@@ -69,10 +73,11 @@ if ($Target -eq 'ppt') {
         Remove-Item $buildInfo, $dispatch -Force -ErrorAction SilentlyContinue
     }
     if ($timedOut) {
-        Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $marker, $savePath -Force -ErrorAction SilentlyContinue
         Write-Host "ERRO: o PowerPoint do build não respondeu em $TimeoutSec s (encerrado)." -ForegroundColor Red
         exit 2
     }
+    if (Test-Path -LiteralPath $savePath) { Move-Item -LiteralPath $savePath -Destination $outPath -Force }
     if (-not (Test-Path -LiteralPath $outPath)) { Write-Host "ERRO: o PowerPoint não gravou $outPath" -ForegroundColor Red; exit 1 }
     Add-RibbonToPackage -PackagePath $outPath -RibbonXmlPath (Join-Path $srcDir 'ribbon\customUI14.xml') -Icons Png
     Set-PackageDescription -PackagePath $outPath -Description $stamp   # o .ppam sai do PowerPoint sem docProps: carimbo inserido no pacote
