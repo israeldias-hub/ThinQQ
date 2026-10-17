@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.10.1] - 2026-10-17
+
 ### Adicionado
 - Vídeos do ThinQQ: o tutorial (README e tutorial.html) passa a apontar para a pasta de vídeos no Google Drive (tutorial gravado e vídeo sobre a cascata comparativa e a inclusão das setas).
 

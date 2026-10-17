@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "coreVersion": "1.10.0",
-  "coreUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.0/ThinQQ.core.xlam",
-  "coreSha256": "1d318fbf9c2282d9928e25180334156b57c359717fe38030cc397361e62efc3a",
-  "loaderVersion": "1.10.0",
-  "loaderUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.0/ThinQQ.xlam",
-  "loaderSha256": "a54e8e6c84cf75f7909db302f8be752693e333f7b32baa22ed514c22e48f2888",
-  "pptAddinVersion": "1.10.0",
-  "pptAddinUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.0/ThinQQ.ppam",
-  "pptAddinSha256": "e939310d37c777e1bb2d42d3d8d6c525fe6fd91a3f6079abf52be25d77311034",
-  "tutorialUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.0/tutorial.html",
+  "coreVersion": "1.10.1",
+  "coreUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.1/ThinQQ.core.xlam",
+  "coreSha256": "6aa724c92a48ed7113c819765cc2cff1555cab16ad8d4b8155cc26f6242f5d22",
+  "loaderVersion": "1.10.1",
+  "loaderUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.1/ThinQQ.xlam",
+  "loaderSha256": "16bfc20955b076724703920dfb18bb9063e1bd9fc609eb4a5469187a398f490e",
+  "pptAddinVersion": "1.10.1",
+  "pptAddinUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.1/ThinQQ.ppam",
+  "pptAddinSha256": "fe913c6f76a1d0f5f2b21cfb62b0857b5090c3d6762000d23758cd74b0bde031",
+  "tutorialUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.1/tutorial.html",
   "manifestUrl": "https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json",
   "publishedAt": "2026-10-17",
-  "notes": "• Novo: criar gráficos direto pelo PowerPoint (aba ThinQQ > Inserir gráfico, 21 tipos), com o Excel como planilha de dados ao lado da apresentação; Editar dados, Salvar e Empacotar para enviar.\r\n• Novo: atualização automática dos gráficos no PowerPoint, por gráfico, com o Excel e o PowerPoint abertos; nada vira automático sem uma ação sua.\r\n• Novo: no Excel, Inserir também no slide (moldura verde no intervalo de origem) e, no PowerPoint, grupo Elemento selecionado para mudar rótulos, totais, formato, legenda e setas.\r\n• Novo: texto do slide e título do gráfico vinculados a uma célula do Excel.\r\n• Novo: tabela do PowerPoint vinculada a um intervalo do Excel, com a formatação do Excel.\r\n• O suplemento do PowerPoint também é atualizado pelo Excel (feche o PowerPoint para a troca valer)."
+  "notes": "• Novo: o tutorial do ThinQQ agora aponta para os vídeos (tutorial gravado e cascata comparativa com as setas), numa pasta do Google Drive.\r\n• Sem mudanças no funcionamento do suplemento em relação à 1.10.0."
 }
