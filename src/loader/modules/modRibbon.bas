@@ -293,6 +293,12 @@ Public Sub Rx_OnPptLinkText(control As IRibbonControl)
     If CoreOrWarn() Then RunCoreFeature "Core_PptLinkTextFromPpt"
 End Sub
 
+' Inserir tabela vinculada no slide (1.10.0): age sobre as celulas selecionadas (sem grafico); sempre ativo; core anterior: aviso de atualizar.
+Public Sub Rx_OnPptTable(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_PptInsertTable"
+End Sub
+
 ' Titulo ligado a uma celula (1.9.0): o core pergunta a celula (InputBox) e liga o titulo do grafico ativo; core anterior: aviso de atualizar.
 Public Sub Rx_OnLinkTitle(control As IRibbonControl)
     On Error Resume Next

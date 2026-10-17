@@ -185,7 +185,7 @@
           </menu>
           <!-- PowerPoint: o menu fica sempre ativo (Atualizar graficos no PowerPoint nao exige grafico); copiar exige um grafico (getEnabled). -->
           <menu id="mnuPpt" label="PowerPoint" image="tqq_ppt16"
-                screentip="PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint (como imagem ou gráfico vinculado), atualiza os gráficos vinculados das apresentações abertas e controla a atualização automática. Também insere direto no slide, vincula uma célula a um texto do slide e mostra/oculta as molduras.">
+                screentip="PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint (como imagem ou gráfico vinculado), atualiza os gráficos vinculados das apresentações abertas e controla a atualização automática. Também insere direto no slide, vincula uma célula a um texto do slide, insere uma tabela vinculada e mostra/oculta as molduras.">
             <checkBox id="chkPptInsert" label="Inserir também no slide" getPressed="Rx_GetPptInsert" onAction="Rx_OnPptInsert"
                       screentip="Inserir também no slide" supertip="Marcada, cada gráfico inserido pelos menus Colunas, Barras, Cascata, Linha e área e Mais tipos também vai para o slide ativo do PowerPoint como gráfico vinculado, e o intervalo de origem ganha uma moldura verde. A pasta precisa estar salva."/>
             <button id="btnPptImage" label="Copiar como imagem" onAction="Rx_OnPptImage" getEnabled="Rx_GetEnabled"
@@ -194,6 +194,8 @@
                     screentip="Copiar como gráfico vinculado" supertip="Cola um gráfico do PowerPoint vinculado a esta pasta de trabalho salva, com as setas no tamanho do slide. Com o suplemento do PowerPoint, dados e setas são atualizados ao abrir a apresentação."/>
             <button id="btnPptLinkText" label="Vincular célula ao texto selecionado" image="tqq_ppt16" onAction="Rx_OnPptLinkText"
                     screentip="Vincular célula ao texto selecionado" supertip="A célula selecionada passa a alimentar o texto selecionado no PowerPoint (a caixa inteira, a parte selecionada ou o ponto do cursor). Também há o botão Texto vinculado ao Excel no PowerPoint."/>
+            <button id="btnPptTable" label="Inserir tabela vinculada no slide" image="tqq_ppt16" onAction="Rx_OnPptTable"
+                    screentip="Inserir tabela vinculada no slide" supertip="Cria no slide ativo uma tabela do PowerPoint com as células selecionadas (com a formatação do Excel) que acompanha a pasta nas atualizações. A pasta precisa estar salva; sem células mescladas; até 75 linhas e 25 colunas."/>
             <menuSeparator id="msepPpt"/>
             <button id="btnPptSync" label="Atualizar gráficos no PowerPoint" imageMso="Refresh" onAction="Rx_OnPptSync"
                     screentip="Atualizar gráficos no PowerPoint" supertip="Atualiza dados e setas dos gráficos do ThinQQ vinculados nas apresentações abertas no PowerPoint (também acontece ao abrir a apresentação, com o suplemento do PowerPoint)."/>

@@ -256,13 +256,14 @@ Public Sub Test_Ribbon_Menus_Structure()
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnRoundRange']/@getEnabled") Is Nothing, "Arredondar intervalo age sobre celulas: sempre ativo"
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuPpt']/@getEnabled") Is Nothing, "PowerPoint sempre ativo: Atualizar graficos no PowerPoint nao exige grafico"
     AssertTrue d.SelectSingleNode("//u:menu[@id='mnuPpt']/@tag") Is Nothing
-    AssertEqual 5, d.SelectNodes("//u:menu[@id='mnuPpt']/u:button").Length
+    AssertEqual 6, d.SelectNodes("//u:menu[@id='mnuPpt']/u:button").Length
     AssertEqual "Rx_GetEnabled", AttrText(d.SelectSingleNode("//u:button[@id='btnPptImage']"), "getEnabled"), "copiar exige grafico"
     AssertEqual "Rx_GetEnabled", AttrText(d.SelectSingleNode("//u:button[@id='btnPptChart']"), "getEnabled")
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptSync'][@onAction='Rx_OnPptSync']") Is Nothing
     AssertTrue d.SelectSingleNode("//u:button[@id='btnPptSync']/@getEnabled") Is Nothing, "Atualizar graficos no PowerPoint: sempre ativo"
     AssertEqual "btnPptLinkText", AttrText(d.SelectSingleNode("//u:button[@id='btnPptChart']/following-sibling::*[1]"), "id"), "1.9.0: vincular texto logo depois de copiar"
-    AssertEqual "msepPpt", AttrText(d.SelectSingleNode("//u:button[@id='btnPptLinkText']/following-sibling::*[1]"), "id")
+    AssertEqual "btnPptTable", AttrText(d.SelectSingleNode("//u:button[@id='btnPptLinkText']/following-sibling::*[1]"), "id"), "1.10.0: tabela vinculada logo depois do texto"
+    AssertEqual "msepPpt", AttrText(d.SelectSingleNode("//u:button[@id='btnPptTable']/following-sibling::*[1]"), "id")
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptImage'][@onAction='Rx_OnPptImage']") Is Nothing
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptChart'][@onAction='Rx_OnPptChart']") Is Nothing
     ' ordem do grupo: ... Mais opcoes, Setas, PowerPoint, separador, Atualizar
@@ -480,6 +481,7 @@ Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
         If NodeId(n) = "btnPptImage" Or NodeId(n) = "btnPptChart" Then AssertEqual "Rx_GetEnabled", AttrText(n, "getEnabled"), "copiar exige grafico: " & NodeId(n)
         If NodeId(n) = "btnPptSync" Then AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "Atualizar graficos no PowerPoint: sempre ativo"
         If NodeId(n) = "btnPptLinkText" Then AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "Vincular celula ao texto: age sobre a celula, sempre ativo"
+        If NodeId(n) = "btnPptTable" Then AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, "Tabela vinculada: age sobre as celulas, sempre ativo"
     Next
 End Sub
 
@@ -1007,6 +1009,32 @@ Public Sub Test_Ribbon_LinkTextAndTitle()
     Loader_LastMsg = ""
     Rx_OnLinkTitle Nothing
     AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "Titulo ligado com core anterior"
+    Rx_TestSetFeatureProcSuffix ""
+    Err.Clear
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    Rx_TestSetFeatureProcSuffix ""
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+' ---- Parte F (1.10.0): Inserir tabela vinculada no slide (menu PowerPoint) ----
+
+Public Sub Test_Ribbon_PptTable()
+    Dim d As Object, code As String, en As Long, ed As String
+    On Error GoTo Cleanup
+    Set d = LoadRibbon()
+    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptTable'][@onAction='Rx_OnPptTable'][@image='tqq_ppt16']") Is Nothing
+    AssertTrue d.SelectSingleNode("//u:button[@id='btnPptTable']/@getEnabled") Is Nothing, "sempre ativo (age sobre as celulas)"
+    AssertEqual "Inserir tabela vinculada no slide", AttrText(d.SelectSingleNode("//*[@id='btnPptTable']"), "label")
+    AssertEqual "Inserir tabela vinculada no slide", AttrText(d.SelectSingleNode("//*[@id='btnPptTable']"), "screentip")
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='btnPptTable']"), "supertip"), "75 linhas e 25 colunas") > 0, "cita os limites"
+    code = RibbonModuleCode()
+    AssertTrue InStr(code, "RunCoreFeature ""Core_PptInsertTable""") > 0, "Rx_OnPptTable chama Core_PptInsertTable"
+    If Loader_CoreWorkbook() Is Nothing Then Loader_Log "TestRibbon: core nao carregado (parte do aviso pulada)": GoTo Cleanup
+    Rx_TestSetFeatureProcSuffix "_inexistente"
+    Loader_LastMsg = ""
+    Rx_OnPptTable Nothing
+    AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "Tabela vinculada com core anterior"
     Rx_TestSetFeatureProcSuffix ""
     Err.Clear
 Cleanup:

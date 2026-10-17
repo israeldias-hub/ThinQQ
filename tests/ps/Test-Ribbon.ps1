@@ -256,6 +256,12 @@ Check (@($px.SelectNodes("//u:group[@id='grpPptElem']/u:*", $pns)).Count -eq 4) 
 Check ($pptBas -match '(?m)^Public Sub PptRx_OnLinkText\(control As IRibbonControl\)') 'ppt: assinatura de Texto vinculado ao Excel'
 # e no Excel: Vincular celula ao texto selecionado (menu PowerPoint) e Titulo ligado a uma celula (Mais opcoes)
 Check ($null -ne $xx.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptLinkText'][@onAction='Rx_OnPptLinkText'][@image='tqq_ppt16']", $xns)) 'excel: Vincular célula ao texto selecionado'
+# 1.10.0 (F3): Inserir tabela vinculada no slide (menu PowerPoint do Excel, logo depois de Vincular celula ao texto; sem getEnabled)
+$tb = $xx.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptTable'][@label='Inserir tabela vinculada no slide'][@onAction='Rx_OnPptTable'][@image='tqq_ppt16']", $xns)
+Check ($null -ne $tb) 'excel: Inserir tabela vinculada no slide'
+Check ($null -ne $tb -and -not $tb.HasAttribute('getEnabled')) 'excel: Inserir tabela vinculada no slide sempre ativo'
+Check ($null -ne $tb -and $tb.PreviousSibling.GetAttribute('id') -ceq 'btnPptLinkText') 'excel: tabela vinculada depois de Vincular célula ao texto selecionado'
+Check (@($xx.SelectNodes("//u:menu[@id='mnuPpt']/u:button", $xns)).Count -eq 6) 'excel: menu PowerPoint com 6 botões'
 Check ($null -ne $xx.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnLinkTitle'][@onAction='Rx_OnLinkTitle'][@getEnabled='Rx_GetEnabled'][@image='tqq_options16']", $xns)) 'excel: Título ligado a uma célula'
 # ---- Carimbo do .ppam (Set-PackageDescription): o PowerPoint grava o suplemento sem docProps; pacotes sinteticos, sem Office
 Add-Type -AssemblyName System.IO.Compression
