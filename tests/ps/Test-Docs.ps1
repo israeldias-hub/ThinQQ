@@ -956,7 +956,6 @@ $autoPlaces = [ordered]@{
         $debText, $waitText, $retryText, 'Desfazer do Excel pode ser limpo', 'marca a apresentação como modificada', 'Atualize o ThinQQ no Excel para a atualização automática funcionar',
         'verificado em PowerPoint real', 'itens 61 a 68', 'Slides copiados de outra apresentação', 'somente leitura') }
     'CHANGELOG ([Não lançado], [1.7.0] ou [1.6.0])' = @{ text = $clAuto; phrases = $clAutoPhrases }
-    'release/notes.txt' = @{ text = $notesNorm; phrases = @($lblAuto, $lblOnce, $lblOn, $lblNew, "$debounce segundos", 'Nada vira automático sem uma ação sua', 'por gráfico') }
 }
 foreach ($place in $autoPlaces.Keys) {
     $pt = [string]$autoPlaces[$place].text
