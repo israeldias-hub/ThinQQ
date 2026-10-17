@@ -112,6 +112,8 @@ Limites: sem o Windows SDK e as SIPs a assinatura automática não roda (o scrip
 3. Troque um número da tabela: colunas, totais e rótulos acompanham.
 4. Para ver o que mais o ThinQQ faz, abra a pasta de demonstração `exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx` (vem no ZIP; [no GitHub](exemplos/ThinQQ-Demonstracao-Materiais-Construcao.xlsx)): a primeira aba é um índice com 28 exemplos, de E01 a E28; clique no nome do exemplo para ir ao gráfico. Os gráficos também funcionam sem o ThinQQ instalado, mas setas, colchetes e marcas de corte só se recalculam com ele. ThinQQ > Exemplos gera 27 exemplos menores numa pasta nova e ThinQQ > Tutorial abre o tutorial (`docs/tutorial/tutorial.html`), que também explica a pasta de demonstração. O tutorial traz uma galeria com a imagem de cada um dos 28 exemplos (embutidas no próprio arquivo, que continua único e funciona sem rede).
 
+**Vídeos.** Um tutorial gravado (cinco gráficos principais, setas e integração com o PowerPoint) e um vídeo curto sobre a cascata comparativa e a inclusão das setas estão numa pasta do Google Drive: [Vídeos do ThinQQ](https://drive.google.com/drive/folders/1O7e9vPOfYvp_mOAZW6xjD_objNgdv-sd?usp=sharing). Os arquivos não fazem parte do repositório nem do ZIP.
+
 ## Recursos
 
 **Fase 1 (1.0.0)**

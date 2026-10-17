@@ -15,7 +15,8 @@ $changelogPath = Join-Path $RepoRoot 'CHANGELOG.md'
 $leiamePath = Join-Path $RepoRoot 'installer\LEIA-ME.txt'
 $ribbonPath = Join-Path $RepoRoot 'src\loader\ribbon\customUI14.xml'
 $pptRibbonPath = Join-Path $RepoRoot 'src\ppt\ribbon\customUI14.xml'
-$allowedLinks = @('https://github.com/israeldias-hub/ThinQQ', 'https://israeldias-hub.github.io/ThinQQ/')
+$videosLink = 'https://drive.google.com/drive/folders/1O7e9vPOfYvp_mOAZW6xjD_objNgdv-sd?usp=sharing'
+$allowedLinks = @('https://github.com/israeldias-hub/ThinQQ', 'https://israeldias-hub.github.io/ThinQQ/', 'https://drive.google.com/drive/folders/1O7e9vPOfYvp_mOAZW6xjD_objNgdv-sd')
 
 # ---- rótulos conhecidos: faixa de opções + formulários (loader e core)
 $known = New-Object 'System.Collections.Generic.HashSet[string]'
@@ -302,6 +303,8 @@ foreach ($doc in @(@{ n = 'README.md'; p = $readmePath }, @{ n = 'LEIA-ME.txt'; 
 }
 $readme = Read-Utf8 $readmePath
 Check ($readme -match 'https://github\.com/israeldias-hub/ThinQQ') 'README cita o repositório real'
+Check ($readme.Contains($videosLink)) 'README cita a pasta de vídeos do Google Drive'
+Check ((Read-Utf8 $tutorialPath).Contains('href="' + $videosLink + '"')) 'tutorial cita a pasta de vídeos do Google Drive (link em <a>)'
 Check ($readme -match 'AccessVBOM|Confiar no acesso ao modelo de objeto') 'README cita a configuração de confiança do VBA'
 Check ($readme -match 'Settings.*Pages|Pages' -and $readme -match 'github\.io/ThinQQ/tutorial/tutorial\.html') 'README cita o GitHub Pages do tutorial'
 Check ($readme -cnotmatch 'TODO|TBD|FIXME') 'README sem pendências'
@@ -905,6 +908,8 @@ $autoTut = Get-SubsectionText 'ppt-auto'
 $recRaw = [regex]::Match($readme, '(?s)\*\*Atualização automática no PowerPoint \(1\.6\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value
 $autoRec = ($recRaw -replace '\s+', ' ')
 $clUnrel = [regex]::Match(($cl -replace "`r`n", "`n"), '(?ms)^## \[Não lançado\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
+# depois do publicar-release (a [Não lançado] fica vazia), os testes sintéticos de roll-up usam o corpo da [1.10.0] como "todas as linhas"
+$clRollBody = if ($clUnrel.Trim().Length -gt 0) { $clUnrel } else { [regex]::Match(($cl -replace "`r`n", "`n"), '(?ms)^## \[1\.10\.0\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value }
 # As linhas da 1.6.0 ficam em [Não lançado] até o publicar-release, que as move para "## [1.6.0] - data" (1.6.0 publicada antes) ou, se a 1.6.0
 # e a 1.7.0 saírem juntas, para "## [1.7.0] - data" (mesma classe do incidente do delta, dc446b0): os pinos leem a primeira seção que tem as
 # linhas (TQQ_AUTOIDX), nesta ordem: [Não lançado], [1.10.0], [1.9.0], [1.8.0], [1.7.0], [1.6.0] (a mais nova quando as versões empilhadas saem juntas).
@@ -1121,7 +1126,7 @@ foreach ($old in '1.7.0', '1.6.0') {
 }
 Check (@(Get-CriarChangelogMissing (Get-CriarChangelogBlock "## [Não lançado]`n`n## [1.7.0] - 2026-10-30`n`n- outra coisa`n`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas da 1.8.0 em lugar nenhum = falha'
 # as três versões juntas como 1.8.0: o publicar-release 1.8.0 move a [Não lançado] inteira (linhas da 1.6.0, 1.7.0 e 1.8.0) para a [1.8.0]: ok para os três blocos
-$clRoll8 = "# Changelog`n`n## [Não lançado]`n`n## [1.8.0] - 2026-11-10`n" + ($clUnrel -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
+$clRoll8 = "# Changelog`n`n## [Não lançado]`n`n## [1.8.0] - 2026-11-10`n" + ($clRollBody -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
 Check (@(Get-AutoChangelogMissing (Get-AutoChangelogBlock $clRoll8)).Count -eq 0 -and @(Get-InsertChangelogMissing (Get-InsertChangelogBlock $clRoll8)).Count -eq 0 -and @(Get-CriarChangelogMissing (Get-CriarChangelogBlock $clRoll8)).Count -eq 0 -and -not (Test-InsertInside160 $clRoll8) -and -not (Test-CriarInside $clRoll8 '\[1\.7\.0\]')) 'CHANGELOG (sintético): 1.6.0, 1.7.0 e 1.8.0 publicadas juntas na [1.8.0] satisfazem os pinos das três'
 # a 1.7.0 e a 1.8.0 juntas (a 1.6.0 já publicada): a [Não lançado] sem as da 1.6.0 vira a [1.8.0]
 $clRoll78 = "# Changelog`n`n## [Não lançado]`n`n## [1.8.0] - 2026-11-10`n" + (($clIns + "`n" + $clCriar) -replace "`r`n", "`n") + "`n## [1.6.0] - 2026-10-20`n`n- outra coisa`n"
@@ -1245,7 +1250,7 @@ foreach ($old in '1.8.0', '1.7.0', '1.6.0') {
 }
 Check (@(Get-CmdChangelogMissing (Get-CmdChangelogBlock "## [Não lançado]`n`n## [1.8.0] - 2026-11-10`n`n- outra coisa`n`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas da 1.9.0 em lugar nenhum = falha'
 # todas as versões juntas como 1.9.0: o publicar-release 1.9.0 move a [Não lançado] inteira (linhas da 1.6.0 a 1.9.0) para a [1.9.0]: ok para os quatro blocos
-$clRoll9 = "# Changelog`n`n## [Não lançado]`n`n## [1.9.0] - 2026-11-20`n" + ($clUnrel -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
+$clRoll9 = "# Changelog`n`n## [Não lançado]`n`n## [1.9.0] - 2026-11-20`n" + ($clRollBody -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
 Check (@(Get-AutoChangelogMissing (Get-AutoChangelogBlock $clRoll9)).Count -eq 0 -and @(Get-InsertChangelogMissing (Get-InsertChangelogBlock $clRoll9)).Count -eq 0 -and @(Get-CriarChangelogMissing (Get-CriarChangelogBlock $clRoll9)).Count -eq 0 -and @(Get-CmdChangelogMissing (Get-CmdChangelogBlock $clRoll9)).Count -eq 0 -and -not (Test-InsertInside160 $clRoll9) -and -not (Test-CriarInside $clRoll9 '\[1\.7\.0\]') -and -not (Test-CmdInside $clRoll9 '\[1\.8\.0\]')) 'CHANGELOG (sintético): 1.6.0 a 1.9.0 publicadas juntas na [1.9.0] satisfazem os pinos das quatro'
 # a 1.8.0 e a 1.9.0 juntas (as anteriores já publicadas): a [Não lançado] sem as da 1.6.0 e da 1.7.0 vira a [1.9.0]
 $clRoll89 = "# Changelog`n`n## [Não lançado]`n`n## [1.9.0] - 2026-11-20`n" + (($clCriar + "`n" + $clCmd) -replace "`r`n", "`n") + "`n## [1.7.0] - 2026-10-30`n`n- outra coisa`n"
@@ -1361,7 +1366,7 @@ foreach ($old in '1.8.0', '1.7.0', '1.6.0') {
     Check (-not (Test-TextoInside $cl $oldHead)) "CHANGELOG: a [$old] não contém linhas ""Texto vinculado a célula (1.9.0)"" (mova-as para a [Não lançado]; README, Publicar uma versão)"
 }
 Check (@(Get-TextoChangelogMissing (Get-TextoChangelogBlock "## [Não lançado]`n`n## [1.8.0] - 2026-11-10`n`n- outra coisa`n`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas do texto vinculado em lugar nenhum = falha'
-$clRollT = "# Changelog`n`n## [Não lançado]`n`n## [1.9.0] - 2026-11-20`n" + ($clUnrel -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
+$clRollT = "# Changelog`n`n## [Não lançado]`n`n## [1.9.0] - 2026-11-20`n" + ($clRollBody -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
 Check (@(Get-TextoChangelogMissing (Get-TextoChangelogBlock $clRollT)).Count -eq 0 -and -not (Test-TextoInside $clRollT '\[1\.8\.0\]')) 'CHANGELOG (sintético): 1.6.0 a 1.9.0 publicadas juntas na [1.9.0] satisfazem os pinos do texto vinculado'
 $textoPlaces = [ordered]@{
     'tutorial #ppt-texto' = @{ text = $textoTut; phrases = @(
@@ -1472,11 +1477,11 @@ foreach ($old in '1.9.0', '1.8.0', '1.7.0', '1.6.0') {
 }
 Check (@(Get-TabelaChangelogMissing (Get-TabelaChangelogBlock "## [Não lançado]`n`n## [1.9.0] - 2026-11-20`n`n- outra coisa`n`n## [1.5.0] - 2026-10-15`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas da tabela vinculada em lugar nenhum = falha'
 # todas as versões juntas como 1.10.0: o publicar-release 1.10.0 move a [Não lançado] inteira (linhas da 1.6.0 a 1.10.0) para a [1.10.0]: ok para todos os blocos
-$clRollN = "# Changelog`n`n## [Não lançado]`n`n## [1.10.0] - 2026-12-01`n" + ($clUnrel -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
+$clRollN = "# Changelog`n`n## [Não lançado]`n`n## [1.10.0] - 2026-12-01`n" + ($clRollBody -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
 Check (@(Get-TabelaChangelogMissing (Get-TabelaChangelogBlock $clRollN)).Count -eq 0 -and -not (Test-TabelaInside $clRollN '\[1\.9\.0\]')) 'CHANGELOG (sintético): 1.6.0 a 1.10.0 publicadas juntas na [1.10.0] satisfazem os pinos da tabela vinculada'
 Check (@(Get-AutoChangelogMissing (Get-AutoChangelogBlock $clRollN)).Count -eq 0 -and @(Get-InsertChangelogMissing (Get-InsertChangelogBlock $clRollN)).Count -eq 0 -and @(Get-CriarChangelogMissing (Get-CriarChangelogBlock $clRollN)).Count -eq 0 -and @(Get-CmdChangelogMissing (Get-CmdChangelogBlock $clRollN)).Count -eq 0 -and @(Get-TextoChangelogMissing (Get-TextoChangelogBlock $clRollN)).Count -eq 0) 'CHANGELOG (sintético): 1.6.0 a 1.10.0 publicadas juntas na [1.10.0] satisfazem também os pinos das versões anteriores'
 # a 1.9.0 já publicada e a 1.10.0 sozinha: a [Não lançado] só com as linhas da 1.10.0 vira a [1.10.0]
-$clRollN2 = "# Changelog`n`n## [Não lançado]`n`n## [1.10.0] - 2026-12-01`n`n### Adicionado`n$clTabelaLine`n## [1.9.0] - 2026-11-20`n" + ($clUnrel -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
+$clRollN2 = "# Changelog`n`n## [Não lançado]`n`n## [1.10.0] - 2026-12-01`n`n### Adicionado`n$clTabelaLine`n## [1.9.0] - 2026-11-20`n" + ($clRollBody -replace "`r`n", "`n") + "`n## [1.5.0] - 2026-10-15`n`n- x`n"
 Check (@(Get-TabelaChangelogMissing (Get-TabelaChangelogBlock $clRollN2)).Count -eq 0) 'CHANGELOG (sintético): a 1.10.0 publicada depois da 1.9.0 (só as linhas da tabela na [1.10.0]) satisfaz os pinos'
 $tabelaPlaces = [ordered]@{
     'tutorial #ppt-tabela' = @{ text = $tabelaTut; phrases = @(
