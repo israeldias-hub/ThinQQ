@@ -235,8 +235,8 @@ intervalo do Excel resolve sem vínculo), células mescladas (recusadas na cria�
 atualização, transpor.
 
 **(c) Arquitetura:** `modPptTable` (core): `PptTable_Insert(rng)` (pasta salva; nome definido; `AddTable` no slide de destino de
-`Ppt_TargetSlide`; tamanho 80% do slide como os gráficos; etiquetas `TQQ_TABLE`, `TQQ_BOOK`, `TQQ_TNAME`, `TQQ_TREF`, `TQQ_TLAST` = matriz
-de textos serializada); `PptTable_Sync(shp, wb)` (diferença pura célula a célula contra `TQQ_TLAST`: escreve só o que mudou, ~10 ms por
+`Ppt_TargetSlide`; tamanho 80% do slide como os gráficos; etiquetas `TQQ_TABLE`, `TQQ_BOOK`, `TQQ_TNAME`, `TQQ_TREF`, `TQQ_TBLAST` = matriz
+de textos serializada); `PptTable_Sync(shp, wb)` (diferença pura célula a célula contra `TQQ_TBLAST`: escreve só o que mudou, ~10 ms por
 célula, S6). Custo: 11 × 5 criada em 1,5 s (S6) — aceitável numa ação explícita; atualização típica (1–5 células) < 100 ms. Alternativa:
 objeto OLE de planilha vinculado (`PasteSpecial` link) — rejeitada (não é tabela do PowerPoint, fonte escala, duplo clique abre o Excel).
 P8 pode mover o preenchimento para o `.ppam`.

@@ -1508,9 +1508,10 @@ foreach ($place in $tabelaPlaces.Keys) {
     $pt = [string]$tabelaPlaces[$place].text
     foreach ($ph in $tabelaPlaces[$place].phrases) { Check ($pt.Contains($ph)) "tabela vinculada, $place cita '$ph'" }
 }
-foreach ($t in 'PptTable_Insert', 'PptTable_Sync', 'PptTable_Attrs', 'PptTable_Diff', 'PptTable_Parse', 'PptTable_RefusalText', 'Core_PptInsertTable', 'Rx_OnPptTable', 'btnPptTable', 'CORE_PPT_API` continua 5') {
-    Check ($readme.Contains('`' + $t + '`') -or $readme.Contains('`' + $t + '(') -or $readme.Contains($t)) "README (Arquitetura): o fluxo da tabela vinculada cita $t"
+foreach ($t in 'PptTable_Insert', 'PptTable_Sync', 'PptTable_Attrs', 'PptTable_Diff', 'PptTable_Parse', 'PptTable_RefusalText', 'Core_PptInsertTable', 'Rx_OnPptTable', 'btnPptTable') {
+    Check ($readme.Contains('`' + $t + '`') -or $readme.Contains('`' + $t + '(')) "README (Arquitetura): o fluxo da tabela vinculada cita $t"
 }
+Check ($readme.Contains('`CORE_PPT_API` continua 5')) 'README (Arquitetura): a tabela vinculada não muda a API do suplemento (CORE_PPT_API continua 5)'
 Check ($readme.Contains('seção 5.4 da mesma especificação') -and $readme.Contains('na seção 6 (e, no tutorial, em `#ppt-paridade`)')) 'README (Estrutura): a especificação da tabela vinculada (5.4) e da matriz de paridade (6) é citada'
 foreach ($ph in 'Publicando a 1.10.0', 'feat/ppt-tabelas', 'feat/ppt-texto', 'Publique **em ordem**: a 1.9.0 a partir da `main` antes de mesclar o ramo da 1.10.0', 'ou publique tudo junto como uma só versão', 'Tabela vinculada (1.10.0):', 'Documentação (1.10.0):', '[1.10.0]') {
     Check ($pubRelease.Contains($ph)) "README (Publicar uma versão): a ordem da 1.10.0 cita '$ph'"
