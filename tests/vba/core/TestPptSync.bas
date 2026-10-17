@@ -2985,6 +2985,19 @@ Public Sub Test_PptTable_InsertAndSync_WhenAvailable()
     AssertEqual "editado no slide", t.Cell(3, 1).Shape.TextFrame.TextRange.Text
     s = PptSync_Presentation(pres, True)                              ' forcar: o texto volta ao do Excel
     AssertEqual "Norte", t.Cell(3, 1).Shape.TextFrame.TextRange.Text
+    ' revisao final F (M11): coluna inserida dentro do intervalo e apagada
+    ws.Columns(2).Insert: ws.Range("B1:B3").Value = Application.Transpose(Array("Meta", "1", "2"))
+    s = PptSync_Presentation(pres, False)
+    AssertTrue InStr(s, "Gráficos do ThinQQ atualizados: 1.") = 1, s
+    AssertEqual 4, t.Columns.Count, "coluna inserida dentro do intervalo"
+    AssertEqual "Meta", t.Cell(1, 2).Shape.TextFrame.TextRange.Text
+    AssertEqual "2025", t.Cell(1, 3).Shape.TextFrame.TextRange.Text
+    AssertEqual "2026", t.Cell(1, 4).Shape.TextFrame.TextRange.Text
+    ws.Columns(2).Delete
+    s = PptSync_Presentation(pres, False)
+    AssertEqual 3, t.Columns.Count, "coluna apagada"
+    AssertEqual "2025", t.Cell(1, 2).Shape.TextFrame.TextRange.Text
+    AssertEqual "2026", t.Cell(1, 3).Shape.TextFrame.TextRange.Text
     AssertEqual 1, slide.Shapes.Count, "nenhuma forma criada ou apagada"
 Cleanup:
     en = Err.Number: ed = Err.Description
@@ -3014,7 +3027,7 @@ End Sub
 ' tabela desfeita (sem tabela, sem nome oculto, sem marca); 30 x 10 criada em poucos segundos (tempo medido no texto do assert).
 Public Sub Test_PptInsertTable_Core_RefusalUndoAndSize_WhenAvailable()
     Dim wb As Workbook, ws As Worksheet, app As Object, pres As Object, slide As Object, own As New Collection, en As Long, ed As String
-    Dim t0 As Single, dt As Single, shp As Object, n0 As Long
+    Dim t0 As Single, dt As Single, shp As Object, n0 As Long, n1 As Long
     Set app = StartScratchPowerPoint()
     If app Is Nothing Then Exit Sub
     On Error GoTo Cleanup
@@ -3042,6 +3055,17 @@ Public Sub Test_PptInsertTable_Core_RefusalUndoAndSize_WhenAvailable()
     AssertEqual 0, slide.Shapes.Count, "falha depois da tabela: tabela apagada"
     AssertEqual n0, wb.Names.Count, "falha: nome oculto e marca apagados"
     AssertFalse Ppt_InOperation(), "operacao fechada na falha"
+    ' revisao final F (M2, M11): falha DEPOIS de criar a tabela, numa apresentacao nova criada pela chamada: tudo desfeito
+    Ppt_PinTargetForTest Nothing, True
+    n1 = app.Presentations.Count
+    Util_FailThinSyncForTest = "ppttable-after:1"
+    Core_PptInsertTable
+    Util_FailThinSyncForTest = ""
+    AssertTrue Len(Ppt_LastCreatedPresNameForTest()) > 0, "a chamada criou uma apresentacao"
+    AssertEqual n1, app.Presentations.Count, "a apresentacao nova foi fechada"
+    AssertEqual n0, wb.Names.Count, "falha depois da tabela: nome oculto e marca apagados"
+    AssertFalse Ppt_InOperation(), "operacao fechada na falha depois da tabela"
+    Ppt_PinTargetForTest slide
     ws.Range("A1:J30").Select
     t0 = Timer
     Core_PptInsertTable

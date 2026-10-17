@@ -125,33 +125,33 @@ Public Function PptText_TagEnc(s As String) As String
 End Function
 
 ' Inverso de PptText_TagEnc. Etiqueta vem da apresentacao (de quem a fez): sequencia desconhecida ou truncada fica como esta; nunca levanta
-' erro. Pura.
+' erro. Linear (revisao final F, I2): o resultado nunca e maior que a entrada, entao e escrito num buffer do tamanho dela (Mid$), sem
+' concatenar caractere a caractere (quadratico numa etiqueta hostil grande). Pura.
 Public Function PptText_TagDec(s As String) As String
-    Dim i As Long, n As Long, ch As String, nx As String, hx As String, out As String
+    Dim i As Long, n As Long, ch As String, nx As String, hx As String, out As String, k As Long, o As String, w As Long
     n = Len(s): i = 1
+    If InStr(s, "\") = 0 Then PptText_TagDec = s: Exit Function
+    out = Space$(n)
     Do While i <= n
         ch = Mid$(s, i, 1)
+        o = ch: k = 1
         If ch = "\" And i < n Then
             nx = Mid$(s, i + 1, 1)
             Select Case nx
-                Case "\": out = out & "\": i = i + 2
-                Case "r": out = out & vbCr: i = i + 2
-                Case "n": out = out & vbLf: i = i + 2
-                Case "t": out = out & vbTab: i = i + 2
+                Case "\": o = "\": k = 2
+                Case "r": o = vbCr: k = 2
+                Case "n": o = vbLf: k = 2
+                Case "t": o = vbTab: k = 2
                 Case "x"
                     hx = Mid$(s, i + 2, 2)
-                    If Len(hx) = 2 And hx Like "[0-9A-Fa-f][0-9A-Fa-f]" Then
-                        out = out & ChrW$(CLng("&H" & hx)): i = i + 4
-                    Else
-                        out = out & ch: i = i + 1
-                    End If
-                Case Else: out = out & ch: i = i + 1
+                    If Len(hx) = 2 And hx Like "[0-9A-Fa-f][0-9A-Fa-f]" Then o = ChrW$(CLng("&H" & hx)): k = 4
             End Select
-        Else
-            out = out & ch: i = i + 1
         End If
+        w = w + 1
+        Mid$(out, w, 1) = o
+        i = i + k
     Loop
-    PptText_TagDec = out
+    PptText_TagDec = Left$(out, w)
 End Function
 
 ' Endereco de reserva: planilha + "|" + endereco absoluto.

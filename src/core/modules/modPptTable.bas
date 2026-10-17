@@ -13,6 +13,8 @@ Public Const PPTTABLE_MAX_COLS As Long = 25
 Public Const PPTTABLE_MAX_TAG As Long = 200000               ' TQQ_TBLAST maior que isto nao e gravada (a proxima atualizacao reescreve tudo)
 Private Const PPTTABLE_RS As String = vbLf                    ' separador de linhas na etiqueta
 Private Const PPTTABLE_FS As String = "|"                     ' separador de celulas na etiqueta
+Private Const PPTTABLE_EMPTY1 As String = "\-"                ' etiqueta da matriz 1 x 1 vazia (I1)
+Public Const PPTTABLE_MAX_CELLENC As Long = 1020             ' 4 x PPTTEXT_MAX_LEN: celula codificada maior = etiqueta recusada (I2)
 Private Const PPTTABLE_NAME_PREFIX As String = "TQQ_T_"      ' nome definido oculto do intervalo (so a acao explicita de inserir o cria)
 ' Estilo "Sem Estilo, Grade da Tabela" do PowerPoint: sem preenchimento e com grade fina; a formatacao do Excel vai por cima (so o que difere
 ' do padrao e escrito: menos chamadas ao PowerPoint por celula).
@@ -35,24 +37,36 @@ Public Function PptTable_Serialize(m As Variant) As String
         rowsOut(r) = Join(cells, PPTTABLE_FS)
     Next
     PptTable_Serialize = Join(rowsOut, PPTTABLE_RS)
+    ' 1 x 1 vazia daria "" (o mesmo que "sem etiqueta"): marcador proprio, que PptText_TagEnc nunca produz ("\" vira "\\") (revisao final F, I1)
+    If Len(PptTable_Serialize) = 0 Then PptTable_Serialize = PPTTABLE_EMPTY1
 End Function
 
-' Inverso de PptTable_Serialize: matriz 1..r x 1..c de String (colunas = as da 1a linha; linha curta = celulas vazias) ou Empty (etiqueta
-' vazia, maior que PPTTABLE_MAX_TAG ou com mais de PPTTABLE_MAX_ROWS linhas / PPTTABLE_MAX_COLS colunas). A etiqueta vem da apresentacao (de
-' quem a fez): nunca levanta erro. Pura.
+' Inverso de PptTable_Serialize: matriz 1..r x 1..c de String (colunas = as da 1a linha, no minimo 1; linha curta = celulas vazias) ou Empty
+' (etiqueta vazia, maior que PPTTABLE_MAX_TAG, com mais de PPTTABLE_MAX_ROWS linhas / PPTTABLE_MAX_COLS colunas ou com uma celula codificada
+' maior que PPTTABLE_MAX_CELLENC: o maximo legitimo, 255 caracteres de "\xHH"). A etiqueta vem da apresentacao (de quem a fez): nunca levanta
+' erro e o trabalho e limitado (revisao final F, I2). Pura.
 Public Function PptTable_Parse(s As String) As Variant
     Dim rows() As String, cells() As String, m() As String, r As Long, c As Long, nc As Long
     On Error GoTo Bad
     If Len(s) = 0 Or Len(s) > PPTTABLE_MAX_TAG Then Exit Function
+    If s = PPTTABLE_EMPTY1 Then
+        ReDim m(1 To 1, 1 To 1)
+        PptTable_Parse = m
+        Exit Function
+    End If
     rows = Split(s, PPTTABLE_RS)
     If UBound(rows) + 1 > PPTTABLE_MAX_ROWS Then Exit Function
     nc = UBound(Split(rows(0), PPTTABLE_FS)) + 1
+    If nc < 1 Then nc = 1                                       ' 1a celula vazia numa tabela de uma coluna: Split("") nao tem itens
     If nc > PPTTABLE_MAX_COLS Then Exit Function
     ReDim m(1 To UBound(rows) + 1, 1 To nc)
     For r = 0 To UBound(rows)
         cells = Split(rows(r), PPTTABLE_FS)
         For c = 0 To nc - 1
-            If c <= UBound(cells) Then m(r + 1, c + 1) = PptText_TagDec(cells(c))
+            If c <= UBound(cells) Then
+                If Len(cells(c)) > PPTTABLE_MAX_CELLENC Then Exit Function
+                m(r + 1, c + 1) = PptText_TagDec(cells(c))
+            End If
         Next
     Next
     PptTable_Parse = m
@@ -60,7 +74,6 @@ Public Function PptTable_Parse(s As String) As Variant
 Bad:
     PptTable_Parse = Empty
 End Function
-
 ' Celulas de newM a escrever: diferentes de oldM ou fora das dimensoes dele (oldM Empty = todas). Itens Array(linha, coluna). Pura.
 Public Function PptTable_Diff(oldM As Variant, newM As Variant) As Collection
     Dim out As New Collection, r As Long, c As Long, inOld As Boolean
@@ -120,7 +133,7 @@ End Function
 ' ---- Criar e atualizar a tabela no slide (F2) ----
 
 ' Gancho de teste (Util_FailThinSyncForTest = "ppttable-<ponto>:1"): dispara UMA vez. Inerte fora do build Test.
-Private Sub PptTable_TestHook(site As String)
+Public Sub PptTable_TestHook(site As String)
     If BUILD_CONFIG = "Test" Then
         If Util_FailThinSyncForTest = "ppttable-" & site & ":1" Then
             Util_FailThinSyncForTest = ""
@@ -369,7 +382,7 @@ End Function
 ' arbitrarios de qualquer pasta do usuario e os gravaria no slide.
 Public Function PptTable_Sync(shp As Object, wb As Workbook, force As Boolean) As Long
     Dim rng As Range, newM As Variant, oldM As Variant, t As Object, d As Collection, e As Variant, resized As Boolean, bn As Long, bd As String
-    Dim nm As String, ref As String, msg As String, tr As Object
+    Dim nm As String, ref As String, msg As String, tr As Object, i As Long
     On Error GoTo Fail
     nm = PptSync_Tag(shp, PPTLINK_TAG_NAME)
     If Left$(nm, Len(PPTTABLE_NAME_PREFIX)) <> PPTTABLE_NAME_PREFIX Then nm = ""
@@ -383,22 +396,32 @@ Public Function PptTable_Sync(shp As Object, wb As Workbook, force As Boolean) A
     newM = PptTable_TextMatrix(rng)
     If Not force Then oldM = PptTable_Parse(PptSync_Tag(shp, PPTTABLE_TAG_LAST))
     Set t = shp.Table
-    Do While t.Rows.Count < rng.Rows.Count
+    ' lacos com teto (revisao final F, M1): uma tabela que nao muda de tamanho (deck hostil, celulas mescladas no PowerPoint) nao prende o laco
+    For i = 1 To PPTTABLE_MAX_ROWS + 1
+        If t.Rows.Count >= rng.Rows.Count Then Exit For
         t.Rows.Add
         resized = True
-    Loop
-    Do While t.Rows.Count > rng.Rows.Count
+    Next
+    For i = 1 To PPTTABLE_MAX_ROWS + 1
+        If t.Rows.Count <= rng.Rows.Count Then Exit For
         t.Rows(t.Rows.Count).Delete
         resized = True
-    Loop
-    Do While t.Columns.Count < rng.Columns.Count
+    Next
+    For i = 1 To PPTTABLE_MAX_ROWS + 1
+        If t.Columns.Count >= rng.Columns.Count Then Exit For
         t.Columns.Add
         resized = True
-    Loop
-    Do While t.Columns.Count > rng.Columns.Count
+    Next
+    For i = 1 To PPTTABLE_MAX_ROWS + 1
+        If t.Columns.Count <= rng.Columns.Count Then Exit For
         t.Columns(t.Columns.Count).Delete
         resized = True
-    Loop
+    Next
+    If t.Rows.Count <> rng.Rows.Count Or t.Columns.Count <> rng.Columns.Count Then
+        Errors_Log "PptTable_Sync: a tabela do slide nao chegou ao tamanho do intervalo" & vbTab & t.Rows.Count & "x" & t.Columns.Count & vbTab & rng.Rows.Count & "x" & rng.Columns.Count
+        PptTable_Sync = PPTSYNC_R_FAIL
+        Exit Function
+    End If
     If resized Then oldM = Empty                                 ' linhas no meio mudam a posicao de tudo abaixo: compara todos os textos
     Set d = PptTable_Diff(oldM, newM)
     If d.Count = 0 Then PptTable_Sync = PPTSYNC_R_SAME: Exit Function

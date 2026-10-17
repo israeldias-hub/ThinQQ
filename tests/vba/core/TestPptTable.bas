@@ -119,6 +119,7 @@ Private Function HostileTable(nm As String, ref As String, book As String) As Te
     Dim t As TestPptTextFake
     Set t = New TestPptTextFake
     t.HasTextFrame = 0
+    t.HasTable = 0                                       ' a conferencia HasTable (nao o erro 438) recusa a forma
     Set t.Tags = New TestPptTags
     t.Tags.Preset PPTTABLE_TAG, "1"
     t.Tags.Preset PPTSYNC_TAG_BOOK, book
@@ -168,4 +169,64 @@ Public Sub Test_PptTable_EditDataAndCommand_RefuseTable()
     AssertEqual "!" & PPTTABLE_MSG_EDITDATA, Core_PptEditData(pres, e)
     AssertEqual PPTTABLE_MSG_NOTCHART, Core_PptCommand(pres, e, "clear", "")
     AssertEqual n0, Application.Workbooks.Count, "nenhuma pasta aberta"
+End Sub
+
+' ---- Revisao final da Parte F ----
+
+' I1: ida e volta de uma tabela de UMA coluna com a 1a celula vazia e da 1 x 1 vazia (antes viravam "sem historico": toda atualizacao sem
+' forcar reescrevia as celulas editadas no PowerPoint). A etiqueta da 1 x 1 vazia nao e "" (o mesmo que sem etiqueta).
+Public Sub Test_PptTable_RoundTrip_OneColumnAndEmpty()
+    Dim m As Variant, p As Variant, s As String
+    m = M2(Array("", "x"), 2, 1)
+    p = PptTable_Parse(PptTable_Serialize(m))
+    AssertFalse IsEmpty(p), "1 coluna, 1a celula vazia"
+    AssertEqual 2, UBound(p, 1): AssertEqual 1, UBound(p, 2)
+    AssertEqual "", p(1, 1): AssertEqual "x", p(2, 1)
+    AssertEqual 0, PptTable_Diff(p, m).Count, "nada a escrever"
+    m = M2(Array(""), 1, 1)
+    s = PptTable_Serialize(m)
+    AssertTrue Len(s) > 0, "1 x 1 vazia: etiqueta nao vazia"
+    p = PptTable_Parse(s)
+    AssertFalse IsEmpty(p), "1 x 1 vazia"
+    AssertEqual 1, UBound(p, 1): AssertEqual 1, UBound(p, 2): AssertEqual "", p(1, 1)
+    AssertEqual 0, PptTable_Diff(p, m).Count
+    m = M2(Array("", "", ""), 3, 1)
+    p = PptTable_Parse(PptTable_Serialize(m))
+    AssertEqual 3, UBound(p, 1): AssertEqual 1, UBound(p, 2)
+    m = M2(Array("\-"), 1, 1)
+    p = PptTable_Parse(PptTable_Serialize(m))
+    AssertEqual "\-", p(1, 1), "o texto \- nao se confunde com o marcador"
+    AssertTrue IsEmpty(PptTable_Parse("")), "sem etiqueta: sem historico"
+End Sub
+
+' I2: etiqueta hostil grande nunca congela o Excel: celula codificada maior que o maximo legitimo (4 x 255) = Empty; o resto decodifica em
+' tempo linear (199.999 caracteres bem abaixo de 1 s).
+Public Sub Test_PptTable_Parse_HugeHostileTagIsCheap()
+    Dim t0 As Single, p As Variant, s As String, row As String, i As Long, d As String
+    t0 = Timer
+    AssertTrue IsEmpty(PptTable_Parse(String$(PPTTABLE_MAX_TAG - 1, "a"))), "uma celula de 199.999 caracteres"
+    AssertTrue IsEmpty(PptTable_Parse(String$(5000, "a"))), "uma celula de 5000 caracteres"
+    AssertTrue Timer - t0 < 1, "recusa rapida: " & Format$(Timer - t0, "0.00") & " s"
+    p = PptTable_Parse(String$(PPTTABLE_MAX_CELLENC, "b"))
+    AssertEqual PPTTABLE_MAX_CELLENC, Len(p(1, 1)), "celula de 1020 caracteres decodifica"
+    row = String$(PPTTABLE_MAX_CELLENC / 2, "\")                ' "\\" x 510: o pior caso legitimo de escapes
+    row = Replace(row, "\", "\\")
+    s = row
+    For i = 2 To PPTTABLE_MAX_COLS
+        s = s & "|" & row
+    Next
+    d = s
+    For i = 2 To 7
+        d = d & vbLf & s
+    Next
+    AssertTrue Len(d) < PPTTABLE_MAX_TAG, "premissa: abaixo do teto total (" & Len(d) & ")"
+    t0 = Timer
+    p = PptTable_Parse(d)
+    AssertTrue Timer - t0 < 1, "175 celulas cheias de escapes: " & Format$(Timer - t0, "0.00") & " s"
+    AssertEqual 7, UBound(p, 1): AssertEqual 25, UBound(p, 2)
+    AssertEqual String$(510, "\"), p(7, 25)
+    t0 = Timer
+    s = PptText_TagDec(Replace(String$(66666, "a"), "a", "\x41"))
+    AssertTrue Timer - t0 < 1, "TagDec de 266.664 caracteres: " & Format$(Timer - t0, "0.00") & " s"
+    AssertEqual String$(66666, "A"), s, "TagDec linear da o mesmo resultado"
 End Sub

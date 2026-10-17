@@ -356,7 +356,7 @@ Public Function PptAuto_ItemsFor(pres As Object, dirty As Object) As Collection
                 removed = True
             ElseIf PptAuto_TagStrict(shp, PPTSYNC_TAG_AUTO, "autotag") <> "1" Then
                 removed = True
-            ElseIf Not PptAuto_IsItemStrict(shp) Then          ' = PptSync_ItemKind (grafico ou texto vinculado), lida sem engolir o ocupado
+            ElseIf Not PptAuto_IsItemStrict(shp) Then          ' = PptSync_ItemKind (grafico, texto ou tabela vinculados), lida sem engolir o ocupado
                 removed = True
             Else
                 k = PptAuto_ShapeKey(CLng(e(0)), shp, CStr(e(1)))

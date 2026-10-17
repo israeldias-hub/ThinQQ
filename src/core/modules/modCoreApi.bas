@@ -2152,10 +2152,11 @@ End Sub
 ' "Inserir tabela vinculada no slide" (1.10.0): tabela do PowerPoint a partir das celulas selecionadas neste Excel (pasta salva), no slide
 ' ativo (ou numa apresentacao nova), com a formatacao inicial do Excel (PptTable_Insert). Falha: desfaz o que criou (tabela, nome oculto,
 ' slide/apresentacao novos e o PowerPoint aberto por esta chamada). O ciclo automatico espera (Ppt_BeginOp/EndOp, equilibrados em todo
-' caminho, antes do aviso). Nunca propaga erro.
+' caminho, antes do aviso). Falha DEPOIS de criar a tabela (ler o slide com o PowerPoint ocupado: revisao final F, M2) tambem apaga a tabela, o
+' nome oculto e a marca que esta chamada criou. Nunca propaga erro.
 Public Sub Core_PptInsertTable()
     Dim rng As Range, app As Object, slide As Object, shp As Object, newPres As Object, newSlide As Object, msg As String, en As Long, ed As String
-    Dim created As Boolean, began As Boolean, wb As Workbook
+    Dim created As Boolean, began As Boolean, wb As Workbook, hadMark As Boolean
     On Error GoTo Fail
     If TypeName(Selection) <> "Range" Then Core_Notify PPTTABLE_MSG_NOSEL: Exit Sub
     Set rng = Selection
@@ -2174,7 +2175,9 @@ Public Sub Core_PptInsertTable()
         Exit Sub
     End If
     Set slide = Ppt_TargetSlide(app, newPres, newSlide)
+    hadMark = PptLink_HasMark(wb)
     Set shp = PptTable_Insert(rng, slide)                       ' transacional: falha nao deixa tabela nem nome
+    PptTable_TestHook "after"
     msg = "Tabela vinculada criada no slide " & slide.SlideIndex & " de '" & slide.Parent.Name & "'. Ela acompanha a pasta nas atualizações (manual, ao abrir ou automática). " & PPTTABLE_MSG_SAVEHINT
     began = False: Ppt_EndOp
     Core_Notify msg, vbInformation                              ' ANTES de ativar o PowerPoint: a caixa nao fica escondida atras dele
@@ -2188,6 +2191,12 @@ Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
+    If Not shp Is Nothing Then
+        wb.Names(PptSync_Tag(shp, PPTLINK_TAG_NAME)).Delete
+        If Not hadMark Then wb.Names(PPTLINK_MARK).Delete
+        shp.Delete
+        Set shp = Nothing
+    End If
     If Not newSlide Is Nothing Then
         If newPres Is Nothing Then newSlide.Delete
     End If

@@ -16,6 +16,7 @@ Public HasTextFrame As Long                     ' -1 = msoTrue
 Public TextWrites As Long
 Public FailTextWrite As Boolean
 Public Child As Long                            ' -1 = forma dentro de um grupo (Shape.Child)
+Public HasTable As Long                         ' 0 = nao e tabela (Shape.HasTable; tabela vinculada hostil, revisao final F)
 Private mText As String
 Private mRoot As TestPptTextFake
 Private mSt As Long
