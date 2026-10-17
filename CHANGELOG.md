@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.10.0] - 2026-10-17
+
 ### Adicionado
 - Atualização automática dos gráficos do ThinQQ no PowerPoint (por gráfico, como o "Update Automatically" do think-cell): no PowerPoint, aba ThinQQ > Gráfico selecionado > Atualizar automaticamente (ligar já atualiza uma vez; clicar de novo volta ao manual) e Atualizar uma vez, só nos gráficos selecionados. Com o Excel e o PowerPoint abertos, mudar um valor da pasta (digitar, recalcular ou salvar) atualiza dados e setas dos gráficos automáticos cerca de 2 segundos depois da última mudança; uma pasta que nunca para de recalcular é atualizada no máximo uns 10 a 11 s depois da primeira mudança. Só apresentações já abertas e editáveis, só pastas salvas e abertas com gráficos do ThinQQ; o ciclo nunca abre pasta, PowerPoint nem apresentação, e sem gráfico automático não usa a janela do PowerPoint. Espera uma colagem ou atualização manual; com texto em edição no PowerPoint tenta de novo depois de 4, 6, 8, 10 e 12 s e depois desiste daquele ciclo (log) até a próxima mudança. Nada vira automático sem uma ação do usuário; a marca fica na forma (`TQQ_AUTO`) e a apresentação guarda o índice (`TQQ_AUTOIDX`).
 - Excel: ThinQQ > PowerPoint ganha as caixas Atualização automática ligada (padrão: ligada; desmarcada pausa o automático) e Novos vínculos atualizam automaticamente (padrão: desligada; os gráficos colados a partir daí já nascem automáticos).
