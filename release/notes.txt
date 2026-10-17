@@ -1,6 +1,2 @@
-• Novo: criar gráficos direto pelo PowerPoint (aba ThinQQ > Inserir gráfico, 21 tipos), com o Excel como planilha de dados ao lado da apresentação; Editar dados, Salvar e Empacotar para enviar.
-• Novo: atualização automática dos gráficos no PowerPoint, por gráfico, com o Excel e o PowerPoint abertos; nada vira automático sem uma ação sua.
-• Novo: no Excel, Inserir também no slide (moldura verde no intervalo de origem) e, no PowerPoint, grupo Elemento selecionado para mudar rótulos, totais, formato, legenda e setas.
-• Novo: texto do slide e título do gráfico vinculados a uma célula do Excel.
-• Novo: tabela do PowerPoint vinculada a um intervalo do Excel, com a formatação do Excel.
-• O suplemento do PowerPoint também é atualizado pelo Excel (feche o PowerPoint para a troca valer).
+• Novo: o tutorial do ThinQQ agora aponta para os vídeos (tutorial gravado e cascata comparativa com as setas), numa pasta do Google Drive.
+• Sem mudanças no funcionamento do suplemento em relação à 1.10.0.

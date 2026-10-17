@@ -909,7 +909,8 @@ $recRaw = [regex]::Match($readme, '(?s)\*\*Atualização automática no PowerPoi
 $autoRec = ($recRaw -replace '\s+', ' ')
 $clUnrel = [regex]::Match(($cl -replace "`r`n", "`n"), '(?ms)^## \[Não lançado\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
 # depois do publicar-release (a [Não lançado] fica vazia), os testes sintéticos de roll-up usam o corpo da [1.10.0] como "todas as linhas"
-$clRollBody = if ($clUnrel.Trim().Length -gt 0) { $clUnrel } else { [regex]::Match(($cl -replace "`r`n", "`n"), '(?ms)^## \[1\.10\.0\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value }
+$cl1100 = [regex]::Match(($cl -replace "`r`n", "`n"), '(?ms)^## \[1\.10\.0\][^\n]*\n(?<b>.*?)(?=^## \[|\z)').Groups['b'].Value
+$clRollBody = if ($cl1100.Contains('Tabela vinculada (1.10.0)')) { $cl1100 } else { $clUnrel }
 # As linhas da 1.6.0 ficam em [Não lançado] até o publicar-release, que as move para "## [1.6.0] - data" (1.6.0 publicada antes) ou, se a 1.6.0
 # e a 1.7.0 saírem juntas, para "## [1.7.0] - data" (mesma classe do incidente do delta, dc446b0): os pinos leem a primeira seção que tem as
 # linhas (TQQ_AUTOIDX), nesta ordem: [Não lançado], [1.10.0], [1.9.0], [1.8.0], [1.7.0], [1.6.0] (a mais nova quando as versões empilhadas saem juntas).
@@ -974,7 +975,7 @@ Check ($readmeText.Contains('Arquitetura') -and $readme.Contains('**Atualizaçã
 Check ($clAuto -match '(?m)^### Adicionado\s*$' -and @([regex]::Matches($clAuto, '(?m)^\s*[-*]\s+\S')).Count -ge 4) 'CHANGELOG da 1.6.0 ([Não lançado] ou, depois do publicar-release, [1.6.0]): seção ### Adicionado e pelo menos 4 entradas "- "'
 Check ($clUnrel -notmatch 'Delta \(1\.5\.0\)') 'CHANGELOG [Não lançado]: sem linhas da 1.5.0 (o delta já está na [1.5.0])'
 # notes.txt (1.6.0): de 1 a 8 linhas com o marcador, sem texto da 1.5.0
-Check ($notesLines.Count -ge 3 -and $notesLines.Count -le 8) "notes.txt (1.6.0): de 3 a 8 linhas ($($notesLines.Count))"
+Check ($notesLines.Count -ge 1 -and $notesLines.Count -le 8) "notes.txt: de 1 a 8 linhas ($($notesLines.Count)); uma versão de correção pode ter poucas"
 Check ($notesText -notmatch 'delta entre quaisquer duas barras') 'notes.txt (1.6.0): sem as notas da 1.5.0 (o delta)'
 
 # README: os itens manuais 61 a 68 (um por frase-chave do roteiro, por número) e todos se declaram não verificados em PowerPoint real
