@@ -169,9 +169,100 @@ $pptXmlPath = Join-Path $RepoRoot 'src\ppt\ribbon\customUI14.xml'
 [xml]$px = [IO.File]::ReadAllText($pptXmlPath, (New-Object Text.UTF8Encoding($false)))
 $pns = New-Object Xml.XmlNamespaceManager($px.NameTable); $pns.AddNamespace('u', 'http://schemas.microsoft.com/office/2009/07/customui')
 Check ($px.customUI.onLoad -eq 'PptRx_OnLoad') 'ppt: onLoad PptRx_OnLoad'
-Check ($null -eq $px.SelectSingleNode('//u:*[@image]', $pns)) 'ppt: nenhum image= (so imageMso)'
+# 1.8.0: o grupo "Inserir gráfico" usa os icones proprios (o build do .ppam embute PNG, como o do Excel): cada image= existe na tabela,
+# nenhum controle tem image= e imageMso juntos, e filhos de menu nao tem size
+$pptImgNames = Assert-TqqRibbonXml -Xml ([IO.File]::ReadAllText($pptXmlPath, (New-Object Text.UTF8Encoding($false)))) -Mode Png -What 'ppt customUI14.xml'
+Check ($pptImgNames.Count -ge 5) "ppt: icones proprios no grupo Inserir gráfico ($($pptImgNames -join ','))"
+Check ($null -eq $px.SelectSingleNode('//u:*[@image and @imageMso]', $pns)) 'ppt: nenhum controle com image= e imageMso juntos'
+Check ($null -eq $px.SelectSingleNode('//u:menu/u:button[@size]', $pns)) 'ppt: botoes de menu sem size'
+Check ($null -eq $px.SelectSingleNode("//u:*[@image and not(ancestor-or-self::u:group[@id='grpPptInsert'])]", $pns)) 'ppt: image= so no grupo Inserir gráfico (os demais seguem com imageMso)'
 Check ($null -ne $px.SelectSingleNode("//u:button[@id='btnPptSyncNow'][@onAction='PptRx_OnSync']", $pns)) 'ppt: Atualizar gráficos'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:toggleButton[@id='tglPptAuto'][@getPressed='PptRx_GetAuto'][@onAction='PptRx_OnAuto'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Atualizar automaticamente'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptUpdateSel'][@onAction='PptRx_OnUpdateSel'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Atualizar uma vez'
+# Cada callback da faixa do PowerPoint existe como Public Sub em src/ppt/modules (nome errado = erro silencioso so no clique), com a
+# assinatura certa nos de toggle/getPressed/getEnabled; ids unicos.
+$pptBas = (Get-ChildItem (Join-Path $RepoRoot 'src\ppt\modules') -Filter *.bas | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+$pptCbs = @($px.SelectNodes('//@*') | Where-Object { $_.LocalName -match '^(onLoad|onAction|get[A-Z]\w*)$' } | ForEach-Object { $_.Value } | Sort-Object -Unique)
+Check ($pptCbs.Count -ge 7) "ppt: callbacks lidos do XML ($($pptCbs -join ','))"
+foreach ($cb in $pptCbs) { Check ($pptBas -match "(?m)^Public Sub $([regex]::Escape($cb))\(") "ppt: callback $cb existe (Public Sub)" }
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnAuto\(control As IRibbonControl, pressed As Boolean\)') 'ppt: assinatura do onAction do toggleButton'
+Check ($pptBas -match '(?m)^Public Sub PptRx_GetAuto\(control As IRibbonControl, ByRef \w+\)') 'ppt: assinatura do getPressed'
+Check ($pptBas -match '(?m)^Public Sub PptRx_GetElemEnabled\(control As IRibbonControl, ByRef \w+\)') 'ppt: assinatura do getEnabled'
+$pptIds = @($px.SelectNodes('//u:*[@id]', $pns) | ForEach-Object { $_.GetAttribute('id') })
+Check ($pptIds.Count -eq @($pptIds | Sort-Object -Unique).Count) "ppt: ids unicos ($($pptIds.Count))"
 Check ((@($px.SelectNodes("//u:dropDown[@id='ddOpenMode']/u:item", $pns) | ForEach-Object { $_.id }) -join ',') -eq 'modeask,modealways,modenever') 'ppt: itens de Ao abrir'
+# 1.8.0 (G4): "Inserir gráfico" com os 21 tipos do Excel, na mesma ordem, e "Editar dados"
+$xx = New-Object Xml.XmlDocument; $xx.Load((Join-Path $RepoRoot 'src\loader\ribbon\customUI14.xml'))
+$xns = New-Object Xml.XmlNamespaceManager($xx.NameTable); $xns.AddNamespace('u', 'http://schemas.microsoft.com/office/2009/07/customui')
+$excelTags = @($xx.SelectNodes("//u:group[@id='grpInsert']//u:button[@onAction='Rx_OnInsert']", $xns) | ForEach-Object { $_.GetAttribute('tag') })
+$pptTags = @($px.SelectNodes("//u:group[@id='grpPptInsert']//u:button[@onAction='PptRx_OnInsertChart']", $pns) | ForEach-Object { $_.GetAttribute('tag') })
+Check ($pptTags.Count -eq 21) "ppt: 21 tipos em Inserir gráfico ($($pptTags.Count))"
+Check (($excelTags -join ',') -eq ($pptTags -join ',')) 'ppt: mesmos tipos e mesma ordem dos menus do Excel'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptEditData'][@onAction='PptRx_OnEditData'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Editar dados'
+Check ('grpPptInsert' -eq $px.SelectSingleNode("//u:tab[@id='tabThinQQPpt']/u:group[1]", $pns).GetAttribute('id')) 'ppt: Inserir gráfico é o primeiro grupo'
+# mesmos rotulos e ids (prefixo "p") dos menus e botoes do Excel; o estado de "Editar dados" segue a selecao (invalidado com os outros)
+$xlInsNodes = @($xx.SelectNodes("//u:group[@id='grpInsert']//u:*[self::u:menu or self::u:button]", $xns))
+$ppInsNodes = @($px.SelectNodes("//u:group[@id='grpPptInsert']//u:*[self::u:menu or self::u:button]", $pns))
+$sameIns = ($xlInsNodes.Count -eq $ppInsNodes.Count)
+for ($i = 0; $sameIns -and $i -lt $xlInsNodes.Count; $i++) {
+    if (('p' + $xlInsNodes[$i].GetAttribute('id')) -cne $ppInsNodes[$i].GetAttribute('id') -or $xlInsNodes[$i].GetAttribute('label') -cne $ppInsNodes[$i].GetAttribute('label') -or $xlInsNodes[$i].GetAttribute('image') -cne $ppInsNodes[$i].GetAttribute('image')) { $sameIns = $false }
+}
+Check $sameIns "ppt: menus e botoes de Inserir gráfico com os ids (prefixo p), rotulos e icones do Excel ($($ppInsNodes.Count))"
+Check ($pptBas -match 'InvalidateControl "btnPptEditData"') 'ppt: Editar dados invalidado com a selecao'
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnInsertChart\(control As IRibbonControl\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnEditData\(control As IRibbonControl\)') 'ppt: assinaturas de Inserir gráfico e Editar dados'
+# 1.9.0 (G8): grupo "Gráfico do ThinQQ" depois do "Gráfico selecionado": 3 alternâncias, 2 listas e 3 botões, com os callbacks e os tags das opções
+$gc = $px.SelectSingleNode("//u:group[@id='grpPptChart']", $pns)
+Check ($null -ne $gc -and $gc.GetAttribute('label') -ceq 'Gráfico do ThinQQ') 'ppt: grupo Gráfico do ThinQQ'
+$gcPrev = $px.SelectSingleNode("//u:group[@id='grpPptChart']/preceding-sibling::u:group[1]", $pns)
+Check ($null -ne $gcPrev -and $gcPrev.GetAttribute('id') -eq 'grpPptElem') 'ppt: Gráfico do ThinQQ logo depois de Gráfico selecionado'
+foreach ($t in @(@('tglPptLabels', 'labels'), @('tglPptTotals', 'totals'), @('tglPptConnectors', 'connectors'))) {
+    Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:toggleButton[@id='$($t[0])'][@tag='$($t[1])'][@getPressed='PptRx_GetOpt'][@onAction='PptRx_OnToggleOpt'][@getEnabled='PptRx_GetOptEnabled']", $pns)) "ppt: alternância $($t[0])"
+}
+foreach ($t in @(@('ddPptNumFmt', 'numfmt', 'int,dec1,dec2,pct0,pct1,mil,mi'), @('ddPptLegend', 'legend', 'right,none'))) {
+    $dd = $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:dropDown[@id='$($t[0])'][@tag='$($t[1])'][@getSelectedItemID='PptRx_GetOptItem'][@onAction='PptRx_OnOptItem'][@getEnabled='PptRx_GetOptEnabled']", $pns)
+    Check ($null -ne $dd) "ppt: lista $($t[0])"
+    $want = @($t[2] -split ',' | ForEach-Object { $t[1] + $_ }) -join ','
+    Check ($null -ne $dd -and (@($dd.SelectNodes('u:item', $pns) | ForEach-Object { $_.GetAttribute('id') }) -join ',') -ceq $want) "ppt: itens de $($t[0]) = tag + valor do core ($want)"
+}
+# mesmos rotulos dos itens do Excel (ids do Excel = valor do core)
+foreach ($t in @(@('ddPptNumFmt', 'ddFormat', 'numfmt'), @('ddPptLegend', 'ddLegend', 'legend'))) {
+    $ok = $true
+    foreach ($it in @($px.SelectNodes("//u:dropDown[@id='$($t[0])']/u:item", $pns))) {
+        $xi = $xx.SelectSingleNode("//u:dropDown[@id='$($t[1])']/u:item[@id='$($it.GetAttribute('id').Substring($t[2].Length))']", $xns)
+        if ($null -eq $xi -or $xi.GetAttribute('label') -cne $it.GetAttribute('label')) { $ok = $false }
+    }
+    Check $ok "ppt: itens de $($t[0]) com os valores e rotulos do $($t[1]) do Excel"
+}
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:button[@id='btnPptCagr'][@tag='cagr'][@onAction='PptRx_OnArrow'][@getEnabled='PptRx_GetOptEnabled']", $pns)) 'ppt: Seta CAGR'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:button[@id='btnPptDiff'][@tag='diff'][@onAction='PptRx_OnArrow'][@getEnabled='PptRx_GetOptEnabled']", $pns)) 'ppt: Seta diferença'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:button[@id='btnPptClearAnn'][@onAction='PptRx_OnClearAnn'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Remover setas'
+Check (@($px.SelectNodes("//u:group[@id='grpPptChart']/u:*", $pns)).Count -eq 8) 'ppt: Gráfico do ThinQQ com 8 controles'
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnToggleOpt\(control As IRibbonControl, pressed As Boolean\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetOpt\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetOptEnabled\(control As IRibbonControl, ByRef \w+\)') 'ppt: assinaturas das alternâncias do Gráfico do ThinQQ'
+Check ($pptBas -match '(?m)^Public Sub PptRx_GetOptItem\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnOptItem\(control As IRibbonControl, selectedId As String, selectedIndex As Integer\)') 'ppt: assinaturas das listas do Gráfico do ThinQQ'
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnArrow\(control As IRibbonControl\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnClearAnn\(control As IRibbonControl\)') 'ppt: assinaturas das setas do Gráfico do ThinQQ'
+# 1.9.0 (G9): "Empacotar para enviar" no grupo "Gráficos do Excel" (imageMso: image= so no Inserir gráfico)
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptSync']/u:button[@id='btnPptPackage'][@label='Empacotar para enviar'][@onAction='PptRx_OnPackage'][@imageMso]", $pns)) 'ppt: Empacotar para enviar'
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnPackage\(control As IRibbonControl\)') 'ppt: assinatura de Empacotar para enviar'
+foreach ($id in 'tglPptLabels', 'tglPptTotals', 'tglPptConnectors', 'ddPptNumFmt', 'ddPptLegend', 'btnPptCagr', 'btnPptDiff', 'btnPptClearAnn') {
+    Check ($pptBas.Contains('"' + $id + '"')) "ppt: $id invalidado com a selecao"
+}
+# 1.9.0 (E3): "Texto vinculado ao Excel" no grupo "Elemento selecionado" (ultimo botao; imageMso ja usado; sem getEnabled: vale para caixa de texto)
+Check ($px.SelectSingleNode("//u:group[@id='grpPptElem']", $pns).GetAttribute('label') -ceq 'Elemento selecionado') 'ppt: grupo Elemento selecionado (1.9.0)'
+$lt = $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptLinkText'][@label='Texto vinculado ao Excel'][@onAction='PptRx_OnLinkText'][@imageMso='TextBoxInsert']", $pns)
+Check ($null -ne $lt) 'ppt: Texto vinculado ao Excel'
+Check ($null -ne $lt -and -not $lt.HasAttribute('getEnabled')) 'ppt: Texto vinculado ao Excel sempre ativo'
+Check ($null -ne $lt -and $null -eq $lt.NextSibling) 'ppt: Texto vinculado ao Excel e o ultimo do grupo'
+Check (@($px.SelectNodes("//u:group[@id='grpPptElem']/u:*", $pns)).Count -eq 4) 'ppt: Elemento selecionado com 4 controles'
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnLinkText\(control As IRibbonControl\)') 'ppt: assinatura de Texto vinculado ao Excel'
+# e no Excel: Vincular celula ao texto selecionado (menu PowerPoint) e Titulo ligado a uma celula (Mais opcoes)
+Check ($null -ne $xx.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptLinkText'][@onAction='Rx_OnPptLinkText'][@image='tqq_ppt16']", $xns)) 'excel: Vincular célula ao texto selecionado'
+# 1.10.0 (F3): Inserir tabela vinculada no slide (menu PowerPoint do Excel, logo depois de Vincular celula ao texto; sem getEnabled)
+$tb = $xx.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptTable'][@label='Inserir tabela vinculada no slide'][@onAction='Rx_OnPptTable'][@image='tqq_ppt16']", $xns)
+Check ($null -ne $tb) 'excel: Inserir tabela vinculada no slide'
+Check ($null -ne $tb -and -not $tb.HasAttribute('getEnabled')) 'excel: Inserir tabela vinculada no slide sempre ativo'
+Check ($null -ne $tb -and $tb.PreviousSibling.GetAttribute('id') -ceq 'btnPptLinkText') 'excel: tabela vinculada depois de Vincular célula ao texto selecionado'
+Check (@($xx.SelectNodes("//u:menu[@id='mnuPpt']/u:button", $xns)).Count -eq 6) 'excel: menu PowerPoint com 6 botões'
+Check ($null -ne $xx.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnLinkTitle'][@onAction='Rx_OnLinkTitle'][@getEnabled='Rx_GetEnabled'][@image='tqq_options16']", $xns)) 'excel: Título ligado a uma célula'
 # ---- Carimbo do .ppam (Set-PackageDescription): o PowerPoint grava o suplemento sem docProps; pacotes sinteticos, sem Office
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem

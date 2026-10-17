@@ -52,6 +52,11 @@ Public Sub Watchers_Rehook()
             End If
         End If
     Next
+    ' molduras de intervalos vinculados (1.7.0) cujo grafico nao existe mais: so as da planilha ativada (a varredura da pasta inteira a
+    ' cada ativacao custaria todas as formas de todas as planilhas; ela fica em Core_Insert, Core_Refresh e Alterar dados)
+    On Error Resume Next
+    LinkFrame_CleanOrphansSheet ws
+    Err.Clear
 End Sub
 
 ' Estado dos observadores (para quem precisa restaura-lo, como os testes da faixa): ligados (eventos do aplicativo) e o loader registrado.

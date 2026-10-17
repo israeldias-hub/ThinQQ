@@ -41,3 +41,19 @@ Private Sub App_WorkbookBeforeClose(ByVal Wb As Workbook, Cancel As Boolean)
     On Error Resume Next
     DeltaPick_OnBookClose Wb.Name
 End Sub
+
+' Atualizacao automatica no PowerPoint (1.6.0): qualquer mudanca numa pasta salva com graficos do ThinQQ agenda o ciclo (sai cedo quando nao se aplica).
+Private Sub App_SheetChange(ByVal Sh As Object, ByVal Target As Range)
+    On Error Resume Next
+    PptAuto_OnChange Sh.Parent
+End Sub
+
+Private Sub App_SheetCalculate(ByVal Sh As Object)
+    On Error Resume Next
+    PptAuto_OnChange Sh.Parent
+End Sub
+
+Private Sub App_WorkbookAfterSave(ByVal Wb As Workbook, ByVal Success As Boolean)
+    On Error Resume Next
+    If Success Then PptAuto_OnChange Wb
+End Sub

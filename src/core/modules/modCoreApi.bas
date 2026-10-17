@@ -5,6 +5,7 @@ Private mLoaderPath As String
 Private mApplyBusy As Boolean      ' guarda de reentrada de Core_ApplyPendingLoader
 Private mLastNotice As String      ' última mensagem de Core_Notify (usada pelos testes)
 Private mNoticeCount As Long        ' chamadas a Core_Notify desde Core_ClearLastNotice (testes)
+Private mShownCount As Long         ' caixas de Core_Notify/Core_Confirm abertas (ou que abririam no build Test) desde Core_ClearLastNotice
 Private mMismatchSeen As Collection ' ids de gráficos já avisados de tabela de origem com outro tamanho
 Private mClipSeen As Collection     ' ids de gráficos já avisados de dados acima da escala fixa (Mesma escala)
 Private mCopySeen As Collection     ' ids de gráficos já avisados de cópia em outra planilha (planilha copiada)
@@ -13,6 +14,16 @@ Private mLastConfirm As String      ' ultima pergunta de Core_Confirm (usada pel
 Private mTestRoundDec As Variant    ' gancho de teste: respostas do Arredondar intervalo no build Test (Core_TestSetRoundRangeAnswers)
 Private mTestRoundDest As Range
 Private mTestBreakAnswer As Variant  ' gancho de teste: resposta do InputBox do Corte de eixo no build Test (Core_TestSetAxisBreakAnswer)
+Private mPptPasteOk As Boolean     ' a ultima Core_CopyToPowerPoint colou e, no vinculado, manteve o vinculo (1.7.0)
+Private mQuietDepth As Long        ' Core_QuietBegin/End: chamada vinda do PowerPoint em andamento (sem caixas; Core_IsQuiet)
+Private mTestTitleCell As Range     ' gancho de teste do Titulo ligado (Core_TestSetTitleCell; so no build Test, uso unico)
+Private mTestTitleCancel As Boolean
+Private mTestTitleSet As Boolean
+Public Const PPT_ERR_INSERT_UNSAVED As String = "Salve a pasta de trabalho antes de inserir no PowerPoint: o gráfico vinculado aponta para o arquivo salvo. Nada foi criado."
+' Comandos do grafico pelo PowerPoint (API 4, 1.9.0; spec 14.5)
+Public Const PPTCMD_MSG_OPEN_SOURCE As String = "Abra a pasta de origem no Excel para mudar este gráfico (o ThinQQ não altera pastas fechadas do usuário)."
+Public Const PPTCMD_MSG_CATS As String = "Escolha duas categorias diferentes do gráfico, a primeira antes da segunda."
+Public Const PPTCMD_MSG_UNKNOWN As String = "Comando desconhecido: "
 ' Familias de tipo que tem despacho de paleta em ApplyOption (a lista usada ANTES de gravar a opcao; o Select Case do despacho a repete).
 Private Const PALETTE_FAMILIES As String = ",stacked,combo,waterfall,area,pie,mekko,gantt,butterfly,scatter,waterfallpair,"
 
@@ -28,6 +39,7 @@ End Function
 Public Sub Core_ClearLastNotice()
     mLastNotice = ""
     mNoticeCount = 0
+    mShownCount = 0
     mLastConfirm = ""
 End Sub
 
@@ -51,6 +63,7 @@ End Sub
 Public Sub Core_OnUnload()
     On Error Resume Next
     DeltaPick_Disarm ""                  ' Esc e OnTime nunca ficam presos ao core descarregado (o OnTime reabriria o core)
+    PptAuto_Cancel                       ' o OnTime do ciclo automatico nunca fica preso ao core descarregado
     Watchers_Stop
     Set mMismatchSeen = Nothing
     Set mClipSeen = Nothing
@@ -64,24 +77,56 @@ Public Sub Core_RegisterLoader(loaderName As String, loaderFullPath As String)
 End Sub
 
 ' Mensagem ao usuário (suprimida em build de teste para não travar o Excel invisível).
-' logIt=False quando o chamador já registrou a mensagem (Errors_Handle).
+' logIt=False quando o chamador já registrou a mensagem (Errors_Handle). No modo silencioso (Core_IsQuiet: chamada vinda do PowerPoint) e durante o ciclo automático do PowerPoint (PptAuto_InTick: OnTime,
+' sem o usuário ter pedido nada) só registra: um aviso do Core_SafeRefresh (tabela de origem, Mesma escala) nunca abre uma caixa modal.
 Public Sub Core_Notify(msg As String, Optional style As VbMsgBoxStyle = vbInformation, Optional logIt As Boolean = True)
     On Error Resume Next
     mLastNotice = msg
     mNoticeCount = mNoticeCount + 1
-    If logIt Then Errors_Log "notify" & vbTab & Replace(msg, vbLf, " | ")
+    If logIt Then Errors_Log "notify" & IIf(Core_IsQuiet(), " (ciclo automatico ou chamada do PowerPoint: sem caixa)", "") & vbTab & Replace(msg, vbLf, " | ")
+    If Core_IsQuiet() Then Exit Sub
+    mShownCount = mShownCount + 1
     If BUILD_CONFIG = "Test" Then Exit Sub
     MsgBox msg, style, APP_NAME
 End Sub
 
 ' Pergunta Sim/Não ao usuário; True só com "Sim". Como Core_Notify, é o único ponto de MsgBox de pergunta do core: no build de teste só
-' registra e responde "Não" (um modal travaria o Excel invisível). Nunca propaga erro (falha = "Não").
+' registra e responde "Não" (um modal travaria o Excel invisível); no ciclo automático do PowerPoint também (nunca bloqueia). Nunca propaga
+' erro (falha = "Não").
 Public Function Core_Confirm(msg As String) As Boolean
     On Error Resume Next
     mLastConfirm = msg
-    Errors_Log "confirm" & vbTab & Replace(msg, vbLf, " | ")
+    Errors_Log "confirm" & IIf(Core_IsQuiet(), " (ciclo automatico ou chamada do PowerPoint: Nao, sem caixa)", "") & vbTab & Replace(msg, vbLf, " | ")
+    If Core_IsQuiet() Then Exit Function
+    mShownCount = mShownCount + 1
     If BUILD_CONFIG = "Test" Then Exit Function
     Core_Confirm = (MsgBox(msg, vbQuestion + vbYesNo, APP_NAME) = vbYes)
+End Function
+
+' Modo silencioso para as chamadas que o suplemento do PowerPoint faz por xl.Run (Core_PptInsertChart e, depois, Core_PptEditData/
+' Core_PptCommand): uma caixa modal no Excel (que pode estar invisivel ou atras do PowerPoint) deixaria o PowerPoint parado "aguardando uma
+' acao OLE". Enquanto ligado, Core_Notify/Core_Confirm (e Errors_HandleErr, que passa por Core_Notify) so registram, como no ciclo automatico;
+' a mensagem chega a quem chamou por Core_LastNotice / pelo texto devolvido. Contador (aninhavel); cada Begin tem o seu End em todo caminho.
+Public Sub Core_QuietBegin()
+    On Error Resume Next
+    mQuietDepth = mQuietDepth + 1
+End Sub
+
+Public Sub Core_QuietEnd()
+    On Error Resume Next
+    If mQuietDepth > 0 Then mQuietDepth = mQuietDepth - 1
+End Sub
+
+' Sem caixas agora: ciclo automatico do PowerPoint (PptAuto_InTick) ou chamada vinda do PowerPoint (Core_QuietBegin). Nunca propaga erro.
+Public Function Core_IsQuiet() As Boolean
+    On Error Resume Next
+    Core_IsQuiet = (mQuietDepth > 0) Or PptAuto_InTick()
+End Function
+
+' Caixas que Core_Notify/Core_Confirm abririam (no build Test: as que abririam fora dele). Gancho de teste, zerado por Core_ClearLastNotice.
+Public Function Core_ShownCountForTest() As Long
+    On Error Resume Next                                    ' contrato "Core_* nunca propaga" (Test_Core_AllPublicApi_HaveErrorContainment)
+    Core_ShownCountForTest = mShownCount
 End Function
 
 ' Última pergunta feita por Core_Confirm ("" se nenhuma desde Core_ClearLastNotice). Gancho de teste (inofensivo em Release).
@@ -145,6 +190,7 @@ Public Sub Core_Insert(kind As String)
     End If
     Application.ScreenUpdating = False
     CalcSheet_Cleanup ws.Parent
+    LinkFrame_CleanOrphans ws.Parent                 ' molduras orfas da pasta inteira (1.7.0)
     Set co = Kinds_Insert(ws, data, kind)
     ApplySourceNumFmt co.Chart, kind, data           ' formato inicial dos rotulos pelo formato da tabela (1a celula de valor)
     Application.ScreenUpdating = prevSU
@@ -893,6 +939,7 @@ Private Sub NotifySourceMismatchOnce(cht As Chart)
     id = Registry_IdFromChart(cht)
     If Len(id) = 0 Then Exit Sub
     If Not Core_ChartSourceMismatch(cht) Then Exit Sub
+    If Core_IsQuiet() Then Errors_Log "aviso adiado (ciclo automatico ou chamada do PowerPoint): tabela de origem mudou de tamanho" & vbTab & id: Exit Sub   ' sem marcar: o proximo refresh fora do ciclo avisa
     If mMismatchSeen Is Nothing Then Set mMismatchSeen = New Collection
     Err.Clear
     mMismatchSeen.Add id, id
@@ -920,6 +967,7 @@ Public Sub Core_NotifyCopiedChartOnce(co As ChartObject)
         Err.Clear
     Next
     If n < 2 Then Exit Sub
+    If Core_IsQuiet() Then Errors_Log "aviso adiado (ciclo automatico ou chamada do PowerPoint): grafico em planilha copiada" & vbTab & id: Exit Sub   ' (hoje so os vigias chamam; por garantia)
     If mCopySeen Is Nothing Then Set mCopySeen = New Collection
     mCopySeen.Add id, id
     Core_Notify "Este gráfico do ThinQQ também existe em outra planilha (planilha copiada): a cópia continua ligada aos dados e às opções do gráfico original. Use 'Alterar dados' no gráfico da cópia para separá-lo.", vbExclamation
@@ -938,6 +986,7 @@ Private Sub NotifyScaleClippedOnce(cht As Chart)
         Err.Clear
     End If
     If Not Deco_ScaleClipped(cht) Then Exit Sub
+    If Core_IsQuiet() Then Errors_Log "aviso adiado (ciclo automatico ou chamada do PowerPoint): dados acima da escala fixa" & vbTab & id: Exit Sub   ' sem marcar: o proximo refresh fora do ciclo avisa
     If mClipSeen Is Nothing Then Set mClipSeen = New Collection
     mClipSeen.Add id, id
     ' cascata comparativa com as barras dentro da escala: so a sala das setas passou do maximo (Mesma escala de novo daria a mesma uniao)
@@ -987,6 +1036,7 @@ Public Sub Core_Refresh()
     If Not c Is Nothing Then
         Core_SafeRefresh c
         CalcSheet_Cleanup Registry_Workbook(c)
+        LinkFrame_CleanOrphans Registry_Workbook(c)      ' molduras orfas da pasta inteira (a ativacao de planilha so limpa a planilha ativada)
     Else
         If ActiveWorkbook Is Nothing Then Exit Sub
         Set wb = ActiveWorkbook
@@ -999,6 +1049,7 @@ Public Sub Core_Refresh()
             End If
         End If
         CalcSheet_Cleanup wb
+        LinkFrame_CleanOrphans wb
     End If
     Watchers_Rehook
     Exit Sub
@@ -1024,11 +1075,112 @@ Fail:
     Errors_Handle "Core_ChangeSource"
 End Sub
 
+' Gancho de teste do Titulo ligado: a celula que o "InputBox" devolveria (Nothing = remover, como confirmar a remocao) ou cancel = Cancelar.
+' Uso unico (consumido na entrada de Core_LinkTitle). Inerte fora do build Test.
+Public Sub Core_TestSetTitleCell(cell As Range, Optional cancel As Boolean = False)
+    On Error Resume Next
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    Set mTestTitleCell = cell
+    mTestTitleCancel = cancel
+    mTestTitleSet = True
+End Sub
+
+' Titulo ligado a uma celula (1.9.0): pergunta a celula (InputBox de referencia) e liga o titulo do grafico ativo a ela. Cancelar com o titulo
+' ja ligado pergunta se e para remover a ligacao (Sim = remove o titulo ligado). Celula de outra pasta: aviso, nada muda. Em build Test sem o
+' gancho, sai antes do InputBox (modal travaria o Excel invisivel). Nunca propaga erro.
+Public Sub Core_LinkTitle()
+    Dim c As Chart, cell As Range, useHook As Boolean, hookCell As Range, hookCancel As Boolean
+    On Error GoTo Fail
+    useHook = mTestTitleSet: Set hookCell = mTestTitleCell: hookCancel = mTestTitleCancel
+    mTestTitleSet = False: Set mTestTitleCell = Nothing: mTestTitleCancel = False
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Sub
+    If BUILD_CONFIG = "Test" Then
+        If Not useHook Then Exit Sub
+        If hookCancel Then Exit Sub
+        Set cell = hookCell
+    Else
+        On Error Resume Next
+        Set cell = Application.InputBox("Clique na célula com o texto do título do gráfico:", APP_NAME, LinkTitle_Default(c), Type:=8)
+        Err.Clear
+        On Error GoTo Fail
+        If cell Is Nothing Then                                        ' Cancelar
+            If Len(Registry_GetOption(c, "titleref", "")) = 0 Then Exit Sub
+            If Not Core_Confirm("Remover a ligação do título com a célula? (o título sai do gráfico)") Then Exit Sub
+        End If
+    End If
+    LinkTitle_Apply c, cell
+    Core_SafeRefresh c
+    Exit Sub
+Fail:
+    If Err.Number = vbObjectError + 7110 Then Core_Notify Err.Description, vbExclamation Else Errors_Handle "Core_LinkTitle"
+End Sub
+
+' Sugestao do InputBox: a celula ligada hoje ("" se nenhuma). Nunca propaga erro.
+Private Function LinkTitle_Default(c As Chart) As String
+    Dim r As Range
+    On Error Resume Next
+    Set r = LinkTitle_Cell(c)
+    If Not r Is Nothing Then LinkTitle_Default = "='" & Replace(r.Worksheet.Name, "'", "''") & "'!" & r.Address
+End Function
+
+' Mostrar/ocultar as molduras dos intervalos vinculados da pasta ativa (1.7.0). Nunca propaga erro.
+Public Sub Core_ToggleLinkFrames()
+    Dim r As Long
+    On Error GoTo Fail
+    If ActiveWorkbook Is Nothing Then Exit Sub
+    r = LinkFrame_ToggleAll(ActiveWorkbook)
+    If r = -1 Then Core_Notify "Esta pasta não tem molduras de intervalos vinculados ao PowerPoint (elas aparecem ao usar 'Inserir também no slide')."
+    Exit Sub
+Fail:
+    Errors_Handle "Core_ToggleLinkFrames"
+End Sub
+
+' True se a ultima Core_CopyToPowerPoint colou no slide e, no vinculado, manteve o vinculo (Ppt_PasteKept; 1.7.0). Nunca propaga erro.
+Public Function Core_LastPptPasteOk() As Boolean
+    On Error Resume Next
+    Core_LastPptPasteOk = mPptPasteOk
+End Function
+
+' "Inserir tambem no slide" (1.7.0; o "Link To PowerPoint" do think-cell): com a tabela selecionada numa pasta SALVA, insere o grafico do tipo
+' no Excel, desenha a moldura verde no intervalo de origem e cola o grafico vinculado no slide ativo (Core_CopyToPowerPoint "chart": etiquetas,
+' setas no tamanho do slide e "Novos vinculos atualizam automaticamente"). Pasta nao salva: aviso e NADA criado. Colagem que falhou (ou colada sem vinculo): o grafico
+' fica no Excel, sem moldura, com o aviso da colagem. Nunca propaga erro.
+Public Sub Core_InsertToPowerPoint(kind As String)
+    Dim rng As Range, c As Chart, data As clsChartData, src As Range, en As Long, ed As String, msg As String
+    On Error GoTo Fail
+    mPptPasteOk = False
+    If TypeName(Selection) <> "Range" Then Core_Insert kind: Exit Sub        ' o aviso de selecao e o do Core_Insert
+    Set rng = Selection
+    ' a mesma conferencia da colagem vinculada, ANTES de criar qualquer coisa (so o texto da pasta nao salva diz "Nada foi criado")
+    msg = Ppt_LinkedPrecheck(rng.Worksheet.Parent)
+    If msg = PPT_ERR_UNSAVED Then msg = PPT_ERR_INSERT_UNSAVED
+    If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
+    Set data = ChartData_FromRange(rng)
+    Set src = data.Source
+    Core_Insert kind
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Sub                                            ' Core_Insert recusou e avisou
+    LinkFrame_Ensure c, src
+    c.Parent.Activate
+    Core_CopyToPowerPoint "chart"
+    If Not mPptPasteOk Then LinkFrame_Remove c
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If Not c Is Nothing And Not mPptPasteOk Then LinkFrame_Remove c         ' sem colagem, sem moldura
+    On Error GoTo 0
+    Errors_HandleErr "Core_InsertToPowerPoint(" & kind & ")", en, ed
+End Sub
+
 ' Recria o gráfico c a partir da faixa rng, na mesma posição, com as mesmas opções e toggles.
 ' O novo gráfico é construído ANTES; o antigo só é removido se a construção der certo (senão fica intacto).
 ' Anotações (setas) não são preservadas. Retorna True se recriou.
 Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     On Error GoTo Fail
+    Dim hadFrame As Boolean, titleCell As Range
     Dim co As ChartObject, oldCo As ChartObject, data As clsChartData, msg As String
     Dim kind As String, opts As String, ws As Worksheet, wb As Workbook, nc As Chart, prevSU As Boolean
     Dim l As Double, t As Double, w As Double, h As Double, keepKeys As Variant, keepVals(5) As String, ki As Long
@@ -1050,6 +1202,8 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     kind = Registry_ChartType(c)
     l = oldCo.Left: t = oldCo.Top: w = oldCo.Width: h = oldCo.Height
     opts = CStr(Registry_Block(c).Cells(1, 4).Value)
+    hadFrame = Not LinkFrame_Find(c) Is Nothing  ' grafico que foi ao PowerPoint com moldura (1.7.0): conferido ANTES, o grafico antigo deixa de existir
+    Set titleCell = LinkTitle_Cell(c)           ' titulo ligado (1.9.0): a celula de AGORA (a formula acompanha linhas inseridas); o novo nasce sem titulo
     Break_TakeNotice                            ' descarta um aviso de corte que tenha sobrado
     Application.ScreenUpdating = False
     ' O novo gráfico nasce na planilha do gráfico antigo (ws), não na da nova fonte.
@@ -1087,11 +1241,18 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     End If
     co.Select
     If Err.Number <> 0 Then Errors_Log "Core_RebuildFromRange/final" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    LinkTitle_Reapply nc, titleCell             ' antes do refresh: o titulo ocupa espaco no grafico
     Core_SafeRefresh nc
     NotifyPieIgnoredColumns kind, data
     NotifyMekkoNegatives kind, data
     msg = Break_TakeNotice()                    ' corte de eixo: aviso so depois de o grafico antigo ser trocado
     If Len(msg) > 0 Then Core_Notify msg, vbInformation
+    ' Alterar dados recria o grafico com id NOVO: o slide (TQQ_CHART = id antigo) deixa de acompanha-lo. A moldura do antigo (orfa) sai e NAO
+    ' e redesenhada (ela afirmaria um vinculo que nao existe); o aviso pede inserir ou colar de novo.
+    If hadFrame Then
+        LinkFrame_CleanOrphans wb
+        Core_Notify LINKFRAME_NOTE_REBUILT, vbInformation
+    End If
     Core_RebuildFromRange = True
     Exit Function
 FailNew:
@@ -1336,13 +1497,16 @@ End Sub
 ' criou (forma colada, apresentacao nova, PowerPoint aberto por nos). A colagem usa a area de transferencia do Windows.
 Public Sub Core_CopyToPowerPoint(mode As String)
     On Error Resume Next
+    Ppt_BeginOp                                      ' o ciclo automatico (PptAuto_Tick) nao roda no meio da colagem
     CopyToPowerPointImpl mode
+    Ppt_EndOp
     Ppt_SetFailForTest ""                            ' gancho de teste: desarmado em toda saida (inclusive as antecipadas); o destino fixo e
                                                      ' desarmado pelo teste (Ppt_ResetTestHooks), pois vale para varias chamadas
 End Sub
 
 Private Sub CopyToPowerPointImpl(mode As String)
     On Error GoTo Fail
+    mPptPasteOk = False
     Dim c As Chart, co As ChartObject, wb As Workbook, app As Object, slide As Object, shp As Object, msg As String, linked As Boolean
     Dim en As Long, ed As String, created As Boolean, newPres As Object, linkState As Long, newSlide As Object
     Set c = Core_ActiveChart()
@@ -1375,6 +1539,7 @@ Private Sub CopyToPowerPointImpl(mode As String)
     msg = Ppt_DoneText(CLng(slide.SlideIndex), CStr(slide.Parent.Name), linked, linkState)
     If linked And linkState <> 0 And Not wb.Saved Then msg = msg & " " & PPT_NOTE_DIRTY
     Ppt_TestHook "after"
+    mPptPasteOk = Ppt_PasteKept(linked, linkState)   ' colou; no modo "chart", com o vinculo (linkState 0: o PowerPoint colou sem vinculo)
     Core_Notify msg, vbInformation                   ' ANTES de ativar o PowerPoint: a caixa (Release) nao fica escondida atras dele
     If BUILD_CONFIG <> "Test" Then                   ' nos testes o PowerPoint do teste nao aparece nem rouba o foco
         On Error Resume Next
@@ -1419,11 +1584,17 @@ Private Sub PptSyncAfterPaste(shp As Object, co As ChartObject)
     On Error Resume Next
     PptSync_TagShape shp, co
     If Err.Number <> 0 Then Errors_Log "CopyToPowerPoint/etiquetas" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
-    PptSync_SyncShape shp, co, False                 ' sem LinkFormat.Update: os dados acabaram de ser colados (o 1.3.0 tambem nao chamava)
+    PptSync_TagOpts shp, co.Chart                     ' TQQ_KIND/TQQ_OPTS para a faixa do PowerPoint (1.9.0; nunca propaga erro)
+    Err.Clear
+    PptSync_SyncShape shp, co, False                ' sem LinkFormat.Update: os dados acabaram de ser colados (o 1.3.0 tambem nao chamava)
     ok = (Err.Number = 0)
     If Not ok Then Errors_Log "CopyToPowerPoint/sincronizar" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     If ok Then shp.Tags.Add PPTSYNC_TAG_FP, PptSync_Fingerprint(co, shp)
     Err.Clear
+    If PptAuto_NewLinksAuto() Then
+        PptSync_SetAuto shp, True                     ' opcao "Novos vinculos atualizam automaticamente" (1.6.0)
+        If Err.Number <> 0 Then Errors_Log "CopyToPowerPoint/automatico" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    End If
 End Sub
 
 ' Parte A (1.4.0): atualiza os graficos ThinQQ vinculados de UMA apresentacao. O suplemento ThinQQ.ppam chama por Application.Run com o
@@ -1431,14 +1602,17 @@ End Sub
 Public Function Core_PptSyncPresentation(pres As Object, Optional force As Boolean = False) As String
     Dim en As Long, ed As String
     On Error GoTo Fail
+    Ppt_BeginOp                                             ' o ciclo automatico espera (fechada em todo caminho)
     Core_PptSyncPresentation = PptSync_Presentation(pres, force)
+    Ppt_EndOp
     Exit Function
 Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
+    Ppt_EndOp
     Errors_Log "Core_PptSyncPresentation" & vbTab & en & vbTab & ed
-    Core_PptSyncPresentation = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
+    If Ppt_IsBusyError(en) Then Core_PptSyncPresentation = PPT_ERR_BUSY Else Core_PptSyncPresentation = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
 End Function
 
 ' Contrato com o suplemento do PowerPoint (spec 4.9): o .ppam so chama Core_PptSyncPresentation se Core_PptApiVersion >= o que ele exige.
@@ -1448,6 +1622,603 @@ Public Function Core_PptApiVersion() As Long
     Core_PptApiVersion = CORE_PPT_API
 End Function
 
+' API 2 (1.6.0): "Atualizar uma vez" do .ppam so nas formas listadas (entries no formato do indice, PptIdx_*). Devolve o resumo; nunca propaga.
+' Entradas que nao acham nenhuma forma (renomeada ou apagada depois da selecao): PPTSYNC_NOT_FOUND; nenhuma entrada: PPTSYNC_NONE.
+Public Function Core_PptSyncShapes(pres As Object, entries As String, Optional force As Boolean = True) As String
+    Dim items As Collection, en As Long, ed As String
+    On Error GoTo Fail
+    Ppt_BeginOp                                             ' o ciclo automatico espera (fechada em todo caminho)
+    Set items = PptSync_ResolveEntries(pres, entries)
+    If items.Count = 0 Then
+        If PptIdx_Parse(entries).Count > 0 Then Core_PptSyncShapes = PPTSYNC_NOT_FOUND Else Core_PptSyncShapes = PPTSYNC_NONE
+    Else
+        Core_PptSyncShapes = PptSync_Items(items, force)
+    End If
+    Ppt_EndOp
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Ppt_EndOp
+    Errors_Log "Core_PptSyncShapes" & vbTab & en & vbTab & ed
+    If Ppt_IsBusyError(en) Then Core_PptSyncShapes = PPT_ERR_BUSY Else Core_PptSyncShapes = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
+End Function
+
+' Opcoes do PowerPoint para a faixa do Excel: "autoon" (atualizacao automatica ligada) e "autonew" (novos vinculos ja automaticos).
+Public Function Core_PptGetFlag(key As String) As Boolean
+    On Error Resume Next
+    Select Case key
+        Case "autoon": Core_PptGetFlag = PptAuto_Enabled()
+        Case "autonew": Core_PptGetFlag = PptAuto_NewLinksAuto()
+    End Select
+End Function
+
+Public Sub Core_PptSetFlag(key As String, value As Boolean)
+    On Error Resume Next
+    Select Case key
+        Case "autoon": PptAuto_SetEnabled value
+        Case "autonew": PptAuto_SetNewLinksAuto value
+    End Select
+End Sub
+
+' API 3 (1.8.0): grafico do ThinQQ criado PELO POWERPOINT (spec 14). slide = slide de destino (objeto do PowerPoint, passado pelo .ppam).
+' Cria a planilha na pasta de dados da apresentacao, insere o grafico, destaca os dados (moldura), salva, cola VINCULADO no slide (o mesmo
+' caminho do "Copiar como grafico vinculado": etiquetas e setas no tamanho do slide), marca TQQ_DATA e liga "Atualizar automaticamente".
+' Devolve "" (ok) ou a mensagem; falha desfaz a forma e a planilha criadas. Nunca propaga erro. Nunca chama LinkFormat.Update (a colagem
+' acabou de trazer os dados; PG4: Update com a origem ausente abre uma caixa modal que trava o PowerPoint). O ciclo automatico espera
+' (Ppt_BeginOp/Ppt_EndOp, como no Core_CopyToPowerPoint) e nenhuma caixa abre no Excel durante a chamada (Core_QuietBegin/End: o PowerPoint
+' esta parado no xl.Run; os avisos do caminho comum, como o da tabela invalida, voltam no texto devolvido).
+Public Function Core_PptInsertChart(slide As Object, kind As String) As String
+    On Error Resume Next
+    Core_QuietBegin
+    Ppt_BeginOp
+    Core_PptInsertChart = PptInsertChartImpl(slide, kind)
+    Ppt_EndOp
+    Core_QuietEnd
+    Err.Clear
+End Function
+
+Private Function PptInsertChartImpl(slide As Object, kind As String) As String
+    Dim pres As Object, path As String, wb As Workbook, co As ChartObject, rng As Range, shp As Object, ws As Worksheet
+    Dim en As Long, ed As String, prevAlerts As Boolean, shpGone As Boolean
+    On Error GoTo Fail
+    If Not Kinds_IsValid(kind) Then PptInsertChartImpl = "Tipo de gráfico desconhecido: " & kind: Exit Function
+    Set pres = slide.Parent
+    If Len(CStr(pres.Path)) = 0 Then PptInsertChartImpl = PPTDATA_MSG_UNSAVED: Exit Function
+    path = PptData_PathFor(CStr(pres.FullName))
+    If Len(path) = 0 Then PptInsertChartImpl = PPTDATA_MSG_WEB: Exit Function
+    Set wb = PptData_OpenOrCreate(path, CStr(pres.Name))
+    Set co = PptData_NewChart(wb, kind, rng)
+    Set ws = co.Parent
+    LinkFrame_Ensure co.Chart, rng
+    PptData_SaveQuiet wb                             ' sem caixas do proprio Excel no Save (revisao final M5); falha sobe
+    Set shp = Ppt_PasteChart(co, slide)
+    On Error Resume Next: Application.CutCopyMode = False: Err.Clear: On Error GoTo Fail
+    If Ppt_LinkState(shp) <> 1 Then Err.Raise vbObjectError + 7133, "PptData", "O PowerPoint colou o gráfico sem o vínculo com a pasta de dados; tente de novo."
+    PptSyncAfterPaste shp, co
+    shp.Tags.Add PPTDATA_TAG, "1"
+    PptData_Hook "tagged"
+    pres.Tags.Add PPTDATA_MARK, path
+    PptSync_SetAuto shp, True                        ' por ultimo: a ultima gravacao e a do indice (falha antes dele nao deixa entrada orfa)
+    PptInsertChartImpl = ""
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Application.CutCopyMode = False
+    shpGone = True
+    If Not shp Is Nothing Then
+        PptSync_SetAuto shp, False                   ' tira do indice se a colagem ja a tinha ligado (opcao "Novos vinculos")
+        Err.Clear
+        shp.Delete
+        shpGone = (Err.Number = 0)
+        Err.Clear
+    End If
+    If Not ws Is Nothing Then
+        If shpGone Then
+            prevAlerts = Application.DisplayAlerts: Application.DisplayAlerts = False
+            ws.Delete
+            Application.DisplayAlerts = prevAlerts
+            wb.Save
+        Else
+            ' a forma ficou no slide (PowerPoint ocupado?): a planilha fica, senao a forma etiquetada apontaria para um grafico inexistente
+            Errors_Log "Core_PptInsertChart: a forma colada nao saiu do slide; a planilha do grafico foi mantida" & vbTab & ws.Name
+        End If
+    End If
+    Errors_Log "Core_PptInsertChart(" & kind & ")" & vbTab & en & vbTab & ed
+    If en >= vbObjectError + 7130 And en <= vbObjectError + 7133 Then
+        PptInsertChartImpl = ed
+    ElseIf Ppt_IsKnownFailure(en) Then
+        PptInsertChartImpl = Ppt_ErrorText(en, ed)
+    Else
+        PptInsertChartImpl = "Não foi possível criar o gráfico: " & ed & " (" & en & ")"
+    End If
+End Function
+
+' API 3: "Editar dados" (spec 14.3). Abre a pasta da forma (a 1a das entradas) PARA EDICAO com as macros desligadas (de dados ou do usuario; ja
+' aberta = como esta), ativa a planilha do grafico e seleciona os dados (o intervalo da moldura ou a regiao de A1); fora do build Test deixa o
+' Excel visivel. Devolve a legenda da janela (o .ppam faz AppActivate) ou "!" + a mensagem. Nenhuma caixa abre no Excel durante a chamada
+' (Core_QuietBegin/End: o PowerPoint esta parado no xl.Run); o aviso das macros de uma pasta .xlsm do usuario fica no registro e em
+' Core_LastNotice. Nunca chama LinkFormat.Update (PG4). Nunca propaga erro.
+Public Function Core_PptEditData(pres As Object, entries As String) As String
+    On Error Resume Next
+    Core_QuietBegin
+    Core_PptEditData = PptEditDataImpl(pres, entries)
+    Core_QuietEnd
+    Err.Clear
+End Function
+
+Private Function PptEditDataImpl(pres As Object, entries As String) As String
+    Dim items As Collection, shp As Object, path As String, wb As Workbook, co As ChartObject, rng As Range, fr As Shape, en As Long, ed As String
+    Dim wasOpen As Boolean, w As Workbook, prevAlerts As Boolean, alertsOff As Boolean, isData As Boolean
+    On Error GoTo Fail
+    Set items = PptSync_ResolveEntries(pres, entries)
+    If items.Count = 0 Then PptEditDataImpl = "!" & PPTSYNC_NONE: Exit Function
+    Set shp = items(1)
+    ' texto vinculado (1.9.0): nao ha grafico a editar e a pasta do usuario nunca e aberta para edicao por ele
+    If PptSync_ItemKind(shp) = "table" Then PptEditDataImpl = "!" & PPTTABLE_MSG_EDITDATA: Exit Function   ' tabela vinculada (1.10.0): idem
+    If PptSync_ItemKind(shp) <> "chart" Then PptEditDataImpl = "!" & PPTTEXT_MSG_EDITDATA: Exit Function
+    path = PptSync_ItemBook(shp)
+    isData = (PptSync_Tag(shp, PPTDATA_TAG) = "1")
+    ' o caminho vem da apresentacao (de quem a fez): so pastas do Excel, e grafico criado pelo PowerPoint so com a pasta de dados do ThinQQ,
+    ' conferidos ANTES de tocar o disco (revisao final I2)
+    If Not PptData_IsWorkbookExt(path) Then PptEditDataImpl = "!" & PPTDATA_MSG_NOTBOOK & path: Exit Function
+    If isData And Not PptData_IsDataBookName(path) Then PptEditDataImpl = "!" & PPTDATA_MSG_NOTDATANAME & path: Exit Function
+    If Not PptSync_FileExists(path) Then
+        If isData Then
+            PptEditDataImpl = "!Pasta de dados não encontrada: " & path & ". Se ela foi movida, ponha-a na mesma pasta da apresentação."
+        Else
+            PptEditDataImpl = "!Pasta de origem não encontrada: " & path & "."
+        End If
+        Exit Function
+    End If
+    For Each w In Application.Workbooks
+        If StrComp(w.FullName, path, vbTextCompare) = 0 Then wasOpen = True: Exit For
+    Next
+    Set w = Nothing
+    Set wb = PptData_OpenForEdit(path, Not isData)
+    Set co = Registry_FindChartObject(wb, PptSync_Tag(shp, PPTSYNC_TAG_CHART))
+    If co Is Nothing Then
+        If Not wasOpen Then                                  ' aberta agora so para isto: fecha (nada foi alterado)
+            prevAlerts = Application.DisplayAlerts: alertsOff = True: Application.DisplayAlerts = False
+            wb.Close SaveChanges:=False
+            Application.DisplayAlerts = prevAlerts: alertsOff = False
+        End If
+        If isData Then
+            PptEditDataImpl = "!Gráfico não encontrado na pasta de dados (apagado ou recriado)."
+        Else
+            PptEditDataImpl = "!Gráfico não encontrado na pasta de origem (apagado ou recriado)."
+        End If
+        Exit Function
+    End If
+    If BUILD_CONFIG <> "Test" Then
+        Application.Visible = True
+        If Application.WindowState = xlMinimized Then Application.WindowState = xlNormal
+    End If
+    wb.Activate
+    co.Parent.Activate
+    Set fr = LinkFrame_Find(co.Chart)
+    If Not fr Is Nothing Then
+        Set rng = fr.TopLeftCell.CurrentRegion
+    ElseIf PptData_IsDataBook(wb) Then
+        Set rng = co.Parent.Range("A1").CurrentRegion
+    End If
+    If Not rng Is Nothing Then rng.Select
+    If LCase$(Right$(path, 5)) = ".xlsm" And Not PptData_IsDataBook(wb) Then Core_Notify "As macros desta pasta não rodam quando ela é aberta pelo ThinQQ; abra-a pelo Excel se precisar delas."
+    PptEditDataImpl = CStr(Application.ActiveWindow.Caption)
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If alertsOff Then Application.DisplayAlerts = prevAlerts
+    Errors_Log "Core_PptEditData" & vbTab & en & vbTab & ed
+    If en = vbObjectError + 7130 Then
+        PptEditDataImpl = "!" & ed
+    ElseIf Ppt_IsKnownFailure(en) Then
+        PptEditDataImpl = "!" & Ppt_ErrorText(en, ed)
+    Else
+        PptEditDataImpl = "!Não foi possível abrir os dados: " & ed & " (" & en & ")"
+    End If
+End Function
+
+' API 3: "Salvar" no PowerPoint (evento PresentationSave do .ppam, que chega DEPOIS da gravacao do .pptx: PG5): salva a pasta de DADOS da
+' apresentacao (etiqueta TQQ_DATABOOK) se estiver aberta e alterada neste Excel. Nunca abre nada; pastas do usuario (sem a marca) nunca.
+' Devolve 1 se salvou. Sem caixas (modo silencioso). Nunca propaga erro.
+Public Function Core_PptDataSave(pres As Object) As Long
+    Dim p As String, w As Workbook
+    On Error Resume Next
+    Core_QuietBegin
+    p = PptSync_Tag(pres, PPTDATA_MARK)
+    If Len(p) > 0 Then
+        For Each w In Application.Workbooks
+            If StrComp(w.FullName, p, vbTextCompare) = 0 Then
+                If Not w.Saved And Not w.ReadOnly And PptData_IsDataBook(w) Then
+                    Err.Clear
+                    PptData_SaveQuiet w
+                    If Err.Number = 0 Then Core_PptDataSave = 1 Else Errors_Log "Core_PptDataSave" & vbTab & Err.Number & vbTab & Err.Description
+                End If
+            End If
+        Next
+    End If
+    Core_QuietEnd
+    Err.Clear
+End Function
+
+' API 4 (1.9.0): comando da faixa do PowerPoint nos graficos listados (spec 14.5): "toggle" (arg = labels|totals|connectors + ":1"/":0" = o
+' valor, como a faixa do Excel; sem ":valor" inverte), "numfmt"/"legend" (arg = valor), "cagr"/"diff" (arg = "de,ate", indices de categoria a
+' partir de 1), "clear" (remove as anotacoes: setas, delta e colchetes). Cada grafico (pasta + TQQ_CHART) recebe o comando uma vez. Aplica pelo
+' MESMO codigo da faixa do Excel, Core_SafeRefresh, salva so a pasta de DADOS (pasta do usuario fica alterada e nao salva: o usuario decide)
+' e sincroniza (forcado, com o motor de sempre: LinkFormat.Update so com o arquivo presente) so as formas em que o comando deu certo. Pasta do
+' usuario fechada nunca e aberta (PPTCMD_MSG_OPEN_SOURCE). Devolve "" ou a 1a mensagem (recusa da matriz em texto). Sem caixas (modo
+' silencioso) e com o ciclo automatico esperando (Ppt_BeginOp/EndOp), equilibrados em todo caminho. Nunca propaga erro.
+Public Function Core_PptCommand(pres As Object, entries As String, cmd As String, arg As String) As String
+    On Error Resume Next
+    Core_QuietBegin
+    Ppt_BeginOp
+    Core_PptCommand = PptCommandImpl(pres, entries, cmd, arg)
+    Ppt_EndOp
+    Core_QuietEnd
+    Err.Clear
+End Function
+
+Private Function PptCommandImpl(pres As Object, entries As String, cmd As String, arg As String) As String
+    Dim items As Collection, shp As Object, msg As String, first As String, okItems As Collection, opened As Collection, en As Long, ed As String
+    Dim summary As String, done As Collection, key As String, prev As Variant
+    On Error GoTo Fail
+    Select Case cmd
+        Case "toggle", "numfmt", "legend", "cagr", "diff", "clear"
+        Case Else: PptCommandImpl = PPTCMD_MSG_UNKNOWN & cmd: Exit Function
+    End Select
+    Set opened = New Collection: Set okItems = New Collection: Set done = New Collection
+    Set items = PptSync_ResolveEntries(pres, entries)
+    If items.Count = 0 Then
+        If PptIdx_Parse(entries).Count > 0 Then PptCommandImpl = PPTSYNC_NOT_FOUND Else PptCommandImpl = PPTSYNC_NONE
+        Exit Function
+    End If
+    ' revisao final G-II (M1): duas formas do MESMO grafico (pasta + TQQ_CHART; copia colada no slide) recebem o comando UMA vez (um toggle
+    ' nao desfaz o outro, nem duas setas iguais), e todas as formas em que ele deu certo sao sincronizadas
+    For Each shp In items
+        key = LCase$(PptSync_ItemBook(shp)) & "|" & PptSync_Tag(shp, PPTSYNC_TAG_CHART)
+        prev = Empty
+        On Error Resume Next
+        prev = done(key)
+        On Error GoTo Fail
+        If IsEmpty(prev) Then
+            msg = PptCmd_One(shp, cmd, arg, opened)
+            done.Add msg, key
+        Else
+            msg = CStr(prev)
+            If Len(msg) > 0 Then msg = "-"                      ' a recusa ja foi contada na 1a forma do grafico
+        End If
+        If Len(msg) = 0 Then
+            okItems.Add shp
+        ElseIf Len(first) = 0 And msg <> "-" Then
+            first = msg
+        End If
+    Next
+    If okItems.Count > 0 Then
+        summary = PptSync_Items(okItems, True)
+        ' o grafico mudou na pasta mas o slide nao acompanhou (vinculo quebrado, falha): o resumo da sincronizacao vira a mensagem
+        If Len(first) = 0 And summary <> PptSync_SummaryText(okItems.Count, 0, "", 0, 0, 0) Then first = summary
+    End If
+    PptCmd_CloseOpened opened
+    PptCommandImpl = first
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptCmd_CloseOpened opened
+    Errors_Log "Core_PptCommand(" & cmd & ")" & vbTab & en & vbTab & ed
+    If Ppt_IsBusyError(en) Then PptCommandImpl = PPT_ERR_BUSY Else PptCommandImpl = "Não foi possível aplicar: " & ed & " (" & en & ")"
+End Function
+
+' Um comando numa forma: o mesmo codigo da faixa do Excel (ApplyToggle, ApplyOption, Ann_AddCagr/Ann_AddDifference, Ann_RemoveAll),
+' Core_SafeRefresh e, se for pasta de dados, salvar (sem caixas do Excel). "" ou a mensagem para o usuario. Nunca propaga erro.
+Private Function PptCmd_One(shp As Object, cmd As String, arg As String, opened As Collection) As String
+    Dim wb As Workbook, co As ChartObject, c As Chart, p() As String, msg As String, n As Long, a As Long, b As Long, key As String, v As String
+    On Error GoTo Fail
+    If PptSync_ItemKind(shp) = "table" Then PptCmd_One = PPTTABLE_MSG_NOTCHART: Exit Function   ' tabela vinculada: nada a aplicar
+    If PptSync_ItemKind(shp) <> "chart" Then PptCmd_One = PPTTEXT_MSG_NOTCHART: Exit Function   ' texto vinculado: nada a aplicar
+    Set wb = PptCmd_Book(shp, opened, msg)
+    If wb Is Nothing Then PptCmd_One = msg: Exit Function
+    Set co = Registry_FindChartObject(wb, PptSync_Tag(shp, PPTSYNC_TAG_CHART))
+    If co Is Nothing Then
+        If PptData_IsDataBook(wb) Then
+            PptCmd_One = "Gráfico não encontrado na pasta de dados (apagado ou recriado)."
+        Else
+            PptCmd_One = "Gráfico não encontrado na pasta de origem (apagado ou recriado)."
+        End If
+        Exit Function
+    End If
+    Set c = co.Chart
+    Select Case cmd
+        Case "toggle"
+            ' "labels:1"/"labels:0" = valor absoluto (o estado do botao, como Core_SetToggle da faixa do Excel; revisao final G-II, M2);
+            ' "labels" sem valor = inverte (compatibilidade)
+            key = arg: v = ""
+            If InStr(arg, ":") > 0 Then key = Left$(arg, InStr(arg, ":") - 1): v = Mid$(arg, InStr(arg, ":") + 1)
+            Select Case key
+                Case "labels", "totals", "connectors"
+                Case Else: PptCmd_One = PPTCMD_MSG_UNKNOWN & cmd & " " & arg: Exit Function
+            End Select
+            Select Case v
+                Case "", "0", "1"
+                Case Else: PptCmd_One = PPTCMD_MSG_UNKNOWN & cmd & " " & arg: Exit Function
+            End Select
+            If Not Kinds_SupportsChart(c, key) Then PptCmd_One = Kinds_NotApplicableText(key): Exit Function
+            If Len(v) = 0 Then
+                ApplyToggle c, key, Not (Registry_GetOption(c, key, "0") = "1")
+            Else
+                ApplyToggle c, key, (v = "1")
+            End If
+        Case "numfmt", "legend"
+            msg = ValidateOption(cmd, arg)
+            If Len(msg) > 0 Then PptCmd_One = msg: Exit Function
+            ApplyOption c, cmd, arg                     ' recusa da matriz (7002) antes de gravar: volta como texto pelo Fail
+        Case "cagr", "diff"
+            msg = Ann_RefusalText(c, cmd)               ' a mesma recusa (e o mesmo texto) da faixa do Excel
+            If Len(msg) > 0 Then PptCmd_One = msg: Exit Function
+            p = Split(arg, ",")
+            If UBound(p) <> 1 Then PptCmd_One = PPTCMD_MSG_CATS: Exit Function
+            n = Geom_ChartCategoryCount(c)
+            a = PptCmd_Index(p(0)): b = PptCmd_Index(p(1))
+            If a < 1 Or b > n Or a >= b Then PptCmd_One = PPTCMD_MSG_CATS: Exit Function
+            If cmd = "cagr" Then Ann_AddCagr c, a, b Else Ann_AddDifference c, a, b
+        Case "clear"
+            Ann_RemoveAll c, False
+    End Select
+    Core_SafeRefresh c
+    If PptData_IsDataBook(wb) Then PptData_SaveQuiet wb
+    Exit Function
+Fail:
+    Select Case Err.Number
+        Case vbObjectError + 7001, vbObjectError + 7002, vbObjectError + 7100, vbObjectError + 7130
+            PptCmd_One = Err.Description
+        Case Else
+            PptCmd_One = "Não foi possível aplicar: " & Err.Description & " (" & Err.Number & ")"
+    End Select
+    Errors_Log "PptCmd_One(" & cmd & ")" & vbTab & Err.Number & vbTab & Err.Description
+End Function
+
+' Indice de categoria vindo do .ppam ("3"); 0 se nao for um numero inteiro positivo pequeno. Pura.
+Private Function PptCmd_Index(s As String) As Long
+    Dim t As String
+    t = Trim$(s)
+    If Len(t) = 0 Or Len(t) > 6 Then Exit Function
+    If t Like "*[!0-9]*" Then Exit Function
+    PptCmd_Index = CLng(t)
+End Function
+
+' Pasta para um comando do PowerPoint (spec 14.5): a ja aberta neste Excel (de dados ou do usuario); senao SO a pasta de DADOS (forma
+' TQQ_DATA; extensao e nome "<...> - dados ThinQQ.xlsx" conferidos ANTES de tocar o disco; marca TQQ_DATABOOK conferida depois) e aberta para
+' edicao com as macros desligadas (PptData_OpenForEdit) e entra em opened (fechada no fim). Pasta do usuario FECHADA nunca e aberta. Nothing
+' com msg = o motivo. Pasta de dados aberta somente leitura: recusada (o comando nao poderia salvar). Propaga erro (7130 do OpenForEdit).
+Private Function PptCmd_Book(shp As Object, opened As Collection, ByRef msg As String) As Workbook
+    Dim w As Workbook, path As String
+    path = PptSync_ItemBook(shp)
+    For Each w In Application.Workbooks
+        If StrComp(w.FullName, path, vbTextCompare) = 0 Then
+            If w.ReadOnly And PptData_IsDataBook(w) Then msg = PPTDATA_MSG_RO & path: Exit Function
+            Set PptCmd_Book = w
+            Exit Function
+        End If
+    Next
+    msg = PPTCMD_MSG_OPEN_SOURCE
+    If PptSync_Tag(shp, PPTDATA_TAG) <> "1" Then Exit Function
+    If Not PptData_IsWorkbookExt(path) Then msg = PPTDATA_MSG_NOTBOOK & path: Exit Function
+    If Not PptData_IsDataBookName(path) Then msg = PPTDATA_MSG_NOTDATANAME & path: Exit Function
+    If Not PptSync_FileExists(path) Then msg = "Pasta de dados não encontrada: " & path & ". Se ela foi movida, ponha-a na mesma pasta da apresentação.": Exit Function
+    Set w = PptData_OpenForEdit(path)
+    opened.Add w
+    If Not PptData_IsDataBook(w) Then msg = PPTDATA_MSG_NOTDATANAME & path: Exit Function
+    msg = ""
+    Set PptCmd_Book = w
+End Function
+
+' Fecha sem salvar (as pastas de dados ja foram salvas pelo comando) as pastas que o comando abriu, sem caixas e com os eventos desligados.
+' Nunca propaga erro.
+Private Sub PptCmd_CloseOpened(opened As Collection)
+    Dim w As Variant, prevAlerts As Boolean, prevEv As Boolean
+    On Error Resume Next
+    If opened Is Nothing Then Exit Sub
+    If opened.Count = 0 Then Exit Sub
+    prevAlerts = Application.DisplayAlerts: prevEv = Application.EnableEvents
+    Application.DisplayAlerts = False: Application.EnableEvents = False
+    For Each w In opened
+        w.Close SaveChanges:=False
+    Next
+    Application.DisplayAlerts = prevAlerts: Application.EnableEvents = prevEv
+    Set opened = New Collection
+    Err.Clear
+End Sub
+
+' API 4: categorias do (1o) grafico listado (as mesmas que o formulario de setas do Excel mostra), separadas por Chr(31), para o .ppam montar a
+' escolha de/ate da CAGR e da diferenca. So valor devolvido pelo COM: nunca vai para uma etiqueta nem para uma forma; os nomes saem sem
+' Chr(30)/Chr(31)/quebras de linha/Tab. "" se a pasta nao estiver disponivel (pasta do usuario fechada nunca e aberta; a de dados aberta so
+' para isto e fechada). Sem caixas. Nunca propaga erro.
+Public Function Core_PptCategories(pres As Object, entries As String) As String
+    On Error Resume Next
+    Core_QuietBegin
+    Ppt_BeginOp
+    Core_PptCategories = PptCategoriesImpl(pres, entries)
+    Ppt_EndOp
+    Core_QuietEnd
+    Err.Clear
+End Function
+
+Private Function PptCategoriesImpl(pres As Object, entries As String) As String
+    Dim items As Collection, wb As Workbook, co As ChartObject, opened As Collection, msg As String, body As Range, n As Long, i As Long
+    Dim s As String, t As String, en As Long, ed As String
+    On Error GoTo Fail
+    Set opened = New Collection
+    Set items = PptSync_ResolveEntries(pres, entries)
+    If items.Count > 0 Then Set wb = PptCmd_Book(items(1), opened, msg)
+    If Not wb Is Nothing Then Set co = Registry_FindChartObject(wb, PptSync_Tag(items(1), PPTSYNC_TAG_CHART))
+    If Not co Is Nothing Then
+        n = Geom_ChartCategoryCount(co.Chart)
+        Set body = Block_Body(Registry_Block(co.Chart))
+        For i = 1 To n
+            t = Util_CellLabel(body.Cells(i + 1, 1))
+            t = Replace(Replace(Replace(Replace(Replace(t, Chr$(30), " "), Chr$(31), " "), vbCr, " "), vbLf, " "), vbTab, " ")
+            If i > 1 Then s = s & Chr$(31)
+            s = s & t
+        Next
+    End If
+    PptCmd_CloseOpened opened
+    PptCategoriesImpl = s
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptCmd_CloseOpened opened
+    Errors_Log "Core_PptCategories" & vbTab & en & vbTab & ed
+    PptCategoriesImpl = ""
+End Function
+
+' API 5 (1.9.0): o .ppam vincula a forma do slide (shp; trecho [startPos, startPos + length) do texto, length 0 = no cursor) a celula ATIVA
+' deste Excel (a acao explicita do usuario: so ela cria o nome definido oculto na pasta dele, que precisa estar aberta e salva). Devolve
+' "Texto vinculado a celula Pasta!Planilha!B2." (PptText_LinkedText; + o aviso de valor cortado) ou a mensagem da recusa. Sem caixas (modo silencioso) e com o ciclo automatico esperando
+' (Ppt_BeginOp/EndOp), equilibrados em todo caminho. Nunca propaga erro.
+Public Function Core_PptLinkText(shp As Object, startPos As Long, length As Long) As String
+    On Error Resume Next
+    Core_QuietBegin
+    Ppt_BeginOp
+    Core_PptLinkText = PptLinkTextImpl(shp, startPos, length)
+    Ppt_EndOp
+    Core_QuietEnd
+    Err.Clear
+End Function
+
+Private Function PptLinkTextImpl(shp As Object, startPos As Long, length As Long) As String
+    Dim en As Long, ed As String, cell As Range, msg As String
+    On Error GoTo Fail
+    If TypeName(Selection) <> "Range" Then PptLinkTextImpl = PPTTEXT_MSG_NOCELL: Exit Function
+    Set cell = ActiveCell
+    If cell Is Nothing Then PptLinkTextImpl = PPTTEXT_MSG_NOCELL: Exit Function
+    msg = PptText_Link(shp, startPos, length, cell)
+    If Len(msg) = 0 Then
+        msg = PptText_LinkedText(cell, False)                   ' com a pasta e a celula (revisao final E, M9: dois Excel abertos)
+    ElseIf msg = PPTTEXT_MSG_CUT Then
+        msg = PptText_LinkedText(cell, True)
+    End If
+    PptLinkTextImpl = msg
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Errors_Log "Core_PptLinkText" & vbTab & en & vbTab & ed
+    If Ppt_IsBusyError(en) Then PptLinkTextImpl = PPT_ERR_BUSY Else PptLinkTextImpl = "Não foi possível vincular o texto: " & ed & " (" & en & ")"
+End Function
+
+' Botao do Excel "Vincular celula ao texto selecionado" (1.9.0): a celula ATIVA passa a alimentar o texto selecionado na janela ativa do
+' PowerPoint JA aberto (nunca abre um): a caixa inteira (forma selecionada), a parte selecionada ou o ponto do cursor (PptText_SelectionOf).
+' Sonda P5 pendente: se a selecao do PowerPoint nao for legivel com o Excel ativo, o aviso pede selecionar o texto (ou usar o botao do
+' PowerPoint). O ciclo automatico espera (Ppt_BeginOp/EndOp, equilibrados). Nunca propaga erro.
+Public Sub Core_PptLinkTextFromPpt()
+    Dim app As Object, shp As Object, st As Long, ln As Long, msg As String, en As Long, ed As String, began As Boolean, addr As String
+    On Error GoTo Fail
+    If TypeName(Selection) <> "Range" Then Core_Notify PPTTEXT_MSG_NOCELL: Exit Sub
+    addr = ActiveCell.Address(False, False)
+    Set app = Ppt_GetApp(False)
+    If app Is Nothing Then Core_Notify PPTTEXT_MSG_NOPPT: Exit Sub
+    If Not PptText_SelectionOf(app, shp, st, ln) Then Core_Notify PPTTEXT_MSG_NOTEXT: Exit Sub
+    Ppt_BeginOp
+    began = True
+    msg = PptText_Link(shp, st, ln, ActiveCell)
+    began = False
+    Ppt_EndOp
+    If Len(msg) = 0 Then msg = "Texto do slide vinculado à célula " & addr & ". " & PPTTEXT_MSG_SAVEHINT
+    Core_Notify msg
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If began Then Ppt_EndOp
+    On Error GoTo 0
+    If Ppt_IsKnownFailure(en) Then
+        Core_Notify Ppt_ErrorText(en, ed), vbExclamation
+    Else
+        Errors_HandleErr "Core_PptLinkTextFromPpt", en, ed
+    End If
+End Sub
+
+' "Inserir tabela vinculada no slide" (1.10.0): tabela do PowerPoint a partir das celulas selecionadas neste Excel (pasta salva), no slide
+' ativo (ou numa apresentacao nova), com a formatacao inicial do Excel (PptTable_Insert). Falha: desfaz o que criou (tabela, nome oculto,
+' slide/apresentacao novos e o PowerPoint aberto por esta chamada). O ciclo automatico espera (Ppt_BeginOp/EndOp, equilibrados em todo
+' caminho, antes do aviso). Falha DEPOIS de criar a tabela (ler o slide com o PowerPoint ocupado: revisao final F, M2) tambem apaga a tabela, o
+' nome oculto e a marca que esta chamada criou. Nunca propaga erro.
+Public Sub Core_PptInsertTable()
+    Dim rng As Range, app As Object, slide As Object, shp As Object, newPres As Object, newSlide As Object, msg As String, en As Long, ed As String
+    Dim created As Boolean, began As Boolean, wb As Workbook, hadMark As Boolean
+    On Error GoTo Fail
+    If TypeName(Selection) <> "Range" Then Core_Notify PPTTABLE_MSG_NOSEL: Exit Sub
+    Set rng = Selection
+    Set wb = rng.Worksheet.Parent
+    If Len(wb.Path) = 0 Then Core_Notify PPTTEXT_MSG_UNSAVED, vbExclamation: Exit Sub
+    If Not PptData_IsWorkbookExt(wb.FullName) Then Core_Notify PPTTEXT_MSG_NOTBOOK, vbExclamation: Exit Sub
+    msg = PptTable_RefusalText(rng)
+    If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
+    Ppt_BeginOp
+    began = True
+    Set app = Ppt_GetApp(True)
+    created = Ppt_AppWasCreated()
+    If app Is Nothing Then
+        began = False: Ppt_EndOp
+        Core_Notify PPT_ERR_NOT_INSTALLED, vbExclamation
+        Exit Sub
+    End If
+    Set slide = Ppt_TargetSlide(app, newPres, newSlide)
+    hadMark = PptLink_HasMark(wb)
+    Set shp = PptTable_Insert(rng, slide)                       ' transacional: falha nao deixa tabela nem nome
+    PptTable_TestHook "after"
+    msg = "Tabela vinculada criada no slide " & slide.SlideIndex & " de '" & slide.Parent.Name & "'. Ela acompanha a pasta nas atualizações (manual, ao abrir ou automática). " & PPTTABLE_MSG_SAVEHINT
+    began = False: Ppt_EndOp
+    Core_Notify msg, vbInformation                              ' ANTES de ativar o PowerPoint: a caixa nao fica escondida atras dele
+    If BUILD_CONFIG <> "Test" Then
+        On Error Resume Next
+        app.Visible = -1: app.Activate
+        Err.Clear
+    End If
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    If Not shp Is Nothing Then
+        wb.Names(PptSync_Tag(shp, PPTLINK_TAG_NAME)).Delete
+        If Not hadMark Then wb.Names(PPTLINK_MARK).Delete
+        shp.Delete
+        Set shp = Nothing
+    End If
+    If Not newSlide Is Nothing Then
+        If newPres Is Nothing Then newSlide.Delete
+    End If
+    If Not newPres Is Nothing Then
+        newPres.Saved = -1
+        newPres.Close
+    End If
+    If created And Not app Is Nothing Then
+        If app.Presentations.Count = 0 Then app.Quit
+    End If
+    If began Then Ppt_EndOp
+    Err.Clear
+    On Error GoTo 0
+    If en = vbObjectError + 7120 Then
+        Core_Notify ed, vbExclamation
+    ElseIf Ppt_IsKnownFailure(en) Then
+        Core_Notify Ppt_ErrorText(en, ed), vbExclamation
+    Else
+        Errors_HandleErr "Core_PptInsertTable", en, ed
+    End If
+End Sub
+
 ' Botao "Atualizar graficos no PowerPoint": todas as apresentacoes abertas (inclusive as somente leitura: a atualizacao fica so na memoria e o
 ' PowerPoint pergunta se quer salvar ao fechar; so a atualizacao automatica ao abrir pula somente leitura, decisao do suplemento), forcando a
 ' atualizacao; o aviso traz o resumo de cada uma (cada apresentacao e isolada: o erro de uma vira uma linha dela, sem perder o resumo das
@@ -1455,11 +2226,17 @@ End Function
 Public Sub Core_PptSyncOpen()
     Dim app As Object, pres As Object, msg As String, en As Long, ed As String
     On Error GoTo Fail
+    Ppt_BeginOp                                             ' o ciclo automatico espera (fechada em todo caminho, antes do aviso)
     Set app = Ppt_GetApp(False)
-    If app Is Nothing Then Core_Notify PPTSYNC_NO_PPT, vbInformation: Exit Sub
+    If app Is Nothing Then
+        Ppt_EndOp
+        Core_Notify PPTSYNC_NO_PPT, vbInformation
+        Exit Sub
+    End If
     For Each pres In app.Presentations
         msg = msg & IIf(Len(msg) > 0, vbLf & vbLf, "") & "'" & PptSyncPresName(pres) & "': " & Core_PptSyncPresentation(pres, True)
     Next
+    Ppt_EndOp
     If Len(msg) = 0 Then msg = PPTSYNC_NO_PPT
     Core_Notify msg, vbInformation
     Exit Sub
@@ -1467,6 +2244,7 @@ Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
+    Ppt_EndOp
     Application.StatusBar = False
     If Ppt_IsKnownFailure(en) Then
         Core_Notify Ppt_ErrorText(en, ed), vbExclamation

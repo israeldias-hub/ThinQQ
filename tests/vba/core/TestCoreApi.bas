@@ -835,6 +835,70 @@ Public Sub Test_Core_SourceMismatch_Stacked_RowInserted_NoticedOnce()
     CheckMismatch "stacked"
 End Sub
 
+' Revisao da onda final da C: dentro do ciclo automatico do PowerPoint (Core_SafeRefresh chamado pela sincronizacao, inclusive de graficos
+' de planilhas inativas) os avisos "uma vez" (tabela de origem mudou de tamanho, Mesma escala cortada) sao ADIADOS: nenhuma caixa e o
+' grafico NAO fica marcado como avisado; o proximo refresh fora do ciclo mostra o aviso (uma vez).
+Public Sub Test_Core_OnceNotices_DeferredDuringPptCycle()
+    Dim wb As Workbook, ws As Worksheet, ws2 As Worksheet, cht As Chart, c1 As Chart, c2 As Chart, coll As Collection, skipped As Long
+    Dim wasActive As Boolean, en As Long, ed As String
+    On Error GoTo Cleanup
+    wasActive = Watchers_IsActive()
+    Set wb = NewTempWorkbook(): Set ws = Fixture(wb)
+    ws.Range("A1:C5").Select
+    Core_Insert "stacked"
+    Set cht = Core_ActiveChart()
+    ws.Rows(3).Insert
+    ws.Range("A3:C3").Value = Array(2022.5, 105, 55)
+    AssertTrue Core_ChartSourceMismatch(cht), "premissa: tabela de origem com outro tamanho"
+    Core_OnUnload                                   ' sessao nova (nada avisado) e sem vigias: so os refreshes do teste
+    Core_ClearLastNotice
+    PptAuto_SetInTickForTest True
+    Core_SafeRefresh cht
+    PptAuto_SetInTickForTest False
+    AssertEqual 0, Core_ShownCountForTest(), "tabela de origem, no ciclo: nenhuma caixa"
+    AssertEqual 0, Core_NoticeCount(), "tabela de origem, no ciclo: aviso adiado (o grafico nao fica como avisado)"
+    Core_SafeRefresh cht
+    AssertEqual 1, Core_ShownCountForTest(), "tabela de origem, fora do ciclo: o aviso aparece"
+    AssertEqual "A tabela de origem mudou de tamanho. Use 'Alterar dados' para reconstruir o gráfico (ou reinsira o gráfico).", Core_LastNotice()
+    Core_SafeRefresh cht
+    AssertEqual 1, Core_ShownCountForTest(), "tabela de origem: uma vez so"
+    ' Mesma escala cortada
+    Set ws2 = wb.Worksheets.Add
+    ws2.Range("A1:C1").Value = Array("Ano", "A", "B")
+    ws2.Range("A2:C2").Value = Array(2022, 10, 20): ws2.Range("A3:C3").Value = Array(2023, 12, 22)
+    ws2.Range("F1:H1").Value = Array("Ano", "C", "D")
+    ws2.Range("F2:H2").Value = Array(2022, 100, 200): ws2.Range("F3:H3").Value = Array(2023, 120, 220)
+    Set c1 = Stacked_Insert(ws2, ChartData_FromRange(ws2.Range("A1:C3")), "stacked").Chart
+    Set c2 = Stacked_Insert(ws2, ChartData_FromRange(ws2.Range("F1:H3")), "stacked").Chart
+    Set coll = New Collection: coll.Add c1: coll.Add c2
+    AssertEqual 2, Deco_SameScale(coll, skipped)
+    ws2.Range("B3").Value = 5000
+    AssertTrue Deco_ScaleClipped(c1), "premissa: dados acima do maximo fixo"
+    Core_OnUnload
+    Core_ClearLastNotice
+    PptAuto_SetInTickForTest True
+    Core_SafeRefresh c1
+    PptAuto_SetInTickForTest False
+    AssertEqual 0, Core_ShownCountForTest(), "Mesma escala, no ciclo: nenhuma caixa"
+    AssertEqual 0, Core_NoticeCount(), "Mesma escala, no ciclo: aviso adiado"
+    Core_SafeRefresh c1
+    AssertEqual 1, Core_ShownCountForTest(), "Mesma escala, fora do ciclo: o aviso aparece"
+    AssertTrue InStr(Core_LastNotice(), "máximo da escala fixa") > 0, Core_LastNotice()
+    Core_SafeRefresh c1
+    AssertEqual 1, Core_ShownCountForTest(), "Mesma escala: uma vez so"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptAuto_SetInTickForTest False
+    Core_ClearLastNotice
+    Core_OnUnload
+    If Not wb Is Nothing Then Teardown wb
+    If wasActive Then Watchers_Start
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestCoreApi", ed
+End Sub
+
 ' ---- I4: graficos 100% rotulam os segmentos com a participacao ----
 
 Private Function Fixture100(wb As Workbook) As Chart

@@ -179,7 +179,9 @@ function Add-FormFromJson($vbproj, [string]$JsonPath, [string]$CodePath) {
     $comp = $vbproj.VBComponents.Add(3)   # 3 = vbext_ct_MSForm
     $comp.Name = $spec.name
     $d = $comp.Designer
-    $d.Caption = $spec.caption
+    # Titulo da janela = propriedade Caption do COMPONENTE (VBComponent.Properties). $comp.Designer.Caption NAO serve: grava outra coisa e
+    # o componente continua com o "UserForm1" do VBComponents.Add, que o Excel mostra na barra de titulo (medido; TestForms confere em todos os forms).
+    $comp.Properties.Item("Caption").Value = [string]$spec.caption
     $comp.Properties.Item("Width").Value  = [double]$spec.width
     $comp.Properties.Item("Height").Value = [double]$spec.height
     foreach ($c in $spec.controls) {

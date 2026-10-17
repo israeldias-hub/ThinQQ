@@ -12,7 +12,8 @@ Option Explicit
 ' de aplicativo, janela, modo de exibicao, selecao, apresentacao, slide e forma; membro sem valor (Nothing) faz a leitura falhar como no
 ' PowerPoint (erro 91). SlideIndex so existe num slide (SlideIndexValue > 0): mestre e layout nao tem (erro 438).
 Public Windows As Collection
-Public ActiveWindow As Object
+Private mActiveWindow As Object
+Public ActiveWindowReads As Long                ' aplicativo: quantas vezes ActiveWindow foi lido (chamadas ao PowerPoint do usuario)
 Public Presentations As Collection
 Public View As Object
 Public Slide As Object
@@ -24,6 +25,8 @@ Public Chart As Object
 Public ChartData As Object
 Public IsLinked As Variant
 Public SlideIndexValue As Long
+Public SlideIdValue As Long                     ' colecao de slides: o SlideID que FindBySlideID acha
+Public FindBySlideIDCalls As Long               ' colecao de slides: quantas vezes FindBySlideID foi chamado (chamadas ao PowerPoint do usuario)
 Public Deleted As Boolean                       ' Delete foi chamado (slide ou forma apagados pelo desfazer)
 Public ProtectedViewWindows As Collection       ' janelas do Modo de Exibicao Protegido (fora de Windows e de Presentations)
 Public QuitCalled As Boolean                    ' Quit foi chamado (aplicativo encerrado pelo teste)
@@ -34,6 +37,16 @@ Public SourceFullName As String
 Public UpdateCount As Long                      ' quantas vezes Update foi chamado (LinkFormat.Update)
 Public Shapes As Object                         ' slide: as formas (Collection; For Each)
 Public Tags As Object                           ' forma: as etiquetas (Scripting.Dictionary; Tags.Item(nome))
+Public ReadOnly As Long                         ' apresentacao: 0 = editavel (msoFalse)
+
+Public Property Get ActiveWindow() As Object
+    ActiveWindowReads = ActiveWindowReads + 1
+    Set ActiveWindow = mActiveWindow
+End Property
+
+Public Property Set ActiveWindow(v As Object)
+    Set mActiveWindow = v
+End Property
 
 Public Property Get SlideIndex() As Long
     If SlideIndexValue <= 0 Then Err.Raise 438, "TestPptFake", "nao e um slide"
@@ -56,3 +69,10 @@ End Sub
 Public Sub Update()
     UpdateCount = UpdateCount + 1
 End Sub
+
+' Colecao de slides (Slides): FindBySlideID devolve Slide quando o id e SlideIdValue; outro id falha como no PowerPoint.
+Public Function FindBySlideID(slideId As Long) As Object
+    FindBySlideIDCalls = FindBySlideIDCalls + 1
+    If Slide Is Nothing Or slideId <> SlideIdValue Then Err.Raise -2147188160, "TestPptFake", "slide inexistente"
+    Set FindBySlideID = Slide
+End Function

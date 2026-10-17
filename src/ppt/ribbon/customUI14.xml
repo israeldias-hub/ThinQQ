@@ -1,9 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Faixa do suplemento do PowerPoint do ThinQQ (ThinQQ.ppam). So imageMso. -->
+<!-- Faixa do suplemento do PowerPoint do ThinQQ (ThinQQ.ppam). "Inserir gráfico" (1.8.0) usa os icones proprios do Excel (o build embute
+     os PNG); os demais controles, imageMso. Os 21 tipos e a ordem sao os do grupo grpInsert do Excel (Test-Ribbon.ps1 confere). -->
 <customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="PptRx_OnLoad">
   <ribbon>
     <tabs>
       <tab id="tabThinQQPpt" label="ThinQQ">
+        <group id="grpPptInsert" label="Inserir gráfico">
+          <menu id="pmnuColumns" label="Colunas" size="large" image="tqq_columns" screentip="Colunas" supertip="Colunas empilhadas, agrupadas ou 100%. O gráfico nasce no slide com dados de exemplo; digite os seus na planilha do Excel que abre.">
+            <button id="pbtnStacked" label="Colunas empilhadas" tag="stacked" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnClustered" label="Colunas agrupadas" tag="clustered" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnStacked100" label="Colunas 100%" tag="stacked100" onAction="PptRx_OnInsertChart"/>
+          </menu>
+          <menu id="pmnuBars" label="Barras" size="large" image="tqq_bars" screentip="Barras" supertip="Como as colunas, com as categorias no eixo vertical.">
+            <button id="pbtnBarStacked" label="Barras empilhadas" tag="barstacked" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnBarClustered" label="Barras agrupadas" tag="barclustered" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnBarStacked100" label="Barras 100%" tag="barstacked100" onAction="PptRx_OnInsertChart"/>
+          </menu>
+          <menu id="pmnuWaterfall" label="Cascata" size="large" image="tqq_waterfall" screentip="Cascata (ponte)" supertip="Etapa e valor; 'e' no valor para uma barra de total/subtotal calculada. A Cascata comparativa põe duas séries lado a lado.">
+            <button id="pbtnWaterfall" label="Cascata (colunas)" tag="waterfall" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnBarWaterfall" label="Cascata (barras)" tag="barwaterfall" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnWaterfallPair" label="Cascata comparativa" tag="waterfallpair" onAction="PptRx_OnInsertChart" image="tqq_waterfallpair16"/>
+          </menu>
+          <menu id="pmnuLines" label="Linha e área" size="large" image="tqq_lines" screentip="Linha e área" supertip="Linha, áreas empilhadas ou 100% e a combinação de colunas com linha.">
+            <button id="pbtnLine" label="Linha" tag="line" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnArea" label="Área empilhada" tag="area" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnArea100" label="Área 100%" tag="area100" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnCombo" label="Combinação (colunas + linha)" tag="combo" onAction="PptRx_OnInsertChart"/>
+          </menu>
+          <menu id="pmnuOthers" label="Mais tipos" size="large" image="tqq_more" screentip="Mais tipos" supertip="Mekko, Gantt, pizza, rosca, borboleta, dispersão e bolhas.">
+            <button id="pbtnMekko" label="Mekko (%)" tag="mekko" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnMekkoUnits" label="Mekko (unidades)" tag="mekkounits" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnGantt" label="Gantt" tag="gantt" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnPie" label="Pizza" tag="pie" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnDoughnut" label="Rosca" tag="doughnut" onAction="PptRx_OnInsertChart"/>
+            <button id="pbtnButterfly" label="Borboleta" tag="butterfly" onAction="PptRx_OnInsertChart" image="tqq_butterfly16"/>
+            <button id="pbtnScatter" label="Dispersão" tag="scatter" onAction="PptRx_OnInsertChart" image="tqq_scatter16"/>
+            <button id="pbtnBubble" label="Bolhas" tag="bubble" onAction="PptRx_OnInsertChart" image="tqq_bubble16"/>
+          </menu>
+        </group>
         <group id="grpPptSync" label="Gráficos do Excel">
           <button id="btnPptSyncNow" label="Atualizar gráficos" size="large" imageMso="Refresh" onAction="PptRx_OnSync"
                   screentip="Atualizar gráficos do ThinQQ" supertip="Atualiza dados e setas de todos os gráficos do ThinQQ colados como gráfico vinculado nesta apresentação, pelo ThinQQ do Excel."/>
@@ -13,7 +47,49 @@
             <item id="modealways" label="Atualizar sempre"/>
             <item id="modenever" label="Não atualizar"/>
           </dropDown>
+          <button id="btnPptPackage" label="Empacotar para enviar" imageMso="FileSaveAs" onAction="PptRx_OnPackage"
+                  screentip="Empacotar para enviar" supertip="Copia a apresentação e as pastas de dados dos gráficos criados pelo PowerPoint para uma pasta nova ao lado (&lt;nome&gt; (ThinQQ)), pronta para compactar e enviar."/>
           <button id="btnPptAbout" label="Sobre" imageMso="Info" onAction="PptRx_OnAbout" screentip="Sobre o ThinQQ para PowerPoint"/>
+        </group>
+        <group id="grpPptElem" label="Elemento selecionado">
+          <toggleButton id="tglPptAuto" label="Atualizar automaticamente" size="large" imageMso="Refresh"
+                        getPressed="PptRx_GetAuto" onAction="PptRx_OnAuto" getEnabled="PptRx_GetElemEnabled"
+                        screentip="Atualizar automaticamente" supertip="Com o Excel aberto, os gráficos do ThinQQ selecionados passam a acompanhar sozinhos as mudanças da pasta de origem (dados e setas), cerca de 2 segundos depois de cada mudança. Clique de novo para voltar ao manual."/>
+          <button id="btnPptUpdateSel" label="Atualizar uma vez" imageMso="Refresh" onAction="PptRx_OnUpdateSel" getEnabled="PptRx_GetElemEnabled"
+                  screentip="Atualizar uma vez" supertip="Atualiza agora dados e setas só dos gráficos do ThinQQ selecionados."/>
+          <button id="btnPptEditData" label="Editar dados" imageMso="TableInsert" onAction="PptRx_OnEditData" getEnabled="PptRx_GetElemEnabled"
+                  screentip="Editar dados" supertip="Abre no Excel a planilha com os dados do gráfico selecionado (para gráficos criados aqui, a pasta de dados ao lado da apresentação). Gráficos automáticos: o slide acompanha o que você digita."/>
+          <!-- 1.9.0 (E3): texto vinculado (Core_PptLinkText, API 5); sem getEnabled: age sobre uma caixa de texto, nao sobre um grafico. -->
+          <button id="btnPptLinkText" label="Texto vinculado ao Excel" imageMso="TextBoxInsert" onAction="PptRx_OnLinkText"
+                  screentip="Texto vinculado ao Excel" supertip="Selecione no Excel a célula e, aqui, a caixa de texto (ou a parte do texto, ou ponha o cursor): o trecho passa a mostrar o valor da célula e acompanha as atualizações. Exige o Excel aberto com o ThinQQ 1.9.0 ou mais novo."/>
+        </group>
+        <!-- 1.9.0: opcoes do grafico selecionado pelo PowerPoint (Core_PptCommand, API 4). Estado e capacidades vem da etiqueta TQQ_OPTS da forma. -->
+        <group id="grpPptChart" label="Gráfico do ThinQQ">
+          <toggleButton id="tglPptLabels" label="Rótulos" imageMso="TextBoxInsert" tag="labels" getPressed="PptRx_GetOpt" onAction="PptRx_OnToggleOpt" getEnabled="PptRx_GetOptEnabled"
+                        screentip="Rótulos de valor" supertip="Liga ou desliga os rótulos de valor do gráfico do ThinQQ selecionado (o mesmo botão da faixa do Excel). Exige o ThinQQ 1.9.0 ou mais novo no Excel."/>
+          <toggleButton id="tglPptTotals" label="Totais" imageMso="AutoSum" tag="totals" getPressed="PptRx_GetOpt" onAction="PptRx_OnToggleOpt" getEnabled="PptRx_GetOptEnabled"
+                        screentip="Totais de cada categoria" supertip="Liga ou desliga os totais (colunas, barras e áreas empilhadas ou 100%, combinação e Mekko)."/>
+          <toggleButton id="tglPptConnectors" label="Conectores" imageMso="ShapeStraightConnector" tag="connectors" getPressed="PptRx_GetOpt" onAction="PptRx_OnToggleOpt" getEnabled="PptRx_GetOptEnabled"
+                        screentip="Conectores" supertip="Liga ou desliga as linhas entre os segmentos de colunas e barras empilhadas e as barras da cascata."/>
+          <dropDown id="ddPptNumFmt" label="Formato" tag="numfmt" getSelectedItemID="PptRx_GetOptItem" onAction="PptRx_OnOptItem" getEnabled="PptRx_GetOptEnabled" screentip="Formato dos números">
+            <item id="numfmtint" label="1.234"/>
+            <item id="numfmtdec1" label="1.234,5"/>
+            <item id="numfmtdec2" label="1.234,56"/>
+            <item id="numfmtpct0" label="12%"/>
+            <item id="numfmtpct1" label="12,3%"/>
+            <item id="numfmtmil" label="Milhares (1.234 → 1)"/>
+            <item id="numfmtmi" label="Milhões (1,2)"/>
+          </dropDown>
+          <dropDown id="ddPptLegend" label="Legenda" tag="legend" getSelectedItemID="PptRx_GetOptItem" onAction="PptRx_OnOptItem" getEnabled="PptRx_GetOptEnabled" screentip="Legenda do gráfico">
+            <item id="legendright" label="Direita"/>
+            <item id="legendnone" label="Nenhuma"/>
+          </dropDown>
+          <button id="btnPptCagr" label="Seta CAGR" imageMso="ArrowsMore" tag="cagr" onAction="PptRx_OnArrow" getEnabled="PptRx_GetOptEnabled"
+                  screentip="Seta CAGR" supertip="Acrescenta a seta da taxa de crescimento anual composta entre duas categorias, escolhidas pelo número numa lista."/>
+          <button id="btnPptDiff" label="Seta diferença" imageMso="ShapeUpArrow" tag="diff" onAction="PptRx_OnArrow" getEnabled="PptRx_GetOptEnabled"
+                  screentip="Seta diferença" supertip="Acrescenta a seta da diferença entre duas categorias, escolhidas pelo número numa lista."/>
+          <button id="btnPptClearAnn" label="Remover setas" imageMso="Delete" onAction="PptRx_OnClearAnn" getEnabled="PptRx_GetElemEnabled"
+                  screentip="Remover setas" supertip="Remove as setas (CAGR, diferença e delta) e os colchetes do gráfico do ThinQQ selecionado, como o Remover setas do Excel."/>
         </group>
       </tab>
     </tabs>

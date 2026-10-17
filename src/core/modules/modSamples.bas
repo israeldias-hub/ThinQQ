@@ -32,6 +32,51 @@ Private Function YearTable() As Variant
                       Array(2024, 140, 251, 80), Array(2025, 158, 276, 91))
 End Function
 
+' Escreve a tabela (Array de linhas; a 1a e o cabecalho, em negrito) a partir de topLeft e devolve o intervalo escrito.
+Public Function Samples_WriteTable(topLeft As Range, tbl As Variant) As Range
+    Dim r As Variant
+    WriteTable topLeft, tbl
+    r = tbl(LBound(tbl))
+    Set Samples_WriteTable = topLeft.Resize(UBound(tbl) - LBound(tbl) + 1, UBound(r) - LBound(r) + 1)
+End Function
+
+' Tabela de exemplo de cada tipo, no formato que o ChartData do tipo exige (spec 2026-10-15 secao 14.7): o "Inserir grafico" do PowerPoint
+' cria o grafico com ela e o usuario troca os numeros. Empty para tipo desconhecido. Pura.
+Public Function Samples_TableFor(kind As String) As Variant
+    Select Case kind
+        Case "stacked", "clustered", "stacked100", "barstacked", "barclustered", "barstacked100", "area", "area100", "line"
+            Samples_TableFor = YearTable()
+        Case "waterfall", "barwaterfall"
+            Samples_TableFor = Array(Array("Etapa", "Valor"), Array("Receita", 1200), Array("Custos", -700), Array("Despesas", -250), _
+                                     Array("EBITDA", "e"), Array("Impostos", -80), Array("Lucro", "e"))
+        Case "waterfallpair"
+            Samples_TableFor = Array(Array("Etapa", "2025", "2026"), Array("Receita", 1200, 1350), Array("Custos", -700, -760), _
+                                     Array("Despesas", -250, -240), Array("Lucro", "e", "e"))
+        Case "combo"
+            Samples_TableFor = Array(Array("Ano", "Loja", "Online", "Margem %"), Array(2023, 120, 40, 0.18), Array(2024, 130, 55, 0.2), _
+                                     Array(2025, 138, 72, 0.22))
+        Case "mekko"
+            Samples_TableFor = Array(Array("Região", "Eletro", "Móveis"), Array("Sul", 40, 10), Array("Sudeste", 20, 10), Array("Norte", 10, 10))
+        Case "mekkounits"
+            Samples_TableFor = Array(Array("Região", "Largura", "Eletro", "Móveis"), Array("Sul", 50, 40, 10), Array("Sudeste", 30, 20, 10), _
+                                     Array("Norte", 20, 10, 10))
+        Case "gantt"
+            Samples_TableFor = Array(Array("Atividade", "Início", "Fim"), Array("Planejamento", DateSerial(2026, 1, 5), DateSerial(2026, 1, 30)), _
+                                     Array("Execução", DateSerial(2026, 2, 2), DateSerial(2026, 3, 27)), Array("Entrega", DateSerial(2026, 3, 30), Empty))
+        Case "pie", "doughnut"
+            Samples_TableFor = Array(Array("Canal", "Vendas"), Array("Loja", 55), Array("Online", 30), Array("Atacado", 15))
+        Case "butterfly"
+            Samples_TableFor = Array(Array("Faixa", "Mulheres", "Homens"), Array("18-24", 12, 10), Array("25-34", 20, 18), _
+                                     Array("35-44", 16, 17), Array("45+", 9, 11))
+        Case "scatter"
+            Samples_TableFor = Array(Array("Loja", "Área (m²)", "Vendas"), Array("A", 120, 300), Array("B", 200, 410), Array("C", 90, 180), _
+                                     Array("D", 260, 520))
+        Case "bubble"
+            Samples_TableFor = Array(Array("Loja", "Área (m²)", "Vendas", "Clientes"), Array("A", 120, 300, 40), Array("B", 200, 410, 65), _
+                                     Array("C", 90, 180, 25), Array("D", 260, 520, 80))
+    End Select
+End Function
+
 ' Como depois de Core_Insert: o que o usuario faria em seguida (reposiciona rotulos, escala, anotacoes) ja vale na pasta de exemplos.
 Private Sub Settle(co As ChartObject)
     Core_SafeRefresh co.Chart

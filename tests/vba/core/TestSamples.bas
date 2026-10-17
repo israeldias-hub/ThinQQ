@@ -438,3 +438,27 @@ Cleanup2:
     Watchers_Stop
     Err.Raise en, es, ed
 End Sub
+
+' Parte G (1.8.0): cada um dos 21 tipos tem uma tabela de exemplo valida e o Core_Insert cria o grafico a partir dela.
+Public Sub Test_Samples_TableFor_AllKindsInsert()
+    Dim wb As Workbook, ws As Worksheet, k As Variant, rng As Range, n As Long, c As Chart
+    Set wb = NewTempWorkbook()
+    For Each k In Split("stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,gantt,pie,doughnut,butterfly,scatter,bubble,waterfallpair", ",")
+        AssertTrue Kinds_IsValid(CStr(k)), "tipo da lista: " & k
+        Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+        Set rng = Samples_WriteTable(ws.Range("A1"), Samples_TableFor(CStr(k)))
+        AssertEqual "", ChartData_FromRange(rng).Validate(), "tabela valida: " & k
+        ws.Activate
+        rng.Select
+        Core_ClearLastNotice
+        Core_Insert CStr(k)
+        Set c = Core_ActiveChart()
+        AssertTrue Not c Is Nothing, "grafico criado: " & k & " (" & Core_LastNotice() & ")"
+        AssertEqual CStr(k), Registry_ChartType(c)
+        n = n + 1
+    Next
+    AssertEqual 21, n
+    AssertTrue IsEmpty(Samples_TableFor("naoexiste"))
+    Watchers_Stop
+    CloseTemp wb
+End Sub

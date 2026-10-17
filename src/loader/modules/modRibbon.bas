@@ -7,6 +7,7 @@ Private mSupports As Object         ' cache de Core_Supports por ciclo de Invali
 Private mSupportsMissing As Boolean ' o core nao tem Core_Supports (versao 1.0.0) ou nao esta carregado: vale ate o fim do ciclo
 Private mSupportsProc As String     ' gancho de teste (Rx_TestSetSupportsProc); vazio = "Core_Supports"
 Private mTestProcSuffix As String   ' gancho de teste (Rx_TestSetFeatureProcSuffix): simula um core sem os procedimentos novos
+Private mPptInsert As Boolean       ' "Inserir tambem no slide" (sessao)
 Public Const RX_MSG_UPDATE As String = "Atualize o ThinQQ para usar este recurso."
 Public Const TUTORIAL_URL As String = "https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html"
 
@@ -43,7 +44,13 @@ Private Sub RunCoreFeature(procName As String, Optional arg As Variant)
     Dim p As String
     p = procName
     If BUILD_CONFIG = "Test" Then p = p & mTestProcSuffix
-    If IsMissing(arg) Then Loader_RunCore p Else Loader_RunCore p, arg
+    If IsMissing(arg) Then
+        Loader_RunCore p
+    ElseIf IsArray(arg) Then
+        Loader_RunCore p, arg(0), arg(1)            ' Array(a, b): dois argumentos (as opcoes da atualizacao automatica)
+    Else
+        Loader_RunCore p, arg
+    End If
     If Loader_RunCoreMissed() Then RxMsg RX_MSG_UPDATE, vbInformation
 End Sub
 
@@ -109,10 +116,43 @@ Private Function CoreOrWarn() As Boolean
     CoreOrWarn = True
 End Function
 
+' Inserir (menus Colunas, Barras, Cascata, Linha e area, Mais tipos). Com "Inserir tambem no slide" marcada (1.7.0) o grafico tambem vai ao
+' slide ativo (Core_InsertToPowerPoint; core anterior: aviso de atualizar). Rx_InsertProcFor e a parte testavel da escolha.
 Public Sub Rx_OnInsert(control As IRibbonControl)
+    Dim p As String
     On Error Resume Next
-    If CoreOrWarn() Then Loader_RunCore "Core_Insert", control.Tag
+    If CoreOrWarn() Then
+        p = Rx_InsertProcFor()
+        If p = "Core_InsertToPowerPoint" Then RunCoreFeature p, control.Tag Else Loader_RunCore p, control.Tag
+    End If
     Loader_InvalidateRibbon                 ' o grafico novo fica selecionado: o tipo mudou
+End Sub
+
+Public Function Rx_InsertProcFor() As String
+    If mPptInsert Then Rx_InsertProcFor = "Core_InsertToPowerPoint" Else Rx_InsertProcFor = "Core_Insert"
+End Function
+
+' Gancho de teste: marca/desmarca "Inserir tambem no slide" sem a faixa. So existe no build de Teste.
+Public Sub Rx_SetPptInsertForTest(v As Boolean)
+    If BUILD_CONFIG <> "Test" Then Exit Sub
+    mPptInsert = v
+End Sub
+
+' "Inserir tambem no slide" (1.7.0): estado so da sessao, no loader (nao exige o core). Nunca propaga erro.
+Public Sub Rx_GetPptInsert(control As IRibbonControl, ByRef pressed)
+    On Error Resume Next
+    pressed = mPptInsert
+End Sub
+
+Public Sub Rx_OnPptInsert(control As IRibbonControl, pressed As Boolean)
+    On Error Resume Next
+    mPptInsert = pressed
+End Sub
+
+' Mostrar/ocultar molduras (1.7.0): todas as molduras da pasta ativa. Sempre ativo; core anterior: aviso de atualizar.
+Public Sub Rx_OnPptFrames(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_ToggleLinkFrames"
 End Sub
 
 Public Sub Rx_GetEnabled(control As IRibbonControl, ByRef enabled)
@@ -246,10 +286,62 @@ Public Sub Rx_OnPptChart(control As IRibbonControl)
     If CoreOrWarn() Then RunCoreFeature "Core_CopyToPowerPoint", "chart"
 End Sub
 
+' Vincular celula ao texto selecionado no PowerPoint (1.9.0): age sobre a celula ativa (sem grafico); sempre ativo; core anterior: aviso de
+' atualizar.
+Public Sub Rx_OnPptLinkText(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_PptLinkTextFromPpt"
+End Sub
+
+' Inserir tabela vinculada no slide (1.10.0): age sobre as celulas selecionadas (sem grafico); sempre ativo; core anterior: aviso de atualizar.
+Public Sub Rx_OnPptTable(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_PptInsertTable"
+End Sub
+
+' Titulo ligado a uma celula (1.9.0): o core pergunta a celula (InputBox) e liga o titulo do grafico ativo; core anterior: aviso de atualizar.
+Public Sub Rx_OnLinkTitle(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_LinkTitle"
+    Loader_InvalidateRibbon
+End Sub
+
 ' Atualizar graficos no PowerPoint (Parte A): nao exige grafico selecionado; core anterior: aviso de atualizar.
 Public Sub Rx_OnPptSync(control As IRibbonControl)
     On Error Resume Next
     If CoreOrWarn() Then RunCoreFeature "Core_PptSyncOpen"
+End Sub
+
+' Opcoes da atualizacao automatica (1.6.0): "autoon" e "autonew" (tag do controle). Core anterior (sem Core_PptGetFlag) ou sem core: a caixa
+' fica desmarcada; o clique avisa "Atualize". Nunca propaga erro.
+Public Sub Rx_GetPptFlag(control As IRibbonControl, ByRef pressed)
+    On Error Resume Next
+    pressed = False
+    pressed = Rx_PptFlagValue(CStr(control.Tag))
+End Sub
+
+Public Sub Rx_OnPptFlag(control As IRibbonControl, pressed As Boolean)
+    On Error Resume Next
+    Rx_OnPptFlagCore CStr(control.Tag), pressed
+End Sub
+
+' Partes testaveis dos dois callbacks (IRibbonControl nao e criavel nos testes). Rx_PptFlagValue le o estado real do core (False sem core ou
+' com um core sem o procedimento: Loader_RunCore devolve Empty); Rx_OnPptFlagCore grava e redesenha a faixa.
+Public Function Rx_PptFlagValue(tag As String) As Boolean
+    Dim v As Variant, p As String
+    On Error Resume Next
+    If Loader_CoreWorkbook() Is Nothing Then Exit Function
+    p = "Core_PptGetFlag"
+    If BUILD_CONFIG = "Test" Then p = p & mTestProcSuffix
+    v = Loader_RunCore(p, tag)
+    If Not IsEmpty(v) Then Rx_PptFlagValue = CBool(v)
+    If Err.Number <> 0 Then Rx_PptFlagValue = False
+End Function
+
+Public Sub Rx_OnPptFlagCore(tag As String, pressed As Boolean)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_PptSetFlag", Array(tag, pressed)
+    Loader_InvalidateRibbon
 End Sub
 
 Public Sub Rx_OnSamples(control As IRibbonControl)
