@@ -45,8 +45,6 @@ foreach ($f in @('src\loader\forms\frmUpdate.json', 'src\core\forms\frmAnnotatio
 # os itens das listas, que o código põe (AddItem "..."), também são rótulos (Mostrar: Todos...; Ao abrir a apresentação: Perguntar...)
 foreach ($l in @($known)) { if ($l.EndsWith(':')) { [void]$known.Add($l.TrimEnd(':')) } }
 foreach ($m in [regex]::Matches((Read-Utf8 (Join-Path $RepoRoot 'src\ppt\forms\frmTqqLinks.vba')), '\.AddItem "([^"]+)"')) { [void]$known.Add($m.Groups[1].Value) }
-# 1.11.0 (U4): as duas caixas saíram da faixa do Excel, mas o tutorial ainda as cita (a U5 reescreve o texto e remove esta linha)
-foreach ($l in @('Atualização automática ligada', 'Novos vínculos atualizam automaticamente')) { [void]$known.Add($l) }
 Check ($known.Count -ge 60) "rótulos conhecidos carregados ($($known.Count))"
 Check ($known.Contains('Colunas empilhadas') -and $known.Contains('Pular esta versão') -and $known.Contains('OK')) 'faixa e formulários presentes no conjunto'
 Check ($known.Contains('Vínculos') -and $known.Contains('Dados do Excel') -and $known.Contains('Atualizar tudo')) 'faixa do PowerPoint presente no conjunto'
@@ -514,6 +512,21 @@ $pptMessages = @(
     @('ppt', 'powerpoint', 'O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e tente de novo.'),
     @('ppt', 'powerpoint', 'Selecione um ou mais gráficos do ThinQQ vinculados ao Excel.'),
     @('ppt', 'powerpoint', 'Selecione um ou mais gráficos, textos ou tabelas do ThinQQ vinculados ao Excel.'),   # Atualizar e Automatico (1.11.0)
+    # 1.11.0 (U3/U5): diálogo Vínculos, estados e Desvincular (modPptTqq.bas, modPptLinks.bas, modCoreApi.bas)
+    @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para ver o estado dos vínculos.'),
+    @('ppt', 'powerpoint', 'O ThinQQ não está carregado no Excel: abra o Excel com o ThinQQ para ver o estado dos vínculos.'),
+    @('ppt', 'powerpoint', 'Selecione um ou mais elementos na lista.'),
+    @('ppt', 'powerpoint', 'Abrir no Excel vale para gráficos. Para mudar um texto ou uma tabela vinculados, altere as células no Excel e clique em Atualizar.'),
+    @('ppt', 'powerpoint', 'elemento(s)? O ThinQQ deixa de atualizá-los e eles saem desta lista. '),
+    @('ppt', 'powerpoint', 'Um gráfico continua com o vínculo do próprio PowerPoint com a pasta do Excel (Arquivo > Informações > Editar Links para Arquivos).'),
+    @('ppt', 'powerpoint', 'Verificados: '),
+    @('ppt', 'powerpoint', '. Com dados novos: '),
+    @('ppt', 'powerpoint', '. Com problema: '),
+    @('ppt', 'powerpoint', 'Desvinculados: '),
+    @('ppt', 'powerpoint', 'Automático: '),
+    @('ppt', 'powerpoint', 'Manual: '),
+    @('ppt', 'powerpoint', 'Não foi possível concluir: '),
+    @('core', 'powerpoint', 'Não foi possível verificar os vínculos: '),
     @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada).'),
     @('ppt', 'powerpoint', 'Marcado para atualizar automaticamente. Para os gráficos acompanharem a pasta de origem, abra o Excel com o ThinQQ (1.6.0 ou mais novo).'),
     @('ppt', 'powerpoint', 'A atualização automática está desligada no Excel: aba ThinQQ > PowerPoint > Atualização automática ligada.'),
@@ -889,7 +902,9 @@ Check ($pptTqqSrc -match '(?s)If turnOn Then PptTqq_SyncEntries pres, PptTqq_Ent
 Check ($pptTqqSrc.Contains('PPT_API_SHAPES As Long = 2') -and $syncSrc -match 'CORE_PPT_API As Long = ([2-9]|\d{2,})\b') 'atualização automática (código): o contrato do suplemento com o core passa à API 2 (ou maior: 3 = 1.8.0)'
 
 # rótulos exatos das duas faixas (a do Excel tem as caixas, a do PowerPoint o botão de alternância e o botão)
-$lblOn = 'Atualização automática ligada'; $lblNew = 'Novos vínculos atualizam automaticamente'; $lblAuto = 'Atualizar automaticamente'; $lblOnce = 'Atualizar'   # 1.11.0: era 'Atualizar uma vez'
+$lblOn = 'Atualização automática ligada'; $lblNew = 'Novos vínculos atualizam automaticamente'   # 1.11.0: legendas ANTIGAS (caixas do Excel até a 1.10.0): só texto histórico, nunca span.ui nem caminho de menu
+$lblOpt1 = 'Acompanhar mudanças do Excel (bandeiras e automáticos)'; $lblOpt2 = 'Novos vínculos nascem automáticos'   # 1.11.0: opções do diálogo Vínculos
+$lblAuto = 'Atualizar automaticamente'; $lblOnce = 'Atualizar'   # 1.11.0: era 'Atualizar uma vez'
 $xlOnNode = $ribbon.SelectSingleNode("//*[@id='chkPptAutoOn']"); $xlNewNode = $ribbon.SelectSingleNode("//*[@id='chkPptAutoNew']")
 $pAutoNode = $pptRibbon.SelectSingleNode("//*[@id='tglPptAuto']"); $pOnceNode = $pptRibbon.SelectSingleNode("//*[@id='btnPptUpdateSel']")
 Check ($null -eq $xlOnNode) 'faixa do Excel (1.11.0): chkPptAutoOn saiu (as opções do automático ficam em Vínculos, no PowerPoint)'
@@ -900,7 +915,8 @@ Check ($xlChk.Count -ge 1) "faixa do Excel: as caixas de seleção entram na reg
 if ($parsed) {
     Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']//*[local-name()='h3'][@id='ppt-auto']")) 'tutorial: a subseção id="ppt-auto" está dentro de #powerpoint'
     Check ($xml.SelectNodes("//a[@href='#ppt-auto']").Count -ge 3) 'tutorial: a subseção #ppt-auto tem links de #powerpoint, da referência da faixa e dos limites'
-    foreach ($l in $lblOn, $lblNew, $lblAuto, $lblOnce) { Check ($pptUi -contains $l) "tutorial: '$l' citado como span.ui dentro de #powerpoint" }
+    foreach ($l in $lblOpt1, $lblOpt2, $lblAuto, $lblOnce) { Check ($pptUi -contains $l) "tutorial: '$l' citado como span.ui dentro de #powerpoint" }
+    foreach ($l in $lblOn, $lblNew) { Check ($ui -notcontains $l) "tutorial (1.11.0): a legenda antiga '$l' não é mais citada como controle (span.ui)" }
 }
 # o texto da subseção #ppt-auto (do h3 até o próximo h3) sem tags nem entidades
 function Get-SubsectionText([string]$id) {
@@ -937,7 +953,7 @@ $clAuto = Get-AutoChangelogBlock $cl
 $notesNorm = ($notesText -replace '\s+', ' ')
 Check ($autoTut.Length -gt 3000 -and $autoRec.Length -gt 1500 -and $clAuto.Length -gt 1000) "atualização automática: subseção do tutorial ($($autoTut.Length)), Recursos do README ($($autoRec.Length)) e CHANGELOG da 1.6.0 ($($clAuto.Length)) lidos"
 
-$labelPins = @($lblOn, $lblNew, $lblAuto, $lblOnce)
+$labelPins = @($lblOpt1, $lblOpt2, $lblAuto, $lblOnce)
 $clAutoPhrases = @(
     $lblOn, $lblNew, $lblAuto, $lblOnce, $debTextLong, $waitText, $retryText, $tagAuto, $tagIdx, 'nunca abre pasta', 'Core_PptSyncShapes', 'verificado em PowerPoint real',
     '### Adicionado', '### Alterado', 'sem diferenciar maiúsculas', 'Desfazer do Excel')
@@ -977,7 +993,7 @@ foreach ($place in $autoPlaces.Keys) {
 }
 # os quatro rótulos também aparecem na seção #powerpoint, no README (Recursos) e nos itens manuais, com o caminho de menu certo
 foreach ($l in $labelPins) { Check ($autoRec.Contains($l)) "README Recursos cita o rótulo '$l'" }
-Check ($autoRec.Contains('aba ThinQQ > Elemento selecionado > Atualizar automaticamente') -and $autoRec.Contains('No Excel, ThinQQ > PowerPoint:')) 'README Recursos: caminhos de menu do PowerPoint e do Excel'
+Check ($autoRec.Contains('aba ThinQQ > Elemento selecionado > Atualizar automaticamente') -and $autoRec.Contains('no PowerPoint: **Vínculos** > Opções') -and $autoRec.Contains('até a 1.10.0, duas caixas do menu PowerPoint do Excel')) 'README Recursos: caminho do automático (PowerPoint) e as opções que saíram do Excel'
 Check ($readmeText.Contains('Arquitetura') -and $readme.Contains('**Atualização automática (1.6.0):** `clsAppEvents`') -and $readme.Contains('`PptAuto_Tick`') -and $readme.Contains('API 2')) 'README (Arquitetura): o motor automático (clsAppEvents, PptAuto_OnChange, PptAuto_Tick, API 2)'
 # a CHANGELOG: estrutura que o publicar-release espera (cabeçalho, ### e entradas "- ") e as linhas do delta ficam em [1.5.0]
 Check ($clAuto -match '(?m)^### Adicionado\s*$' -and @([regex]::Matches($clAuto, '(?m)^\s*[-*]\s+\S')).Count -ge 4) 'CHANGELOG da 1.6.0 ([Não lançado] ou, depois do publicar-release, [1.6.0]): seção ### Adicionado e pelo menos 4 entradas "- "'
@@ -996,7 +1012,7 @@ $mvAutoPins = @{
     62 = @('duas apresentações abertas', 'mesma pasta', 'somente leitura')
     63 = @('texto em edição', 'aguardando ação OLE', 'sonda P3', $retryText, 'PptAuto: desistiu')
     64 = @('somente leitura', $lblOnce, 'só na memória')
-    65 = @($lblOn, $lblNew, 'Copiar como gráfico vinculado', 'nasce automático', 'nasce manual')
+    65 = @($lblOpt1, $lblOpt2, $lblOn, $lblNew, 'Copiar como gráfico vinculado', 'nasce automático', 'nasce manual')
     66 = @('20 gráficos', 'tempo', 'Excel fica ocupado', $waitText)
     67 = @('salvar a apresentação', 'continua automático', 'descarregar o ThinQQ', 'ciclo pendente')
     68 = @('.ppam', '1.5.x', 'só grava a marca', 'Atualize o ThinQQ no Excel para a atualização automática funcionar', 'Atualize o ThinQQ no Excel para atualizar só os gráficos selecionados')
@@ -1074,7 +1090,7 @@ $mvInsPins = @{
     70 = @('imprimir', 'não aparece no papel')
     71 = @('inserir uma linha', 'apagar uma linha', 'Alterar dados')
     72 = @('Mover ou copiar', 'moldura órfã')
-    73 = @('PowerPoint fechado', 'cinco menus', 'Novos vínculos atualizam automaticamente')
+    73 = @('PowerPoint fechado', 'cinco menus', $lblOpt2, 'Novos vínculos atualizam automaticamente')
     74 = @('Nada foi criado', $lblFrames, 'Atualize o ThinQQ para usar este recurso.', 'sem moldura')
 }
 foreach ($n in ($mvInsPins.Keys | Sort-Object)) {
@@ -1178,7 +1194,7 @@ $mvCriarPins = @{
     75 = @($lblCriar, '21 tipos', 'PG8', 'menos de 3 s', 'menos de 12 s')
     76 = @('PG9', 'Release', $lblEditData)
     77 = @('PG2', 'AppActivate', 'PG1', 'continua aberto', 'O Excel abriu a planilha de dados do gráfico (veja a barra de tarefas).', 'Gráfico criado. Clique em OK')
-    78 = @('Gráfico 1', 'Atualização automática ligada', 'em até 3 s')
+    78 = @('Gráfico 1', $lblOpt1, 'em até 3 s')
     79 = @('PG5', 'Ctrl+B', 'Salvar como', 'dados ThinQQ.xlsx')
     80 = @('PG4', 'os dois arquivos juntos', 'vínculo indisponível', 'somente leitura')
     81 = @('Pasta de dados não encontrada', 'Editar Dados', 'ponha-a na mesma pasta da apresentação')
@@ -1418,7 +1434,7 @@ $mvTextLines = @(($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. 
 Check ($mvTextLines.Count -eq 9 -and @($mvNums | Where-Object { $_ -ge 93 -and $_ -le 101 }).Count -eq 9 -and $mvNums.Count -ge 101) "README: os itens manuais 93 a 101 existem, numerados sem buracos ($($mvTextLines.Count); total $($mvNums.Count))"
 Check (@($mvTextLines | Where-Object { $_ -notmatch 'não verificado em PowerPoint real' }).Count -eq 0) 'README (itens 93 a 101): todo item marca "não verificado em PowerPoint real"'
 $mvTextPins = @{
-    93  = @($lblTextPpt, $lblElem, 'Texto vinculado à célula Pasta.xlsx!Planilha!B2.', 'O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular.', 'Abra a pasta no Excel (com o ThinQQ)', 'Novos vínculos atualizam automaticamente', 'caixa de texto inteira', 'cursor')
+    93  = @($lblTextPpt, $lblElem, 'Texto vinculado à célula Pasta.xlsx!Planilha!B2.', 'O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular.', 'Abra a pasta no Excel (com o ThinQQ)', $lblOpt2, 'Novos vínculos atualizam automaticamente', 'caixa de texto inteira', 'cursor')
     94  = @($lblTextXl, 'P5', 'cursor sem trecho marcado', 'Selecione no Excel a célula com o valor e tente de novo.', "clique de novo em 'Vincular célula ao texto selecionado'.")
     95  = @('Texto editado no PowerPoint fora do campo vinculado (vincule de novo): 1.', 'vincular de novo', 'Sem mudança')
     96  = @('P7', '####', '255 caracteres', 'coluna estreita', 'percentual', 'moeda')
@@ -1505,7 +1521,7 @@ $tabelaPlaces = [ordered]@{
     'tutorial #ppt-paridade' = @{ text = $paridadeTut; phrases = @(
         'Think-cell: o que o ThinQQ já tem', 'Atualizar gráficos', 'Atualizar uma vez', 'Atualizar automaticamente', 'Ao abrir', 'Inserir também no slide', 'moldura verde', 'Inserir gráfico', 'Editar dados',
         'Gráfico do ThinQQ', 'Empacotar para enviar', 'Texto vinculado ao Excel', 'Título ligado a uma célula...', $lblTable, 'Data Links', 'Manage Data Sources', 'Editar Links para Arquivos', 'Alterar Origem',
-        'bolas de Harvey', 'Tableau', 'Planilha interna do elemento', 'não foi verificado num PowerPoint e Excel reais', 'itens 61 a 109', '1.6.0', '1.7.0', '1.8.0', '1.9.0', '1.10.0') }
+        'bolas de Harvey', 'Tableau', 'Planilha interna do elemento', 'não foi verificado num PowerPoint e Excel reais', 'itens 61 a 118', '1.6.0', '1.7.0', '1.8.0', '1.9.0', '1.10.0', '1.11.0') }
     'tutorial #ppt-mensagens' = @{ text = (Get-SubsectionText 'ppt-mensagens'); phrases = $tableMsgs + @('Tabela vinculada criada no slide N') }
     'tutorial #ppt-fora' = @{ text = $foraTut; phrases = @('Think-cell: o que o ThinQQ já tem', 'Tableau', 'Datasheet interno') }
     'README Recursos' = @{ text = $tabelaRec; phrases = @(
@@ -1537,7 +1553,7 @@ $mvTabPins = @{
     103 = @('Formatar no PowerPoint e atualizar', 'a formatação feita no PowerPoint fica', 'Atualizar gráficos')
     104 = @('dentro', 'TQQ_T_', 'herdam a formatação da última', 'perde as do fim', 'não apaga nenhuma outra forma', '75 linhas')
     105 = @('30 linhas por 10 colunas', '3,3 s', 'menos de 20 s')
-    106 = @('Atualização automática ligada', 'Novos vínculos atualizam automaticamente', 'cerca de 2 s', 'Sem mudança')
+    106 = @($lblOpt1, $lblOpt2, 'Atualização automática ligada', 'Novos vínculos atualizam automaticamente', 'cerca de 2 s', 'Sem mudança')
     107 = @('Deck só com uma tabela', 'Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com ''Copiar como gráfico vinculado'').', 'somente leitura')
     108 = @('dentro de um grupo', 'não** atualiza', 'Editar dados vale para gráficos do ThinQQ. Para mudar a tabela vinculada, altere as células no Excel e atualize.', 'Este comando vale só para gráficos do ThinQQ (não para tabela vinculada).')
     109 = @('Salve a pasta de trabalho antes de vincular: o vínculo aponta para o arquivo salvo.', 'A tabela vinculada não aceita células mescladas no intervalo.', 'A tabela vinculada aceita até 75 linhas e 25 colunas.', 'Selecione um único intervalo retangular.', 'Selecione as células da tabela.', '255', 'Alt+Enter', 'Gerenciador de Nomes')
@@ -1546,5 +1562,120 @@ foreach ($n in ($mvTabPins.Keys | Sort-Object)) {
     $line = @($mvTabLines | Where-Object { $_ -match "^$n\. " })
     foreach ($ph in $mvTabPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
 }
+# ---- Atualizar como o think-cell (1.11.0, Tarefa U5): bandeira, Vínculos, aba contextual, manual por padrão. Cada afirmação é conferida contra o CÓDIGO e POR LUGAR:
+# subseções #ppt-auto (reescrita) e #ppt-vinculos do tutorial, Recursos, Arquitetura e Limitações do README, itens manuais 110 a 118 e a [Não lançado] do
+# CHANGELOG. As linhas da 1.11.0 ficam em [Não lançado] até o publicar-release 1.11.0 (leem-se só [Não lançado] e [1.11.0]; dentro de "## [1.10.1]" ou
+# "## [1.10.0]" elas anunciariam a 1.11.0 como entregue antes: um pino recusa).
+$lblFlag = 'Dados novos: atualizar'; $lblLinks = 'Vínculos'
+$stateSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modPptState.bas')
+$linksSrc = Read-Utf8 (Join-Path $RepoRoot 'src\ppt\modules\modPptLinks.bas')
+$flagNode = $pptRibbon.SelectSingleNode("//*[@id='btnPptUpdateNew']")
+$cFlagNode = $pptRibbon.SelectSingleNode("//*[@id='cbtnUpdateNew']")
+$linksNode = $pptRibbon.SelectSingleNode("//*[@id='btnPptLinks']")
+$ctxNode = $pptRibbon.SelectSingleNode("//*[local-name()='contextualTabs']/*[local-name()='tabSet'][@idMso='TabSetChartTools']")
+Check ($null -ne $flagNode -and $flagNode.GetAttribute('label') -ceq $lblFlag -and $flagNode.GetAttribute('image') -ceq 'tqq_flag' -and $flagNode.GetAttribute('getVisible') -ceq 'PptRx_GetNewVisible' -and $null -ne $cFlagNode -and $cFlagNode.GetAttribute('label') -ceq $lblFlag) "faixa do PowerPoint (1.11.0): a bandeira '$lblFlag' (ícone tqq_flag, getVisible) na aba fixa e na contextual"
+Check ($null -ne $linksNode -and $linksNode.GetAttribute('label') -ceq $lblLinks -and $linksNode.GetAttribute('onAction') -ceq 'PptRx_OnLinks') "faixa do PowerPoint (1.11.0): o botão '$lblLinks' abre o diálogo"
+Check ($null -ne $ctxNode) 'faixa do PowerPoint (1.11.0): a aba contextual está em TabSetChartTools (o único idMso de contexto)'
+Check (@($pptRibbon.SelectNodes("//*[local-name()='contextualTabs']//*[@idMso]")).Count -eq 1) 'faixa do PowerPoint (1.11.0): a aba contextual usa um único idMso de contexto (TabSetChartTools)'
+Check ($stateSrc.Contains('PPTSTATE_TAG As String = "TQQ_STATE"') -and $stateSrc.Contains('PPTSTATE_TAG_LINKIDX As String = "TQQ_LINKIDX"') -and $pptTqqSrc.Contains('PPT_API_STATES As Long = 6') -and $syncSrc -match 'CORE_PPT_API As Long = (\d+)\b' -and [int]$Matches[1] -ge 6) 'bandeira (código): TQQ_STATE e TQQ_LINKIDX no core e a API 6 (Core_PptLinkStates) no contrato do suplemento'
+Check ($stateSrc.Contains('PptState_SavedOf') -and $stateSrc.Contains('PptState_RestoreSaved') -and $coreSrc.Contains('Public Function Core_PptLinkStates(')) 'bandeira (código): o estado "salva" da apresentação é lido e devolvido (Saved) e Core_PptLinkStates existe'
+Check ($pptTqqSrc.Contains('PPT_DEFAULT_OPENMODE As String = "never"')) 'abrir (código): o padrão de "Ao abrir a apresentação" é Não perguntar (never)'
+Check ($linksSrc.Contains('frmTqqLinks.Show vbModeless') -and $pptSrc -notmatch '\.BreakLink') 'Vínculos (código): o diálogo é não modal e o ThinQQ nunca chama BreakLink'
+Check ((Read-Utf8 (Join-Path $RepoRoot 'src\ppt\forms\frmTqqLinks.json')).Contains($lblOpt1) -and (Read-Utf8 (Join-Path $RepoRoot 'src\ppt\forms\frmTqqLinks.json')).Contains($lblOpt2)) 'Vínculos (código): o formulário tem as duas opções do automático'
+Check ($pptUi -contains $lblFlag -and $pptUi -contains $lblLinks -and $pptUi -contains 'Atualizar tudo') "tutorial (1.11.0): '$lblFlag', '$lblLinks' e 'Atualizar tudo' são citados como span.ui em #powerpoint"
+if ($parsed) {
+    foreach ($a in 'ppt-auto', 'ppt-vinculos') { Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']//*[local-name()='h3'][@id='$a']")) "tutorial (1.11.0): a subseção id=""$a"" é um h3 dentro de #powerpoint" }
+    Check ($xml.SelectNodes("//a[@href='#ppt-vinculos']").Count -ge 2) 'tutorial (1.11.0): a subseção #ppt-vinculos tem links da faixa e das opções'
+    Check ($null -ne $xml.SelectSingleNode("//*[contains(concat(' ', normalize-space(@class), ' '), ' flagfig ')]") -and $html.Contains('.flagfig i::after')) 'tutorial (1.11.0): a figura da bandeira é CSS (flagfig), sem imagem nova'
+    Check (-not ($html -match 'data:image[^"]{0,40}flag')) 'tutorial (1.11.0): a bandeira não é um PNG embutido'
+}
+$vincTut = Get-SubsectionText 'ppt-vinculos'
+$thinkRaw = [regex]::Match($readme, '(?s)\*\*Atualizar como o think-cell \(1\.11\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value
+$thinkRec = ($thinkRaw -replace '\s+', ' ')
+$archRaw = [regex]::Match($readme, '(?s)## Arquitetura(?<b>.*?)## Estrutura').Groups['b'].Value
+$archTxt = ($archRaw -replace '\s+', ' ')
+$thinkMsgs = @('Atualize o ThinQQ no Excel para ver o estado dos vínculos.', 'O ThinQQ não está carregado no Excel: abra o Excel com o ThinQQ para ver o estado dos vínculos.',
+    'Selecione um ou mais gráficos, textos ou tabelas do ThinQQ vinculados ao Excel.', 'Selecione um ou mais elementos na lista.', 'Verificados: N. Com dados novos: M. Com problema: K.', 'Não foi possível verificar os vínculos: motivo (código).')
+$thinkClPhrases = @('Atualizar como o think-cell (1.11.0)', $lblFlag, 'tqq_flag', 'getVisible', 'TQQ_STATE', 'TQQ_LINKIDX', 'Vínculos', 'não modal', 'nunca o quebra', 'Selecionar tudo', 'Manual', 'TabSetChartTools',
+    'API 6', 'Core_PptLinkStates', 'todo vínculo nasce manual', 'Decks da 1.6 a 1.10 continuam como estavam', 'Vínculos > Selecionar tudo > Manual', 'Não perguntar', 'Desfazer do Excel', 'Presentation.Saved', 'Acompanhar mudanças do Excel (bandeiras e automáticos)',
+    'Novos vínculos nascem automáticos', 'Atualizar tudo', 'P-U3', 'não promete dados congelados', 'itens 110 a 118', '### Adicionado', '### Alterado', '### Não verificado em PowerPoint real') + $thinkMsgs
+function Get-ThinkChangelogBlock([string]$text) {
+    foreach ($h in '\[Não lançado\]', '\[1\.11\.0\]') {
+        $b = Get-ChangelogSection $text $h
+        if ($b.Contains('Atualizar como o think-cell (1.11.0)')) { return $b }
+    }
+    return ''
+}
+function Get-ThinkChangelogMissing([string]$block) {
+    $miss = @($thinkClPhrases | Where-Object { -not $block.Contains($_) })
+    if (-not ($block -match '(?m)^### Adicionado\s*$' -and @([regex]::Matches($block, '(?m)^- \S')).Count -ge 4)) { $miss += 'estrutura (### Adicionado e 4 entradas "- ")' }
+    if ($block -match '(?m)\S[^
+]*[ 	]-[ 	](Atualizar como o think-cell|Documentação) \(1\.11\.0\)') { $miss += 'entradas coladas na mesma linha' }
+    return $miss
+}
+$clThink = Get-ThinkChangelogBlock $cl
+Check ($clThink.Length -gt 2000) "CHANGELOG da 1.11.0 lido de [Não lançado] ou [1.11.0] ($($clThink.Length))"
+$clThinkLine = "### Adicionado`n- Atualizar como o think-cell (1.11.0): " + (($thinkClPhrases | Where-Object { $_ -notmatch '^(Atualizar como o think-cell|###)' }) -join ' ') + "`n- b`n- c`n- d`n### Alterado`n- e`n### Não verificado em PowerPoint real`n- f`n"
+Check (@(Get-ThinkChangelogMissing (Get-ThinkChangelogBlock "## [Não lançado]`n`n$clThinkLine`n## [1.10.1] - 2026-10-17`n`n- x`n")).Count -eq 0) 'CHANGELOG (sintético): as linhas da 1.11.0 em [Não lançado] satisfazem os pinos'
+Check (@(Get-ThinkChangelogMissing (Get-ThinkChangelogBlock "## [Não lançado]`n`n## [1.11.0] - 2026-11-01`n`n$clThinkLine`n## [1.10.1] - 2026-10-17`n`n- x`n")).Count -eq 0) 'CHANGELOG (sintético): depois do publicar-release 1.11.0 as linhas na [1.11.0] satisfazem os pinos'
+Check (@(Get-ThinkChangelogMissing (Get-ThinkChangelogBlock "## [Não lançado]`n`n## [1.10.1] - 2026-10-17`n`n- outra coisa`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas da 1.11.0 em lugar nenhum = falha'
+Check (@(Get-ThinkChangelogMissing (Get-ThinkChangelogBlock "## [Não lançado]`n`n$($clThinkLine -replace "`n- b", ' - Atualizar como o think-cell (1.11.0): b')`n## [1.10.1] - 2026-10-17`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): entradas coladas na mesma linha = falha'
+foreach ($old in '\[1\.10\.1\]', '\[1\.10\.0\]') {
+    Check (-not (Get-ChangelogSection $cl $old).Contains('Atualizar como o think-cell (1.11.0)')) "CHANGELOG: a $($old -replace '\\', '') não contém linhas da 1.11.0 (elas ficam em [Não lançado]; README, Publicar uma versão)"
+}
+Check ((Get-ChangelogSection $cl '\[1\.10\.0\]').Contains('Tabela vinculada (1.10.0)') -and (Get-ChangelogSection $cl '\[1\.10\.1\]').Contains('Vídeos do ThinQQ')) 'CHANGELOG: as linhas das versões anteriores (1.10.0 e 1.10.1) continuam intactas'
+$thinkPlaces = [ordered]@{
+    'tutorial #ppt-auto' = @{ text = $autoTut; phrases = @(
+        'Atualizar como o think-cell: manual, bandeira e automático', 'Todo vínculo nasce manual', $lblFlag, $lblOpt1, $lblOpt2, 'TQQ_STATE', 'TQQ_LINKIDX', 'nenhuma caixa de aviso aparece', 'Silêncio no sucesso',
+        'não promete que os dados do slide estão congelados', 'cerca de 0,3 s', 'item 110', 'Nada muda em silêncio no seu arquivo', 'Vínculos > Selecionar tudo > Manual', 'Ao abrir a apresentação', 'Não perguntar',
+        'Atualizar tudo', 'A bandeira não aparece sobre o gráfico no slide', 'Ctrl+Z', 'não há garantia de dados congelados no slide', 'O vínculo do próprio Office', 'itens 110 a 118') }
+    'tutorial #ppt-vinculos' = @{ text = $vincTut; phrases = @(
+        'Vínculos (o Data Links)', 'Data Links', 'sem pergunta nenhuma', 'sem bloquear o PowerPoint', 'Slide', 'Elemento', 'Modo', 'Estado', 'Origem', 'Todos', 'Dados novos', 'Atualizados', 'Automáticos', 'Com problema',
+        'Atualizar', 'Atualizar com dados novos', 'Automático', 'Manual', 'Ir para', 'Abrir no Excel', 'Verificar', 'Desvincular', 'Selecionar tudo', 'Fechar', $lblOpt1, $lblOpt2, 'Ao abrir a apresentação:', 'Não perguntar', 'Perguntar',
+        'Atualizar sempre', 'vínculo do próprio PowerPoint com a pasta do Excel continua', 'Pasta não encontrada', 'Não encontrado na pasta', 'Sem vínculo', 'Não verificado (pasta fechada)', 'Sem Revert', 'Ctrl+Z',
+        'P-U3', 'aba contextual', 'somente leitura', 'itens 110 a 118', $thinkMsgs[0], $thinkMsgs[1]) }
+    'tutorial #ppt-mensagens' = @{ text = (Get-SubsectionText 'ppt-mensagens'); phrases = $thinkMsgs + @('Desvincular N elemento(s)? O ThinQQ deixa de atualizá-los e eles saem desta lista.', 'Desvinculados: N.', 'Manual: N elemento(s).', 'Não foi possível concluir: motivo (código).') }
+    'tutorial #ppt-paridade' = @{ text = $paridadeTut; phrases = @($lblFlag, 'Atualização manual por padrão e indicador de dados novos', 'Mini toolbar', 'aba contextual', 'Revert', 'Ctrl+Z', 'Desvincular', 'Editar Links para Arquivos', '1.11.0', 'itens 61 a 118') }
+    'README Recursos (1.11.0)' = @{ text = $thinkRec; phrases = @(
+        $lblFlag, 'tqq_flag', 'getVisible', 'TQQ_STATE', 'frmTqqLinks', 'não modal', 'sem perguntar nada', 'TabSetChartTools', 'P-U3', 'API 6', 'Core_PptLinkStates', 'BreakLink', 'Selecionar tudo', 'Manual', 'Não perguntar',
+        'Revert', 'Ctrl+Z', '0,3 s', 'nunca que os dados do slide estão congelados', 'Decks antigos', 'Vínculos** > **Selecionar tudo** > **Manual', 'Não verificado em PowerPoint real', 'itens 110 a 118') + $thinkMsgs }
+    'README Arquitetura' = @{ text = $archTxt; phrases = @('Estado, bandeira e Vínculos (1.11.0)', 'modPptState', 'TQQ_STATE', 'TQQ_LINKIDX', 'modPptLinks', 'frmTqqLinks', 'API 6', 'Core_PptLinkStates', 'PptLinks_OnSelChange', 'PptState_SavedOf', 'PPT_API_STATES', 'PptTqq_AnyNew') }
+    'README Limitações' = @{ text = $readmeLimTxt; phrases = @('Atualizar como o think-cell (1.11.0)', 'todo vínculo nasce manual', 'Vínculos** > **Selecionar tudo** > **Manual', 'não há garantia de dados congelados no slide', 'Desvincular** não quebra o vínculo nativo', 'Revert', 'P-U3', 'API 6', 'itens 110 a 118') }
+    'CHANGELOG ([Não lançado] ou [1.11.0])' = @{ text = $clThink; phrases = $thinkClPhrases }
+}
+foreach ($place in $thinkPlaces.Keys) {
+    $pt = [string]$thinkPlaces[$place].text
+    foreach ($ph in $thinkPlaces[$place].phrases) { Check ($pt.Contains($ph)) "atualizar como o think-cell (1.11.0), $place cita '$ph'" }
+}
+# as legendas antigas das duas caixas do Excel não são mais caminho de menu nem controle (só texto histórico, com "até a 1.10.0" ou "antes")
+Check ($readme -cnotmatch 'ThinQQ\s>\sPowerPoint\s>\s\*\*(Atualização automática ligada|Novos vínculos atualizam automaticamente)') 'README (1.11.0): nenhum caminho de menu ThinQQ > PowerPoint > <caixa antiga>'
+foreach ($l in $lblOn, $lblNew) {
+    $histTut = [regex]::Matches($autoTut, [regex]::Escape($l)).Count
+    Check ($histTut -eq 0 -or $autoTut -match "(até a 1\.10\.0|antes)[^.]{0,200}$([regex]::Escape($l))|$([regex]::Escape($l))[^.]{0,120}(até a 1\.10\.0|antes)") "tutorial #ppt-auto (1.11.0): a legenda antiga '$l' só aparece como texto histórico"
+}
+# Verificações manuais 110 a 118 do README
+$mvThinkLines = @(($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 110 -and [int]$Matches[1] -le 118 })
+Check ($mvThinkLines.Count -eq 9 -and @($mvNums | Where-Object { $_ -ge 110 -and $_ -le 118 }).Count -eq 9 -and $mvNums.Count -ge 118) "README: os itens manuais 110 a 118 existem, numerados sem buracos ($($mvThinkLines.Count); total $($mvNums.Count))"
+Check (@($mvThinkLines | Where-Object { $_ -notmatch 'não verificado em PowerPoint real' }).Count -eq 0) 'README (itens 110 a 118): todo item marca "não verificado em PowerPoint real"'
+$mvThinkPins = @{
+    110 = @('vínculo do Office', 'cerca de 0,3 s', 'nasce manual', $lblFlag, 'tqq_flag', 'bandeira verde', 'nenhuma caixa', 'a bandeira some sozinha')
+    111 = @('Desfazer do Excel', 'Ctrl+Z', 'só gráficos manuais', '5 s')
+    112 = @('"salva"', 'Ctrl+Z', 'TQQ_STATE', 'Desfazer do PowerPoint')
+    113 = @('Vínculos', 'sem travar o PowerPoint', 'Todos', 'Dados novos', 'Atualizados', 'Automáticos', 'Com problema', 'Atualizar com dados novos', 'Automático', 'Manual', 'Ir para', 'Abrir no Excel', 'Verificar', 'Desvincular', 'Verificados: N. Com dados novos: M. Com problema: K.', 'Editar Links para Arquivos')
+    114 = @('P-U3', 'aba contextual', 'contextualTabs', 'aba fixa')
+    115 = @('1.10', 'automáticos', 'Selecionar tudo', 'Manual', 'nasce manual')
+    116 = @('Não perguntar', 'Perguntar', 'Atualizar sempre', 'Para não perguntar mais: Vínculos > Ao abrir a apresentação.', 'as bandeiras aparecem')
+    117 = @('texto', 'tabela', $lblFlag, 'Selecione um ou mais gráficos, textos ou tabelas do ThinQQ vinculados ao Excel.', 'Editar dados')
+    118 = @('core 1.10', 'Atualize o ThinQQ no Excel para ver o estado dos vínculos.', 'O ThinQQ não está carregado no Excel: abra o Excel com o ThinQQ para ver o estado dos vínculos.')
+}
+foreach ($n in ($mvThinkPins.Keys | Sort-Object)) {
+    $line = @($mvThinkLines | Where-Object { $_ -match "^$n\. " })
+    foreach ($ph in $mvThinkPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
+}
+# release/notes.txt (1.11.0): de 1 a 8 marcadores, em linguagem do usuário, diferentes da 1.10.1 (a tag v1.10.1 diz "Sem mudanças no funcionamento")
+Check ($notesLines.Count -ge 4 -and $notesLines.Count -le 8) "notes.txt (1.11.0): de 4 a 8 linhas ($($notesLines.Count))"
+foreach ($ph in $lblFlag, 'Vínculos', 'manual', 'Selecionar tudo > Manual', 'aba contextual', 'não foi verificada') { Check ($notesText.Contains($ph)) "notes.txt (1.11.0) cita '$ph'" }
+Check ($notesText -notmatch 'Sem mudanças no funcionamento' -and $notesText -notmatch 'vídeos') 'notes.txt (1.11.0): não repete o texto da 1.10.1 (vídeos / sem mudanças)'
+Check ($notesText -notmatch 'TQQ_|Core_|Ppt[A-Z]\w+_') 'notes.txt (1.11.0): linguagem do usuário, sem nomes internos'
 if ($script:fail -gt 0) { Write-Host "FALHAS Test-Docs: $script:fail"; exit 1 }
 Write-Host 'Test-Docs: OK'

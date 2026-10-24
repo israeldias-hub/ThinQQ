@@ -1,2 +1,5 @@
-• Novo: o tutorial do ThinQQ agora aponta para os vídeos (tutorial gravado e cascata comparativa com as setas), numa pasta do Google Drive.
-• Sem mudanças no funcionamento do suplemento em relação à 1.10.0.
+• Atualizar como o think-cell: tudo nasce manual, também os gráficos criados pelo PowerPoint; quando a pasta do Excel muda, a faixa mostra "Dados novos: atualizar" no elemento selecionado e um clique atualiza, sem caixa de aviso.
+• Novo diálogo Vínculos (aba ThinQQ do PowerPoint): lista os gráficos, textos e tabelas vinculados com o estado de cada um e atualiza, liga o automático, verifica ou desvincula em lote, sem travar o PowerPoint.
+• O automático continua por elemento; apresentações da 1.6 a 1.10 ficam como estavam (para voltar tudo ao manual: Vínculos > Selecionar tudo > Manual).
+• Abrir uma apresentação não pergunta mais por padrão; as opções do automático saíram do menu do Excel e estão no Vínculos.
+• Com a pasta aberta, o próprio vínculo do Office pode trazer os valores do gráfico sozinho; a bandeira avisa que setas, rótulos e textos do ThinQQ ainda não acompanharam. A aba contextual ainda não foi verificada no PowerPoint real.
