@@ -185,7 +185,7 @@
           </menu>
           <!-- PowerPoint: o menu fica sempre ativo (Atualizar graficos no PowerPoint nao exige grafico); copiar exige um grafico (getEnabled). -->
           <menu id="mnuPpt" label="PowerPoint" image="tqq_ppt16"
-                screentip="PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint (como imagem ou gráfico vinculado), atualiza os gráficos vinculados das apresentações abertas e controla a atualização automática. Também insere direto no slide, vincula uma célula a um texto do slide, insere uma tabela vinculada e mostra/oculta as molduras.">
+                screentip="PowerPoint" supertip="Cola o gráfico selecionado no slide ativo do PowerPoint (como imagem ou gráfico vinculado), atualiza os gráficos vinculados das apresentações abertas (as opções de atualização ficam em Vínculos, no PowerPoint). Também insere direto no slide, vincula uma célula a um texto do slide, insere uma tabela vinculada e mostra/oculta as molduras.">
             <checkBox id="chkPptInsert" label="Inserir também no slide" getPressed="Rx_GetPptInsert" onAction="Rx_OnPptInsert"
                       screentip="Inserir também no slide" supertip="Marcada, cada gráfico inserido pelos menus Colunas, Barras, Cascata, Linha e área e Mais tipos também vai para o slide ativo do PowerPoint como gráfico vinculado, e o intervalo de origem ganha uma moldura verde. A pasta precisa estar salva."/>
             <button id="btnPptImage" label="Copiar como imagem" onAction="Rx_OnPptImage" getEnabled="Rx_GetEnabled"
@@ -198,12 +198,7 @@
                     screentip="Inserir tabela vinculada no slide" supertip="Cria no slide ativo uma tabela do PowerPoint com as células selecionadas (com a formatação do Excel) que acompanha a pasta nas atualizações. A pasta precisa estar salva; sem células mescladas; até 75 linhas e 25 colunas."/>
             <menuSeparator id="msepPpt"/>
             <button id="btnPptSync" label="Atualizar gráficos no PowerPoint" imageMso="Refresh" onAction="Rx_OnPptSync"
-                    screentip="Atualizar gráficos no PowerPoint" supertip="Atualiza dados e setas dos gráficos do ThinQQ vinculados nas apresentações abertas no PowerPoint (também acontece ao abrir a apresentação, com o suplemento do PowerPoint)."/>
-            <menuSeparator id="msepPptAuto"/>
-            <checkBox id="chkPptAutoOn" label="Atualização automática ligada" tag="autoon" getPressed="Rx_GetPptFlag" onAction="Rx_OnPptFlag"
-                      screentip="Atualização automática ligada" supertip="Com o Excel e o PowerPoint abertos, atualiza sozinho os gráficos marcados como 'Atualizar automaticamente' cerca de 2 segundos depois que um valor da pasta muda. Desmarque para pausar."/>
-            <checkBox id="chkPptAutoNew" label="Novos vínculos atualizam automaticamente" tag="autonew" getPressed="Rx_GetPptFlag" onAction="Rx_OnPptFlag"
-                      screentip="Novos vínculos atualizam automaticamente" supertip="Gráficos colados ou inseridos no PowerPoint a partir de agora já nascem com 'Atualizar automaticamente' ligado (sem esta opção nascem manuais, como no think-cell)."/>
+                    screentip="Atualizar gráficos no PowerPoint" supertip="Traz agora os dados do Excel para os gráficos, textos e tabelas do ThinQQ das apresentações abertas no PowerPoint. Como no think-cell, nada muda sozinho: no PowerPoint, o elemento com dados novos mostra 'Dados novos: atualizar'; a lista de todos, as opções de atualização automática e o que fazer ao abrir ficam em ThinQQ &gt; Vínculos (no PowerPoint)."/>
             <button id="btnPptFrames" label="Mostrar/ocultar molduras" image="tqq_ppt16" onAction="Rx_OnPptFrames"
                     screentip="Mostrar/ocultar molduras" supertip="Mostra ou oculta as molduras verdes desta pasta de trabalho (intervalos de origem dos gráficos inseridos no slide). A moldura não é impressa."/>
           </menu>

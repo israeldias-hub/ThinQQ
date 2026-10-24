@@ -890,11 +890,11 @@ Check ($pptTqqSrc.Contains('PPT_API_SHAPES As Long = 2') -and $syncSrc -match 'C
 $lblOn = 'Atualização automática ligada'; $lblNew = 'Novos vínculos atualizam automaticamente'; $lblAuto = 'Atualizar automaticamente'; $lblOnce = 'Atualizar'   # 1.11.0: era 'Atualizar uma vez'
 $xlOnNode = $ribbon.SelectSingleNode("//*[@id='chkPptAutoOn']"); $xlNewNode = $ribbon.SelectSingleNode("//*[@id='chkPptAutoNew']")
 $pAutoNode = $pptRibbon.SelectSingleNode("//*[@id='tglPptAuto']"); $pOnceNode = $pptRibbon.SelectSingleNode("//*[@id='btnPptUpdateSel']")
-Check ($null -ne $xlOnNode -and $xlOnNode.LocalName -eq 'checkBox' -and $xlOnNode.GetAttribute('label') -ceq $lblOn -and $xlOnNode.GetAttribute('tag') -ceq 'autoon') "faixa do Excel: a caixa chkPptAutoOn tem o rótulo '$lblOn'"
-Check ($null -ne $xlNewNode -and $xlNewNode.LocalName -eq 'checkBox' -and $xlNewNode.GetAttribute('label') -ceq $lblNew -and $xlNewNode.GetAttribute('tag') -ceq 'autonew') "faixa do Excel: a caixa chkPptAutoNew tem o rótulo '$lblNew'"
+Check ($null -eq $xlOnNode) 'faixa do Excel (1.11.0): chkPptAutoOn saiu (as opções do automático ficam em Vínculos, no PowerPoint)'
+Check ($null -eq $xlNewNode) 'faixa do Excel (1.11.0): chkPptAutoNew saiu (as opções do automático ficam em Vínculos, no PowerPoint)'
 Check ($null -ne $pAutoNode -and $pAutoNode.GetAttribute('label') -ceq $lblAuto -and $null -ne $pOnceNode -and $pOnceNode.GetAttribute('label') -ceq $lblOnce) "faixa do PowerPoint: tglPptAuto '$lblAuto' e btnPptUpdateSel '$lblOnce'"
 $xlChk = @($ribbon.SelectNodes("//*[local-name()='checkBox']"))
-Check ($xlChk.Count -ge 2) "faixa do Excel: as caixas de seleção entram na regra 'todo controle aparece no tutorial' ($($xlChk.Count))"
+Check ($xlChk.Count -ge 1) "faixa do Excel: as caixas de seleção entram na regra 'todo controle aparece no tutorial' ($($xlChk.Count))"
 if ($parsed) {
     Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']//*[local-name()='h3'][@id='ppt-auto']")) 'tutorial: a subseção id="ppt-auto" está dentro de #powerpoint'
     Check ($xml.SelectNodes("//a[@href='#ppt-auto']").Count -ge 3) 'tutorial: a subseção #ppt-auto tem links de #powerpoint, da referência da faixa e dos limites'

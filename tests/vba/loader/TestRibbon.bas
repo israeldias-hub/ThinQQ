@@ -111,7 +111,7 @@ Public Sub Test_Ribbon_Xml_HasAllCallbacks()
     names = Array("Rx_OnLoad", "Rx_OnInsert", "Rx_GetEnabled", "Rx_OnToggle", "Rx_GetPressed", "Rx_OnDropdown", _
                   "Rx_GetSelectedId", "Rx_OnAnnotation", "Rx_OnRemoveAnnotations", "Rx_OnRefresh", "Rx_OnChangeSource", _
                   "Rx_OnSamples", "Rx_OnTutorial", "Rx_OnCheckUpdates", "Rx_OnSettings", "Rx_OnAbout", "Rx_OnSameScale", "Rx_OnResetScale", _
-                  "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart", "Rx_OnPptSync", "Rx_OnDelta", "Rx_OnDeltaFormat", "Rx_GetPptFlag", "Rx_OnPptFlag", _
+                  "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart", "Rx_OnPptSync", "Rx_OnDelta", "Rx_OnDeltaFormat", _
                   "Rx_GetPptInsert", "Rx_OnPptInsert", "Rx_OnPptFrames", "Rx_OnPptLinkText", "Rx_OnLinkTitle")
     For i = LBound(names) To UBound(names)
         AssertTrue InStr(xml, names(i)) > 0, "callback ausente no XML: " & names(i)
@@ -878,40 +878,26 @@ Public Sub Test_Ribbon_PptSync_LabelAndTip()
     AssertTrue Not n Is Nothing
     AssertEqual "Atualizar gráficos no PowerPoint", AttrText(n, "label")
     AssertEqual "Refresh", AttrText(n, "imageMso")
-    AssertTrue InStr(AttrText(n, "supertip"), "ao abrir a apresentação") > 0, "o supertip cita a atualizacao ao abrir"
+    AssertTrue InStr(AttrText(n, "supertip"), "Vínculos") > 0, "o supertip aponta para o dialogo Vinculos"
 End Sub
 
 ' Atualizacao automatica (1.6.0): duas caixas de selecao no menu PowerPoint, depois do Atualizar graficos e de um separador.
 Public Sub Test_Ribbon_PptAutoCheckBoxes()
     Dim d As Object
     Set d = LoadRibbon()
-    AssertEqual 3, d.SelectNodes("//u:menu[@id='mnuPpt']/u:checkBox").Length
-    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:checkBox[@id='chkPptAutoOn'][@tag='autoon'][@getPressed='Rx_GetPptFlag'][@onAction='Rx_OnPptFlag']") Is Nothing
-    AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:checkBox[@id='chkPptAutoNew'][@tag='autonew'][@getPressed='Rx_GetPptFlag'][@onAction='Rx_OnPptFlag']") Is Nothing
-    AssertEqual "msepPptAuto", AttrText(d.SelectSingleNode("//u:button[@id='btnPptSync']/following-sibling::*[1]"), "id")
-    AssertEqual "chkPptAutoOn", AttrText(d.SelectSingleNode("//u:menuSeparator[@id='msepPptAuto']/following-sibling::*[1]"), "id")
-    AssertEqual "chkPptAutoNew", AttrText(d.SelectSingleNode("//u:checkBox[@id='chkPptAutoOn']/following-sibling::*[1]"), "id")
-    AssertTrue Len(AttrText(d.SelectSingleNode("//*[@id='chkPptAutoOn']"), "supertip")) > 20
-    AssertTrue Len(AttrText(d.SelectSingleNode("//*[@id='chkPptAutoNew']"), "supertip")) > 20
-    ' as caixas ficam sempre ativas (sem getEnabled): sao opcoes globais, nao dependem de grafico selecionado
-    AssertEqual "", AttrText(d.SelectSingleNode("//*[@id='chkPptAutoOn']"), "getEnabled")
-    AssertEqual "", AttrText(d.SelectSingleNode("//*[@id='chkPptAutoNew']"), "getEnabled")
+    AssertTrue d.SelectSingleNode("//*[@id='chkPptAutoOn']") Is Nothing, "1.11.0: opcoes do automatico no dialogo Vinculos do PowerPoint"
+    AssertTrue d.SelectSingleNode("//*[@id='chkPptAutoNew']") Is Nothing
+    AssertTrue d.SelectSingleNode("//*[@id='msepPptAuto']") Is Nothing
+    AssertEqual "btnPptFrames", AttrText(d.SelectSingleNode("//u:button[@id='btnPptSync']/following-sibling::*[1]"), "id")
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='btnPptSync']"), "supertip"), "Vínculos") > 0, "aponta para o dialogo do PowerPoint"
 End Sub
 
 ' Rotulos exatos (o tutorial os cita) e supertips que dizem o que a opcao faz de verdade.
 Public Sub Test_Ribbon_PptAutoCheckBoxes_LabelsAndTips()
-    Dim d As Object, n As Object
+    Dim d As Object
     Set d = LoadRibbon()
-    Set n = d.SelectSingleNode("//*[@id='chkPptAutoOn']")
-    AssertEqual "Atualização automática ligada", AttrText(n, "label")
-    AssertEqual "Atualização automática ligada", AttrText(n, "screentip")
-    AssertTrue InStr(AttrText(n, "supertip"), "Atualizar automaticamente") > 0, "cita o comando do PowerPoint"
-    AssertTrue InStr(AttrText(n, "supertip"), "2 segundos") > 0, "cita o intervalo do ciclo"
-    Set n = d.SelectSingleNode("//*[@id='chkPptAutoNew']")
-    AssertEqual "Novos vínculos atualizam automaticamente", AttrText(n, "label")
-    AssertEqual "Novos vínculos atualizam automaticamente", AttrText(n, "screentip")
-    AssertTrue InStr(AttrText(n, "supertip"), "nascem") > 0, "diz que o gráfico novo nasce automático"
-    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='mnuPpt']"), "supertip"), "controla a atualização automática") > 0, "o supertip do menu cita a atualizacao automatica"
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='mnuPpt']"), "supertip"), "controla a atualização automática") = 0, "o menu nao controla mais o automatico"
+    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='mnuPpt']"), "supertip"), "Vínculos") > 0
 End Sub
 
 ' Core sem os procedimentos (sufixo de teste): a caixa fica desmarcada e o clique avisa "Atualize".
@@ -967,10 +953,8 @@ Public Sub Test_Ribbon_PptInsertAndFrames()
     AssertEqual "chkPptInsert", AttrText(d.SelectSingleNode("//u:menu[@id='mnuPpt']/*[1]"), "id"), "primeiro item do menu"
     AssertTrue Not d.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptFrames'][@onAction='Rx_OnPptFrames']") Is Nothing
     AssertTrue d.SelectSingleNode("//u:button[@id='btnPptFrames']/@getEnabled") Is Nothing, "sempre ativo"
-    AssertEqual "btnPptFrames", AttrText(d.SelectSingleNode("//u:checkBox[@id='chkPptAutoNew']/following-sibling::*[1]"), "id")
     AssertEqual "Inserir também no slide", AttrText(d.SelectSingleNode("//*[@id='chkPptInsert']"), "label")
     AssertEqual "Mostrar/ocultar molduras", AttrText(d.SelectSingleNode("//*[@id='btnPptFrames']"), "label")
-    AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='chkPptAutoNew']"), "supertip"), "colados ou inseridos") > 0, "inserir tambem nasce automatico"
 End Sub
 
 Public Sub Test_Ribbon_OnInsert_RoutesToPpt()
