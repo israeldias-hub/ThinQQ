@@ -143,7 +143,7 @@ try {
     Check ($hint -like "Gráfico criado. Clique em OK e digite os dados*'$dataName'*" -and $trail -eq 'hint;edit;') "(c) inserido pelo suplemento, aviso de primeira vez antes de abrir os dados ($trail): $hint"
     Check ($pres3.Slides.Item(1).Shapes.Count -eq 1) "(c) uma forma no slide ($($pres3.Slides.Item(1).Shapes.Count))"
     $shp3 = $pres3.Slides.Item(1).Shapes.Item(1)
-    Check ([string]$shp3.Tags.Item('TQQ_DATA') -eq '1' -and [string]$shp3.Tags.Item('TQQ_AUTO') -eq '1') '(c) forma marcada TQQ_DATA e automatica'
+    Check ([string]$shp3.Tags.Item('TQQ_DATA') -eq '1' -and [string]$shp3.Tags.Item('TQQ_AUTO') -eq '' -and ([string]$pres3.Tags.Item('TQQ_LINKIDX')).Contains([string]$shp3.Name)) '(c) forma marcada TQQ_DATA, nasce manual (1.11.0) e entra no TQQ_LINKIDX'
     Check ([string]$shp3.LinkFormat.SourceFullName -eq $dataPath -and (Test-Path -LiteralPath $dataPath)) "(c) vinculo com a pasta de dados ao lado da apresentacao ($([string]$shp3.LinkFormat.SourceFullName))"
     $dwb = $xl.Workbooks.Item($dataName)
     Check ([string]$xl.ActiveWorkbook.Name -eq $dataName -and [string]$xl.ActiveSheet.Name -eq 'Gráfico 1') "(c) a planilha dos dados abriu ($([string]$xl.ActiveSheet.Name))"
@@ -161,6 +161,9 @@ try {
     [void]$pp.Run("$tpName!PptTqq_InsertChartIn", $pres3, $pres3.Slides.Item(1), 'line')
     Check ($pres3.Slides.Item(1).Shapes.Count -eq 2) "(c) Salvar como + inserir: segunda forma ($($pres3.Slides.Item(1).Shapes.Count))"
     Check ([string]$pres3.Slides.Item(1).Shapes.Item(2).LinkFormat.SourceFullName -eq (Join-Path $g4 $dataNameB) -and [string]$pres3.Tags.Item('TQQ_DATABOOK') -eq (Join-Path $g4 $dataNameB)) '(c) a segunda forma usa a pasta de dados de B (marca de B)'
+    # nascem manuais (1.11.0): o usuario liga "Automatico" nas duas, para o reapontamento abaixo provar que o indice das automaticas acompanha
+    [void]$xl.Run("'$cn'!PptSync_SetAuto", $pres3.Slides.Item(1).Shapes.Item(1), $true)
+    [void]$xl.Run("'$cn'!PptSync_SetAuto", $pres3.Slides.Item(1).Shapes.Item(2), $true)
     $pres3.Save()
     $dwb.Close($false); $dwb = $null; $shp3 = $null
     $xl.Workbooks.Item($dataNameB).Close($true)

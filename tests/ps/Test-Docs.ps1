@@ -1447,7 +1447,7 @@ $tableMsgs = @('Selecione as células da tabela.', 'Selecione um único interval
     'Intervalo da tabela vinculada não encontrado na pasta de origem (apagado, ou a pasta não tem vínculos do ThinQQ): ')
 Check ($coreSrc.Contains('Public Sub Core_PptInsertTable(') -and $coreSrc.Contains('Public Function PptTable_Sync(') -and $coreSrc.Contains('Public Function PptTable_Insert(') -and $pptTqqSrc.Contains('PPT_TAG_TABLE As String = "TQQ_TABLE"')) 'tabela vinculada (código): Core_PptInsertTable, PptTable_Insert, PptTable_Sync e TQQ_TABLE no suplemento existem'
 Check ($coreSrc.Contains('PPTTABLE_MAX_ROWS As Long = 75') -and $coreSrc.Contains('PPTTABLE_MAX_COLS As Long = 25') -and $coreSrc.Contains('PPTTABLE_NAME_PREFIX As String = "TQQ_T_"') -and $coreSrc.Contains('PPTTABLE_TAG_LAST As String = "TQQ_TBLAST"') -and $coreSrc.Contains('PPTTEXT_MAX_LEN As Long = 255')) 'tabela vinculada (código): limites 75 x 25 e 255 caracteres, nome oculto TQQ_T_ e a etiqueta TQQ_TBLAST'
-Check ($syncSrc -match 'CORE_PPT_API As Long = 5\b') 'tabela vinculada (código): o contrato do suplemento com o core continua na API 5 (sem aumento na 1.10.0)'
+Check ($syncSrc -match 'CORE_PPT_API As Long = (\d+)\b' -and [int]$Matches[1] -ge 5) 'tabela vinculada (código): o contrato do suplemento com o core está na API 5 ou mais (a tabela não exigiu aumento na 1.10.0; 6 = 1.11.0)'
 $tabelaTut = Get-SubsectionText 'ppt-tabela'
 $paridadeTut = Get-SubsectionText 'ppt-paridade'
 $tabelaRec = ([regex]::Match($readme, '(?s)\*\*Tabela vinculada \(1\.10\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
