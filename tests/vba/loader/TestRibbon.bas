@@ -834,7 +834,7 @@ Public Sub Test_Ribbon_IconFallbackMso_AreValid()
         AssertTrue Not pic Is Nothing, "imageMso de reserva invalido: " & m.SubMatches(0)
         checked = checked + 1
     Next
-    AssertEqual 14, checked, "uma reserva por icone da tabela"
+    AssertEqual 15, checked, "uma reserva por icone da tabela (1.11.0: + tqq_flag)"
 End Sub
 
 ' Onda B (B3.10): loader novo com core anterior (sem os procedimentos novos): Loader_RunCore marca o procedimento inexistente e os botoes
