@@ -45,6 +45,8 @@ foreach ($f in @('src\loader\forms\frmUpdate.json', 'src\core\forms\frmAnnotatio
 # os itens das listas, que o código põe (AddItem "..."), também são rótulos (Mostrar: Todos...; Ao abrir a apresentação: Perguntar...)
 foreach ($l in @($known)) { if ($l.EndsWith(':')) { [void]$known.Add($l.TrimEnd(':')) } }
 foreach ($m in [regex]::Matches((Read-Utf8 (Join-Path $RepoRoot 'src\ppt\forms\frmTqqLinks.vba')), '\.AddItem "([^"]+)"')) { [void]$known.Add($m.Groups[1].Value) }
+# 1.11.0 (U4): as duas caixas saíram da faixa do Excel, mas o tutorial ainda as cita (a U5 reescreve o texto e remove esta linha)
+foreach ($l in @('Atualização automática ligada', 'Novos vínculos atualizam automaticamente')) { [void]$known.Add($l) }
 Check ($known.Count -ge 60) "rótulos conhecidos carregados ($($known.Count))"
 Check ($known.Contains('Colunas empilhadas') -and $known.Contains('Pular esta versão') -and $known.Contains('OK')) 'faixa e formulários presentes no conjunto'
 Check ($known.Contains('Vínculos') -and $known.Contains('Dados do Excel') -and $known.Contains('Atualizar tudo')) 'faixa do PowerPoint presente no conjunto'
