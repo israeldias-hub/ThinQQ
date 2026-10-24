@@ -10,3 +10,13 @@ End Sub
 Public Sub AssertEqual(expected As Variant, actual As Variant, Optional msg As String = "")
     If expected <> actual Then Err.Raise vbObjectError + 100, "Assert", "esperado [" & expected & "] obtido [" & actual & "] " & msg
 End Sub
+' Raiz do repositorio (o .pptm de teste fica em <repo>\dist): usada pelo modFormCheck comum (no Excel, a do modAssert).
+Public Function RepoPath() As String
+    Dim i As Long
+    For i = 1 To Application.Presentations.Count
+        If LCase$(Application.Presentations(i).Name) Like "thinqq.ppt.test*.pptm" Then
+            RepoPath = CreateObject("Scripting.FileSystemObject").GetParentFolderName(Application.Presentations(i).Path)
+            Exit Function
+        End If
+    Next
+End Function

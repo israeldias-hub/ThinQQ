@@ -38,12 +38,17 @@ function Add-Captions($node) {
         foreach ($i in $node) { Add-Captions $i }
     }
 }
-foreach ($f in @('src\loader\forms\frmUpdate.json', 'src\core\forms\frmAnnotation.json')) {
+foreach ($f in @('src\loader\forms\frmUpdate.json', 'src\core\forms\frmAnnotation.json', 'src\ppt\forms\frmTqqLinks.json')) {
     Add-Captions ((Read-Utf8 (Join-Path $RepoRoot $f)) | ConvertFrom-Json)
 }
+# 1.11.0 (U3): diálogo Vínculos do PowerPoint: as legendas que terminam em ":" ("Ao abrir a apresentação:") valem também sem os dois-pontos, e
+# os itens das listas, que o código põe (AddItem "..."), também são rótulos (Mostrar: Todos...; Ao abrir a apresentação: Perguntar...)
+foreach ($l in @($known)) { if ($l.EndsWith(':')) { [void]$known.Add($l.TrimEnd(':')) } }
+foreach ($m in [regex]::Matches((Read-Utf8 (Join-Path $RepoRoot 'src\ppt\forms\frmTqqLinks.vba')), '\.AddItem "([^"]+)"')) { [void]$known.Add($m.Groups[1].Value) }
 Check ($known.Count -ge 60) "rótulos conhecidos carregados ($($known.Count))"
 Check ($known.Contains('Colunas empilhadas') -and $known.Contains('Pular esta versão') -and $known.Contains('OK')) 'faixa e formulários presentes no conjunto'
-Check ($known.Contains('Ao abrir') -and $known.Contains('Atualizar sempre') -and $known.Contains('Gráficos do Excel')) 'faixa do PowerPoint presente no conjunto'
+Check ($known.Contains('Vínculos') -and $known.Contains('Dados do Excel') -and $known.Contains('Atualizar tudo')) 'faixa do PowerPoint presente no conjunto'
+Check ($known.Contains('Vínculos do ThinQQ') -and $known.Contains('Ao abrir a apresentação') -and $known.Contains('Atualizar sempre') -and $known.Contains('Não perguntar') -and $known.Contains('Desvincular')) 'diálogo Vínculos (1.11.0) presente no conjunto: legendas e itens das listas'
 
 # ---- tutorial
 Check (Test-Path $tutorialPath) 'tutorial.html existe'
@@ -81,7 +86,7 @@ if ($parsed) {
     $pptUi = @()
     if ($pptSec) { $pptUi = @($pptSec.SelectNodes(".//*[contains(concat(' ', normalize-space(@class), ' '), ' ui ')]") | ForEach-Object { ($_.InnerText -replace '\s+', ' ').Trim() } | Sort-Object -Unique) }
     $pptCtl = @($pptRibbon.SelectNodes("//*[local-name()='tab' or local-name()='group' or local-name()='menu' or local-name()='button' or local-name()='toggleButton' or local-name()='dropDown' or local-name()='item']"))
-    Check ($pptCtl.Count -eq 84) "faixa do PowerPoint: 84 controles (2 abas (a fixa e a contextual da 1.11.0), 6 grupos, 5 menus, 37 botões (21 tipos de Inserir gráfico), 8 alternâncias, 5 listas e 21 itens: $($pptCtl.Count))"
+    Check ($pptCtl.Count -eq 82) "faixa do PowerPoint: 82 controles (2 abas (a fixa e a contextual da 1.11.0), 6 grupos, 5 menus, 39 botões (21 tipos de Inserir gráfico; Vínculos na fixa e na contextual), 8 alternâncias, 4 listas e 18 itens (a lista Ao abrir foi para o diálogo Vínculos): $($pptCtl.Count))"
     foreach ($n in $pptCtl) {
         $l = $n.GetAttribute('label')
         Check ($pptUi -contains $l) "#powerpoint cita o controle da faixa do PowerPoint '$l'"
@@ -500,7 +505,7 @@ $pptMessages = @(
     @('ppt', 'powerpoint', 'Esta apresentação não tem gráficos do ThinQQ vinculados.'),
     @('ppt', 'powerpoint', 'Abra uma apresentação primeiro.'),
     @('ppt', 'powerpoint', ' gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?'),
-    @('ppt', 'powerpoint', 'Para não perguntar mais: aba ThinQQ > Ao abrir.'),
+    @('ppt', 'powerpoint', 'Para não perguntar mais: Vínculos > Ao abrir a apresentação.'),   # 1.11.0: a escolha foi para o diálogo Vínculos
     @('ppt', 'powerpoint', 'O Excel não está instalado (ou não pôde ser iniciado): os gráficos do ThinQQ não foram atualizados.'),
     @('ppt', 'powerpoint', 'O ThinQQ não está instalado no Excel deste computador: só os dados foram atualizados; setas e outras anotações do ThinQQ ficaram como estavam.'),
     @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para atualizar também as setas.'),

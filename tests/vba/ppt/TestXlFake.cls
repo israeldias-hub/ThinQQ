@@ -35,6 +35,7 @@ Public FullName As String                       ' usado como pasta aberta (item 
 Public Saved As Boolean                         ' usado como pasta aberta: False = alteracoes nao salvas
 Public StatesResult As String                   ' resposta de Core_PptLinkStates ("" = "1|a|b|chart:stacked|manual|ok")
 Public LastVerify As Variant                    ' verifyClosed recebido por Core_PptLinkStates
+Public LastFlag As String                       ' "chave=1|0" recebidos por Core_PptSetFlag (1.11.0, dialogo Vinculos)
 Private mBooks As New Collection
 
 Public Property Get Workbooks() As Collection
@@ -49,6 +50,9 @@ Public Function Run(macro As String, Optional a1 As Variant, Optional a2 As Vari
     Select Case nm
         Case "Core_Ping": If NoCore Then Run = "" Else Run = "pong"
         Case "Core_PptGetFlag": If IsEmpty(AutoOn) Then Run = True Else Run = AutoOn
+        Case "Core_PptSetFlag"
+            LastFlag = CStr(a1) & "=" & IIf(CBool(a2), "1", "0")
+            Run = Empty
         Case "Core_PptApiVersion"
             If IsEmpty(Api) Then Err.Raise 1004, "TestXlFake", "macro inexistente"
             Run = Api

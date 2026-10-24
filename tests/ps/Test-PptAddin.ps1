@@ -71,6 +71,10 @@ try {
     # (a1) estados pelo core de verdade (API 6), como na abertura: so o Excel ja aberto, sem abrir pasta fechada
     $st = [string]$pp.Run("$tpName!PptTqq_LinkStates", $pres, '', $false)
     Check ($st -match '^\d+\|[^|]+\|[^|]*e2e\.xlsx\|chart:\w*\|manual\|ok$') "(a1) PptTqq_LinkStates pelo core (API 6): $st"
+    # (a3) 1.11.0 (U3): Verificar do dialogo Vinculos pelo core de verdade (API 6; pastas fechadas abertas somente leitura no core; aqui a
+    # pasta esta aberta): a linha de status e o estado lembrado da linha
+    $lk = [string]$pp.Run("$tpName!E2e_LinksCheck", $pres)
+    Check ($lk -match '^Verificados: 1\. Com dados novos: 0\. Com problema: 0\.\|ok$') "(a3) Vínculos > Verificar pelo core: $lk"
     $vals = @($slide.Shapes.Item(1).Chart.SeriesCollection(1).Values)
     Check ($vals -contains 40) "(a) valor novo no slide ($($vals -join ','))"
     $alive = $false; try { $alive = ([string]$xl.Workbooks.Item('e2e.xlsx').Name -eq 'e2e.xlsx') } catch { }   # Workbooks.Count nao conta o core (suplemento)

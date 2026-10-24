@@ -176,7 +176,7 @@ Check ($pptImgNames.Count -ge 5) "ppt: icones proprios no grupo Inserir gráfico
 Check ($null -eq $px.SelectSingleNode('//u:*[@image and @imageMso]', $pns)) 'ppt: nenhum controle com image= e imageMso juntos'
 Check ($null -eq $px.SelectSingleNode('//u:menu/u:button[@size]', $pns)) 'ppt: botoes de menu sem size'
 Check ($null -eq $px.SelectSingleNode("//u:*[@image and not(ancestor-or-self::u:group[@id='grpPptInsert']) and not(@image='tqq_flag') and not(@image='tqq_links')]", $pns)) 'ppt: image= so em Inserir gráfico e nas bandeiras/Vínculos'
-Check ($null -ne $px.SelectSingleNode("//u:button[@id='btnPptSyncNow'][@onAction='PptRx_OnSync']", $pns)) 'ppt: Atualizar gráficos'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptSync']/u:button[@id='btnPptSyncNow'][@label='Atualizar tudo'][@onAction='PptRx_OnSync']", $pns)) 'ppt: Atualizar tudo (1.11.0; era Atualizar gráficos)'
 Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:toggleButton[@id='tglPptAuto'][@getPressed='PptRx_GetAuto'][@onAction='PptRx_OnAuto'][@getEnabled='PptRx_GetLinkedEnabled']", $pns)) 'ppt: Atualizar automaticamente'
 Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptUpdateSel'][@label='Atualizar'][@onAction='PptRx_OnUpdateSel'][@getEnabled='PptRx_GetLinkedEnabled'][@getVisible='PptRx_GetUpdVisible']", $pns)) 'ppt: Atualizar (1.11.0; era Atualizar uma vez)'
 # 1.11.0 (U2): bandeira de dados novos (fixa e contextual) e a aba contextual ThinQQ dentro do UNICO tabSet permitido (um idMso de contexto
@@ -207,7 +207,17 @@ Check ($pptBas -match '(?m)^Public Sub PptRx_GetAuto\(control As IRibbonControl,
 Check ($pptBas -match '(?m)^Public Sub PptRx_GetElemEnabled\(control As IRibbonControl, ByRef \w+\)') 'ppt: assinatura do getEnabled'
 $pptIds = @($px.SelectNodes('//u:*[@id]', $pns) | ForEach-Object { $_.GetAttribute('id') })
 Check ($pptIds.Count -eq @($pptIds | Sort-Object -Unique).Count) "ppt: ids unicos ($($pptIds.Count))"
-Check ((@($px.SelectNodes("//u:dropDown[@id='ddOpenMode']/u:item", $pns) | ForEach-Object { $_.id }) -join ',') -eq 'modeask,modealways,modenever') 'ppt: itens de Ao abrir'
+Check ($null -eq $px.SelectSingleNode("//u:dropDown[@id='ddOpenMode']", $pns)) 'ppt: Ao abrir saiu da faixa (Vínculos > Opções)'
+# 1.11.0 (U3): Vinculos (o Data Links do think-cell) e o 1o controle do grupo "Dados do Excel" e esta na aba contextual; formulario do .ppam
+$gs = $px.SelectSingleNode("//u:group[@id='grpPptSync']", $pns)
+Check ($null -ne $gs -and $gs.GetAttribute('label') -ceq 'Dados do Excel') 'ppt: grupo Dados do Excel (era Gráficos do Excel)'
+$lk = $px.SelectSingleNode("//u:group[@id='grpPptSync']/u:*[1]", $pns)
+Check ($null -ne $lk -and $lk.GetAttribute('id') -eq 'btnPptLinks' -and $lk.GetAttribute('image') -eq 'tqq_links' -and $lk.GetAttribute('onAction') -eq 'PptRx_OnLinks' -and $lk.GetAttribute('label') -ceq 'Vínculos' -and $lk.GetAttribute('size') -eq 'large') 'ppt: btnPptLinks e o 1o controle de grpPptSync (tqq_links, PptRx_OnLinks)'
+Check ($null -ne $px.SelectSingleNode("//u:tab[@id='tabTqqChartCtx']/u:group[@id='cgrpLink']/u:button[@id='cbtnLinks'][@image='tqq_links'][@onAction='PptRx_OnLinks']", $pns)) 'ppt: Vínculos na aba contextual'
+Check ($pptBas -match '(?m)^Public Sub PptRx_OnLinks\(control As IRibbonControl\)') 'ppt: assinatura de Vínculos'
+Check ((Get-TqqIconSpecs).Contains('tqq_links')) 'ppt: icone tqq_links na tabela'
+$lf = [IO.File]::ReadAllText((Join-Path $RepoRoot 'src\ppt\forms\frmTqqLinks.json'), (New-Object Text.UTF8Encoding($false))) | ConvertFrom-Json
+Check ($lf.name -eq 'frmTqqLinks' -and $lf.caption -ceq 'Vínculos do ThinQQ' -and (Test-Path (Join-Path $RepoRoot 'src\ppt\forms\frmTqqLinks.vba'))) 'ppt: formulario frmTqqLinks (json + vba)'
 # 1.8.0 (G4): "Inserir gráfico" com os 21 tipos do Excel, na mesma ordem, e "Editar dados"
 $xx = New-Object Xml.XmlDocument; $xx.Load((Join-Path $RepoRoot 'src\loader\ribbon\customUI14.xml'))
 $xns = New-Object Xml.XmlNamespaceManager($xx.NameTable); $xns.AddNamespace('u', 'http://schemas.microsoft.com/office/2009/07/customui')
