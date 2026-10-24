@@ -469,7 +469,7 @@ Public Sub Test_PptSync_SummaryText()
 End Sub
 
 Public Sub Test_Core_PptApiVersion()
-    AssertEqual 5, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9; 2 = 1.6.0; 3 = 1.8.0; 4 = 1.9.0 comandos; 5 = 1.9.0 texto vinculado)"
+    AssertEqual 6, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9; 2 = 1.6.0; 3 = 1.8.0; 4 = 1.9.0 comandos; 5 = 1.9.0 texto vinculado; 6 = 1.11.0 estados)"
 End Sub
 
 Public Sub Test_Core_PptSyncPresentation_NeverRaises()
@@ -2199,12 +2199,13 @@ Public Sub Test_PptInsertChart_FromPpt_WhenAvailable()
     AssertEqual 1, slide.Shapes.Count
     Set shp = slide.Shapes(1)
     AssertEqual "1", PptSync_Tag(shp, PPTDATA_TAG)
-    AssertEqual "1", PptSync_Tag(shp, PPTSYNC_TAG_AUTO), "nasce automatico (datasheet ao vivo)"
+    AssertEqual "", PptSync_Tag(shp, PPTSYNC_TAG_AUTO), "nasce manual, como o think-cell (1.11.0)"
     AssertEqual 1, Ppt_LinkState(shp)
     AssertEqual LCase$(p), LCase$(PptSync_ItemBook(shp))
     AssertEqual "Gráfico 1", PptSync_Tag(shp, PPTSYNC_TAG_SHEET)
     AssertEqual LCase$(p), LCase$(PptSync_Tag(pres, PPTDATA_MARK))
-    AssertTrue InStr(1, PptSync_Tag(pres, PPTSYNC_TAG_INDEX), CStr(shp.Name), vbBinaryCompare) > 0, "no indice das formas automaticas"
+    AssertTrue InStr(1, PptSync_Tag(pres, PPTSTATE_TAG_LINKIDX), CStr(shp.Name), vbBinaryCompare) > 0, "no indice de todos os vinculos"
+    AssertEqual "", PptSync_Tag(pres, PPTSYNC_TAG_INDEX), "nenhum automatico"
     Set wb = Workbooks(Dir(p))
     AssertTrue PptData_IsDataBook(wb), "pasta de dados marcada"
     AssertTrue wb.Saved, "pasta de dados salva"
@@ -2215,8 +2216,10 @@ Public Sub Test_PptInsertChart_FromPpt_WhenAvailable()
     AssertTrue PptAuto_PendingCountForTest() >= 1
     Ppt_SetAppForTest app
     PptAuto_Tick
-    AssertAlmost 999, PptSeriesValue(shp.Chart, "Sul", 1), 0.0001, "o slide acompanhou a planilha"
+    AssertEqual PPTSTATE_NEW, PptSync_Tag(shp, PPTSTATE_TAG), "bandeira: o slide nao acompanha sozinho"
     AssertTrue wb.Saved, "o ciclo salvou a pasta de dados (G3)"
+    AssertTrue InStr(Core_PptSyncShapes(pres, PptIdx_Entry(CLng(slide.SlideID), CStr(shp.Name), ""), True), "Gráficos do ThinQQ atualizados: 1.") = 1
+    AssertAlmost 999, PptSeriesValue(shp.Chart, "Sul", 1), 0.0001, "Atualizar traz o dado"
     AssertEqual "", Core_PptInsertChart(slide, "pie")
     AssertEqual 2, slide.Shapes.Count
     Set s2 = slide.Shapes(2)
@@ -3154,4 +3157,203 @@ Cleanup:
     If Not wb Is Nothing Then CloseTemp wb
     On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' ---- 1.11.0 (U1): estado (bandeira TQQ_STATE), indice de todos os vinculos (TQQ_LINKIDX), motor marca os manuais, API 6 ----
+
+Public Sub Test_PptState_SetTag_OnlyWhenChanged_Fake()
+    Dim f As TestPptFake, t As TestPptTags
+    Set f = New TestPptFake: Set t = New TestPptTags: Set f.Tags = t
+    PptState_ResetTestHooks
+    AssertFalse PptState_SetTag(f, False), "sem bandeira e sem dados novos: nada gravado"
+    AssertTrue PptState_SetTag(f, True)
+    AssertEqual PPTSTATE_NEW, t.Item(PPTSTATE_TAG)
+    AssertFalse PptState_SetTag(f, True), "ja marcada: nao regrava"
+    AssertEqual 1, t.Writes
+    AssertTrue PptState_SetTag(f, False)
+    AssertEqual "", t.Item(PPTSTATE_TAG)
+    AssertEqual 1, t.Deletes
+    t.Preset PPTSTATE_TAG, "lixo"
+    AssertFalse PptState_SetTag(f, False), "valor estranho (deck alheio) nao e bandeira: nada a apagar"
+    t.FailOnKey = PPTSTATE_TAG
+    AssertFalse PptState_SetTag(f, True), "falha comum ao gravar: registrada, sem erro"
+    AssertEqual 2, PptState_MarksForTest()
+End Sub
+
+' Sem indice TQQ_LINKIDX: nenhum manual (nunca varre as formas); com o indice, so as formas da pasta suja, nao automaticas, do ThinQQ.
+Public Sub Test_PptState_ManualFor_IndexOnly_Fake()
+    Dim shp As TestPptFake, sl As TestPptFake, slides As TestPptFake, pres As TestPptFake, dirty As Object, lk As TestPptFake
+    Set shp = New TestPptFake: Set shp.Tags = CreateObject("Scripting.Dictionary")
+    shp.Tags.Add PPTSYNC_TAG_CHART, "abc"
+    shp.Tags.Add PPTSYNC_TAG_BOOK, "C:\x\a.xlsx"
+    Set sl = New TestPptFake: Set sl.Shapes = New Collection: sl.Shapes.Add shp, "tqq_m"
+    Set slides = New TestPptFake: Set slides.Slide = sl: slides.SlideIdValue = 300
+    Set pres = New TestPptFake: Set pres.Slides = slides: Set pres.Tags = CreateObject("Scripting.Dictionary")
+    Set dirty = CreateObject("Scripting.Dictionary"): dirty.CompareMode = 1
+    dirty.Add "C:\x\a.xlsx", True
+    AssertEqual 0, PptState_ManualFor(pres, dirty).Count, "sem indice"
+    AssertEqual 0, slides.FindBySlideIDCalls, "sem indice: nenhuma chamada ao PowerPoint"
+    pres.Tags(PPTSTATE_TAG_LINKIDX) = PptIdx_Entry(300, "tqq_m", "C:\x\a.xlsx")    ' o duble (Dictionary) ja tem a chave vazia da leitura acima
+    AssertEqual 1, PptState_ManualFor(pres, dirty).Count
+    shp.Tags(PPTSYNC_TAG_AUTO) = "1"
+    AssertEqual 0, PptState_ManualFor(pres, dirty).Count, "automatica fica com o ciclo automatico"
+    shp.Tags.Remove PPTSYNC_TAG_AUTO
+    dirty.RemoveAll: dirty.Add "C:\x\outra.xlsx", True
+    AssertEqual 0, PptState_ManualFor(pres, dirty).Count, "pasta que nao mudou"
+    AssertEqual 2, slides.FindBySlideIDCalls, "entrada de pasta limpa nao chega ao PowerPoint"
+End Sub
+
+' Processa mensagens por secs segundos (DoEvents e uma chamada ao PowerPoint de teste, como o Excel ocioso faria antes do OnTime do ciclo).
+Private Sub PumpMessages(app As Object, secs As Single)
+    Dim t0 As Single, n As Long
+    t0 = Timer
+    Do While Timer >= t0 And Timer < t0 + secs
+        DoEvents
+        n = CLng(app.Presentations.Count)
+    Loop
+End Sub
+
+' Bandeira (Review Focus 1): colado manual, B2 muda, o ciclo marca TQQ_STATE sem sincronizar o slide nem tocar no Excel, com a apresentacao salva
+' continuando salva; Atualizar tira a bandeira; o dado voltando ao valor do slide tira a bandeira sozinho.
+Public Sub Test_PptAuto_Tick_FlagsManual_NoExcelChange_KeepsSaved_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, s1 As Object, own As New Collection, en As Long, ed As String
+    Dim fp0 As String, pp As String, w0 As Double, msg As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    AutoBegin
+    PptState_ResetTestHooks
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set s1 = PasteLinked(app, pres, wb, rng, TempDir() & "\pptstate-flag.xlsx")
+    AssertEqual "", PptSync_Tag(s1, PPTSYNC_TAG_AUTO), "nasce manual"
+    AssertTrue InStr(1, PptSync_Tag(pres, PPTSTATE_TAG_LINKIDX), CStr(s1.Name), vbBinaryCompare) > 0, "colagem entra no indice de todos os vinculos"
+    pp = TempDir() & "\pptstate-flag.pptx"
+    pres.SaveAs pp
+    AssertTrue CLng(pres.Saved) <> 0, "apresentacao salva"
+    fp0 = PptSync_Tag(s1, PPTSYNC_TAG_FP)
+    w0 = rng.Worksheet.ChartObjects(1).Width
+    Watchers_Start
+    rng.Worksheet.Range("B2").Value = 77
+    AssertEqual 1, PptAuto_PendingCountForTest()
+    ' MEDIDO (U1): com a pasta aberta neste Excel, o grafico colado (LinkFormat.AutoUpdate = 1, manual) recebe os valores novos pelo vinculo
+    ' OLE do proprio Office em ~0,3 s quando as mensagens sao processadas, e o Excel marca a pasta (e o PowerPoint a apresentacao) como
+    ' alteradas. Isso nao e o ThinQQ: o teste deixa esse efeito acontecer (o ciclo real so roda 2 s depois da ultima mudanca), marca as duas
+    ' como salvas e prova que o CICLO nao altera nada.
+    PumpMessages app, 2.5
+    wb.Saved = True                                     ' qualquer coisa que o ciclo fizer no Excel apareceria como alteracao
+    pres.Saved = -1
+    AssertTrue CLng(pres.Saved) <> 0, "apresentacao marcada como salva"
+    Ppt_SetAppForTest app
+    PptSync_ResetTestHooks
+    PptAuto_Tick
+    AssertEqual PPTSTATE_NEW, PptSync_Tag(s1, PPTSTATE_TAG), "bandeira"
+    AssertEqual 1, PptAuto_LastMarkedForTest()
+    AssertEqual fp0, PptSync_Tag(s1, PPTSYNC_TAG_FP), "manual: o ThinQQ nao sincronizou o slide (TQQ_FP intacta)"
+    AssertEqual 0, PptSync_UpdateCountForTest(), "nenhum LinkFormat.Update"
+    AssertTrue wb.Saved, "o ciclo nao alterou a pasta do Excel (o Desfazer do usuario fica)"
+    AssertAlmost w0, rng.Worksheet.ChartObjects(1).Width, 0.01, "o grafico do Excel nao foi redimensionado"
+    AssertTrue CLng(pres.Saved) <> 0, "a bandeira nao deixa a apresentacao alterada (P-U1)"
+    msg = Core_PptSyncShapes(pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), True)
+    AssertTrue InStr(msg, "Gráficos do ThinQQ atualizados: 1.") = 1, msg
+    AssertAlmost 77, PptSeriesValue(s1.Chart, "Sul", 1), 0.0001
+    AssertEqual "", PptSync_Tag(s1, PPTSTATE_TAG), "atualizar tira a bandeira"
+    rng.Worksheet.Range("B2").Value = 78
+    PptAuto_Tick
+    AssertEqual PPTSTATE_NEW, PptSync_Tag(s1, PPTSTATE_TAG), "de novo"
+    rng.Worksheet.Range("B2").Value = 77
+    PptAuto_Tick
+    AssertEqual "", PptSync_Tag(s1, PPTSTATE_TAG), "o dado voltou ao valor do slide: a bandeira sai"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    AutoReset
+    Set s1 = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    AutoEnd
+    If Len(pp) > 0 Then Kill pp
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' API 6: linhas de estado (manual e automatica), bandeira gravada, pasta fechada "unknown" sem verificar e verificada com abertura somente
+' leitura (fechada no fim), indice reconstruido com entries = "".
+Public Sub Test_Core_PptLinkStates_Lines_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, s1 As Object, s2 As Object, own As New Collection, en As Long, ed As String
+    Dim lines As String, a() As String, f() As String, p As String, nBooks As Long, i As Long, l1 As String, l2 As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    AutoBegin
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    p = TempDir() & "\pptstate-lines.xlsx"
+    Set s1 = PasteLinked(app, pres, wb, rng, p)
+    Set s2 = PasteAgain(app, pres)
+    PptSync_SetAuto s2, True
+    PptSync_TagDelete pres, PPTSTATE_TAG_LINKIDX
+    rng.Worksheet.Range("B2").Value = 66
+    lines = Core_PptLinkStates(pres, "", False)
+    AssertTrue Left$(lines, 1) <> "!", lines
+    a = Split(lines, vbLf)
+    AssertEqual 2, UBound(a) + 1, lines
+    For i = 0 To 1
+        f = Split(a(i), "|")
+        AssertEqual 5, UBound(f), a(i)
+        AssertTrue Left$(f(3), 6) = "chart:", a(i)
+        ' a colagem repetida pode ter o MESMO nome em outro slide: a linha e achada pelo slide e pelo nome
+        If f(0) = CStr(s1.Parent.SlideID) And f(1) = CStr(s1.Name) Then l1 = a(i)
+        If f(0) = CStr(s2.Parent.SlideID) And f(1) = CStr(s2.Name) Then l2 = a(i)
+    Next
+    AssertTrue Right$(l1, Len("|manual|new")) = "|manual|new", l1
+    AssertTrue Right$(l2, Len("|auto|new")) = "|auto|new", l2
+    AssertEqual PPTSTATE_NEW, PptSync_Tag(s1, PPTSTATE_TAG)
+    AssertEqual 2, PptIdx_Parse(PptSync_Tag(pres, PPTSTATE_TAG_LINKIDX)).Count, "indice de todos os vinculos reconstruido"
+    Core_PptSyncShapes pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), True
+    lines = Core_PptLinkStates(pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), False)
+    AssertTrue Right$(lines, Len("|manual|ok")) = "|manual|ok", lines
+    wb.Save
+    nBooks = Workbooks.Count
+    wb.Close SaveChanges:=False: Set wb = Nothing
+    lines = Core_PptLinkStates(pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), False)
+    AssertTrue Right$(lines, Len("|unknown")) = "|unknown", "pasta fechada sem verificar: " & lines
+    lines = Core_PptLinkStates(pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), True)
+    AssertTrue Right$(lines, Len("|ok")) = "|ok", "verificada (aberta somente leitura): " & lines
+    AssertEqual nBooks - 1, Workbooks.Count, "a pasta aberta para verificar foi fechada"
+    AssertFalse Core_IsQuiet(), "modo silencioso fechado"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    AutoReset
+    Set s1 = Nothing: Set s2 = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    AutoEnd
+    If Len(p) > 0 Then Kill p
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+Public Sub Test_Core_PptLinkStates_NeverRaises()
+    Dim s As String
+    s = Core_PptLinkStates(Nothing, "", False)
+    AssertTrue Left$(s, 1) = "!", s
+    AssertFalse Core_IsQuiet()
+End Sub
+
+' Sem "Verificar" (abertura da apresentacao), PptState_Lines nunca sonda caminho de rede/web vindo do deck (mesma regra do .ppam).
+Public Sub Test_PptState_IsRemotePath_Pure()
+    AssertTrue PptState_IsRemotePath("\\servidor\pasta\a.xlsx")
+    AssertTrue PptState_IsRemotePath("//servidor/pasta/a.xlsx")
+    AssertTrue PptState_IsRemotePath("\\?\UNC\servidor\a.xlsx")
+    AssertTrue PptState_IsRemotePath("https://empresa.sharepoint.com/a.xlsx")
+    AssertTrue PptState_IsRemotePath("file://servidor/a.xlsx")
+    AssertFalse PptState_IsRemotePath("C:\dados\a.xlsx")
+    AssertFalse PptState_IsRemotePath("\\?\C:\dados\a.xlsx")
+    AssertFalse PptState_IsRemotePath("")
 End Sub
