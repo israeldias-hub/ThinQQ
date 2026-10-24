@@ -175,10 +175,27 @@ $pptImgNames = Assert-TqqRibbonXml -Xml ([IO.File]::ReadAllText($pptXmlPath, (Ne
 Check ($pptImgNames.Count -ge 5) "ppt: icones proprios no grupo Inserir gráfico ($($pptImgNames -join ','))"
 Check ($null -eq $px.SelectSingleNode('//u:*[@image and @imageMso]', $pns)) 'ppt: nenhum controle com image= e imageMso juntos'
 Check ($null -eq $px.SelectSingleNode('//u:menu/u:button[@size]', $pns)) 'ppt: botoes de menu sem size'
-Check ($null -eq $px.SelectSingleNode("//u:*[@image and not(ancestor-or-self::u:group[@id='grpPptInsert'])]", $pns)) 'ppt: image= so no grupo Inserir gráfico (os demais seguem com imageMso)'
+Check ($null -eq $px.SelectSingleNode("//u:*[@image and not(ancestor-or-self::u:group[@id='grpPptInsert']) and not(@image='tqq_flag') and not(@image='tqq_links')]", $pns)) 'ppt: image= so em Inserir gráfico e nas bandeiras/Vínculos'
 Check ($null -ne $px.SelectSingleNode("//u:button[@id='btnPptSyncNow'][@onAction='PptRx_OnSync']", $pns)) 'ppt: Atualizar gráficos'
-Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:toggleButton[@id='tglPptAuto'][@getPressed='PptRx_GetAuto'][@onAction='PptRx_OnAuto'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Atualizar automaticamente'
-Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptUpdateSel'][@onAction='PptRx_OnUpdateSel'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Atualizar uma vez'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:toggleButton[@id='tglPptAuto'][@getPressed='PptRx_GetAuto'][@onAction='PptRx_OnAuto'][@getEnabled='PptRx_GetLinkedEnabled']", $pns)) 'ppt: Atualizar automaticamente'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptUpdateSel'][@label='Atualizar'][@onAction='PptRx_OnUpdateSel'][@getEnabled='PptRx_GetLinkedEnabled'][@getVisible='PptRx_GetUpdVisible']", $pns)) 'ppt: Atualizar (1.11.0; era Atualizar uma vez)'
+# 1.11.0 (U2): bandeira de dados novos (fixa e contextual) e a aba contextual ThinQQ dentro do UNICO tabSet permitido (um idMso de contexto
+# invalido faz o PowerPoint descartar a faixa inteira em silencio, e o Office invisivel nao carrega a faixa: so a sonda manual P-U3 confirma)
+Check ((@($px.SelectNodes('//u:tabSet', $pns) | ForEach-Object { $_.GetAttribute('idMso') }) -join ',') -eq 'TabSetChartTools') 'ppt: unico tabSet = TabSetChartTools'
+Check ($null -ne $px.SelectSingleNode("//u:tab[@id='tabTqqChartCtx']/u:group[@id='cgrpLink']/u:button[@id='cbtnUpdateNew'][@image='tqq_flag'][@getVisible='PptRx_GetNewVisible']", $pns)) 'ppt: bandeira na aba contextual'
+Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptUpdateNew'][@getVisible='PptRx_GetNewVisible']", $pns)) 'ppt: bandeira no grupo Elemento selecionado'
+Check (@($px.SelectNodes('//u:*[@idMso]', $pns)).Count -eq 1) 'ppt: nenhum outro idMso (so o tabSet)'
+Check (@($px.SelectNodes("//u:tab[@id='tabTqqChartCtx']//u:*[@id and not(starts-with(@id,'c'))]", $pns)).Count -eq 0) 'ppt: ids da aba contextual com prefixo c'
+$pptBasU2 = (Get-ChildItem (Join-Path $RepoRoot 'src\ppt\modules') -Filter *.bas | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+foreach ($cid in 'btnPptUpdateNew', 'cbtnUpdate', 'cbtnUpdateNew', 'ctglAuto', 'cbtnEditData', 'ctglLabels', 'ctglTotals', 'ctglConnectors', 'cddNumFmt', 'cddLegend', 'cbtnCagr', 'cbtnDiff', 'cbtnClearAnn') {
+    Check ($null -ne $px.SelectSingleNode("//u:*[@id='$cid']", $pns) -and $pptBasU2.Contains('"' + $cid + '"')) "ppt: $cid existe e e invalidado com a selecao"
+}
+# itens das listas da aba contextual = "c" + itens da fixa, com os mesmos rotulos
+foreach ($t in @(@('cddNumFmt', 'ddPptNumFmt'), @('cddLegend', 'ddPptLegend'))) {
+    $ci = @($px.SelectNodes("//u:dropDown[@id='$($t[0])']/u:item", $pns) | ForEach-Object { $_.GetAttribute('id') + '=' + $_.GetAttribute('label') }) -join ','
+    $fi = @($px.SelectNodes("//u:dropDown[@id='$($t[1])']/u:item", $pns) | ForEach-Object { 'c' + $_.GetAttribute('id') + '=' + $_.GetAttribute('label') }) -join ','
+    Check ($ci.Length -gt 0 -and $ci -ceq $fi) "ppt: itens de $($t[0]) = c + itens de $($t[1])"
+}
 # Cada callback da faixa do PowerPoint existe como Public Sub em src/ppt/modules (nome errado = erro silencioso so no clique), com a
 # assinatura certa nos de toggle/getPressed/getEnabled; ids unicos.
 $pptBas = (Get-ChildItem (Join-Path $RepoRoot 'src\ppt\modules') -Filter *.bas | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
@@ -252,7 +269,8 @@ $lt = $px.SelectSingleNode("//u:group[@id='grpPptElem']/u:button[@id='btnPptLink
 Check ($null -ne $lt) 'ppt: Texto vinculado ao Excel'
 Check ($null -ne $lt -and -not $lt.HasAttribute('getEnabled')) 'ppt: Texto vinculado ao Excel sempre ativo'
 Check ($null -ne $lt -and $null -eq $lt.NextSibling) 'ppt: Texto vinculado ao Excel e o ultimo do grupo'
-Check (@($px.SelectNodes("//u:group[@id='grpPptElem']/u:*", $pns)).Count -eq 4) 'ppt: Elemento selecionado com 4 controles'
+Check (@($px.SelectNodes("//u:group[@id='grpPptElem']/u:*", $pns)).Count -eq 5) 'ppt: Elemento selecionado com 5 controles (1.11.0: + Dados novos: atualizar)'
+Check ($pptBas -match '(?m)^Public Sub PptRx_GetLinkedEnabled\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetNewVisible\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetUpdVisible\(control As IRibbonControl, ByRef \w+\)') 'ppt: assinaturas de getEnabled/getVisible da bandeira (1.11.0)'
 Check ($pptBas -match '(?m)^Public Sub PptRx_OnLinkText\(control As IRibbonControl\)') 'ppt: assinatura de Texto vinculado ao Excel'
 # e no Excel: Vincular celula ao texto selecionado (menu PowerPoint) e Titulo ligado a uma celula (Mais opcoes)
 Check ($null -ne $xx.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptLinkText'][@onAction='Rx_OnPptLinkText'][@image='tqq_ppt16']", $xns)) 'excel: Vincular célula ao texto selecionado'

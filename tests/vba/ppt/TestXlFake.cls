@@ -33,6 +33,8 @@ Public LastLink As String                       ' "inicio:tamanho" recebidos por
 Public LinkShape As Object                      ' forma recebida por Core_PptLinkText
 Public FullName As String                       ' usado como pasta aberta (item de Workbooks): caminho
 Public Saved As Boolean                         ' usado como pasta aberta: False = alteracoes nao salvas
+Public StatesResult As String                   ' resposta de Core_PptLinkStates ("" = "1|a|b|chart:stacked|manual|ok")
+Public LastVerify As Variant                    ' verifyClosed recebido por Core_PptLinkStates
 Private mBooks As New Collection
 
 Public Property Get Workbooks() As Collection
@@ -75,6 +77,10 @@ Public Function Run(macro As String, Optional a1 As Variant, Optional a2 As Vari
             Set LinkShape = a1
             LastLink = CStr(a2) & ":" & CStr(a3)
             Run = LinkResult
+        Case "Core_PptLinkStates"
+            LastEntries = CStr(a2)
+            LastVerify = a3
+            If Len(StatesResult) > 0 Then Run = StatesResult Else Run = "1|a|b|chart:stacked|manual|ok"
     End Select
 End Function
 

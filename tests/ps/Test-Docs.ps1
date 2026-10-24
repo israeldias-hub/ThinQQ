@@ -81,7 +81,7 @@ if ($parsed) {
     $pptUi = @()
     if ($pptSec) { $pptUi = @($pptSec.SelectNodes(".//*[contains(concat(' ', normalize-space(@class), ' '), ' ui ')]") | ForEach-Object { ($_.InnerText -replace '\s+', ' ').Trim() } | Sort-Object -Unique) }
     $pptCtl = @($pptRibbon.SelectNodes("//*[local-name()='tab' or local-name()='group' or local-name()='menu' or local-name()='button' or local-name()='toggleButton' or local-name()='dropDown' or local-name()='item']"))
-    Check ($pptCtl.Count -eq 59) "faixa do PowerPoint: 59 controles (aba, 4 grupos, 5 menus, 30 botões (21 tipos de Inserir gráfico), 4 alternâncias, 3 listas e 12 itens: $($pptCtl.Count))"
+    Check ($pptCtl.Count -eq 84) "faixa do PowerPoint: 84 controles (2 abas (a fixa e a contextual da 1.11.0), 6 grupos, 5 menus, 37 botões (21 tipos de Inserir gráfico), 8 alternâncias, 5 listas e 21 itens: $($pptCtl.Count))"
     foreach ($n in $pptCtl) {
         $l = $n.GetAttribute('label')
         Check ($pptUi -contains $l) "#powerpoint cita o controle da faixa do PowerPoint '$l'"
@@ -881,7 +881,7 @@ Check ($pptTqqSrc -match '(?s)If turnOn Then PptTqq_SyncEntries pres, PptTqq_Ent
 Check ($pptTqqSrc.Contains('PPT_API_SHAPES As Long = 2') -and $syncSrc -match 'CORE_PPT_API As Long = ([2-9]|\d{2,})\b') 'atualização automática (código): o contrato do suplemento com o core passa à API 2 (ou maior: 3 = 1.8.0)'
 
 # rótulos exatos das duas faixas (a do Excel tem as caixas, a do PowerPoint o botão de alternância e o botão)
-$lblOn = 'Atualização automática ligada'; $lblNew = 'Novos vínculos atualizam automaticamente'; $lblAuto = 'Atualizar automaticamente'; $lblOnce = 'Atualizar uma vez'
+$lblOn = 'Atualização automática ligada'; $lblNew = 'Novos vínculos atualizam automaticamente'; $lblAuto = 'Atualizar automaticamente'; $lblOnce = 'Atualizar'   # 1.11.0: era 'Atualizar uma vez'
 $xlOnNode = $ribbon.SelectSingleNode("//*[@id='chkPptAutoOn']"); $xlNewNode = $ribbon.SelectSingleNode("//*[@id='chkPptAutoNew']")
 $pAutoNode = $pptRibbon.SelectSingleNode("//*[@id='tglPptAuto']"); $pOnceNode = $pptRibbon.SelectSingleNode("//*[@id='btnPptUpdateSel']")
 Check ($null -ne $xlOnNode -and $xlOnNode.LocalName -eq 'checkBox' -and $xlOnNode.GetAttribute('label') -ceq $lblOn -and $xlOnNode.GetAttribute('tag') -ceq 'autoon') "faixa do Excel: a caixa chkPptAutoOn tem o rótulo '$lblOn'"

@@ -1504,3 +1504,126 @@ Cleanup:
     ClosePres p
     If en <> 0 Then Err.Raise en, "TestPptAddin", ed
 End Sub
+
+' ---- 1.11.0 (U2): bandeira, todos os tipos, silencio no sucesso, abertura ----
+
+Public Sub Test_PptTqq_IsPlainSuccess()
+    AssertTrue PptTqq_IsPlainSuccess("Gráficos do ThinQQ atualizados: 1.")
+    AssertTrue PptTqq_IsPlainSuccess("Gráficos do ThinQQ atualizados: 0. Sem mudança: 2.")
+    AssertFalse PptTqq_IsPlainSuccess("Gráficos do ThinQQ atualizados: 0." & vbLf & "Pasta de origem não encontrada ou sem acesso: a.xlsx.")
+    AssertFalse PptTqq_IsPlainSuccess(PPT_MSG_BUSY)
+    AssertFalse PptTqq_IsPlainSuccess("")
+End Sub
+
+Public Sub Test_PptTqq_ShowResult_SilentOnSuccess()
+    PptTqq_ClearLastMsg
+    PptTqq_ShowResult "Gráficos do ThinQQ atualizados: 1."
+    AssertEqual "", PptTqq_LastMsg(), "sucesso puro: sem caixa (como o think-cell)"
+    AssertEqual "Gráficos do ThinQQ atualizados: 1.", PptTqq_LastResult()
+    PptTqq_ShowResult "Gráficos do ThinQQ atualizados: 0." & vbLf & "Falha ao atualizar: 1 (veja o log do ThinQQ)."
+    AssertTrue InStr(PptTqq_LastMsg(), "Falha ao atualizar") > 0, "problema: caixa"
+    PptTqq_ShowResult "!" & PPT_MSG_BUSY
+    AssertEqual PPT_MSG_BUSY, PptTqq_LastMsg(), "'!' = aviso de exclamacao, sem o '!'"
+End Sub
+
+Public Sub Test_PptTqq_LinkedShapes_AndAnyNew()
+    Dim p As Object, sl As Object, a As Object, b As Object, c As Object, d As Object, col As New Collection, t As Single, i As Long
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set sl = p.Slides(1)
+    Set a = sl.Shapes.AddShape(1, 10, 10, 50, 50): a.Tags.Add PPT_TAG_CHART, "abc"
+    Set b = sl.Shapes.AddShape(1, 70, 10, 50, 50): b.Tags.Add PPT_TAG_TEXT, "1"
+    Set c = sl.Shapes.AddShape(1, 130, 10, 50, 50): c.Tags.Add PPT_TAG_TABLE, "1"
+    Set d = sl.Shapes.AddShape(1, 190, 10, 50, 50)
+    AssertTrue PptTqq_IsLinkedShape(a) And PptTqq_IsLinkedShape(b) And PptTqq_IsLinkedShape(c)
+    AssertFalse PptTqq_IsLinkedShape(d)
+    col.Add a: col.Add b
+    AssertFalse PptTqq_AnyNew(col)
+    b.Tags.Add PPT_TAG_STATE, "new"
+    AssertTrue PptTqq_AnyNew(col), "texto vinculado com dados novos"
+    b.Tags.Add PPT_TAG_STATE, "x"
+    AssertFalse PptTqq_AnyNew(col), "so 'new' e bandeira"
+    AssertEqual 0, PptTqq_SelectedLinked().Count, "sem janela: nada selecionado"
+    For i = 1 To 196
+        sl.Shapes.AddShape 1, 1, 1, 2, 2
+    Next
+    t = Timer
+    For i = 1 To 200
+        PptTqq_AnyNew col
+    Next
+    PptTqq_Log "P-U2: AnyNew x200 = " & Format$((Timer - t) * 1000, "0") & " ms"
+    AssertTrue (Timer - t) < 1, "P-U2: 200 leituras acima de 5 ms cada: " & PptTqq_LastLog()
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Abertura (1.11.0): bandeiras gravadas no arquivo saem, TQQ_LINKIDX e reconstruido com os elementos vinculados (formato do core), Saved fica.
+Public Sub Test_PptTqq_PrepareOnOpen_ClearsFlags_BuildsIndex_KeepsSaved()
+    Dim p As Object, a As Object, b As Object, c As Object, idx As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set a = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_a": a.Tags.Add PPT_TAG_CHART, "abc": a.Tags.Add PPT_TAG_STATE, "new"
+    a.Tags.Add PPT_TAG_BOOK, "C:\x\a.xlsx"
+    Set b = p.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50): b.Name = "txt_b": b.Tags.Add PPT_TAG_TEXT, "1": b.Tags.Add PPT_TAG_BOOK, "C:\x\b.xlsx"
+    Set c = p.Slides(1).Shapes.AddShape(1, 130, 10, 50, 50)
+    p.Saved = -1
+    AssertEqual 2, PptTqq_PrepareOnOpen(p)
+    AssertEqual "", PptTqq_Tag(a, PPT_TAG_STATE), "bandeira do arquivo sai"
+    idx = PptTqq_Tag(p, PPT_TAG_LINKIDX)
+    AssertEqual PptTqq_IdxEntry(CLng(p.Slides(1).SlideID), "tqq_a", "C:\x\a.xlsx") & vbLf & PptTqq_IdxEntry(CLng(p.Slides(1).SlideID), "txt_b", "C:\x\b.xlsx"), idx
+    AssertTrue CLng(p.Saved) <> 0, "Saved preservado"
+    ' a abertura (HandleOpen) tambem limpa: bandeira gravada de novo sai na primeira vista
+    a.Tags.Add PPT_TAG_STATE, "new"
+    PptTqq_ResetTestHooks
+    PptTqq_HandleOpen p
+    AssertEqual "", PptTqq_Tag(a, PPT_TAG_STATE), "HandleOpen chama PptTqq_PrepareOnOpen"
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+Public Sub Test_PptTqq_LinkStates_ApiAndCore()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String
+    Set p = NewTagged()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    Set f = NewFakeXl(5)
+    PptTqq_SetExcelForTest f, ""
+    AssertEqual "!" & PPT_MSG_OLD_CORE_STATES, PptTqq_LinkStates(p, "", False)
+    Set f = NewFakeXl(6)
+    PptTqq_SetExcelForTest f, ""
+    AssertEqual "1|a|b|chart:stacked|manual|ok", PptTqq_LinkStates(p, "E", True)
+    AssertEqual "E", f.LastEntries
+    AssertTrue CBool(f.LastVerify)
+    f.NoCore = True
+    AssertEqual "!" & PPT_MSG_NOCORE_STATES, PptTqq_LinkStates(p, "", False)
+    PptTqq_SetExcelForTest Nothing, ""
+    AssertEqual "!" & PPT_MSG_NO_EXCEL, PptTqq_LinkStates(p, "", False)
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+Public Sub Test_PptRx_LinkedCallbacks_NoSelection()
+    Dim v As Variant
+    v = True: PptRx_GetLinkedEnabled Nothing, v
+    AssertFalse CBool(v)
+    v = True: PptRx_GetNewVisible Nothing, v
+    AssertFalse CBool(v), "sem selecao: sem bandeira"
+    v = False: PptRx_GetUpdVisible Nothing, v
+    AssertTrue CBool(v), "sem selecao: o Atualizar normal aparece (desligado)"
+    AssertEqual "never", PPT_DEFAULT_OPENMODE
+    AssertEqual "c", PptRx_ItemPrefix("cddNumFmt"), "aba contextual: itens com prefixo c"
+    AssertEqual "", PptRx_ItemPrefix("ddPptNumFmt")
+End Sub
