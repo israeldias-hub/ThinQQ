@@ -38,15 +38,13 @@
             <button id="pbtnBubble" label="Bolhas" tag="bubble" onAction="PptRx_OnInsertChart" image="tqq_bubble16"/>
           </menu>
         </group>
-        <group id="grpPptSync" label="Gráficos do Excel">
-          <button id="btnPptSyncNow" label="Atualizar gráficos" size="large" imageMso="Refresh" onAction="PptRx_OnSync"
-                  screentip="Atualizar gráficos do ThinQQ" supertip="Atualiza dados e setas de todos os gráficos do ThinQQ colados como gráfico vinculado nesta apresentação, pelo ThinQQ do Excel."/>
-          <dropDown id="ddOpenMode" label="Ao abrir" getSelectedItemID="PptRx_GetOpenMode" onAction="PptRx_OnOpenMode"
-                    screentip="Ao abrir a apresentação" supertip="O que fazer ao abrir uma apresentação com gráficos do ThinQQ vinculados: perguntar, atualizar sempre ou não atualizar.">
-            <item id="modeask" label="Perguntar"/>
-            <item id="modealways" label="Atualizar sempre"/>
-            <item id="modenever" label="Não atualizar"/>
-          </dropDown>
+        <!-- 1.11.0: "Dados do Excel" (era "Gráficos do Excel"): Vínculos (o Data Links do think-cell, diálogo não modal) é o 1o controle; a
+             escolha "Ao abrir" saiu da faixa e foi para o diálogo. -->
+        <group id="grpPptSync" label="Dados do Excel">
+          <button id="btnPptLinks" label="Vínculos" size="large" image="tqq_links" onAction="PptRx_OnLinks" screentip="Vínculos do ThinQQ"
+                  supertip="Lista os gráficos, textos e tabelas do ThinQQ vinculados ao Excel nesta apresentação, com o estado de cada um (dados novos, atualizado, automático, pasta não encontrada), e atualiza, liga o automático ou desvincula em lote (o Data Links do think-cell). Também tem as opções de acompanhamento e do que fazer ao abrir."/>
+          <button id="btnPptSyncNow" label="Atualizar tudo" size="large" imageMso="Refresh" onAction="PptRx_OnSync"
+                  screentip="Atualizar tudo" supertip="Traz agora os dados do Excel para todos os elementos do ThinQQ desta apresentação. Sem caixa quando tudo dá certo."/>
           <button id="btnPptPackage" label="Empacotar para enviar" imageMso="FileSaveAs" onAction="PptRx_OnPackage"
                   screentip="Empacotar para enviar" supertip="Copia a apresentação e as pastas de dados dos gráficos criados pelo PowerPoint para uma pasta nova ao lado (&lt;nome&gt; (ThinQQ)), pronta para compactar e enviar."/>
           <button id="btnPptAbout" label="Sobre" imageMso="Info" onAction="PptRx_OnAbout" screentip="Sobre o ThinQQ para PowerPoint"/>
@@ -107,6 +105,7 @@
             <button id="cbtnUpdateNew" label="Dados novos: atualizar" size="large" image="tqq_flag" onAction="PptRx_OnUpdateSel" getVisible="PptRx_GetNewVisible" screentip="Dados novos no Excel"/>
             <toggleButton id="ctglAuto" label="Automático" imageMso="Refresh" getPressed="PptRx_GetAuto" onAction="PptRx_OnAuto" getEnabled="PptRx_GetLinkedEnabled" screentip="Atualizar automaticamente"/>
             <button id="cbtnEditData" label="Editar dados" imageMso="TableInsert" onAction="PptRx_OnEditData" getEnabled="PptRx_GetElemEnabled" screentip="Editar dados"/>
+            <button id="cbtnLinks" label="Vínculos" image="tqq_links" onAction="PptRx_OnLinks" screentip="Vínculos do ThinQQ"/>
           </group>
           <group id="cgrpChart" label="Gráfico do ThinQQ">
             <toggleButton id="ctglLabels" label="Rótulos" imageMso="TextBoxInsert" tag="labels" getPressed="PptRx_GetOpt" onAction="PptRx_OnToggleOpt" getEnabled="PptRx_GetOptEnabled"/>

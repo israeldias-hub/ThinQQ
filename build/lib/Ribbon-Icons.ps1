@@ -25,6 +25,7 @@ function Get-TqqIconSpecs {
         tqq_break     = @{ Mso = 'ChartAxes';                    Rects = @((New-TqqRect 5 9 6 6 $b), (New-TqqRect 5 1 6 5 $b), (New-TqqRect 3 6 10 1 $g), (New-TqqRect 3 8 10 1 $g)) }
         tqq_waterfallpair = @{ Mso = 'ChartTypeOtherInsertGallery'; Rects = @((New-TqqRect 0 3 2 12 $n), (New-TqqRect 2 2 2 13 $l), (New-TqqRect 6 3 2 4 $n), (New-TqqRect 8 2 2 3 $l), (New-TqqRect 12 7 2 8 $n), (New-TqqRect 14 5 2 10 $l)) }
         tqq_flag      = @{ Mso = 'Refresh';                      Rects = @((New-TqqRect 3 1 2 14 $n), (New-TqqRect 5 1 9 6 $g2), (New-TqqRect 5 7 5 2 $g2)) }
+        tqq_links     = @{ Mso = 'HyperlinkInsert';              Rects = @((New-TqqRect 1 2 6 5 $n), (New-TqqRect 9 9 6 5 $b), (New-TqqRect 6 4 4 2 $g), (New-TqqRect 6 10 4 2 $g), (New-TqqRect 7 5 2 6 $g)) }   # dialogo Vinculos (1.11.0)
     }
 }
 

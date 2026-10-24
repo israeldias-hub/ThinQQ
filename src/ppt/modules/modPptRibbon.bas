@@ -1,6 +1,6 @@
 Attribute VB_Name = "modPptRibbon"
 Option Explicit
-' Faixa do suplemento do PowerPoint (aba ThinQQ, grupo "Graficos do Excel"). Nunca propaga erro.
+' Faixa do suplemento do PowerPoint (aba ThinQQ; grupo "Dados do Excel", que era "Graficos do Excel" ate a 1.10.0). Nunca propaga erro.
 Private mRibbon As IRibbonUI
 
 Public Sub PptRx_OnLoad(ribbon As IRibbonUI)
@@ -14,20 +14,15 @@ Public Sub PptRx_OnSync(control As IRibbonControl)
     PptTqq_Sync Application.ActivePresentation, True
 End Sub
 
-' Itens do dropdown "Ao abrir": modeask, modealways, modenever.
-Public Sub PptRx_OnOpenMode(control As IRibbonControl, selectedId As String, selectedIndex As Integer)
+' Vinculos (1.11.0): o dialogo nao modal da apresentacao ativa (o Data Links do think-cell). A escolha "Ao abrir" mudou para ele.
+Public Sub PptRx_OnLinks(control As IRibbonControl)
     On Error Resume Next
-    PptTqq_SetOpenMode Mid$(selectedId, 5)
-End Sub
-
-Public Sub PptRx_GetOpenMode(control As IRibbonControl, ByRef itemId)
-    On Error Resume Next
-    itemId = "mode" & PptTqq_OpenMode()
+    PptLinks_Show
 End Sub
 
 Public Sub PptRx_OnAbout(control As IRibbonControl)
     On Error Resume Next
-    PptTqq_Msg "ThinQQ para PowerPoint " & APP_VERSION & vbLf & "Cria gráficos do ThinQQ direto no slide (Inserir gráfico; os dados ficam numa pasta do Excel ao lado da apresentação) e atualiza dados e setas dos gráficos do ThinQQ vinculados: ao abrir a apresentação (aba ThinQQ > Ao abrir), pelo botão ou automaticamente (Elemento selecionado > Atualizar automaticamente).", vbInformation
+    PptTqq_Msg "ThinQQ para PowerPoint " & APP_VERSION & vbLf & "Cria gráficos do ThinQQ direto no slide (Inserir gráfico; os dados ficam numa pasta do Excel ao lado da apresentação) e atualiza dados e setas dos gráficos do ThinQQ vinculados: ao abrir a apresentação (Vínculos > Ao abrir a apresentação), pelo botão ou automaticamente (Elemento selecionado > Atualizar automaticamente).", vbInformation
 End Sub
 
 ' ---- Grupo "Elemento selecionado" (1.6.0; "Grafico selecionado" ate a 1.8.0): estado segue a selecao (clsPptEvents.WindowSelectionChange invalida). ----

@@ -98,6 +98,7 @@ End Sub
 
 Public Sub Auto_Close()
     On Error Resume Next
+    PptLinks_CloseAll                                   ' 1.11.0: o dialogo Vinculos (nao modal) sai antes do PowerPoint fechar
     Set mEvents = Nothing
 End Sub
 
@@ -228,7 +229,7 @@ End Function
 Public Function PptTqq_AskText(n As Long, Optional sources As Collection) As String
     Dim head As String, tail As String
     head = "Esta apresentação tem " & n & " gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?"
-    tail = vbLf & vbLf & "Para não perguntar mais: aba ThinQQ > Ao abrir."
+    tail = vbLf & vbLf & "Para não perguntar mais: Vínculos > Ao abrir a apresentação."
     PptTqq_AskText = head & PptTqq_SourcesText(sources, PPT_MAX_ASK_LEN - Len(head) - Len(tail)) & tail
 End Function
 
@@ -711,6 +712,8 @@ End Sub
 ' Evento PresentationCloseFinal: esquece a apresentacao (reabrir depois que os dados mudaram pergunta de novo). Nunca propaga erro.
 Public Sub PptTqq_OnClose(pres As Object)
     On Error Resume Next
+    PptLinks_OnClose pres                               ' 1.11.0: o dialogo Vinculos dela sai e os estados lembrados tambem
+    Err.Clear
     If mSeen Is Nothing Then Exit Sub
     mSeen.Remove LCase$(CStr(pres.FullName))
     Err.Clear
@@ -760,7 +763,7 @@ Public Sub PptTqq_HandleOpen(pres As Object)
             If PptTqq_Ask(PptTqq_AskText(n, srcs)) = vbYes Then PptTqq_DoSync pres, False
         ElseIf n > 0 And BUILD_CONFIG <> "Test" And CLng(pres.ReadOnly) = 0 Then
             mBusy = False                                     ' PptTqq_LinkStates tem a propria guarda de reentrada
-            PptTqq_LinkStates pres, "", False                 ' 1.11.0: so com o Excel JA aberto com o core: as bandeiras aparecem; sem caixa
+            PptLinks_Remember PptTqq_LinkStates(pres, "", False), pres   ' 1.11.0: so com o Excel JA aberto com o core: as bandeiras aparecem (e o dialogo Vinculos ve os estados); sem caixa
             mBusy = True
             PptRx_InvalidateElem
         End If
@@ -1159,8 +1162,62 @@ Fail:
     PptTqq_LinkStates = "!" & PptTqq_ErrorText(en, ed)
 End Function
 
-' ---- 1.8.0 (Parte G): criar graficos pelo PowerPoint. spec 2026-10-15 secao 14. ----
+' LinkFormat.SourceFullName da forma ("" sem vinculo legivel), para o dialogo Vinculos (1.11.0). Nunca propaga erro.
+Public Function PptTqq_LinkSourceOf(shp As Object) As String
+    PptTqq_LinkSourceOf = PptTqq_LinkSource(shp)
+End Function
 
+' Nome unico no slide antes de montar as entradas (dialogo Vinculos, 1.11.0). Propaga erro (quem chama trata).
+Public Sub PptTqq_EnsureUniqueNamePublic(shp As Object)
+    PptTqq_EnsureUniqueName shp
+End Sub
+
+' Opcao do core (API 2: "autoon"/"autonew") no Excel JA aberto; available = False sem Excel, sem o core ou com o core antigo. Nunca propaga.
+Public Function PptTqq_CoreFlag(key As String, ByRef available As Boolean) As Boolean
+    Dim xl As Object, created As Boolean, core As String
+    available = False
+    On Error GoTo Done
+    Set xl = PptTqq_GetExcel(created, True)
+    If xl Is Nothing Then Exit Function
+    core = PptTqq_EnsureCore(xl, created)
+    If Len(core) > 0 Then
+        If PptTqq_CoreApi(xl, core) >= PPT_API_SHAPES Then
+            PptTqq_CoreFlag = CBool(xl.Run("'" & core & "'!Core_PptGetFlag", key))
+            available = True
+        End If
+    End If
+Done:
+    On Error GoTo -1
+    On Error Resume Next
+    PptTqq_Release xl, created
+End Function
+
+' Grava a opcao no core (so o Excel ja aberto). Devolve a linha de status. Nunca propaga.
+Public Function PptTqq_SetCoreFlag(key As String, v As Boolean) As String
+    Dim xl As Object, created As Boolean, core As String, en As Long, ed As String
+    On Error GoTo Fail
+    Set xl = PptTqq_GetExcel(created, True)
+    If xl Is Nothing Then PptTqq_SetCoreFlag = PPT_MSG_NOCORE_STATES: Exit Function
+    core = PptTqq_EnsureCore(xl, created)
+    If Len(core) = 0 Then
+        PptTqq_SetCoreFlag = PPT_MSG_NOCORE_STATES
+    ElseIf PptTqq_CoreApi(xl, core) < PPT_API_SHAPES Then
+        PptTqq_SetCoreFlag = PPT_MSG_OLD_CORE_STATES
+    Else
+        xl.Run "'" & core & "'!Core_PptSetFlag", key, v
+        PptTqq_SetCoreFlag = "Opção gravada no Excel."
+    End If
+    PptTqq_Release xl, created
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptTqq_Release xl, created
+    PptTqq_SetCoreFlag = PptTqq_ErrorText(en, ed)
+End Function
+
+' ---- 1.8.0 (Parte G): criar graficos pelo PowerPoint. spec 2026-10-15 secao 14. ----
 ' Copia exata de PptData_PathFor do core (mesmos testes de cadeia). Pura.
 Public Function PptTqq_DataPathFor(presFullName As String) As String
     Dim p As Long, k As Long, base As String, f As String

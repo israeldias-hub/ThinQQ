@@ -1,0 +1,32 @@
+{
+  "name": "frmTqqLinks",
+  "caption": "Vínculos do ThinQQ",
+  "width": 650,
+  "height": 420,
+  "controls": [
+    { "type": "Label", "name": "lblHead", "Left": 12, "Top": 8, "Width": 440, "Height": 14, "Caption": "Elementos do ThinQQ vinculados ao Excel", "fontName": "Segoe UI", "fontSize": 9, "fontBold": true },
+    { "type": "Label", "name": "lblFilter", "Left": 460, "Top": 8, "Width": 40, "Height": 14, "Caption": "Mostrar:", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "ComboBox", "name": "cboFilter", "Left": 500, "Top": 5, "Width": 136, "Height": 20, "Style": 2, "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "Label", "name": "lblColSlide", "Left": 14, "Top": 32, "Width": 34, "Height": 12, "Caption": "Slide", "fontName": "Segoe UI", "fontSize": 8 },
+    { "type": "Label", "name": "lblColElem", "Left": 50, "Top": 32, "Width": 150, "Height": 12, "Caption": "Elemento", "fontName": "Segoe UI", "fontSize": 8 },
+    { "type": "Label", "name": "lblColMode", "Left": 202, "Top": 32, "Width": 60, "Height": 12, "Caption": "Modo", "fontName": "Segoe UI", "fontSize": 8 },
+    { "type": "Label", "name": "lblColState", "Left": 264, "Top": 32, "Width": 140, "Height": 12, "Caption": "Estado", "fontName": "Segoe UI", "fontSize": 8 },
+    { "type": "Label", "name": "lblColSrc", "Left": 406, "Top": 32, "Width": 220, "Height": 12, "Caption": "Origem", "fontName": "Segoe UI", "fontSize": 8 },
+    { "type": "ListBox", "name": "lstLinks", "Left": 12, "Top": 46, "Width": 624, "Height": 214, "ColumnCount": 5, "ColumnWidths": "36 pt;152 pt;62 pt;142 pt;220 pt", "MultiSelect": 2, "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnUpdate", "Left": 12, "Top": 268, "Width": 90, "Height": 24, "Caption": "Atualizar", "fontName": "Segoe UI", "fontSize": 9, "fontBold": true },
+    { "type": "CommandButton", "name": "btnUpdateNew", "Left": 106, "Top": 268, "Width": 150, "Height": 24, "Caption": "Atualizar com dados novos", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnAuto", "Left": 260, "Top": 268, "Width": 80, "Height": 24, "Caption": "Automático", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnManual", "Left": 344, "Top": 268, "Width": 70, "Height": 24, "Caption": "Manual", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnGoto", "Left": 418, "Top": 268, "Width": 70, "Height": 24, "Caption": "Ir para", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnEdit", "Left": 492, "Top": 268, "Width": 144, "Height": 24, "Caption": "Abrir no Excel", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnCheck", "Left": 12, "Top": 298, "Width": 90, "Height": 24, "Caption": "Verificar", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnUnlink", "Left": 106, "Top": 298, "Width": 90, "Height": 24, "Caption": "Desvincular", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnAll", "Left": 200, "Top": 298, "Width": 100, "Height": 24, "Caption": "Selecionar tudo", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnClose", "Left": 556, "Top": 298, "Width": 80, "Height": 24, "Caption": "Fechar", "Cancel": true, "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CheckBox", "name": "chkEngine", "Left": 12, "Top": 332, "Width": 330, "Height": 18, "Caption": "Acompanhar mudanças do Excel (bandeiras e automáticos)", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CheckBox", "name": "chkNewAuto", "Left": 350, "Top": 332, "Width": 286, "Height": 18, "Caption": "Novos vínculos nascem automáticos", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "Label", "name": "lblOpen", "Left": 12, "Top": 358, "Width": 140, "Height": 14, "Caption": "Ao abrir a apresentação:", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "ComboBox", "name": "cboOpen", "Left": 154, "Top": 355, "Width": 150, "Height": 20, "Style": 2, "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "Label", "name": "lblStatus", "Left": 12, "Top": 382, "Width": 624, "Height": 14, "Caption": "", "fontName": "Segoe UI", "fontSize": 9 }
+  ]
+}

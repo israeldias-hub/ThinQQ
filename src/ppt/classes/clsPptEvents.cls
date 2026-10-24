@@ -20,12 +20,21 @@ End Sub
 Private Sub App_WindowActivate(ByVal Pres As Presentation, ByVal Wn As DocumentWindow)
     On Error Resume Next
     PptTqq_OnOpen Pres
+    PptLinks_OnSelChange                    ' 1.11.0: o dialogo Vinculos aberto passa a mostrar esta apresentacao
 End Sub
 
-' Selecao mudou: o estado de "Atualizar automaticamente" segue o grafico selecionado. So invalida a faixa (nada de MsgBox nem Excel).
+' Selecao mudou: o estado de "Atualizar automaticamente" segue o grafico selecionado. So invalida a faixa e, com o dialogo Vinculos aberto,
+' o atualiza (so etiquetas; nada de MsgBox nem Excel).
 Private Sub App_WindowSelectionChange(ByVal Sel As Selection)
     On Error Resume Next
     PptRx_InvalidateElem
+    PptLinks_OnSelChange
+End Sub
+
+' Outro slide (painel de miniaturas, classificacao de slides): o dialogo Vinculos aberto acompanha (1.11.0). So etiquetas.
+Private Sub App_SlideSelectionChanged(ByVal SldRange As SlideRange)
+    On Error Resume Next
+    PptLinks_OnSelChange
 End Sub
 
 ' Salvar a apresentacao tambem salva a pasta de dados dos graficos criados pelo PowerPoint (1.8.0). Sonda PG5: este evento chega DEPOIS
