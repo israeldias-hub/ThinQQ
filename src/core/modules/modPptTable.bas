@@ -15,7 +15,7 @@ Private Const PPTTABLE_RS As String = vbLf                    ' separador de lin
 Private Const PPTTABLE_FS As String = "|"                     ' separador de celulas na etiqueta
 Private Const PPTTABLE_EMPTY1 As String = "\-"                ' etiqueta da matriz 1 x 1 vazia (I1)
 Public Const PPTTABLE_MAX_CELLENC As Long = 1020             ' 4 x PPTTEXT_MAX_LEN: celula codificada maior = etiqueta recusada (I2)
-Private Const PPTTABLE_NAME_PREFIX As String = "TQQ_T_"      ' nome definido oculto do intervalo (so a acao explicita de inserir o cria)
+Public Const PPTTABLE_NAME_PREFIX As String = "TQQ_T_"      ' nome definido oculto do intervalo (so a acao explicita de inserir o cria)
 ' Estilo "Sem Estilo, Grade da Tabela" do PowerPoint: sem preenchimento e com grade fina; a formatacao do Excel vai por cima (so o que difere
 ' do padrao e escrito: menos chamadas ao PowerPoint por celula).
 Private Const PPTTABLE_STYLE_GRID As String = "{5940675A-B579-460E-94D1-54222C63F5DA}"
@@ -358,6 +358,7 @@ Public Function PptTable_Insert(rng As Range, slide As Object) As Object
     PptTable_TagLast shp, m
     shp.Tags.Add PPTTABLE_TAG, "1"                              ' por ultimo: so vira "tabela vinculada" com as etiquetas completas
     If PptAuto_NewLinksAuto() Then PptSync_SetAuto shp, True
+    PptLinkIdx_Add shp                                          ' 1.11.0: indice de todos os vinculos (nunca propaga erro)
     Set PptTable_Insert = shp
     Exit Function
 Undo:

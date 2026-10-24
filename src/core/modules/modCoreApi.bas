@@ -1595,6 +1595,7 @@ Private Sub PptSyncAfterPaste(shp As Object, co As ChartObject)
         PptSync_SetAuto shp, True                     ' opcao "Novos vinculos atualizam automaticamente" (1.6.0)
         If Err.Number <> 0 Then Errors_Log "CopyToPowerPoint/automatico" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     End If
+    PptLinkIdx_Add shp                              ' 1.11.0: indice de todos os vinculos (nunca propaga erro)
 End Sub
 
 ' Parte A (1.4.0): atualiza os graficos ThinQQ vinculados de UMA apresentacao. O suplemento ThinQQ.ppam chama por Application.Run com o
@@ -1645,6 +1646,27 @@ Fail:
     If Ppt_IsBusyError(en) Then Core_PptSyncShapes = PPT_ERR_BUSY Else Core_PptSyncShapes = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
 End Function
 
+' API 6 (1.11.0): estados dos elementos para o .ppam (dialogo Vinculos e abertura da apresentacao; PptState_Lines). Sem caixas (modo
+' silencioso) e com o ciclo automatico esperando, equilibrados em todo caminho. Devolve as linhas, ou "!" + mensagem. Nunca propaga erro.
+Public Function Core_PptLinkStates(pres As Object, entries As String, verifyClosed As Boolean) As String
+    Dim en As Long, ed As String
+    On Error GoTo Fail
+    Core_QuietBegin
+    Ppt_BeginOp
+    Core_PptLinkStates = PptState_Lines(pres, entries, verifyClosed)
+    Ppt_EndOp
+    Core_QuietEnd
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Ppt_EndOp
+    Core_QuietEnd
+    Errors_Log "Core_PptLinkStates" & vbTab & en & vbTab & ed
+    If Ppt_IsBusyError(en) Then Core_PptLinkStates = "!" & PPT_ERR_BUSY Else Core_PptLinkStates = "!Não foi possível verificar os vínculos: " & ed & " (" & en & ")"
+End Function
+
 ' Opcoes do PowerPoint para a faixa do Excel: "autoon" (atualizacao automatica ligada) e "autonew" (novos vinculos ja automaticos).
 Public Function Core_PptGetFlag(key As String) As Boolean
     On Error Resume Next
@@ -1664,7 +1686,7 @@ End Sub
 
 ' API 3 (1.8.0): grafico do ThinQQ criado PELO POWERPOINT (spec 14). slide = slide de destino (objeto do PowerPoint, passado pelo .ppam).
 ' Cria a planilha na pasta de dados da apresentacao, insere o grafico, destaca os dados (moldura), salva, cola VINCULADO no slide (o mesmo
-' caminho do "Copiar como grafico vinculado": etiquetas e setas no tamanho do slide), marca TQQ_DATA e liga "Atualizar automaticamente".
+' caminho do "Copiar como grafico vinculado": etiquetas e setas no tamanho do slide), marca TQQ_DATA; nasce manual (1.11.0).
 ' Devolve "" (ok) ou a mensagem; falha desfaz a forma e a planilha criadas. Nunca propaga erro. Nunca chama LinkFormat.Update (a colagem
 ' acabou de trazer os dados; PG4: Update com a origem ausente abre uma caixa modal que trava o PowerPoint). O ciclo automatico espera
 ' (Ppt_BeginOp/Ppt_EndOp, como no Core_CopyToPowerPoint) e nenhuma caixa abre no Excel durante a chamada (Core_QuietBegin/End: o PowerPoint
@@ -1700,7 +1722,7 @@ Private Function PptInsertChartImpl(slide As Object, kind As String) As String
     shp.Tags.Add PPTDATA_TAG, "1"
     PptData_Hook "tagged"
     pres.Tags.Add PPTDATA_MARK, path
-    PptSync_SetAuto shp, True                        ' por ultimo: a ultima gravacao e a do indice (falha antes dele nao deixa entrada orfa)
+    PptLinkIdx_Add shp                               ' 1.11.0: nasce MANUAL (como o think-cell); a colagem ja ligou o automatico se "Novos vinculos" estiver marcada
     PptInsertChartImpl = ""
     Exit Function
 Fail:

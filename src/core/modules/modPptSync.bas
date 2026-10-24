@@ -24,9 +24,10 @@ Private Const PPTIDX_FS As String = "|"                    ' indice: separador d
 Private Const PPTIDX_ES As String = vbLf                   ' indice: separador de entradas
 Public Const PPTSYNC_TAG_KIND As String = "TQQ_KIND"        ' tipo do grafico (a faixa do PowerPoint le sem chamar o Excel; spec 14.5)
 Public Const PPTSYNC_TAG_OPTS As String = "TQQ_OPTS"        ' estado das opcoes (PptSync_OptsText) para getPressed/getEnabled do .ppam
-Public Const CORE_PPT_API As Long = 5                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
+Public Const CORE_PPT_API As Long = 6                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
                                                            ' 3 = Core_PptInsertChart, Core_PptEditData, Core_PptDataSave (1.8.0);
-                                                           ' 4 = Core_PptCommand, Core_PptCategories (1.9.0); 5 = Core_PptLinkText (1.9.0)
+                                                           ' 4 = Core_PptCommand, Core_PptCategories (1.9.0); 5 = Core_PptLinkText (1.9.0);
+                                                           ' 6 = Core_PptLinkStates (1.11.0)
 Public Const PPTSYNC_NONE As String = "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."
 Public Const PPTSYNC_NOT_FOUND As String = "Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo."
 Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."
@@ -721,7 +722,7 @@ End Function
 ' recomendacao "somente leitura" e a notificacao de arquivo em uso tambem nao perguntam. SEGURANCA: o caminho vem da apresentacao (de quem a
 ' fez): a pasta e aberta com as macros DESLIGADAS (AutomationSecurity = 3, msoAutomationSecurityForceDisable, so durante o Open e restaurada
 ' em todo caminho), entao nenhuma macro dela roda nem ao abrir nem ao fechar.
-Private Function PptSync_OpenBook(path As String, opened As Collection) As Workbook
+Public Function PptSync_OpenBook(path As String, opened As Collection) As Workbook
     Dim w As Workbook, prevAlerts As Boolean, prevEvents As Boolean, en As Long, ed As String, prevSec As Long
     For Each w In Application.Workbooks
         If StrComp(w.FullName, path, vbTextCompare) = 0 Then Set PptSync_OpenBook = w: Exit Function
@@ -748,7 +749,7 @@ Private Function PptSync_OpenBook(path As String, opened As Collection) As Workb
 End Function
 
 ' A pasta ja aberta neste Excel com esse FullName (sem diferenciar maiusculas); Nothing se nao esta aberta. Nunca abre nada.
-Private Function PptSync_FindOpenBook(path As String) As Workbook
+Public Function PptSync_FindOpenBook(path As String) As Workbook
     Dim w As Workbook
     For Each w In Application.Workbooks
         If StrComp(w.FullName, path, vbTextCompare) = 0 Then Set PptSync_FindOpenBook = w: Exit Function
@@ -756,7 +757,7 @@ Private Function PptSync_FindOpenBook(path As String) As Workbook
 End Function
 
 ' Fecha sem salvar as pastas abertas pela sincronizacao, com os eventos desligados (restaurados ao fim; nunca propaga erro).
-Private Sub PptSync_CloseOpened(opened As Collection)
+Public Sub PptSync_CloseOpened(opened As Collection)
     Dim w As Variant, prevEvents As Boolean
     On Error Resume Next
     prevEvents = Application.EnableEvents
@@ -866,10 +867,12 @@ Public Function PptSync_Presentation(pres As Object, force As Boolean) As String
     Next
     If items.Count = 0 Then
         If Len(PptSync_Tag(pres, PPTSYNC_TAG_INDEX)) > 0 Then PptSync_TagDelete pres, PPTSYNC_TAG_INDEX    ' indice velho de formas apagadas
+        If Len(PptSync_Tag(pres, PPTSTATE_TAG_LINKIDX)) > 0 Then PptSync_TagDelete pres, PPTSTATE_TAG_LINKIDX
         PptSync_Presentation = PPTSYNC_NONE
         Exit Function
     End If
     PptSync_RebuildIndex pres, items
+    PptLinkIdx_Rebuild pres, items
     PptSync_Presentation = PptSync_Items(items, force)
 End Function
 
@@ -927,8 +930,8 @@ Public Function PptSync_Items(items As Collection, force As Boolean, Optional no
                         r = PptSync_SyncOne(shp, wb, force)
                     End If
                     Select Case r
-                        Case PPTSYNC_R_OK: nOk = nOk + 1
-                        Case PPTSYNC_R_SAME: nSame = nSame + 1
+                        Case PPTSYNC_R_OK: nOk = nOk + 1: PptState_SetTag shp, False          ' 1.11.0: atualizado = sem bandeira
+                        Case PPTSYNC_R_SAME: nSame = nSame + 1: PptState_SetTag shp, False
                         Case PPTSYNC_R_NOCHART
                             If kind = "text" Then
                                 nNoCell = nNoCell + 1

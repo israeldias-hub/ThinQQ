@@ -265,6 +265,7 @@ Public Function PptText_Link(shp As Object, startPos As Long, length As Long, ce
     shp.Tags.Add PPTTEXT_TAG, "1"                                ' por ultimo: so vira "texto vinculado" com as etiquetas completas
     ' automatica antes (outra pasta: o indice TQQ_AUTOIDX passa a citar a pasta nova) ou "Novos vinculos automaticos"
     If wasAuto Or PptAuto_NewLinksAuto() Then PptSync_SetAuto shp, True
+    PptLinkIdx_Add shp                                           ' 1.11.0: indice de todos os vinculos (nunca propaga erro)
     If cut Then PptText_Link = PPTTEXT_MSG_CUT
     Exit Function
 Undo:
