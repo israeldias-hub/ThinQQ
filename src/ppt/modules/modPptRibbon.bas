@@ -44,7 +44,36 @@ Public Sub PptRx_InvalidateElem()
     For Each id In Array("tglPptLabels", "tglPptTotals", "tglPptConnectors", "ddPptNumFmt", "ddPptLegend", "btnPptCagr", "btnPptDiff", "btnPptClearAnn")
         mRibbon.InvalidateControl CStr(id)
     Next
+    ' 1.11.0: bandeira (Dados novos: atualizar) e a aba contextual ThinQQ (ids com prefixo "c")
+    For Each id In Array("btnPptUpdateNew", "cbtnUpdate", "cbtnUpdateNew", "ctglAuto", "cbtnEditData", "ctglLabels", "ctglTotals", "ctglConnectors", "cddNumFmt", "cddLegend", "cbtnCagr", "cbtnDiff", "cbtnClearAnn")
+        mRibbon.InvalidateControl CStr(id)
+    Next
 End Sub
+
+' 1.11.0: Atualizar e Automatico valem para grafico, texto e tabela vinculados.
+Public Sub PptRx_GetLinkedEnabled(control As IRibbonControl, ByRef enabled)
+    On Error Resume Next
+    enabled = False
+    enabled = (PptTqq_SelectedLinked().Count > 0)
+End Sub
+
+' Bandeira (1.11.0): com dados novos em alguma forma selecionada aparece "Dados novos: atualizar" (icone tqq_flag) no lugar de "Atualizar".
+Public Sub PptRx_GetNewVisible(control As IRibbonControl, ByRef visible)
+    On Error Resume Next
+    visible = False
+    visible = PptTqq_AnyNew(PptTqq_SelectedLinked())
+End Sub
+
+Public Sub PptRx_GetUpdVisible(control As IRibbonControl, ByRef visible)
+    On Error Resume Next
+    visible = True
+    visible = Not PptTqq_AnyNew(PptTqq_SelectedLinked())
+End Sub
+
+' Item das listas da aba contextual: ids com o prefixo "c" (ids sao unicos no customUI inteiro). Pura.
+Public Function PptRx_ItemPrefix(controlId As String) As String
+    If Left$(controlId, 1) = "c" Then PptRx_ItemPrefix = "c"
+End Function
 
 ' Ligado so com pelo menos um grafico do ThinQQ (de um slide) selecionado.
 Public Sub PptRx_GetElemEnabled(control As IRibbonControl, ByRef enabled)
@@ -57,19 +86,21 @@ End Sub
 Public Sub PptRx_GetAuto(control As IRibbonControl, ByRef pressed)
     On Error Resume Next
     pressed = False
-    pressed = PptTqq_ShapesAuto(PptTqq_SelectedTagged())
+    pressed = PptTqq_ShapesAuto(PptTqq_SelectedLinked())
 End Sub
 
 ' Ligar ja atualiza uma vez (como o "Update Automatically" do think-cell).
 Public Sub PptRx_OnAuto(control As IRibbonControl, pressed As Boolean)
     On Error Resume Next
-    PptTqq_ToggleAuto PptTqq_SelectedTagged(), pressed
+    PptTqq_ToggleAuto PptTqq_SelectedLinked(), pressed
     PptRx_InvalidateElem
 End Sub
 
+' "Atualizar" e "Dados novos: atualizar" (fixa e contextual): sucesso sem caixa; a bandeira some (PptTqq_ShowResult redesenha a faixa).
 Public Sub PptRx_OnUpdateSel(control As IRibbonControl)
     On Error Resume Next
-    PptTqq_UpdateSelected PptTqq_SelectedTagged()
+    PptTqq_UpdateSelected PptTqq_SelectedLinked()
+    PptRx_InvalidateElem
 End Sub
 
 ' Texto vinculado ao Excel (1.9.0): a selecao de texto (ou a caixa inteira) desta janela e a celula ativa do Excel JA aberto com o ThinQQ;
@@ -122,6 +153,13 @@ Private Function PptRx_TagOf(control As IRibbonControl) As String
     Err.Clear
 End Function
 
+' Id do controle ("" sem controle). Nunca propaga.
+Private Function PptRx_IdOf(control As IRibbonControl) As String
+    On Error Resume Next
+    PptRx_IdOf = CStr(control.Id)
+    Err.Clear
+End Function
+
 Public Sub PptRx_GetOpt(control As IRibbonControl, ByRef pressed)
     On Error Resume Next
     pressed = False
@@ -149,14 +187,17 @@ Public Sub PptRx_GetOptItem(control As IRibbonControl, ByRef itemId)
     Dim t As String
     On Error Resume Next
     t = PptRx_TagOf(control)
-    itemId = PptTqq_OptItemId(t, PptTqq_OptValue(PptTqq_SelectedOpts(), t))
+    itemId = PptRx_ItemPrefix(PptRx_IdOf(control)) & PptTqq_OptItemId(t, PptTqq_OptValue(PptTqq_SelectedOpts(), t))
 End Sub
 
+' Itens da aba contextual (1.11.0) tem o prefixo "c" ("cnumfmtpct0"): sai antes de tirar o tag.
 Public Sub PptRx_OnOptItem(control As IRibbonControl, selectedId As String, selectedIndex As Integer)
-    Dim t As String
+    Dim t As String, sid As String
     On Error Resume Next
     t = PptRx_TagOf(control)
-    PptTqq_CommandShapes Nothing, PptTqq_SelectedTagged(), t, Mid$(selectedId, Len(t) + 1)
+    sid = selectedId
+    If PptRx_ItemPrefix(PptRx_IdOf(control)) = "c" Then sid = Mid$(sid, 2)
+    PptTqq_CommandShapes Nothing, PptTqq_SelectedTagged(), t, Mid$(sid, Len(t) + 1)
 End Sub
 
 Public Sub PptRx_OnArrow(control As IRibbonControl)

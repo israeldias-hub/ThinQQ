@@ -56,6 +56,13 @@ Public Const PPT_MSG_OLD_CORE_TEXT As String = "Atualize o ThinQQ no Excel para 
 Public Const PPT_MSG_TEXT_GROUP As String = "O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular."
 Public Const PPT_MSG_TEXT_OK As String = "Texto vinculado à célula do Excel."
 Public Const PPT_MSG_TEXT_SAVE As String = "Salve a pasta de trabalho no Excel: assim o vínculo acompanha linhas e colunas inseridas antes da célula."
+Public Const PPT_TAG_STATE As String = "TQQ_STATE"          ' = PPTSTATE_TAG do core (1.11.0): "new" = dados novos (a bandeira)
+Public Const PPT_TAG_LINKIDX As String = "TQQ_LINKIDX"      ' = PPTSTATE_TAG_LINKIDX do core: indice de todos os elementos vinculados
+Public Const PPT_API_STATES As Long = 6                    ' Core_PptLinkStates (core 1.11.0)
+Public Const PPT_DEFAULT_OPENMODE As String = "never"      ' 1.11.0: como o think-cell, abrir nao pergunta (quem gravou outra escolha a mantem)
+Public Const PPT_SUM_PREFIX As String = "Gráficos do ThinQQ atualizados: "
+Public Const PPT_MSG_OLD_CORE_STATES As String = "Atualize o ThinQQ no Excel para ver o estado dos vínculos."
+Public Const PPT_MSG_NOCORE_STATES As String = "O ThinQQ não está carregado no Excel: abra o Excel com o ThinQQ para ver o estado dos vínculos."
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
 Private Const RPC_E_RETRYLATER As Long = -2147417846
 Private mEvents As clsPptEvents
@@ -77,6 +84,7 @@ Private mTestPickA As Long                      ' gancho de teste: respostas de 
 Private mTestPickB As Long
 Private mTestPackProbes As Long                 ' gancho de teste: FileExists de pastas de dados em PptTqq_Package
 Private mTestInvalidates As Long                ' gancho de teste: chamadas de PptRx_InvalidateElem
+Private mLastResult As String                   ' resultado da ultima acao (tambem o sucesso puro, que nao abre caixa; 1.11.0)
 
 ' Carga do suplemento: liga os eventos do PowerPoint e trata as apresentacoes ja abertas (o projeto de teste .pptm nao liga).
 Public Sub Auto_Open()
@@ -179,7 +187,7 @@ Public Sub PptTqq_Msg(msg As String, Optional style As VbMsgBoxStyle = vbInforma
 End Sub
 
 ' Unico ponto de pergunta (no build Test registra e responde Nao).
-Private Function PptTqq_Ask(msg As String) As VbMsgBoxResult
+Public Function PptTqq_Ask(msg As String) As VbMsgBoxResult
     mLastMsg = msg
     If BUILD_CONFIG = "Test" Then PptTqq_Ask = vbNo: Exit Function
     PptTqq_Ask = MsgBox(msg, vbQuestion + vbYesNo, PPT_APP_NAME)
@@ -193,10 +201,11 @@ Public Function PptTqq_NormalizeMode(m As String) As String
     End Select
 End Function
 
-' Modo "Ao abrir" (HKCU\Software\VB and VBA Program Settings\ThinQQ\PowerPoint\OpenMode). Testes: sempre "ask", sem ler o registro.
+' Modo "Ao abrir" (HKCU\Software\VB and VBA Program Settings\ThinQQ\PowerPoint\OpenMode; sem valor gravado: PPT_DEFAULT_OPENMODE, 1.11.0).
+' Testes: sempre "ask", sem ler o registro.
 Public Function PptTqq_OpenMode() As String
     If BUILD_CONFIG = "Test" Then PptTqq_OpenMode = "ask": Exit Function
-    PptTqq_OpenMode = PptTqq_NormalizeMode(GetSetting(PPT_APP_NAME, PPT_SECTION, PPT_KEY_OPENMODE, "ask"))
+    PptTqq_OpenMode = PptTqq_NormalizeMode(GetSetting(PPT_APP_NAME, PPT_SECTION, PPT_KEY_OPENMODE, PPT_DEFAULT_OPENMODE))
 End Function
 
 Public Sub PptTqq_SetOpenMode(m As String)
@@ -331,7 +340,7 @@ Private Function PptTqq_ExcelOpenNames() As Collection
     Set PptTqq_ExcelOpenNames = PptTqq_WorkbookNames(xl)
 End Function
 
-Private Function PptTqq_Tag(shp As Object, key As String) As String
+Public Function PptTqq_Tag(shp As Object, key As String) As String
     On Error Resume Next
     PptTqq_Tag = CStr(shp.Tags.Item(key))
     Err.Clear
@@ -672,14 +681,14 @@ Private Sub PptTqq_DoSync(pres As Object, force As Boolean)
         msg = PptTqq_DataOnly(pres, PptTqq_WorkbookNames(xl)) & vbLf & PPT_MSG_DATA_ONLY
     End If
     PptTqq_Release xl, created
-    PptTqq_Msg msg, vbInformation
+    PptTqq_ShowResult msg                                   ' 1.11.0: sucesso puro sem caixa
     Exit Sub
 Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
     PptTqq_Release xl, created
-    PptTqq_Msg PptTqq_ErrorText(en, ed), vbExclamation
+    PptTqq_ShowResult "!" & PptTqq_ErrorText(en, ed)
 End Sub
 
 Private Function PptTqq_Seen(key As String) As Boolean
@@ -740,6 +749,7 @@ Public Sub PptTqq_HandleOpen(pres As Object)
         PptTqq_RelinkData pres, False             ' apresentacao movida: graficos criados pelo PowerPoint voltam a achar os dados (sem tocar a rede)
         Set srcs = New Collection
         n = PptTqq_CountTagged(pres, srcs)
+        PptTqq_PrepareOnOpen pres                 ' 1.11.0: bandeiras gravadas no arquivo saem; TQQ_LINKIDX reconstruido (Saved preservado)
         md = PptTqq_OpenMode()
         If md = "always" And n > 0 Then remote = PptTqq_HasRemoteSource(srcs, PptTqq_ExcelOpenNames())
         act = PptTqq_OnOpenAction(md, (CLng(pres.ReadOnly) <> 0), n, False, remote)
@@ -747,6 +757,11 @@ Public Sub PptTqq_HandleOpen(pres As Object)
             PptTqq_DoSync pres, False
         ElseIf act = "ask" Then
             If PptTqq_Ask(PptTqq_AskText(n, srcs)) = vbYes Then PptTqq_DoSync pres, False
+        ElseIf n > 0 And BUILD_CONFIG <> "Test" And CLng(pres.ReadOnly) = 0 Then
+            mBusy = False                                     ' PptTqq_LinkStates tem a propria guarda de reentrada
+            PptTqq_LinkStates pres, "", False                 ' 1.11.0: so com o Excel JA aberto com o core: as bandeiras aparecem; sem caixa
+            mBusy = True
+            PptRx_InvalidateElem
         End If
     End If
     mBusy = False
@@ -850,11 +865,12 @@ Private Sub PptTqq_EnsureUniqueName(shp As Object)
     Next
 End Sub
 
-' Formas do ThinQQ (TQQ_CHART) da selecao da janela ativa (formas ou texto dentro de uma forma), so as de um slide (mestre/layout nao tem
-' SlideID e o indice nao as acha). Vazia sem janela/selecao. Nunca propaga erro (chamada pelos callbacks da faixa a cada mudanca de selecao).
-Public Function PptTqq_SelectedTagged() As Collection
-    Dim out As New Collection, sel As Object, sr As Object, shp As Object, i As Long, sid As Long
-    Set PptTqq_SelectedTagged = out
+' Formas do ThinQQ da selecao da janela ativa (formas ou texto dentro de uma forma), so as de um slide (mestre/layout nao tem SlideID e o
+' indice nao as acha). anyKind: grafico, texto ou tabela vinculados (1.11.0: Atualizar e Automatico); senao so graficos (TQQ_CHART: Editar
+' dados e os comandos do grafico). Vazia sem janela/selecao. Nunca propaga erro (chamada pelos callbacks da faixa a cada mudanca de selecao).
+Private Function PptTqq_SelectedOf(anyKind As Boolean) As Collection
+    Dim out As New Collection, sel As Object, sr As Object, shp As Object, i As Long, sid As Long, ok As Boolean
+    Set PptTqq_SelectedOf = out
     On Error Resume Next
     If Application.Windows.Count = 0 Then Exit Function
     Set sel = Application.ActiveWindow.Selection
@@ -866,7 +882,8 @@ Public Function PptTqq_SelectedTagged() As Collection
         Set shp = Nothing
         Set shp = sr(i)
         If Not shp Is Nothing Then
-            If Len(PptTqq_Tag(shp, PPT_TAG_CHART)) > 0 Then
+            If anyKind Then ok = PptTqq_IsLinkedShape(shp) Else ok = (Len(PptTqq_Tag(shp, PPT_TAG_CHART)) > 0)
+            If ok Then
                 Err.Clear
                 sid = CLng(shp.Parent.SlideID)
                 If Err.Number = 0 Then out.Add shp
@@ -875,6 +892,14 @@ Public Function PptTqq_SelectedTagged() As Collection
         Err.Clear
     Next
     Err.Clear
+End Function
+
+Public Function PptTqq_SelectedTagged() As Collection
+    Set PptTqq_SelectedTagged = PptTqq_SelectedOf(False)
+End Function
+
+Public Function PptTqq_SelectedLinked() As Collection
+    Set PptTqq_SelectedLinked = PptTqq_SelectedOf(True)
 End Function
 
 ' Todas as formas dadas sao automaticas (e ha pelo menos uma).
@@ -921,17 +946,18 @@ End Function
 ' "Atualizar automaticamente" (fromAuto, chamado depois de gravar a marca; design secao 8): so o Excel ja aberto (nunca cria um); sem Excel ou
 ' sem o core => so a dica de abrir o Excel com o ThinQQ; core mais velho => so o aviso de atualizar o ThinQQ (nada e atualizado); API 2 =>
 ' atualiza e, se a atualizacao automatica esta desligada no Excel, acrescenta onde liga-la. A API e lida uma vez. Reentrada ignorada;
-' mBusy liberado em todo caminho antes do aviso. Nunca propaga.
-Public Sub PptTqq_SyncEntries(pres As Object, entries As String, force As Boolean, Optional fromAuto As Boolean = False)
+' mBusy liberado em todo caminho. 1.11.0: devolve o texto do resultado ("!" no inicio = aviso de exclamacao; reentrada: "") em vez de
+' mostrar (PptTqq_SyncEntries mostra pelo PptTqq_ShowResult: sucesso puro sem caixa). Nunca propaga.
+Public Function PptTqq_SyncEntriesMsg(pres As Object, entries As String, force As Boolean, Optional fromAuto As Boolean = False) As String
     Dim xl As Object, created As Boolean, core As String, msg As String, v As Variant, en As Long, ed As String, api As Long
-    If mBusy Then Exit Sub
+    If mBusy Then Exit Function
     mBusy = True
     On Error GoTo Fail
     Set xl = PptTqq_GetExcel(created, fromAuto)
     If xl Is Nothing Then
         mBusy = False
-        If fromAuto Then PptTqq_Msg PPT_MSG_AUTO_NOCORE, vbInformation Else PptTqq_Msg PPT_MSG_NO_EXCEL, vbExclamation
-        Exit Sub
+        If fromAuto Then PptTqq_SyncEntriesMsg = PPT_MSG_AUTO_NOCORE Else PptTqq_SyncEntriesMsg = "!" & PPT_MSG_NO_EXCEL
+        Exit Function
     End If
     core = PptTqq_EnsureCore(xl, created)
     If Len(core) = 0 Then
@@ -954,15 +980,19 @@ Public Sub PptTqq_SyncEntries(pres As Object, entries As String, force As Boolea
     End If
     PptTqq_Release xl, created
     mBusy = False
-    PptTqq_Msg msg, vbInformation
-    Exit Sub
+    PptTqq_SyncEntriesMsg = msg
+    Exit Function
 Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
     PptTqq_Release xl, created
     mBusy = False
-    PptTqq_Msg PptTqq_ErrorText(en, ed), vbExclamation
+    PptTqq_SyncEntriesMsg = "!" & PptTqq_ErrorText(en, ed)
+End Function
+
+Public Sub PptTqq_SyncEntries(pres As Object, entries As String, force As Boolean, Optional fromAuto As Boolean = False)
+    PptTqq_ShowResult PptTqq_SyncEntriesMsg(pres, entries, force, fromAuto)
 End Sub
 
 ' Opcao "autoon" do core (API 2). Erro ou Excel ocupado: True (nenhuma nota; o resumo ja saiu). Nunca propaga.
@@ -1013,6 +1043,120 @@ Fail:
     On Error GoTo -1
     PptTqq_Msg PptTqq_ErrorText(en, ed), vbExclamation
 End Sub
+
+' ---- 1.11.0: bandeira, todos os tipos de elemento, silencio no sucesso, abertura (spec 2026-10-23 secao 8.1) ----
+' A bandeira (TQQ_STATE = "new") quer dizer "a camada do ThinQQ (setas, rotulos, titulo, impressao digital, tabelas, textos) precisa ser
+' sincronizada com a pasta". Com a pasta aberta, o vinculo OLE do proprio Office pode ja ter trazido os valores das series ao slide (medido na
+' U1): nenhum texto aqui promete que o slide ficou congelado.
+
+' Elemento do ThinQQ vinculado: grafico (TQQ_CHART), texto (TQQ_TEXT = "1") ou tabela (TQQ_TABLE = "1"). Nunca propaga erro.
+Public Function PptTqq_IsLinkedShape(shp As Object) As Boolean
+    If Len(PptTqq_Tag(shp, PPT_TAG_CHART)) > 0 Then PptTqq_IsLinkedShape = True: Exit Function
+    If PptTqq_Tag(shp, PPT_TAG_TEXT) = "1" Then PptTqq_IsLinkedShape = True: Exit Function
+    PptTqq_IsLinkedShape = (PptTqq_Tag(shp, PPT_TAG_TABLE) = "1")
+End Function
+
+' Alguma das formas tem dados novos (TQQ_STATE = "new", gravada pelo core). So etiquetas, em processo. Nunca propaga erro.
+Public Function PptTqq_AnyNew(shapes As Collection) As Boolean
+    Dim s As Object
+    On Error Resume Next
+    For Each s In shapes
+        If PptTqq_Tag(s, PPT_TAG_STATE) = "new" Then PptTqq_AnyNew = True: Exit Function
+    Next
+End Function
+
+' Resumo de sucesso sem nada a avisar: "Gráficos do ThinQQ atualizados: N." [" Sem mudança: M."] numa linha. Pura.
+Public Function PptTqq_IsPlainSuccess(msg As String) As Boolean
+    PptTqq_IsPlainSuccess = (Left$(msg, Len(PPT_SUM_PREFIX)) = PPT_SUM_PREFIX And InStr(msg, vbLf) = 0)
+End Function
+
+Public Function PptTqq_LastResult() As String
+    PptTqq_LastResult = mLastResult
+End Function
+
+' Resultado de uma acao: sucesso puro em silencio (como o think-cell: a bandeira some); "!" no inicio = aviso de exclamacao; o resto,
+' informacao. A faixa e redesenhada (bandeira). Nunca propaga erro.
+Public Sub PptTqq_ShowResult(msg As String)
+    On Error Resume Next
+    mLastResult = msg
+    If Len(msg) > 0 And Not PptTqq_IsPlainSuccess(msg) Then
+        If Left$(msg, 1) = "!" Then PptTqq_Msg Mid$(msg, 2), vbExclamation Else PptTqq_Msg msg, vbInformation
+    End If
+    PptRx_InvalidateElem
+End Sub
+
+' TQQ_LINKIDX (formato do core) com todos os elementos vinculados das formas soltas, nomes unicos; so grava se mudou. Devolve quantos ha.
+' Propaga erro (quem chama trata).
+Public Function PptTqq_RebuildLinkIdx(pres As Object) As Long
+    Dim sl As Object, s As Object, c As New Collection, idx As String
+    For Each sl In pres.Slides
+        For Each s In sl.Shapes
+            If PptTqq_IsLinkedShape(s) Then
+                PptTqq_EnsureUniqueName s
+                c.Add Array(CLng(sl.SlideID), CStr(s.Name), PptTqq_SourcePath(PptTqq_LinkSource(s), PptTqq_Tag(s, PPT_TAG_BOOK)))
+            End If
+        Next
+    Next
+    idx = PptTqq_IdxJoin(c)
+    If idx <> PptTqq_Tag(pres, PPT_TAG_LINKIDX) Then
+        If Len(idx) = 0 Then PptTqq_TagDelete pres, PPT_TAG_LINKIDX Else pres.Tags.Add PPT_TAG_LINKIDX, idx
+    End If
+    PptTqq_RebuildLinkIdx = c.Count
+End Function
+
+' Ao abrir: tira as bandeiras gravadas no arquivo (TQQ_STATE salva pode nao valer mais) e reconstroi TQQ_LINKIDX; preserva Saved; somente
+' leitura: nada. Devolve quantos elementos vinculados ha. Nunca propaga erro.
+Public Function PptTqq_PrepareOnOpen(pres As Object) As Long
+    Dim sl As Object, s As Object, was As Boolean
+    On Error GoTo Done
+    If CLng(pres.ReadOnly) <> 0 Then Exit Function
+    was = (CLng(pres.Saved) <> 0)
+    For Each sl In pres.Slides
+        For Each s In sl.Shapes
+            If Len(PptTqq_Tag(s, PPT_TAG_STATE)) > 0 Then PptTqq_TagDelete s, PPT_TAG_STATE
+        Next
+    Next
+    PptTqq_PrepareOnOpen = PptTqq_RebuildLinkIdx(pres)
+    If was And CLng(pres.Saved) = 0 Then pres.Saved = -1
+    Exit Function
+Done:
+    PptTqq_Log "PptTqq_PrepareOnOpen: " & Err.Number & " " & Err.Description
+    On Error Resume Next
+    If was And CLng(pres.Saved) = 0 Then pres.Saved = -1
+End Function
+
+' Estados pelo core (API 6): so o Excel ja aberto (allowCreate False; com allowCreate, como "Atualizar uma vez", cria um invisivel e o fecha).
+' Devolve as linhas do core ou "!" + mensagem. Reentrada: "". Nunca propaga erro.
+Public Function PptTqq_LinkStates(pres As Object, entries As String, verifyClosed As Boolean, Optional allowCreate As Boolean = False) As String
+    Dim xl As Object, created As Boolean, core As String, v As Variant, en As Long, ed As String
+    If mBusy Then Exit Function
+    mBusy = True
+    On Error GoTo Fail
+    Set xl = PptTqq_GetExcel(created, Not allowCreate)
+    If xl Is Nothing Then
+        PptTqq_LinkStates = "!" & PPT_MSG_NO_EXCEL
+    Else
+        core = PptTqq_EnsureCore(xl, created)
+        If Len(core) = 0 Then
+            PptTqq_LinkStates = "!" & PPT_MSG_NOCORE_STATES
+        ElseIf PptTqq_CoreApi(xl, core) < PPT_API_STATES Then
+            PptTqq_LinkStates = "!" & PPT_MSG_OLD_CORE_STATES
+        Else
+            v = xl.Run("'" & core & "'!Core_PptLinkStates", pres, entries, verifyClosed)
+            PptTqq_LinkStates = CStr(v)
+        End If
+    End If
+    PptTqq_Release xl, created
+    mBusy = False
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    PptTqq_Release xl, created
+    mBusy = False
+    PptTqq_LinkStates = "!" & PptTqq_ErrorText(en, ed)
+End Function
 
 ' ---- 1.8.0 (Parte G): criar graficos pelo PowerPoint. spec 2026-10-15 secao 14. ----
 
@@ -1397,6 +1541,10 @@ Public Function PptTqq_RelinkData(pres As Object, Optional probeRemote As Boolea
                             idx = PptTqq_IdxSet(PptTqq_Tag(pres, PPT_TAG_INDEX), CLng(sl.SlideID), CStr(shp.Name), cand, True)
                             pres.Tags.Add PPT_TAG_INDEX, idx
                         End If
+                        ' 1.11.0: o indice de todos os vinculos tambem (o ciclo do core pre-filtra pela pasta da entrada: com o caminho velho
+                        ' a bandeira deste elemento nunca apareceria ate a proxima reconstrucao)
+                        idx = PptTqq_IdxSet(PptTqq_Tag(pres, PPT_TAG_LINKIDX), CLng(sl.SlideID), CStr(shp.Name), cand, True)
+                        pres.Tags.Add PPT_TAG_LINKIDX, idx
                         PptTqq_RelinkData = PptTqq_RelinkData + 1
                     Else
                         PptTqq_Log "PptTqq_RelinkData: " & Err.Number & " " & Err.Description

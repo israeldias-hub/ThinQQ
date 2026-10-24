@@ -8,6 +8,7 @@ function New-TqqRect([double]$x, [double]$y, [double]$w, [double]$h, $c) { retur
 
 function Get-TqqIconSpecs {
     $n = $script:TqqNavy; $b = $script:TqqBlue; $l = $script:TqqLight; $g = $script:TqqGray
+    $g2 = @(0, 153, 68)    # verde da bandeira de dados novos (1.11.0)
     return [ordered]@{
         tqq_columns   = @{ Mso = 'ChartTypeColumnInsertGallery'; Rects = @((New-TqqRect 1 8 4 7 $n), (New-TqqRect 6 3 4 12 $b), (New-TqqRect 11 6 4 9 $l)) }
         tqq_bars      = @{ Mso = 'ChartTypeBarInsertGallery';    Rects = @((New-TqqRect 1 1 13 4 $n), (New-TqqRect 1 6 8 4 $b), (New-TqqRect 1 11 5 4 $l)) }
@@ -23,6 +24,7 @@ function Get-TqqIconSpecs {
         tqq_round     = @{ Mso = 'DecimalsDecrease';             Rects = @((New-TqqRect 1 2 14 4 $l), (New-TqqRect 1 7 14 4 $b), (New-TqqRect 1 12 14 3 $n), (New-TqqRect 14 1 2 14 $g)) }
         tqq_break     = @{ Mso = 'ChartAxes';                    Rects = @((New-TqqRect 5 9 6 6 $b), (New-TqqRect 5 1 6 5 $b), (New-TqqRect 3 6 10 1 $g), (New-TqqRect 3 8 10 1 $g)) }
         tqq_waterfallpair = @{ Mso = 'ChartTypeOtherInsertGallery'; Rects = @((New-TqqRect 0 3 2 12 $n), (New-TqqRect 2 2 2 13 $l), (New-TqqRect 6 3 2 4 $n), (New-TqqRect 8 2 2 3 $l), (New-TqqRect 12 7 2 8 $n), (New-TqqRect 14 5 2 10 $l)) }
+        tqq_flag      = @{ Mso = 'Refresh';                      Rects = @((New-TqqRect 3 1 2 14 $n), (New-TqqRect 5 1 9 6 $g2), (New-TqqRect 5 7 5 2 $g2)) }
     }
 }
 
