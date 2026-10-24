@@ -506,6 +506,7 @@ $pptMessages = @(
     @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para atualizar também as setas.'),
     @('ppt', 'powerpoint', 'O Excel está ocupado (uma célula em edição ou uma caixa de diálogo aberta). Termine o que está fazendo no Excel e tente de novo.'),
     @('ppt', 'powerpoint', 'Selecione um ou mais gráficos do ThinQQ vinculados ao Excel.'),
+    @('ppt', 'powerpoint', 'Selecione um ou mais gráficos, textos ou tabelas do ThinQQ vinculados ao Excel.'),   # Atualizar e Automatico (1.11.0)
     @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada).'),
     @('ppt', 'powerpoint', 'Marcado para atualizar automaticamente. Para os gráficos acompanharem a pasta de origem, abra o Excel com o ThinQQ (1.6.0 ou mais novo).'),
     @('ppt', 'powerpoint', 'A atualização automática está desligada no Excel: aba ThinQQ > PowerPoint > Atualização automática ligada.'),

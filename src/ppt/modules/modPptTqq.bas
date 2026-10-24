@@ -61,6 +61,7 @@ Public Const PPT_TAG_LINKIDX As String = "TQQ_LINKIDX"      ' = PPTSTATE_TAG_LIN
 Public Const PPT_API_STATES As Long = 6                    ' Core_PptLinkStates (core 1.11.0)
 Public Const PPT_DEFAULT_OPENMODE As String = "never"      ' 1.11.0: como o think-cell, abrir nao pergunta (quem gravou outra escolha a mantem)
 Public Const PPT_SUM_PREFIX As String = "Gráficos do ThinQQ atualizados: "
+Public Const PPT_MSG_SELECT_LINKED As String = "Selecione um ou mais gráficos, textos ou tabelas do ThinQQ vinculados ao Excel."   ' Atualizar e Automatico (1.11.0)
 Public Const PPT_MSG_OLD_CORE_STATES As String = "Atualize o ThinQQ no Excel para ver o estado dos vínculos."
 Public Const PPT_MSG_NOCORE_STATES As String = "O ThinQQ não está carregado no Excel: abra o Excel com o ThinQQ para ver o estado dos vínculos."
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
@@ -1009,7 +1010,7 @@ End Function
 ' Automatically" do think-cell). Desligar nao chama o Excel. Nunca propaga erro (falha ao gravar a marca: aviso proprio).
 Public Sub PptTqq_ToggleAuto(shapes As Collection, turnOn As Boolean)
     Dim pres As Object, en As Long, ed As String
-    If shapes.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
+    If shapes.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT_LINKED: Exit Sub
     On Error GoTo Fail
     Set pres = shapes(1).Parent.Parent
     PptTqq_SetAutoShapes shapes, turnOn
@@ -1030,7 +1031,7 @@ End Sub
 ' slide tem o mesmo nome, e a busca do core por nome ignora a caixa: atualizaria a outra forma) e atualiza so essas formas. Nunca propaga.
 Public Sub PptTqq_UpdateSelected(shapes As Collection)
     Dim s As Object, en As Long, ed As String
-    If shapes.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
+    If shapes.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT_LINKED: Exit Sub
     On Error GoTo Fail
     For Each s In shapes
         PptTqq_EnsureUniqueName s

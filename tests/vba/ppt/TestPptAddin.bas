@@ -617,7 +617,7 @@ Public Sub Test_PptTqq_UpdateSelected_DuplicateNames_DistinctEntries()
     AssertEqual "", CStr(s2.Tags(PPT_TAG_AUTO)), "atualizar uma vez nao liga o automatico"
     PptTqq_ClearLastMsg
     PptTqq_UpdateSelected New Collection
-    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg()
+    AssertEqual PPT_MSG_SELECT_LINKED, PptTqq_LastMsg()
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo 0
@@ -710,10 +710,10 @@ Public Sub Test_PptRx_ElemCallbacks_NoSelection()
     AssertFalse CBool(pr)
     PptTqq_ClearLastMsg
     PptRx_OnUpdateSel Nothing
-    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg()
+    AssertEqual PPT_MSG_SELECT_LINKED, PptTqq_LastMsg()
     PptTqq_ClearLastMsg
     PptRx_OnAuto Nothing, True
-    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg()
+    AssertEqual PPT_MSG_SELECT_LINKED, PptTqq_LastMsg()
     PptTqq_ClearLastMsg
     PptRx_OnEditData Nothing
     AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg(), "Editar dados sem selecao"
