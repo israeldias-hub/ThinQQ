@@ -890,6 +890,7 @@ Public Sub Test_Ribbon_PptAutoCheckBoxes()
     AssertTrue d.SelectSingleNode("//*[@id='msepPptAuto']") Is Nothing
     AssertEqual "btnPptFrames", AttrText(d.SelectSingleNode("//u:button[@id='btnPptSync']/following-sibling::*[1]"), "id")
     AssertTrue InStr(AttrText(d.SelectSingleNode("//*[@id='btnPptSync']"), "supertip"), "Vínculos") > 0, "aponta para o dialogo do PowerPoint"
+    AssertEqual 0, InStr(AttrText(d.SelectSingleNode("//*[@id='btnPptSync']"), "supertip"), "nada muda sozinho"), "sem prometer que nada muda sozinho (revisao final I3)"
 End Sub
 
 ' Rotulos exatos (o tutorial os cita) e supertips que dizem o que a opcao faz de verdade.

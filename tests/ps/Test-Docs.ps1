@@ -529,7 +529,7 @@ $pptMessages = @(
     @('core', 'powerpoint', 'Não foi possível verificar os vínculos: '),
     @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada).'),
     @('ppt', 'powerpoint', 'Marcado para atualizar automaticamente. Para os gráficos acompanharem a pasta de origem, abra o Excel com o ThinQQ (1.6.0 ou mais novo).'),
-    @('ppt', 'powerpoint', 'A atualização automática está desligada no Excel: aba ThinQQ > PowerPoint > Atualização automática ligada.'),
+    @('ppt', 'powerpoint', 'O acompanhamento das mudanças está desligado no Excel: Vínculos > Acompanhar mudanças do Excel (bandeiras e automáticos).'),
     @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para atualizar só os gráficos selecionados (desta vez a apresentação inteira foi atualizada).'),
     @('ppt', 'powerpoint', 'Não foi possível marcar o gráfico como automático: '),
     @('ppt', 'powerpoint', 'Não foi possível voltar o gráfico para a atualização manual: '),
@@ -560,7 +560,7 @@ $pptMessages = @(
     @('ppt', 'powerpoint', 'Não foi possível criar o gráfico: '),
     @('ppt', 'powerpoint', 'Não foi possível abrir os dados do gráfico: '),
     @('ppt', 'powerpoint', 'O Excel abriu a planilha de dados do gráfico (veja a barra de tarefas).'),
-    @('ppt', 'powerpoint', 'Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida: o slide acompanha em cerca de 2 segundos.'),
+    @('ppt', 'powerpoint', 'Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida; depois clique em Atualizar (ou ligue Atualizar automaticamente para o slide acompanhar cerca de 2 segundos depois de cada mudança).'),
     @('core', 'powerpoint', 'Salve a apresentação primeiro: os dados do gráfico ficam numa pasta do Excel ao lado dela ('),
     @('core', 'powerpoint', 'A apresentação está aberta por um endereço da Web (OneDrive/SharePoint). Salve-a numa pasta do computador (ou na pasta sincronizada do OneDrive) para inserir gráficos do ThinQQ.'),
     @('core', 'powerpoint', 'A pasta de dados está aberta por outra pessoa ou é somente leitura: '),
@@ -1164,18 +1164,27 @@ $criarPlaces = [ordered]@{
         'Atualize o ThinQQ no Excel para criar gráficos e editar dados pelo PowerPoint.', 'Não foi possível criar o gráfico: ', 'Não foi possível abrir os dados do gráfico: ',
         'veja a barra de tarefas', 'Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida', 'Feche no Excel a pasta', 'Já existe o arquivo',
         'Pasta de dados não encontrada', 'Gráfico não encontrado na pasta de dados (apagado ou recriado).', 'A pasta de dados está aberta por outra pessoa ou é somente leitura',
-        'item 83', 'item 85', 'itens 75 a 85', 'AppActivate', 'Não verificado em PowerPoint e Excel reais', 'Alterar dados', 'gráfico dentro de um grupo', 'somente leitura', 'Diferenças para o think-cell') }
+        'item 83', 'item 85', 'itens 75 a 85', 'AppActivate', 'Não verificado em PowerPoint e Excel reais', 'Alterar dados', 'gráfico dentro de um grupo', 'somente leitura', 'Diferenças para o think-cell', 'O gráfico nasce manual (até a 1.10.0, automático)') }
     'README Recursos' = @{ text = $criarRec; phrases = @(
         $lblCriar, $lblEditData, $dataSuffix, 'Elements', 'cinco menus e 21 tipos', 'Leia-me', 'TQQ_DATABOOK', 'não renomeie nem apague as planilhas', 'A apresentação precisa estar salva', 'Ctrl+B', 'Salvar como',
         'Mover a pasta com os dois arquivos', 'fica com o usuário', 'nunca recebe o ThinQQ', 'Empacotar para enviar', 'Editar Dados', 'API 3', 'PG2', 'PG5', 'PG6', 'PG8', 'PG9', 'item 83',
         'Atualize o ThinQQ no Excel para criar gráficos e editar dados pelo PowerPoint.', 'Não foi possível criar o gráfico: ', 'Não foi possível abrir os dados do gráfico: ',
         'Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida', 'Feche no Excel a pasta', 'Já existe o arquivo', 'somente leitura',
-        'itens 75 a 85', 'Não verificado em PowerPoint e Excel reais') }
+        'itens 75 a 85', 'Não verificado em PowerPoint e Excel reais', 'Desde a 1.11.0 o gráfico nasce **manual**') }
     'README Limitações' = @{ text = $readmeLimTxt; phrases = @(
         'Criar gráficos pelo PowerPoint (1.8.0)', $dataSuffix, 'Empacotar para enviar', 'PG2', 'PG5', 'PG6', 'PG8', 'PG9', 'item 83', 'item 85', 'itens 75 a 85', 'Editar Dados', 'Alterar dados',
         'gráfico dentro de um grupo não é reapontado', 'somente leitura', 'Não verificado em PowerPoint e Excel reais') }
     'CHANGELOG ([Não lançado] ou [1.8.0])' = @{ text = $clCriar; phrases = $clCriarPhrases }
 }
+# revisao final da 1.11.0 (I1, I2, I4): o grafico criado pelo PowerPoint nasce manual (nenhum texto promete que o slide acompanha sozinho), a
+# mensagem da chave geral cita o Vinculos e a pasta de dados e a excecao do Desfazer do Excel
+$changelogAll = Read-Utf8 $changelogPath
+foreach ($d in @(@{ n = 'tutorial'; t = $html }, @{ n = 'README'; t = $readme }, @{ n = 'CHANGELOG [Não lançado]'; t = ([regex]::Match($changelogAll, '(?s)## \[Não lançado\](.*?)(\r?\n## \[|$)').Groups[1].Value) })) {
+    Check (-not $d.t.Contains('o slide acompanha em cerca de 2 segundos.') -and -not $d.t.Contains('o gráfico já nasce automático')) "$($d.n): o gráfico criado pelo PowerPoint não é mais descrito como automático"
+    Check (-not $d.t.Contains('aba ThinQQ > PowerPoint > Atualização automática ligada') -and -not $d.t.Contains('aba ThinQQ &gt; PowerPoint &gt; Atualização automática ligada')) "$($d.n): sem o caminho da 1.10.0 da chave geral"
+}
+Check ($readme.Contains('o Desfazer dela é limpo') -and $changelogAll.Contains('e o Desfazer dela é limpo') -and $html.Contains('esse salvamento limpa o Desfazer dela')) 'README, CHANGELOG e tutorial: a pasta de dados dos gráficos criados pelo PowerPoint é salva pelo ciclo e o Desfazer dela é limpo'
+Check ($readme.Contains('Publicando a 1.11.0') -and $readme.Contains('sonda P-U3 (item 114') -and $changelogAll.Contains('Publicar a 1.11.0 exige a sonda P-U3')) 'README (Publicar uma versão) e CHANGELOG: a 1.11.0 só sai depois da sonda P-U3'
 foreach ($place in $criarPlaces.Keys) {
     $pt = [string]$criarPlaces[$place].text
     foreach ($ph in $criarPlaces[$place].phrases) { Check ($pt.Contains($ph)) "criar pelo PowerPoint, $place cita '$ph'" }

@@ -3346,6 +3346,51 @@ Public Sub Test_Core_PptLinkStates_NeverRaises()
     AssertFalse Core_IsQuiet()
 End Sub
 
+' Revisao final M3: sem "Verificar" (abertura, abrir o dialogo) o disco nao e tocado: pasta fechada local inexistente = "unknown", nenhuma
+' sonda; com "Verificar", "missing". M2: numa apresentacao somente leitura nada e gravado (indice, bandeira) nem renomeado.
+Public Sub Test_PptState_Lines_NoProbeWithoutVerify_ReadOnlyWritesNothing_WhenAvailable()
+    Dim app As Object, pres As Object, ro As Object, s As Object, own As New Collection, en As Long, ed As String, lines As String, p As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    PptState_ResetTestHooks
+    Set pres = app.Presentations.Add(0): own.Add pres
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    pres.Slides.Add 1, 12
+    Set s = pres.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50)
+    s.Name = "txt_m3": s.Tags.Add PPTTEXT_TAG, "1": s.Tags.Add PPTSYNC_TAG_BOOK, TempDir() & "\nao-existe-m3.xlsx"
+    lines = Core_PptLinkStates(pres, "", False)
+    AssertTrue Right$(lines, Len("|text|manual|unknown")) = "|text|manual|unknown", "sem Verificar: " & lines
+    AssertEqual 0, PptState_ProbesForTest(), "sem Verificar: nenhuma sonda do disco"
+    lines = Core_PptLinkStates(pres, "", True)
+    AssertTrue Right$(lines, Len("|missing")) = "|missing", "com Verificar: " & lines
+    AssertEqual 1, PptState_ProbesForTest(), "Verificar sonda a pasta fechada"
+    ' somente leitura: duas formas com o mesmo nome, sem indice gravado
+    Set s = pres.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50)
+    s.Name = "txt_m3": s.Tags.Add PPTTEXT_TAG, "1": s.Tags.Add PPTSYNC_TAG_BOOK, TempDir() & "\nao-existe-m3.xlsx"
+    PptSync_TagDelete pres, PPTSTATE_TAG_LINKIDX
+    p = TempDir() & "\m2-somente-leitura.pptx"
+    pres.SaveAs p
+    pres.Close
+    Set pres = Nothing
+    Set ro = app.Presentations.Open(p, -1, 0, 0): own.Add ro
+    AssertTrue CLng(ro.ReadOnly) <> 0, "premissa: somente leitura"
+    lines = Core_PptLinkStates(ro, "", False)
+    AssertTrue Left$(lines, 1) <> "!", lines
+    AssertEqual 2, UBound(Split(lines, vbLf)) + 1, "os estados sao calculados: " & lines
+    AssertEqual "", PptSync_Tag(ro, PPTSTATE_TAG_LINKIDX), "somente leitura: indice nao gravado"
+    AssertEqual "txt_m3", CStr(ro.Slides(1).Shapes(2).Name), "somente leitura: nada renomeado"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set s = Nothing: Set pres = Nothing: Set ro = Nothing
+    StopScratchPowerPoint app, own
+    If Len(p) > 0 Then Kill p
+    PptState_ResetTestHooks
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
 ' Sem "Verificar" (abertura da apresentacao), PptState_Lines nunca sonda caminho de rede/web vindo do deck (mesma regra do .ppam).
 Public Sub Test_PptState_IsRemotePath_Pure()
     AssertTrue PptState_IsRemotePath("\\servidor\pasta\a.xlsx")

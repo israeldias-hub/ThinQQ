@@ -671,6 +671,7 @@ Public Sub Test_PptTqq_ToggleAuto_AutoOffNote_AndTagFailure()
     PptTqq_SetExcelForTest f, ""
     PptTqq_ToggleAuto c, True
     AssertEqual "selecionados" & vbLf & PPT_MSG_AUTO_OFF, PptTqq_LastMsg()
+    AssertTrue InStr(PPT_MSG_AUTO_OFF, "Vínculos > Acompanhar mudanças do Excel") > 0, "o caminho da chave geral e o do dialogo Vinculos (1.11.0)"
     f.AutoOn = True
     PptTqq_ToggleAuto c, True
     AssertEqual "selecionados", PptTqq_LastMsg(), "ligada no Excel: sem a nota"
@@ -971,6 +972,7 @@ Public Sub Test_PptTqq_InsertChartIn_Api3_InsertsAndOpensData()
     AssertEqual "hint;edit;", PptTqq_TrailForTest(), "aviso de primeira vez ANTES de abrir os dados (revisao I2)"
     AssertEqual "edit:Pasta - Excel", PptTqq_LastMsg()
     AssertTrue InStr(PptTqq_LastHintForTest(), "Gráfico criado. Clique em OK e digite os dados") = 1, PptTqq_LastHintForTest()
+    AssertTrue InStr(PptTqq_LastHintForTest(), "depois clique em Atualizar") > 0, "o grafico nasce manual (revisao final I1): " & PptTqq_LastHintForTest()
     AssertTrue InStr(PptTqq_LastHintForTest(), "'tqq-ppam-g4b - dados ThinQQ.xlsx'") > 0, "aviso cita o arquivo de dados: " & PptTqq_LastHintForTest()
     AssertTrue InStr(PptTqq_LastHintForTest(), "ThinQQ > Empacotar para enviar") > 0, "aviso cita o Empacotar (1.9.0): " & PptTqq_LastHintForTest()
     PptTqq_InsertChartIn p, Nothing, "pie"
@@ -1856,7 +1858,9 @@ Public Sub Test_PptLinks_SignatureAndRowKey()
     Set r2 = New Collection
     r2.Add Array(1, 256, "tqq_A", "chart", "manual", "new", "C:\a.xlsx")
     AssertTrue PptLinks_Signature(r1) <> PptLinks_Signature(r2), "estado mudou: redesenha"
-    AssertEqual "256|tqq_a", PptLinks_RowKey(r1(1))
+    AssertEqual "256|tqq_a", PptLinks_RowKey(r1(1)), "linha antiga (7 campos): pelo nome"
+    AssertEqual "256|#7", PptLinks_RowKey(Array(1, 256, "tqq_A", "chart", "manual", "", "C:\a.xlsx", 7)), "com o Shape.Id (revisao final M1)"
+    AssertEqual "Erro: d (5)", PptTqq_ErrorText(5, "d", "Erro: "), "texto de erro com o prefixo da acao (M10)"
     AssertEqual "", PptLinks_Signature(New Collection)
 End Sub
 
@@ -1901,7 +1905,7 @@ Public Sub Test_PptTqq_CoreFlag_Fake()
     AssertEqual "autonew=1", f.LastFlag
     f.Api = 1
     AssertFalse PptTqq_CoreFlag("autoon", avail): AssertFalse avail, "core antigo"
-    AssertEqual PPT_MSG_OLD_CORE_STATES, PptTqq_SetCoreFlag("autonew", True)
+    AssertEqual PPT_MSG_OLD_CORE_FLAG, PptTqq_SetCoreFlag("autonew", True)
     f.Api = 6: f.NoCore = True
     AssertFalse PptTqq_CoreFlag("autoon", avail): AssertFalse avail, "sem o core"
     PptTqq_SetExcelForTest Nothing, ""
@@ -1923,3 +1927,82 @@ Public Function E2e_LinksCheck(pres As Object) As String
     E2e_LinksCheck = msg & "|" & CStr(PptLinks_Collect(pres)(1)(5))
     PptLinks_ResetTestHooks
 End Function
+
+' ---- 1.11.0, revisao final (M1, M2, M6) ----
+
+' M1: dois elementos com o MESMO nome no mesmo slide (copia colada) sao duas linhas, cada uma resolve a propria forma pelo Shape.Id, e
+' Atualizar manda as duas ao core com nomes ja unicos.
+Public Sub Test_PptLinks_DuplicateNames_ResolveById()
+    Dim p As Object, a As Object, b As Object, f As TestXlFake, rows As Collection, sh As Collection, e As Collection
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    Set a = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_x": a.Tags.Add PPT_TAG_CHART, "abc"
+    Set b = p.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50): b.Name = "tqq_x": b.Tags.Add PPT_TAG_CHART, "abc"
+    AssertEqual "tqq_x", CStr(b.Name), "premissa: o PowerPoint aceita o nome repetido"
+    Set rows = PptLinks_Collect(p)
+    AssertEqual 2, rows.Count
+    AssertTrue PptLinks_RowKey(rows(1)) <> PptLinks_RowKey(rows(2)), "chaves diferentes"
+    Set e = New Collection: e.Add rows(2)
+    Set sh = PptLinks_Shapes(p, e)
+    AssertEqual 1, sh.Count
+    AssertEqual CLng(b.Id), CLng(sh(1).Id), "a 2a linha acha a 2a forma (nao a 1a de mesmo nome)"
+    Set f = NewFakeXl(6)
+    PptTqq_SetExcelForTest f, ""
+    PptLinks_Do p, "update", rows
+    AssertTrue CStr(a.Name) <> CStr(b.Name), "nomes unicos antes de montar as entradas"
+    Set e = PptTqq_IdxParse(f.LastEntries)
+    AssertEqual 2, e.Count, "as duas formas vao ao core: " & f.LastEntries
+    AssertTrue CStr(e(1)(1)) <> CStr(e(2)(1)), f.LastEntries
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' M2: numa apresentacao somente leitura o dialogo nao grava etiquetas (Automatico/Manual/Desvincular recusam; o indice nao e refeito).
+' M6: numa editavel, abrir o dialogo refaz o TQQ_LINKIDX e preserva Saved.
+Public Sub Test_PptLinks_ReadOnly_NoTags_AndShowRebuildsIndex()
+    Dim p As Object, ro As Object, a As Object, path As String, rows As Collection
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    Set a = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_a": a.Tags.Add PPT_TAG_CHART, "abc": a.Tags.Add PPT_TAG_BOOK, "C:\x\a.xlsx"
+    p.Saved = -1
+    PptLinks_PrepareIndex p
+    AssertTrue InStr(PptTqq_Tag(p, PPT_TAG_LINKIDX), "tqq_a") > 0, "indice refeito ao abrir o dialogo"
+    AssertTrue CLng(p.Saved) <> 0, "Saved preservado"
+    p.Tags.Delete PPT_TAG_LINKIDX
+    path = Environ$("TEMP") & "\thinqq_test_ppt_ro_" & Format$(Now, "hhnnss") & "_" & CLng(Rnd() * 100000) & ".pptx"
+    p.SaveAs path
+    ClosePres p
+    Set p = Nothing
+    Set ro = Application.Presentations.Open(path, -1, 0, 0)
+    AssertTrue CLng(ro.ReadOnly) <> 0, "premissa: somente leitura"
+    Set rows = PptLinks_Collect(ro)
+    AssertEqual 1, rows.Count
+    AssertEqual PPTLINKS_MSG_READONLY, PptLinks_Do(ro, "auto", rows)
+    AssertEqual PPTLINKS_MSG_READONLY, PptLinks_Do(ro, "unlink", rows)
+    AssertEqual "", PptTqq_Tag(ro.Slides(1).Shapes(1), PPT_TAG_AUTO), "nenhuma marca gravada"
+    AssertEqual "abc", PptTqq_Tag(ro.Slides(1).Shapes(1), PPT_TAG_CHART), "nada desvinculado"
+    PptLinks_PrepareIndex ro
+    AssertEqual "", PptTqq_Tag(ro, PPT_TAG_LINKIDX), "somente leitura: indice nao gravado"
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    If Not p Is Nothing Then ClosePres p
+    If Not ro Is Nothing Then ClosePres ro
+    On Error Resume Next
+    If Len(path) > 0 Then Kill path
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
