@@ -83,8 +83,8 @@ if ($parsed) {
     Check ($ctlNodes.Count -ge 40) "faixa: controles encontrados pelo XPath com local-name() ($($ctlNodes.Count))"
     foreach ($n in $ctlNodes) {
         $l = $n.GetAttribute('label')
-        if ($l.Length -eq 0) { continue }   # 1.13.0: a guia Inserir do Excel (tab idMso) nao tem rotulo proprio
-        Check ($ui -contains $l) "tutorial documenta o controle '$l'"
+        if ($l.Length -eq 0 -and $n.LocalName -eq 'tab' -and $n.GetAttribute('idMso').Length -gt 0) { continue }   # 1.13.0: so a guia Inserir do Excel (tab idMso) fica sem rotulo proprio
+        Check ($l.Length -gt 0 -and $ui -contains $l) "tutorial documenta o controle '$l' ($($n.LocalName) $($n.GetAttribute('id')))"
     }
     # Faixa do suplemento do PowerPoint (src\ppt\ribbon\customUI14.xml): a aba, o grupo, os botões, a lista "Ao abrir" e cada item dela são citados,
     # com o rótulo exato, DENTRO da seção #powerpoint (e não só em qualquer parte do tutorial); o botão do Excel (btnPptSync) também.
@@ -566,15 +566,15 @@ $pptMessages = @(
     @('ppt', 'powerpoint', ' sem a pasta de origem (ficaram como estavam)'),
     # motor do core (modPptSync.bas, modCoreApi.bas): o resumo
     @('core', 'powerpoint', "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."),
-    @('core', 'powerpoint', "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."),
+    @('core', 'powerpoint', "Abra a apresentação no PowerPoint e use de novo Atualizar no PowerPoint."),
     @('core', 'powerpoint', 'Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo.'),
     @('core', 'powerpoint', 'Gráficos do ThinQQ atualizados: '),
     # Inserir também no slide (1.7.0): modCoreApi.bas e o aviso de núcleo antigo da faixa
     @('core', 'powerpoint', 'Salve a pasta de trabalho antes de inserir no PowerPoint: o gráfico vinculado aponta para o arquivo salvo. Nada foi criado.'),
-    @('core', 'powerpoint', "Esta pasta não tem molduras de intervalos vinculados ao PowerPoint (elas aparecem ao usar 'Inserir também no slide')."),
+    @('core', 'powerpoint', "Esta pasta não tem molduras de intervalos vinculados ao PowerPoint (elas aparecem ao usar Vincular ao PowerPoint ou Copiar como gráfico vinculado)."),
     @('loader', 'powerpoint', 'Atualize o ThinQQ para usar este recurso.'),
     # 1.13.0 (X2/X2b): o aviso de Alterar dados (LINKFRAME_NOTE_REBUILT; o slide perde os totais e mostra dados antigos)
-    @('core', 'powerpoint', 'O gráfico foi recriado: o gráfico que já está no slide do PowerPoint não o acompanha mais e, ao atualizar o vínculo, pode perder os totais e mostrar dados antigos. Cole o gráfico de novo no slide (Vincular ao PowerPoint) e apague o antigo.'),
+    @('core', 'powerpoint', 'O gráfico foi recriado: o gráfico que já está no slide do PowerPoint não o acompanha mais e, ao atualizar o vínculo, pode perder os totais e mostrar dados antigos. Cole o gráfico de novo no slide (Mais > Copiar como gráfico vinculado) e apague o antigo.'),
     @('core', 'powerpoint', ' Sem mudança: '),
     @('core', 'powerpoint', 'Pasta de origem não encontrada ou sem acesso (o gráfico ficou como estava): '),
     @('core', 'powerpoint', 'Se ela foi movida ou renomeada, use no PowerPoint Arquivo > Informações > Editar Links para Arquivos > Alterar Origem.'),
@@ -644,7 +644,7 @@ $pptMessages = @(
     @('core', 'powerpoint', 'Texto vinculado. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255.'),
     @('core', 'powerpoint', 'Editar dados vale para gráficos do ThinQQ. Para mudar o texto vinculado, altere a célula no Excel e atualize.'),
     @('core', 'powerpoint', 'Este comando vale só para gráficos do ThinQQ (não para texto vinculado).'),
-    @('core', 'powerpoint', "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em 'Vincular célula ao texto selecionado'."),
+    @('core', 'powerpoint', "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em Vincular ao PowerPoint > Texto: célula ao texto selecionado."),
     @('core', 'powerpoint', 'Salve a pasta de trabalho: assim o vínculo acompanha linhas e colunas inseridas antes da célula.'),
     @('core', 'powerpoint', 'Texto do slide vinculado à célula '),
     @('core', 'powerpoint', 'Texto editado no PowerPoint fora do campo vinculado (vincule de novo): '),
@@ -1415,11 +1415,13 @@ function Test-TextoInside([string]$text, [string]$head) {
 }
 $textoMsgs = @('Abra a pasta no Excel (com o ThinQQ), selecione a célula com o valor e clique de novo em Texto vinculado ao Excel.', 'Selecione uma caixa de texto (ou parte do texto dela).',
     'Atualize o ThinQQ no Excel para vincular texto pelo PowerPoint.', 'Selecione no Excel a célula com o valor e tente de novo.',
-    "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em 'Vincular célula ao texto selecionado'.", 'Não foi possível vincular o texto: ')
+    "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em Vincular ao PowerPoint > Texto: célula ao texto selecionado.", 'Não foi possível vincular o texto: ')
 $clTextoPhrases = @('Texto vinculado a célula (1.9.0)', 'Título ligado a uma célula (1.9.0)', $lblTextPpt, $lblTextXl, $lblElem, $lblLinkTitle, 'TQQ_TEXT', 'TQQ_X_', 'Core_PptLinkText', 'Core_PptLinkTextFromPpt', 'API 5',
     'Salve a pasta de trabalho antes de vincular: o vínculo aponta para o arquivo salvo.', 'Texto editado no PowerPoint fora do campo vinculado (vincule de novo): N.', 'TQQ_XLINK',
     'Remover a ligação do título com a célula? (o título sai do gráfico)', 'Escolha uma célula da mesma pasta de trabalho do gráfico.', 'Tableau', 'datasheet interno', 'P5', 'P6', 'P7', 'S10',
-    'itens 93 a 101', 'Não verificado em PowerPoint e Excel reais', 'Documentação (1.9.0)') + $textoMsgs
+    'itens 93 a 101', 'Não verificado em PowerPoint e Excel reais', 'Documentação (1.9.0)') + @($textoMsgs | ForEach-Object {
+        # o CHANGELOG da 1.9.0 e historico: guarda o texto da mensagem daquela versao (a 1.13.0 trocou o nome do botao na mensagem)
+        if ($_.Contains('Vincular ao PowerPoint > Texto: célula ao texto selecionado')) { "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em 'Vincular célula ao texto selecionado'." } else { $_ } })
 function Get-TextoChangelogMissing([string]$block) { return @($clTextoPhrases | Where-Object { -not $block.Contains($_) }) }
 $clTexto = Get-TextoChangelogBlock $cl
 Check ($textoTut.Length -gt 5000 -and $foraTut.Length -gt 1000 -and $textoRec.Length -gt 4000 -and $clTexto.Length -gt 3000) "texto vinculado: subseções do tutorial ($($textoTut.Length), $($foraTut.Length)), Recursos do README ($($textoRec.Length)) e CHANGELOG ($($clTexto.Length)) lidos"
@@ -1477,7 +1479,7 @@ Check ($mvTextLines.Count -eq 9 -and @($mvNums | Where-Object { $_ -ge 93 -and $
 Check (@($mvTextLines | Where-Object { $_ -notmatch 'não verificado em PowerPoint real' }).Count -eq 0) 'README (itens 93 a 101): todo item marca "não verificado em PowerPoint real"'
 $mvTextPins = @{
     93  = @($lblTextPpt, $lblElem, 'Texto vinculado à célula Pasta.xlsx!Planilha!B2.', 'O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular.', 'Abra a pasta no Excel (com o ThinQQ)', $lblOpt2, 'Novos vínculos atualizam automaticamente', 'caixa de texto inteira', 'cursor')
-    94  = @($lblTextXl, 'P5', 'cursor sem trecho marcado', 'Selecione no Excel a célula com o valor e tente de novo.', "clique de novo em 'Vincular célula ao texto selecionado'.")
+    94  = @($lblTextXl, 'P5', 'cursor sem trecho marcado', 'Selecione no Excel a célula com o valor e tente de novo.', 'clique de novo em Vincular ao PowerPoint > Texto: célula ao texto selecionado.')
     95  = @('Texto editado no PowerPoint fora do campo vinculado (vincule de novo): 1.', 'vincular de novo', 'Sem mudança')
     96  = @('P7', '####', '255 caracteres', 'coluna estreita', 'percentual', 'moeda')
     97  = @('P6', 'Type:=8', 'Remover a ligação do título com a célula? (o título sai do gráfico)', 'Alterar dados', 'Escolha uma célula da mesma pasta de trabalho do gráfico.')
@@ -1915,22 +1917,32 @@ $apiSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modCoreApi.bas')
 $pptModSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modPowerPoint.bas')
 Check ($frameSrc.Contains('LINKFRAME_GREEN') -and $frameSrc.Contains('LINKFRAME_RED') -and $frameSrc.Contains('LinkFrame_SetState') -and $apiSrc.Contains('Core_RefreshFrames') -and $pptModSrc.Contains('Ppt_FrameAfterCopy')) 'código (1.13.0): LINKFRAME_GREEN, LINKFRAME_RED, LinkFrame_SetState, Core_RefreshFrames e Ppt_FrameAfterCopy existem'
 $rebuiltMsg = [regex]::Match($frameSrc, 'LINKFRAME_NOTE_REBUILT As String = "(?<m>[^"]+)"').Groups['m'].Value
-Check ($rebuiltMsg.Length -gt 100 -and $rebuiltMsg.Contains('pode perder os totais e mostrar dados antigos') -and $rebuiltMsg.Contains('(Vincular ao PowerPoint)')) 'código (1.13.0): LINKFRAME_NOTE_REBUILT é o aviso novo (perde os totais, cole de novo)'
+Check ($rebuiltMsg.Length -gt 100 -and $rebuiltMsg.Contains('pode perder os totais e mostrar dados antigos') -and $rebuiltMsg.Contains('(Mais > Copiar como gráfico vinculado)')) 'código (1.13.0): LINKFRAME_NOTE_REBUILT é o aviso novo (perde os totais, cole de novo por Mais > Copiar como gráfico vinculado)'
 foreach ($where in @(@('tutorial (#ppt-inserir)', $insTut), @('README (Recursos)', $insRec))) { Check ($where[1].Contains($rebuiltMsg)) "$($where[0]) cita LINKFRAME_NOTE_REBUILT com o texto exato do código" }
 Check (-not $html.Contains('o slide do PowerPoint não o acompanha mais. Insira ou cole') -and -not $readme.Contains('o slide do PowerPoint não o acompanha mais. Insira ou cole')) 'tutorial e README: o texto antigo de LINKFRAME_NOTE_REBUILT saiu'
-# a mensagem do texto vinculado ainda usa o nome antigo do botao (o codigo nao mudou): o tutorial e o README o citam entre aspas e dizem o nome de hoje
-Check ((Get-SectionText 'powerpoint').Contains('A mensagem ainda usa o nome antigo do botão') -and (Get-SectionText 'powerpoint').Contains("elas aparecem ao usar 'Inserir também no slide'") -and $insTut.Contains('ainda usa o nome antigo da caixa')) 'tutorial (1.13.0): as duas mensagens que ainda citam o nome antigo dizem o nome de hoje'
+# revisao final 1.13.0 (M1): as mensagens do codigo citam os nomes de hoje (Mostrar/ocultar molduras sem moldura, texto vinculado sem PowerPoint e
+# Atualizar no PowerPoint sem apresentacao); a frase "a mensagem ainda usa o nome antigo" saiu do tutorial e do README
+$noneMsg = [regex]::Match($frameSrc, 'LINKFRAME_MSG_NONE As String = "(?<m>[^"]+)"').Groups['m'].Value
+$noPptMsg = [regex]::Match((Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modPptText.bas')), 'PPTTEXT_MSG_NOPPT As String = "(?<m>[^"]+)"').Groups['m'].Value
+$noSyncMsg = [regex]::Match((Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modPptSync.bas')), 'PPTSYNC_NO_PPT As String = "(?<m>[^"]+)"').Groups['m'].Value
+Check ($noneMsg.Contains('Vincular ao PowerPoint ou Copiar como gráfico vinculado') -and $apiSrc.Contains('Core_Notify LINKFRAME_MSG_NONE')) 'código (1.13.0): Mostrar/ocultar molduras sem moldura cita Vincular ao PowerPoint e Copiar como gráfico vinculado (LINKFRAME_MSG_NONE)'
+Check ($noPptMsg.Contains('Vincular ao PowerPoint > Texto: célula ao texto selecionado') -and $noSyncMsg.Contains('use de novo Atualizar no PowerPoint')) 'código (1.13.0): PPTTEXT_MSG_NOPPT e PPTSYNC_NO_PPT citam os nomes de hoje'
+foreach ($m in @($noneMsg, $noPptMsg, $noSyncMsg)) {
+    foreach ($l in @('Inserir também no slide', 'Vincular célula ao texto selecionado', 'Atualizar gráficos no PowerPoint')) { Check (-not $m.Contains($l)) "código (1.13.0): a mensagem '$m' não cita o nome removido '$l'" }
+    Check ($html.Contains($m)) "tutorial cita a mensagem do código '$m'"
+}
+Check (-not $html.Contains('ainda usa o nome antigo') -and -not $readme.Contains('ainda usa o nome antigo')) 'tutorial e README (1.13.0): a frase "a mensagem ainda usa o nome antigo" saiu (as mensagens mudaram)'
 
-# rotulos removidos pela 1.13.0 nao aparecem como atuais (so em palavras historicas "ate a 1.12.0"/"na 1.7.0 a 1.12.0" ou entre aspas, como a mensagem do codigo)
+# rotulos removidos pela 1.13.0 nao aparecem como atuais (so perto de palavras historicas "ate a 1.12.0"/"na 1.7.0 a 1.12.0": janela de 80 caracteres
+# antes e 40 depois; revisao final 1.13.0, M10: nenhuma mensagem do codigo cita mais um rotulo removido, entao a excecao "entre aspas" saiu)
 $removedLabels = @('Inserir também no slide', 'Inserir tabela vinculada no slide', 'Vincular célula ao texto selecionado', 'Atualizar gráficos no PowerPoint', 'menu PowerPoint')
 function Get-StaleLabelHits([string]$text, [string[]]$labels) {
     $hits = @()
     foreach ($l in $labels) {
         foreach ($m in [regex]::Matches($text, [regex]::Escape($l))) {
-            if ($m.Index -gt 0 -and $text.Substring($m.Index - 1, 1) -eq "'") { continue }
-            $a = [Math]::Max(0, $m.Index - 240); $e = [Math]::Min($text.Length, $m.Index + $l.Length + 160)
+            $a = [Math]::Max(0, $m.Index - 80); $e = [Math]::Min($text.Length, $m.Index + $l.Length + 40)
             $win = $text.Substring($a, $e - $a)
-            if ($win -notmatch 'até a 1\.\d+\.\d|1\.(7|10|11|12)\.0|\(antes|antes d[aeo]|até a ') { $hits += "$l@$($m.Index)" }
+            if ($win -notmatch 'até a 1\.\d+\.\d|1\.(7|10|11|12)\.0|\(antes|antes d[aeo]|antes "|não existe mais|até a ') { $hits += "$l@$($m.Index)" }
         }
     }
     return $hits
@@ -1940,7 +1952,9 @@ $rdPlain = $readme -replace '\*\*', '' -replace '`', '' -replace '\s+', ' '
 Check (@(Get-StaleLabelHits $tutPlain $removedLabels).Count -eq 0) "tutorial (1.13.0): nenhum rótulo removido aparece como atual ($(@(Get-StaleLabelHits $tutPlain $removedLabels) -join ', '))"
 Check (@(Get-StaleLabelHits $rdPlain $removedLabels).Count -eq 0) "README (1.13.0): nenhum rótulo removido aparece como atual ($(@(Get-StaleLabelHits $rdPlain $removedLabels) -join ', '))"
 Check (@(Get-StaleLabelHits 'Escolha Inserir também no slide e clique no menu PowerPoint.' $removedLabels).Count -eq 2) 'guarda (sintético): rótulo removido usado como atual = falha'
-Check (@(Get-StaleLabelHits "Até a 1.12.0 havia a caixa Inserir também no slide; a mensagem diz (elas aparecem ao usar 'Inserir também no slide')." $removedLabels).Count -eq 0) 'guarda (sintético): palavra histórica e citação de mensagem passam'
+Check (@(Get-StaleLabelHits 'Até a 1.12.0 havia a caixa Inserir também no slide.' $removedLabels).Count -eq 0) 'guarda (sintético): palavra histórica perto passa'
+Check (@(Get-StaleLabelHits ("Até a 1.12.0 havia outra coisa. " + ('x' * 120) + " Escolha Inserir também no slide.") $removedLabels).Count -eq 1) 'guarda (sintético): palavra histórica LONGE (mais de 80 caracteres antes) não isenta'
+Check (@(Get-StaleLabelHits "A mensagem diz (elas aparecem ao usar 'Inserir também no slide')." $removedLabels).Count -eq 1) 'guarda (sintético): citação entre aspas não isenta mais'
 $removedUi = @('Inserir também no slide', 'Inserir tabela vinculada no slide', 'Vincular célula ao texto selecionado', 'Atualizar gráficos no PowerPoint')
 if ($parsed) {
     $uiAll = @($xml.SelectNodes("//*[contains(concat(' ', normalize-space(@class), ' '), ' ui ')]") | ForEach-Object { ($_.InnerText -replace '\s+', ' ').Trim() })

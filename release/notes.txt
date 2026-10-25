@@ -1,6 +1,6 @@
 • Novo: Vincular ao PowerPoint. O primeiro grupo da aba ThinQQ agora é PowerPoint, com uma galeria: selecione a tabela e escolha o tipo para criar o gráfico no Excel e colá-lo vinculado no slide (a mesma galeria também aparece na guia Inserir do Excel).
 • Tabela vinculada e Texto: célula ao texto selecionado estão na mesma galeria; a caixa Inserir também no slide e o menu PowerPoint saíram, e Atualizar no PowerPoint e o menu Mais ficam no grupo.
-• A moldura do intervalo agora mostra o estado: verde quando o gráfico está no PowerPoint e vermelha quando não está (ela é revista ao inserir, em Atualizar e em Mostrar/ocultar molduras). Copiar como gráfico vinculado também desenha a moldura.
+• A moldura do intervalo agora mostra o estado: verde quando o gráfico está numa apresentação aberta no PowerPoint e vermelha quando não está; sem o PowerPoint aberto, Atualizar deixa a moldura vermelha (ela é revista ao inserir, em Atualizar, em Atualizar no PowerPoint e em Mostrar/ocultar molduras). Copiar como gráfico vinculado também desenha a moldura.
 • Alterar dados continua recriando o gráfico: o que já está no slide pode perder os totais e mostrar dados antigos até você colar de novo, e o aviso agora diz isso.
 • Fora desta versão: botão direito e duplo clique sobre o gráfico e mudar o tipo do gráfico que já está no slide.
 • A galeria, a guia Inserir e a cor da moldura ainda não foram verificadas no Excel e no PowerPoint reais.
