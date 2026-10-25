@@ -349,3 +349,20 @@ Public Sub Test_StyleStore_Default_TestMemory()
     StyleStore_ResetTestHooks
     AssertEqual "", StyleStore_DefaultName()
 End Sub
+
+' ---- Janela Estilos (1.12.0): textos e listas puras
+Public Sub Test_StyleUi_RolesAndPicks()
+    Dim k As Variant, items As Variant
+    For Each k In StyleDef_Keys()
+        AssertTrue Len(StyleUi_RoleLabel(CStr(k))) > 0, "rotulo em pt-BR: " & CStr(k)
+        items = StyleUi_PickItems(CStr(k))
+        If IsArray(items) Then
+            AssertEqual StyleDef_Validate(CStr(k), StyleUi_PickValue(CStr(k), 0)), StyleUi_PickValue(CStr(k), 0), "1o item valido: " & CStr(k)
+        End If
+    Next
+    AssertEqual "Aumentos (cascata)", StyleUi_RoleLabel("aumento")
+    AssertEqual "#70AD47", StyleUi_PickValue("aumento", 9)
+    AssertEqual "diagonal_larga_para_cima", StyleUi_PickValue("primeira.padrao", 3)
+    AssertTrue StyleUi_IsColorKey("serie1")
+    AssertFalse StyleUi_IsColorKey("espaco")
+End Sub

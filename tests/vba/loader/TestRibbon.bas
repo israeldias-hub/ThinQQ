@@ -81,6 +81,8 @@ Private Function ExpectedSig(elem As String, attr As String) As String
                 Case "dropDown": ExpectedSig = "iribboncontrol,string,integer"
             End Select
         Case "getEnabled", "getPressed", "getSelectedItemID": ExpectedSig = "iribboncontrol,byref *"
+        Case "getItemCount": ExpectedSig = "iribboncontrol,byref *"
+        Case "getItemLabel", "getItemID": ExpectedSig = "iribboncontrol,integer,byref *"
     End Select
 End Function
 
@@ -112,7 +114,8 @@ Public Sub Test_Ribbon_Xml_HasAllCallbacks()
                   "Rx_GetSelectedId", "Rx_OnAnnotation", "Rx_OnRemoveAnnotations", "Rx_OnRefresh", "Rx_OnChangeSource", _
                   "Rx_OnSamples", "Rx_OnTutorial", "Rx_OnCheckUpdates", "Rx_OnSettings", "Rx_OnAbout", "Rx_OnSameScale", "Rx_OnResetScale", _
                   "Rx_OnAxisBreak", "Rx_OnAxisBreakOff", "Rx_OnRoundRange", "Rx_OnPptImage", "Rx_OnPptChart", "Rx_OnPptSync", "Rx_OnDelta", "Rx_OnDeltaFormat", _
-                  "Rx_GetPptInsert", "Rx_OnPptInsert", "Rx_OnPptFrames", "Rx_OnPptLinkText", "Rx_OnLinkTitle")
+                  "Rx_GetPptInsert", "Rx_OnPptInsert", "Rx_OnPptFrames", "Rx_OnPptLinkText", "Rx_OnLinkTitle", _
+                  "Rx_StyleCount", "Rx_StyleLabel", "Rx_StyleId", "Rx_GetStyleSel", "Rx_OnStyle", "Rx_OnStyles")
     For i = LBound(names) To UBound(names)
         AssertTrue InStr(xml, names(i)) > 0, "callback ausente no XML: " & names(i)
     Next
@@ -128,8 +131,8 @@ Public Sub Test_Ribbon_Callbacks_ExistWithRightSignature()
     Dim cb As String, sig As String, exp As String, count As Long
     Set d = LoadRibbon()
     code = RibbonModuleCode()
-    attrs = Array("onLoad", "onAction", "getEnabled", "getPressed", "getSelectedItemID")
-    For Each n In d.SelectNodes("//*[@onLoad or @onAction or @getEnabled or @getPressed or @getSelectedItemID]")
+    attrs = Array("onLoad", "onAction", "getEnabled", "getPressed", "getSelectedItemID", "getItemCount", "getItemLabel", "getItemID")
+    For Each n In d.SelectNodes("//*[@onLoad or @onAction or @getEnabled or @getPressed or @getSelectedItemID or @getItemCount or @getItemLabel or @getItemID]")
         For i = LBound(attrs) To UBound(attrs)
             Set a = n.Attributes.getNamedItem(CStr(attrs(i)))
             If Not a Is Nothing Then
@@ -164,6 +167,13 @@ Public Sub Test_Ribbon_ControlIds_Unique()
     AssertTrue seen.Count > 20
 End Sub
 
+Private Function GetStyleSelForTest() As String
+    Dim sel As Variant
+    Loader_InvalidateRibbon
+    Rx_GetStyleSel Nothing, sel
+    GetStyleSelForTest = CStr(sel)
+End Function
+
 Private Function ItemIds(dd As Object) As String
     Dim it As Object, s As String
     For Each it In dd.SelectNodes("u:item")
@@ -176,7 +186,7 @@ Public Sub Test_Ribbon_Dropdowns_ItemsMatchCoreOptions()
     Dim d As Object, dd As Object, it As Object, v As String
     Set d = LoadRibbon()
     AssertEqual "int,dec1,dec2,pct0,pct1,mil,mi", ItemIds(d.SelectSingleNode("//u:dropDown[@tag='numfmt']"))
-    AssertEqual "padrao,cinza,tema", ItemIds(d.SelectSingleNode("//u:dropDown[@tag='palette']"))
+    AssertTrue d.SelectSingleNode("//u:dropDown[@id='ddPalette']") Is Nothing, "Paleta virou Estilo (itens vindos do core)"
     Set dd = d.SelectSingleNode("//u:dropDown[@tag='gap']")
     AssertTrue Not dd Is Nothing
     For Each it In dd.SelectNodes("u:item")
@@ -442,7 +452,7 @@ Public Sub Test_Ribbon_SelectedChartGroup_EnabledExceptRefresh()
     Set d = LoadRibbon()
     For Each n In d.SelectNodes("//u:group[@id='grpChart']/*[not(self::u:separator)]")
         id = n.Attributes.getNamedItem("id").Text
-        If id = "btnRefresh" Or id = "mnuMore" Or id = "mnuPpt" Then
+        If id = "btnRefresh" Or id = "mnuMore" Or id = "mnuPpt" Or id = "btnStyles" Then
             AssertTrue n.Attributes.getNamedItem("getEnabled") Is Nothing, id & " deve ficar sempre habilitado"
         Else
             AssertTrue Not n.Attributes.getNamedItem("getEnabled") Is Nothing, "sem getEnabled: " & id
@@ -597,7 +607,7 @@ Public Sub Test_Ribbon_Enabled_FollowsCapabilityOfSelectedChart()
     For Each t In Array("totals", "connectors", "gap", "cagr", "diff", "bracket", "ind100", "vline", "secondary")
         AssertFalse Rx_IsEnabledFor(CStr(t)), "pizza: '" & t & "' deveria estar desabilitado"
     Next
-    For Each t In Array("labels", "numfmt", "palette", "legend", "pieout", "")
+    For Each t In Array("labels", "numfmt", "style", "legend", "pieout", "")
         AssertTrue Rx_IsEnabledFor(CStr(t)), "pizza: '" & t & "' deveria estar habilitado"
     Next
     For Each t In Array("roundsum", "trend", "quad", "break")
@@ -680,7 +690,6 @@ Public Sub Test_Ribbon_SelectedId_ReverseMapping_WithRealChart()
     AssertEqual "gap80", Rx_SelectedIdFor("gap"), "colunas agrupadas nascem com Espaco 80: item gap80"
     AssertEqual "right", Rx_SelectedIdFor("legend"), "legenda a direita"
     AssertEqual "int", Rx_SelectedIdFor("numfmt")
-    AssertEqual "padrao", Rx_SelectedIdFor("palette")
     Loader_RunCore "Core_SetOption", "gap", Rx_OptionValueFor("gap", "gap120")
     AssertEqual "gap120", Rx_SelectedIdFor("gap"), "item escolhido volta como o mesmo id"
     Loader_RunCore "Core_SetOption", "legend", "none"
@@ -688,7 +697,8 @@ Public Sub Test_Ribbon_SelectedId_ReverseMapping_WithRealChart()
     Loader_RunCore "Core_SetOption", "numfmt", "pct0"
     AssertEqual "pct0", Rx_SelectedIdFor("numfmt")
     Loader_RunCore "Core_SetOption", "palette", "cinza"
-    AssertEqual "cinza", Rx_SelectedIdFor("palette")
+    AssertEqual "Tons de cinza", CStr(Loader_RunCore("Core_GetStyleName")), "a paleta antiga continua aceita pelo core e aparece como o estilo embutido"
+    AssertEqual "st1", GetStyleSelForTest(), "item do dropdown Estilo = Tons de cinza"
 Cleanup:
     en = Err.Number: ed = Err.Description
     EnabledCleanup
@@ -704,7 +714,6 @@ Public Sub Test_Ribbon_SelectedId_DefaultsWithoutChart()
     Set wb = NewTempWorkbook()
     AssertEqual "right", Rx_SelectedIdFor("legend")
     AssertEqual "int", Rx_SelectedIdFor("numfmt")
-    AssertEqual "padrao", Rx_SelectedIdFor("palette")
     AssertEqual "gap50", Rx_SelectedIdFor("gap"), "o item de Espaco e 'gap' + valor"
     AssertEqual "120", Rx_OptionValueFor("gap", "gap120"), "o core recebe so o numero"
     AssertEqual "dec1", Rx_OptionValueFor("numfmt", "dec1"), "os demais dropdowns usam o proprio id"
@@ -1026,4 +1035,18 @@ Cleanup:
     en = Err.Number: ed = Err.Description
     Rx_TestSetFeatureProcSuffix ""
     If en <> 0 Then Err.Raise en, "TestRibbon", ed
+End Sub
+
+' ---- Estilos (1.12.0): lista Estilo e botao Estilos... na faixa
+Public Sub Test_Ribbon_Styles_XmlAndNames()
+    Dim d As Object, v As Variant
+    Set d = LoadRibbon()
+    AssertTrue Not d.SelectSingleNode("//u:dropDown[@id='ddStyle'][@tag='style'][@getItemCount='Rx_StyleCount'][@getItemLabel='Rx_StyleLabel'][@getItemID='Rx_StyleId'][@getSelectedItemID='Rx_GetStyleSel'][@onAction='Rx_OnStyle'][@getEnabled='Rx_GetEnabled']") Is Nothing, "dropdown Estilo"
+    AssertTrue d.SelectSingleNode("//u:dropDown[@id='ddPalette']") Is Nothing, "Paleta virou Estilo"
+    AssertTrue Not d.SelectSingleNode("//u:dropDown[@id='ddLegend']/following-sibling::*[1][self::u:button][@id='btnStyles'][@onAction='Rx_OnStyles']") Is Nothing, "btnStyles logo depois de ddLegend"
+    v = Rx_StyleNamesFor("A|B|C")
+    AssertEqual 3, UBound(v) - LBound(v) + 1
+    v = Rx_StyleNamesFor("")
+    AssertEqual 1, UBound(v) - LBound(v) + 1
+    AssertEqual "Padrão ThinQQ", CStr(v(0))
 End Sub

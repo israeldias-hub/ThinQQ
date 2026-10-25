@@ -291,6 +291,10 @@ Check ($null -ne $tb -and -not $tb.HasAttribute('getEnabled')) 'excel: Inserir t
 Check ($null -ne $tb -and $tb.PreviousSibling.GetAttribute('id') -ceq 'btnPptLinkText') 'excel: tabela vinculada depois de Vincular célula ao texto selecionado'
 Check (@($xx.SelectNodes("//u:menu[@id='mnuPpt']/u:button", $xns)).Count -eq 6) 'excel: menu PowerPoint com 6 botões'
 Check ($null -ne $xx.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnLinkTitle'][@onAction='Rx_OnLinkTitle'][@getEnabled='Rx_GetEnabled'][@image='tqq_options16']", $xns)) 'excel: Título ligado a uma célula'
+# 1.12.0 (S4): Paleta virou Estilo (itens vindos do core) e o botao Estilos... logo depois da Legenda
+Check ($null -eq $xx.SelectSingleNode("//u:dropDown[@id='ddPalette']", $xns)) 'Excel: Paleta virou Estilo'
+Check ($null -ne $xx.SelectSingleNode("//u:group[@id='grpChart']/u:dropDown[@id='ddStyle'][@tag='style'][@getItemCount='Rx_StyleCount'][@getItemLabel='Rx_StyleLabel'][@getItemID='Rx_StyleId'][@getSelectedItemID='Rx_GetStyleSel'][@onAction='Rx_OnStyle'][@getEnabled='Rx_GetEnabled'][not(u:item)]", $xns)) 'excel: lista Estilo com itens do core'
+Check ($null -ne $xx.SelectSingleNode("//u:dropDown[@id='ddLegend']/following-sibling::*[1][self::u:button][@id='btnStyles'][@image='tqq_options16'][@onAction='Rx_OnStyles']", $xns)) 'excel: botao Estilos... logo depois de ddLegend'
 # ---- Carimbo do .ppam (Set-PackageDescription): o PowerPoint grava o suplemento sem docProps; pacotes sinteticos, sem Office
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
