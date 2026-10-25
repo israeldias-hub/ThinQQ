@@ -193,6 +193,7 @@ Public Sub Core_Insert(kind As String)
     LinkFrame_CleanOrphans ws.Parent                 ' molduras orfas da pasta inteira (1.7.0)
     Set co = Kinds_Insert(ws, data, kind)
     ApplySourceNumFmt co.Chart, kind, data           ' formato inicial dos rotulos pelo formato da tabela (1a celula de valor)
+    StyleDefault_ApplyNew co.Chart                   ' estilo padrao para novos graficos (1.12.0); sem padrao, a paleta de sempre
     Application.ScreenUpdating = prevSU
     Watchers_Rehook
     co.Select
@@ -213,6 +214,18 @@ Fail:
     Else
         Errors_HandleErr "Core_Insert(" & kind & ")", en, ed
     End If
+End Sub
+
+' Estilo padrao para novos graficos (StyleStore_DefaultName). Falha (estilo apagado): registrada, o grafico fica com a paleta. Nunca propaga.
+Private Sub StyleDefault_ApplyNew(c As Chart)
+    Dim n As String
+    On Error GoTo Fail
+    n = StyleStore_DefaultName()
+    If Len(n) = 0 Then Exit Sub
+    Style_ApplyNamed c, n, True
+    Exit Sub
+Fail:
+    Errors_Log "StyleDefault_ApplyNew" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
 
 ' Chave de numfmt que corresponde a um codigo de formato de celula (ingles): percentual -> pct0 (sem casas) ou pct1; escala de milhares
@@ -493,6 +506,7 @@ Public Sub Core_SetToggle(key As String, value As Boolean)
     Set c = Core_ActiveChart()
     If c Is Nothing Then Exit Sub
     ApplyToggle c, key, value
+    Style_Reapply c                                      ' estilo (1.12.0): conectores e rotulos recriados recebem o estilo de novo
     Core_SafeRefresh c
     If key = "vline" And value Then
         msg = Break_VLineHiddenText(c)                   ' aviso nao bloqueante: a media acima do corte de eixo nao aparece
@@ -523,6 +537,7 @@ Public Sub Core_SetOption(key As String, value As String)
     msg = ValidateOption(key, value)
     If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
     ApplyOption c, key, value                            ' recusa pela matriz (7002) antes de gravar: o Fail: abaixo mostra o aviso
+    If key = "palette" Then Style_Clear c Else Style_Reapply c       ' paleta escolhida = estilo embutido (tira o estilo); demais opcoes reaplicam
     Core_SafeRefresh c
     Exit Sub
 Fail:
@@ -566,6 +581,7 @@ Public Sub Core_AddAnnotation(kind As String, Optional fromIdx As Long = 0, Opti
         Case "diff": Ann_AddDifference c, fromIdx, toIdx
         Case Else: Ann_AddBracket c, fromIdx, toIdx
     End Select
+    Style_Reapply c                                  ' estilo (1.12.0): a seta nova recebe seta.* (nunca propaga)
     Exit Sub
 Fail:
     If Err.Number = vbObjectError + 7001 Then
@@ -585,7 +601,8 @@ Public Sub Core_AddDelta(fromRef As String, toRef As String, Optional fmt As Str
     If c Is Nothing Then Exit Sub
     If fmt <> "abs" And fmt <> "pct" Then fmt = "both"
     Ann_AddDelta c, fromRef, toRef, fmt
-    Core_SafeRefresh c                       ' quem insere sem desenhar (gerador da demonstracao) termina com o refresh completo...
+    Style_Reapply c                          ' estilo (1.12.0): a seta nova recebe seta.* (nunca propaga)
+    Core_SafeRefresh c                      ' quem insere sem desenhar (gerador da demonstracao) termina com o refresh completo...
     Ann_EnsureRoomAfterChange c              ' ...que pode mudar escalas (combinacao: a faixa da linha acima dos totais): a sala do delta de novo
     Exit Sub
 Fail:
@@ -1026,6 +1043,8 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Gantt" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Ann_Refresh cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Ann" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    Style_ReapplyIfNeeded cht                        ' estilo (1.12.0): so quando o carimbo mudou (linha/serie nova, sinal da 1a/ultima barra)
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Style" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
 End Sub
 
 ' Re-layout do gráfico ativo (ou de todos da planilha) e limpeza de blocos órfãos.
@@ -1227,7 +1246,8 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     If Len(Registry_GetOption(nc, "outpos", "")) > 0 Then Registry_SetOption nc, "outpos", ""        ' e as posicoes aplicadas a eles
     If Len(Registry_GetOption(nc, "brklbl", "")) > 0 Then Registry_SetOption nc, "brklbl", ""        ' rotulos ocultos pelo corte de eixo: idem
     ReapplyOptions nc                           ' formato, paleta, espaco, alternadores, escala fixa e legenda: as ESCOLHAS salvas do usuario
-    RebuildTestHook "afterreapply"              ' (teste) falha depois de reaplicar, antes de trocar o grafico
+    Style_Reapply nc                            ' estilo (1.12.0): o grafico novo nasce com a paleta; a camada do estilo volta por cima (nunca propaga)
+    RebuildTestHook "afterreapply"             ' (teste) falha depois de reaplicar, antes de trocar o grafico
     oldCo.Delete
     ' A partir daqui o gráfico antigo não existe mais: nada pode apagar o novo. Falhas só são registradas.
     On Error Resume Next
@@ -1993,6 +2013,7 @@ Private Function PptCmd_One(shp As Object, cmd As String, arg As String, opened 
         Case "clear"
             Ann_RemoveAll c, False
     End Select
+    Style_Reapply c                                 ' estilo (1.12.0): conectores, rotulos e setas novos recebem o estilo do grafico
     Core_SafeRefresh c
     If PptData_IsDataBook(wb) Then PptData_SaveQuiet wb
     Exit Function
@@ -2344,3 +2365,79 @@ Public Sub Core_StyleExport(name As String)
 Fail:
     Errors_Handle "Core_StyleExport"
 End Sub
+
+' Paleta embutida (estilos "Padrão ThinQQ", "Tons de cinza", "Cores do tema"): o mesmo ApplyOption da faixa e o estilo sai (Style_Clear depois
+' da paleta: hachura e conectores voltam ao padrao). Propaga erros.
+Public Sub Opt_ApplyPalette(c As Chart, pal As String)
+    ApplyOption c, "palette", pal
+    Style_Clear c
+End Sub
+
+' Estilo do grafico ativo para a faixa: o nome gravado ou, sem estilo, o embutido da paleta. "" sem grafico. Nunca propaga erro.
+Public Function Core_GetStyleName() As String
+    Dim c As Chart, n As String
+    On Error Resume Next
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Function
+    n = Registry_GetOption(c, "style", "")
+    If Len(n) = 0 Then
+        Select Case Registry_GetOption(c, "palette", "padrao")
+            Case "cinza": n = "Tons de cinza"
+            Case "tema": n = "Cores do tema"
+            Case Else: n = "Padrão ThinQQ"
+        End Select
+    End If
+    Core_GetStyleName = n
+End Function
+
+' Aplica o estilo: scope "chart" (os selecionados ou o ativo), "sheet" (todos os do ThinQQ da planilha ativa) ou "book" (da pasta ativa).
+' Recusa (estilo inexistente ou invalido, 7140) vira aviso. Nunca propaga erro.
+Public Sub Core_StyleApply(name As String, scope As String)
+    Dim targets As New Collection, v As Variant, ws As Object, co As ChartObject, n As Long, ch As Chart
+    On Error GoTo Fail
+    Select Case scope
+        Case "sheet", "book"
+            If ActiveWorkbook Is Nothing Then Exit Sub
+            For Each ws In ActiveWorkbook.Worksheets
+                If scope = "book" Or ws Is ActiveSheet Then
+                    For Each co In ws.ChartObjects
+                        If Registry_IsThinQQChart(co.Chart) Then targets.Add co.Chart
+                    Next
+                End If
+            Next
+        Case Else
+            For Each v In Core_SelectedCharts()
+                targets.Add v
+            Next
+    End Select
+    For Each v In targets
+        Set ch = v
+        Style_ApplyNamed ch, name, True
+        Core_SafeRefresh ch
+        n = n + 1
+    Next
+    If n = 0 Then Core_Notify "Selecione um gráfico do ThinQQ (ou escolha planilha/pasta).", vbInformation
+    Exit Sub
+Fail:
+    If Err.Number = vbObjectError + 7140 Or Err.Number = vbObjectError + 7002 Then
+        Core_Notify Err.Description, vbExclamation
+    Else
+        Errors_Handle "Core_StyleApply"
+    End If
+End Sub
+
+' Salva o visual do grafico ativo como estilo do usuario. "" ok ou a mensagem. Nunca propaga erro.
+Public Function Core_StyleFromChart(name As String) As String
+    Dim c As Chart, r As String
+    On Error GoTo Fail
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then
+        Core_StyleFromChart = "Selecione um gráfico do ThinQQ."
+        Exit Function
+    End If
+    r = StyleStore_SaveUser(name, Style_FromChart(c, name))
+    If Left$(r, 1) = "!" Then Core_StyleFromChart = Mid$(r, 2)
+    Exit Function
+Fail:
+    Core_StyleFromChart = "Não foi possível salvar o estilo: " & Err.Description
+End Function

@@ -517,4 +517,8 @@ Public Sub Test_Kinds_Delta_Matrix_ExhaustiveFromSpec()
     Next
     AssertEqual 24, nFeat, "24 recursos na tabela do spec"
     AssertEqual 504, nPairs
+    For Each k In allKinds
+        AssertTrue Kinds_Supports(CStr(k), "style"), "style x " & k        ' estilos de grafico (1.12.0): todos os tipos
+    Next
+    AssertEqual "Estilo", Kinds_FeatureLabel("style")
 End Sub

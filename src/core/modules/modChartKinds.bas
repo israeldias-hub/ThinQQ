@@ -66,6 +66,7 @@ Public Function Kinds_Supports(kind As String, feature As String, Optional serie
         Case "connectors": list = "stacked,stacked100,barstacked,barstacked100,waterfall,barwaterfall,combo,waterfallpair"
         Case "numfmt":     list = "stacked,clustered,stacked100,line,waterfall,barstacked,barclustered,barstacked100,barwaterfall,area,area100,combo,mekko,mekkounits,pie,doughnut,butterfly,waterfallpair"
         Case "palette":    list = allKinds
+        Case "style":      list = allKinds                         ' estilos de grafico (1.12.0): chave sem papel no tipo e ignorada
         Case "gap":        list = "stacked,clustered,stacked100,barstacked,barclustered,barstacked100,waterfall,barwaterfall,combo,gantt,butterfly,waterfallpair"
         Case "legend":     list = Replace(allKinds, ",gantt", "")      ' waterfall/barwaterfall: so com varias series (abaixo)
         Case "lineend":    list = "line,combo"                         ' legenda "nome no fim da linha" (Deco_SetLegend)
@@ -106,6 +107,7 @@ Public Function Kinds_FeatureLabel(feature As String) As String
         Case "legend":     Kinds_FeatureLabel = "Legenda"
         Case "numfmt":     Kinds_FeatureLabel = "Formato"
         Case "palette":    Kinds_FeatureLabel = "Paleta"
+        Case "style":      Kinds_FeatureLabel = "Estilo"
         Case "roundsum":   Kinds_FeatureLabel = "Rótulos com soma consistente"
         Case "break":      Kinds_FeatureLabel = "Corte de eixo"
         Case "trend":      Kinds_FeatureLabel = "Linha de tendência"

@@ -171,6 +171,176 @@ Public Sub Test_StyleStore_ImportExport_Validates()
     StyleStore_ResetTestHooks
 End Sub
 
+' Tabela de cascata (a mesma regra de TestWaterfall): a 1a barra (2026) e um aumento a partir de zero; Base e um total; Perda reduz.
+Private Function WfTable(ws As Worksheet) As Range
+    ws.Range("A1:B1").Value = Array("Etapa", "Valor")
+    ws.Range("A2:B2").Value = Array("2026", 20)
+    ws.Range("A3:B3").Value = Array("Ganho A", 0.6)
+    ws.Range("A4:B4").Value = Array("Ganho B", 0.3)
+    ws.Range("A5:B5").Value = Array("Base", "e")
+    ws.Range("A6:B6").Value = Array("Perda", -0.9)
+    Set WfTable = ws.Range("A1:B6")
+End Function
+
+Private Function NewWfChart(wb As Workbook) As Chart
+    Dim rng As Range
+    Set rng = WfTable(wb.Worksheets(1))
+    rng.Select
+    Core_Insert "waterfall"
+    Set NewWfChart = Core_ActiveChart()
+End Function
+
+Private Function SeriesFill(c As Chart, nm As String) As Long
+    SeriesFill = c.SeriesCollection(nm).Format.Fill.ForeColor.RGB
+End Function
+
+' Papeis da cascata: aumento, reducao, total; a 1a barra (aumento a partir de zero) hachurada com borda; zero de outra serie no ponto 1 nao
+' ganha borda (linha fantasma na base).
+Public Sub Test_StyleApply_Waterfall_Roles_AndHatch()
+    Dim wb As Workbook, c As Chart, p As Point
+    Set wb = NewTempWorkbook()
+    Set c = NewWfChart(wb)
+    Style_ApplyNamed c, "Cascata MC"
+    AssertEqual "Cascata MC", Registry_GetOption(c, "style", "")
+    AssertEqual 8, Len(Registry_GetOption(c, "stylever", ""))
+    AssertEqual RGB(112, 173, 71), SeriesFill(c, "tqq_uppos")
+    AssertEqual RGB(232, 23, 60), SeriesFill(c, "tqq_downneg")
+    AssertEqual RGB(217, 217, 217), SeriesFill(c, "tqq_total")
+    Set p = c.SeriesCollection("tqq_uppos").Points(1)
+    AssertEqual msoFillPatterned, p.Format.Fill.Type, "1a barra hachurada"
+    AssertEqual msoPatternWideUpwardDiagonal, p.Format.Fill.Pattern
+    AssertEqual RGB(0, 0, 0), p.Format.Fill.ForeColor.RGB
+    AssertEqual RGB(255, 255, 255), p.Format.Fill.BackColor.RGB
+    AssertEqual msoTrue, p.Format.Line.Visible, "borda da 1a barra"
+    AssertEqual msoFalse, c.SeriesCollection("tqq_total").Points(1).Format.Line.Visible, "total zero no ponto 1: sem borda"
+    AssertTrue InStr(StyleStore_BookText(wb, "Cascata MC"), "aumento=#70AD47") > 0, "a pasta passa a levar o estilo"
+    CloseTemp wb
+End Sub
+
+' Sobrevivencia (Review Focus 6): ligar/desligar conectores, mudar formato, Alterar dados com uma linha a mais, refresh com categoria nova.
+Public Sub Test_StyleApply_SurvivesTogglesRebuildAndRefresh()
+    Dim wb As Workbook, c As Chart, ws As Worksheet, i As Long, conn As Shape
+    Set wb = NewTempWorkbook()
+    Set c = NewWfChart(wb)
+    Set ws = wb.Worksheets(1)
+    Style_ApplyNamed c, "Cascata MC"
+    Core_SetToggle "connectors", False
+    Core_SetToggle "connectors", True
+    For i = 1 To c.Shapes.Count
+        If Left$(c.Shapes(i).Name, Len(ANN_PREFIX & "conn_")) = ANN_PREFIX & "conn_" Then
+            Set conn = c.Shapes(i)
+            Exit For
+        End If
+    Next
+    AssertTrue Not conn Is Nothing, "conectores recriados"
+    AssertEqual RGB(127, 127, 127), conn.Line.ForeColor.RGB
+    AssertEqual msoLineRoundDot, conn.Line.DashStyle, "conector pontilhado reaplicado"
+    Core_SetOption "numfmt", "dec1"
+    AssertEqual RGB(112, 173, 71), SeriesFill(c, "tqq_uppos"), "trocar o formato nao perde as cores"
+    ws.Range("A7:B7").Value = Array("Final", "e")
+    AssertTrue Core_RebuildFromRange(c, ws.Range("A1:B7"))
+    Set c = Core_ActiveChart()
+    AssertEqual "Cascata MC", Registry_GetOption(c, "style", "")
+    AssertEqual RGB(112, 173, 71), SeriesFill(c, "tqq_uppos"), "Alterar dados reaplica"
+    AssertEqual msoFillPatterned, c.SeriesCollection("tqq_uppos").Points(1).Format.Fill.Type
+    AssertEqual Style_Stamp(c), Registry_GetOption(c, "stylestamp", "")
+    Core_SetOption "palette", "cinza"
+    AssertEqual "", Registry_GetOption(c, "style", ""), "escolher uma paleta embutida tira o estilo"
+    AssertTrue c.SeriesCollection("tqq_uppos").Points(1).Format.Fill.Type <> msoFillPatterned, "sem estilo: a hachura sai"
+    AssertEqual msoFalse, c.SeriesCollection("tqq_uppos").Points(1).Format.Line.Visible, "sem estilo: a borda da 1a barra sai"
+    CloseTemp wb
+End Sub
+
+' Sondas PX1 como teste: mudar um valor mantem a hachura (o carimbo nao muda: nada reaplicado); a 1a barra mudando de sinal muda a serie que a
+' carrega (carimbo novo: o refresh reaplica e a hachura acompanha); salvar e reabrir mantem a hachura e o estilo da pasta.
+Public Sub Test_StyleApply_SurvivesValueSignChangeAndSaveReopen()
+    Dim wb As Workbook, c As Chart, ws As Worksheet, p As String, stamp As String, s As Series, hatched As String, nm As String
+    Set wb = NewTempWorkbook()
+    Set c = NewWfChart(wb)
+    Set ws = wb.Worksheets(1)
+    Style_ApplyNamed c, "Cascata MC"
+    stamp = Registry_GetOption(c, "stylestamp", "")
+    ws.Range("B3").Value = 0.8
+    Application.Calculate
+    Core_SafeRefresh c
+    AssertEqual stamp, Registry_GetOption(c, "stylestamp", ""), "valor mudou sem mudar a forma: carimbo igual"
+    AssertEqual msoFillPatterned, c.SeriesCollection("tqq_uppos").Points(1).Format.Fill.Type, "hachura sobrevive a mudar valores"
+    ws.Range("B2").Value = -20
+    Application.Calculate
+    Core_SafeRefresh c
+    AssertTrue stamp <> Registry_GetOption(c, "stylestamp", ""), "1a barra negativa: outra serie a carrega"
+    AssertEqual Style_Stamp(c), Registry_GetOption(c, "stylestamp", "")
+    For Each s In c.SeriesCollection
+        Select Case s.Name
+            Case "tqq_uppos", "tqq_upneg", "tqq_downpos", "tqq_downneg", "tqq_total"
+                If s.Points(1).Format.Fill.Type = msoFillPatterned Then hatched = hatched & s.Name & ","
+        End Select
+    Next
+    AssertTrue Len(hatched) > 0 And InStr(hatched, "tqq_uppos,") = 0, "a hachura passou para a serie que carrega a barra: " & hatched
+    AssertEqual msoFalse, c.SeriesCollection("tqq_uppos").Points(1).Format.Line.Visible, "a serie que perdeu a barra fica sem borda"
+    nm = c.Parent.Name
+    p = TempDir() & "\style-apply.xlsx"
+    wb.SaveAs p, xlOpenXMLWorkbook
+    wb.Close SaveChanges:=False
+    Set wb = Workbooks.Open(p)
+    Set c = wb.Worksheets(1).ChartObjects(nm).Chart
+    AssertEqual "Cascata MC", Registry_GetOption(c, "style", "")
+    AssertEqual msoFillPatterned, c.SeriesCollection(Left$(hatched, InStr(hatched, ",") - 1)).Points(1).Format.Fill.Type, "hachura reabre"
+    AssertTrue InStr(StyleStore_BookText(wb, "Cascata MC"), "primeira.padrao=diagonal_larga_para_cima") > 0, "o estilo reabre com a pasta"
+    CloseTemp wb
+    Kill p
+End Sub
+
+' Todos os 21 tipos aceitam um estilo de series sem erro; nos tipos de series, a 1a serie de dados recebe serie1.
+Public Sub Test_StyleApply_AllKinds_NoError()
+    Dim wb As Workbook, k As Variant, c As Chart, rng As Range, d As Object, ign As Long, s As Series, got As Boolean
+    Set d = StyleDef_Parse(STYLEDEF_HEADER & vbCrLf & "serie1=#123456" & vbCrLf & "serie2=#654321" & vbCrLf & "fonte.tamanho=10", ign)
+    For Each k In Array("stacked", "clustered", "stacked100", "line", "waterfall", "barstacked", "barclustered", "barstacked100", "barwaterfall", "area", "area100", "combo", "mekko", "mekkounits", "gantt", "pie", "doughnut", "butterfly", "scatter", "bubble", "waterfallpair")
+        Set wb = NewTempWorkbook()
+        Set rng = Samples_WriteTable(wb.Worksheets(1).Range("A1"), Samples_TableFor(CStr(k)))
+        rng.Select
+        Core_Insert CStr(k)
+        Set c = Core_ActiveChart()
+        AssertTrue Not c Is Nothing, CStr(k)
+        Style_ApplyTo c, d
+        AssertEqual 10, CLng(c.ChartArea.Font.Size), "fonte: " & CStr(k)
+        got = False
+        For Each s In c.SeriesCollection
+            If s.Format.Fill.ForeColor.RGB = RGB(&H12, &H34, &H56) Or s.Format.Line.ForeColor.RGB = RGB(&H12, &H34, &H56) Then got = True
+        Next
+        If InStr(",stacked,clustered,stacked100,line,barstacked,barclustered,barstacked100,area,area100,combo,", "," & CStr(k) & ",") > 0 Then AssertTrue got, "serie1: " & CStr(k)
+        CloseTemp wb
+    Next
+End Sub
+
+Public Sub Test_StyleFromChart_CapturesManualColors()
+    Dim wb As Workbook, c As Chart, t As String, d As Object, ign As Long
+    Set wb = NewTempWorkbook()
+    Set c = NewWfChart(wb)
+    c.SeriesCollection("tqq_uppos").Format.Fill.ForeColor.RGB = RGB(1, 2, 3)        ' pintado a mao
+    c.SeriesCollection("tqq_uppos").Points(1).Format.Fill.Patterned msoPatternDarkUpwardDiagonal
+    t = Style_FromChart(c, "Do Grafico")
+    Set d = StyleDef_Parse(t, ign)
+    AssertEqual "#010203", StyleDef_Get(d, "aumento")
+    AssertEqual "diagonal_escura_para_cima", StyleDef_Get(d, "primeira.padrao")
+    AssertEqual "Do Grafico", StyleDef_Get(d, "nome")
+    CloseTemp wb
+End Sub
+
+Public Sub Test_Core_StyleApply_Refusals_NeverRaise()
+    Dim wb As Workbook, c As Chart
+    Set wb = NewTempWorkbook()
+    Set c = NewWfChart(wb)
+    Core_ClearLastNotice
+    Core_StyleApply "Nao Existe", "chart"
+    AssertTrue InStr(Core_LastNotice(), "Estilo não encontrado") > 0, Core_LastNotice()
+    Core_StyleApply "Cascata MC", "chart"
+    AssertEqual "Cascata MC", Core_GetStyleName()
+    Core_StyleApply "Tons de cinza", "chart"
+    AssertEqual "Tons de cinza", Core_GetStyleName(), "paleta embutida vira o nome do estilo"
+    CloseTemp wb
+End Sub
+
 Public Sub Test_StyleStore_Default_TestMemory()
     StyleStore_ResetTestHooks
     AssertEqual "", StyleStore_DefaultName()
