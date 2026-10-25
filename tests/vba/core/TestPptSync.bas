@@ -469,7 +469,7 @@ Public Sub Test_PptSync_SummaryText()
 End Sub
 
 Public Sub Test_Core_PptApiVersion()
-    AssertEqual 6, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9; 2 = 1.6.0; 3 = 1.8.0; 4 = 1.9.0 comandos; 5 = 1.9.0 texto vinculado; 6 = 1.11.0 estados)"
+    AssertEqual 7, Core_PptApiVersion(), "contrato com o suplemento do PowerPoint (spec 4.9; 2 = 1.6.0; 3 = 1.8.0; 4 = 1.9.0 comandos; 5 = 1.9.0 texto vinculado; 6 = 1.11.0 estados; 7 = 1.12.0 estilos)"
 End Sub
 
 Public Sub Test_Core_PptSyncPresentation_NeverRaises()
@@ -500,6 +500,61 @@ Private Function PasteLinked(app As Object, pres As Object, wb As Workbook, rng 
     Core_CopyToPowerPoint "chart"
     Set PasteLinked = slide.Shapes(slide.Shapes.Count)
 End Function
+
+' 1.12.0 (S5): a versao do estilo (opcao stylever, na linha de metadados do bloco) entra na impressao digital: trocar o estilo marca o
+' elemento do slide como "dados novos" (bandeira/automatico). Sem estilo a impressao nao muda (decks antigos nao viram "novos").
+Public Sub Test_PptSync_Fingerprint_ChangesWithStyle()
+    Dim wb As Workbook, rng As Range, c As Chart, shp As TestPptFake, a As String, b As String
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    Set shp = New TestPptFake: shp.Width = 709.7: shp.Height = 432
+    a = PptSync_Fingerprint(c.Parent, shp)
+    Style_ApplyNamed c, "Cascata MC", True
+    AssertTrue Len(Registry_GetOption(c, "stylever", "")) > 0, "stylever gravado"
+    b = PptSync_Fingerprint(c.Parent, shp)
+    AssertTrue a <> b, "estilo aplicado muda a impressao digital"
+    AssertEqual b, PptSync_Fingerprint(c.Parent, shp), "sem mudanca: igual"
+    Style_ApplyNamed c, "Cascata DDE", True
+    AssertTrue b <> PptSync_Fingerprint(c.Parent, shp), "outro estilo muda a impressao digital"
+    b = PptSync_Fingerprint(c.Parent, shp)
+    Registry_SetOption c, "stylever", "00000000"
+    AssertTrue b <> PptSync_Fingerprint(c.Parent, shp), "versao do estilo (texto editado) muda a impressao digital"
+    Teardown wb
+End Sub
+
+' 1.12.0 (S5): a formatacao do estilo (cor das series e hachura da 1a barra) chega ao grafico do slide na atualizacao; comando "style" pelo PowerPoint.
+Public Sub Test_PptSync_StyleFormat_ReachesSlide_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, s1 As Object, own As New Collection, en As Long, ed As String, msg As String
+    Dim c As Chart
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set s1 = PasteLinked(app, pres, wb, rng, TempDir() & "\pptstyle.xlsx")
+    msg = Core_PptCommand(pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), "style", "Tons de cinza")
+    AssertEqual "", msg
+    msg = Core_PptCommand(pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), "style", "Cascata MC")
+    AssertEqual "", msg
+    Set c = rng.Worksheet.ChartObjects(1).Chart
+    AssertEqual "Cascata MC", Registry_GetOption(c, "style", "")
+    AssertEqual RGB(112, 173, 71), CLng(s1.Chart.SeriesCollection(1).Format.Fill.ForeColor.RGB), "serie1 do estilo no slide"
+    AssertTrue InStr(Core_PptCommand(pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), "style", "Nao Existe"), "Estilo não encontrado") > 0
+    AssertFalse wb.Saved, "pasta do usuario: alterada e NAO salva pelo comando (o usuario decide)"
+    AssertEqual "Cascata MC", Registry_GetOption(c, "style", ""), "estilo inexistente nao mexe no grafico"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set s1 = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
 
 ' Review Focus 3: pasta de origem inexistente (salva com outro nome e a original apagada): nenhum LinkFormat.Update (travaria), o grafico fica,
 ' o resumo diz o arquivo; tudo em menos de 10 s.

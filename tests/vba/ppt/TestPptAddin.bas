@@ -1171,6 +1171,81 @@ Cleanup:
     If en <> 0 Then Err.Raise en, "TestPptAddin", ed
 End Sub
 
+' 1.12.0 (S5): menu dinamico Estilo: um botao por nome (tag = nome, XML escapado); sem nomes, um botao desabilitado com o aviso; prefixo
+' "c" na aba contextual (ids unicos entre os dois menus).
+Public Sub Test_PptTqq_StyleMenuXml()
+    Dim s As String
+    AssertEqual 7, PPT_API_STYLE, "estilos pelo PowerPoint pedem a API 7"
+    s = PptTqq_StyleMenuXml("A|B <&>")
+    AssertTrue InStr(s, "<menu xmlns=""http://schemas.microsoft.com/office/2009/07/customui"">") = 1, s
+    AssertTrue InStr(s, "<button id=""pst0"" label=""A"" tag=""A"" onAction=""PptRx_OnStyle""/>") > 0, s
+    AssertTrue InStr(s, "<button id=""pst1"" label=""B &lt;&amp;&gt;"" tag=""B &lt;&amp;&gt;"" onAction=""PptRx_OnStyle""/>") > 0, s
+    AssertTrue Right$(s, 7) = "</menu>", s
+    s = PptTqq_StyleMenuXml("")
+    AssertTrue InStr(s, "enabled=""false""") > 0, s
+    AssertTrue InStr(s, PPT_MSG_OLD_CORE_STYLE) > 0, s
+    AssertEqual 0, InStr(s, "onAction"), "botao do aviso nao age"
+    s = PptTqq_StyleMenuXml("A|B", "c")
+    AssertTrue InStr(s, "<button id=""cpst0"" label=""A""") > 0 And InStr(s, "id=""cpst1""") > 0, s
+    AssertTrue InStr(PptTqq_StyleMenuXml("", "c"), "id=""cpst_none""") > 0
+    AssertTrue InStr(PptTqq_StyleMenuXml("x""y"), "label=""x&quot;y""") > 0, "aspas escapadas"
+End Sub
+
+' Nomes dos estilos: so com a API 7 (core antigo: "" sem chamar Core_StyleNames); sem Excel: ""; nunca cria Excel nem da Quit no do usuario.
+Public Sub Test_PptTqq_StyleNames_ByApi()
+    Dim f As TestXlFake
+    PptTqq_ResetTestHooks
+    PptTqq_SetExcelForTest Nothing, ""
+    AssertEqual "", PptTqq_StyleNames(), "sem Excel"
+    Set f = NewFakeXl(6): f.StyleNamesResult = "A|B"
+    PptTqq_SetExcelForTest f, ""
+    AssertEqual "", PptTqq_StyleNames(), "core 1.11.0 (API 6)"
+    AssertEqual 0, InStr(f.Calls, "Core_StyleNames"), f.Calls
+    Set f = NewFakeXl(7): f.StyleNamesResult = "Padrão ThinQQ|Cascata MC"
+    PptTqq_SetExcelForTest f, ""
+    AssertEqual "Padrão ThinQQ|Cascata MC", PptTqq_StyleNames()
+    Set f = NewFakeXl(7): f.FailOn = "Core_StyleNames"
+    PptTqq_SetExcelForTest f, ""
+    AssertEqual "", PptTqq_StyleNames(), "falha na chamada: vazio, sem erro"
+    AssertEqual 0, f.QuitCount, "o Excel do usuario nunca recebe Quit"
+    PptTqq_ResetTestHooks
+End Sub
+
+' Comando "style": core com a API 6 mostra PPT_MSG_OLD_CORE_STYLE sem chamar Core_PptCommand; API 7 manda o nome ao core.
+Public Sub Test_PptTqq_CommandShapes_StyleNeedsApi7()
+    Dim p As Object, s As Object, f As TestXlFake, en As Long, ed As String, c As New Collection
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set s = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50)
+    s.Tags.Add PPT_TAG_CHART, "c1"
+    c.Add s
+    PptTqq_ResetTestHooks
+    Set f = NewFakeXl(6)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_ClearLastMsg
+    PptTqq_CommandShapes p, c, "style", "Cascata MC"
+    AssertEqual PPT_MSG_OLD_CORE_STYLE, PptTqq_LastMsg(), "core 1.11.0 (API 6)"
+    AssertEqual 0, InStr(f.Calls, "Core_PptCommand"), f.Calls
+    AssertEqual 1, UBound(Split(f.Calls, "Core_PptApiVersion")), "API lida uma vez: " & f.Calls
+    PptTqq_ClearLastMsg
+    PptTqq_CommandShapes p, c, "toggle", "labels:1"
+    AssertEqual "toggle:labels:1", f.LastCmd, "outros comandos seguem com a API 6"
+    Set f = NewFakeXl(7)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_ClearLastMsg
+    PptTqq_CommandShapes p, c, "style", "Cascata MC"
+    AssertEqual "style:Cascata MC", f.LastCmd
+    AssertEqual "", PptTqq_LastMsg()
+    AssertEqual 0, f.QuitCount
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set s = Nothing: Set c = Nothing
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
 ' CAGR e diferenca (G8): categorias do core -> escolha de/ate -> "de,ate"; cancelado = nada (nem Core_PptCommand nem aviso); resposta
 ' invalida = aviso sem chamar o core; uma categoria so = aviso; sem categorias (pasta indisponivel) = o core e chamado com "0,0" e o motivo
 ' dele e exibido; nomes repetidos no slide ficam unicos antes de montar as entradas.

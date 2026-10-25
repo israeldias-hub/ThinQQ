@@ -263,7 +263,15 @@ foreach ($t in @(@('ddPptNumFmt', 'ddFormat', 'numfmt'), @('ddPptLegend', 'ddLeg
 Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:button[@id='btnPptCagr'][@tag='cagr'][@onAction='PptRx_OnArrow'][@getEnabled='PptRx_GetOptEnabled']", $pns)) 'ppt: Seta CAGR'
 Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:button[@id='btnPptDiff'][@tag='diff'][@onAction='PptRx_OnArrow'][@getEnabled='PptRx_GetOptEnabled']", $pns)) 'ppt: Seta diferença'
 Check ($null -ne $px.SelectSingleNode("//u:group[@id='grpPptChart']/u:button[@id='btnPptClearAnn'][@onAction='PptRx_OnClearAnn'][@getEnabled='PptRx_GetElemEnabled']", $pns)) 'ppt: Remover setas'
-Check (@($px.SelectNodes("//u:group[@id='grpPptChart']/u:*", $pns)).Count -eq 8) 'ppt: Gráfico do ThinQQ com 8 controles'
+Check (@($px.SelectNodes("//u:group[@id='grpPptChart']/u:*", $pns)).Count -eq 9) 'ppt: Gráfico do ThinQQ com 9 controles (1.12.0: + Estilo)'
+# 1.12.0 (S5): menu dinamico Estilo nos dois grupos (fixo e contextual), conteudo pelo core (API 7), estado com a selecao; imageMso conhecido
+foreach ($t in @(@('grpPptChart', 'dmPptStyle'), @('cgrpChart', 'cdmStyle'))) {
+    $dm = $px.SelectSingleNode("//u:group[@id='$($t[0])']/u:dynamicMenu[@id='$($t[1])'][@label='Estilo'][@getContent='PptRx_GetStyleMenu'][@getEnabled='PptRx_GetElemEnabled'][@imageMso='FormatPainter']", $pns)
+    Check ($null -ne $dm) "ppt: menu Estilo $($t[1]) em $($t[0])"
+    Check ($pptBas.Contains('InvalidateControl "' + $t[1] + '"')) "ppt: $($t[1]) invalidado com a selecao"
+}
+Check ($pptBas -match '(?m)^Public Sub PptRx_GetStyleMenu\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnStyle\(control As IRibbonControl\)') 'ppt: assinaturas do menu Estilo (getContent e onAction dos botoes dinamicos)'
+Check ($pptBas.Contains('onAction=""PptRx_OnStyle""')) 'ppt: botoes do conteudo dinamico chamam PptRx_OnStyle'
 Check ($pptBas -match '(?m)^Public Sub PptRx_OnToggleOpt\(control As IRibbonControl, pressed As Boolean\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetOpt\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetOptEnabled\(control As IRibbonControl, ByRef \w+\)') 'ppt: assinaturas das alternâncias do Gráfico do ThinQQ'
 Check ($pptBas -match '(?m)^Public Sub PptRx_GetOptItem\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnOptItem\(control As IRibbonControl, selectedId As String, selectedIndex As Integer\)') 'ppt: assinaturas das listas do Gráfico do ThinQQ'
 Check ($pptBas -match '(?m)^Public Sub PptRx_OnArrow\(control As IRibbonControl\)' -and $pptBas -match '(?m)^Public Sub PptRx_OnClearAnn\(control As IRibbonControl\)') 'ppt: assinaturas das setas do Gráfico do ThinQQ'

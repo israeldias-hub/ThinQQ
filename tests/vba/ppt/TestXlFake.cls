@@ -36,6 +36,7 @@ Public Saved As Boolean                         ' usado como pasta aberta: False
 Public StatesResult As String                   ' resposta de Core_PptLinkStates ("" = "1|a|b|chart:stacked|manual|ok")
 Public LastVerify As Variant                    ' verifyClosed recebido por Core_PptLinkStates
 Public LastFlag As String                       ' "chave=1|0" recebidos por Core_PptSetFlag (1.11.0, dialogo Vinculos)
+Public StyleNamesResult As String               ' resposta de Core_StyleNames (1.12.0, menu Estilo)
 Private mBooks As New Collection
 
 Public Property Get Workbooks() As Collection
@@ -85,6 +86,7 @@ Public Function Run(macro As String, Optional a1 As Variant, Optional a2 As Vari
             LastEntries = CStr(a2)
             LastVerify = a3
             If Len(StatesResult) > 0 Then Run = StatesResult Else Run = "1|a|b|chart:stacked|manual|ok"
+        Case "Core_StyleNames": Run = StyleNamesResult
     End Select
 End Function
 
