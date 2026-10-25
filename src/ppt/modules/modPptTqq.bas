@@ -30,7 +30,7 @@ Private Const PPT_IDX_ES As String = vbLf                   ' indice: separador 
 Public Const PPT_MSG_SELECT As String = "Selecione um ou mais gráficos do ThinQQ vinculados ao Excel."
 Public Const PPT_MSG_AUTO_OLDCORE As String = "Atualize o ThinQQ no Excel para a atualização automática funcionar (a marca foi gravada)."
 Public Const PPT_MSG_AUTO_NOCORE As String = "Marcado para atualizar automaticamente. Para os gráficos acompanharem a pasta de origem, abra o Excel com o ThinQQ (1.6.0 ou mais novo)."
-Public Const PPT_MSG_AUTO_OFF As String = "A atualização automática está desligada no Excel: aba ThinQQ > PowerPoint > Atualização automática ligada."
+Public Const PPT_MSG_AUTO_OFF As String = "O acompanhamento das mudanças está desligado no Excel: Vínculos > Acompanhar mudanças do Excel (bandeiras e automáticos)."
 Public Const PPT_MSG_SEL_OLDCORE As String ="Atualize o ThinQQ no Excel para atualizar só os gráficos selecionados (desta vez a apresentação inteira foi atualizada)."
 Public Const PPT_TAG_DATA As String = "TQQ_DATA"
 Public Const PPT_TAG_DATABOOK As String = "TQQ_DATABOOK"
@@ -63,6 +63,8 @@ Public Const PPT_DEFAULT_OPENMODE As String = "never"      ' 1.11.0: como o thin
 Public Const PPT_SUM_PREFIX As String = "Gráficos do ThinQQ atualizados: "
 Public Const PPT_MSG_SELECT_LINKED As String = "Selecione um ou mais gráficos, textos ou tabelas do ThinQQ vinculados ao Excel."   ' Atualizar e Automatico (1.11.0)
 Public Const PPT_MSG_OLD_CORE_STATES As String = "Atualize o ThinQQ no Excel para ver o estado dos vínculos."
+Public Const PPT_MSG_OLD_CORE_FLAG As String = "Atualize o ThinQQ no Excel para mudar esta opção pelo PowerPoint."
+Public Const PPT_MSG_STATES_BUSY As String = "O ThinQQ está ocupado com outra atualização: tente Verificar de novo em instantes."
 Public Const PPT_MSG_NOCORE_STATES As String = "O ThinQQ não está carregado no Excel: abra o Excel com o ThinQQ para ver o estado dos vínculos."
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
 Private Const RPC_E_RETRYLATER As Long = -2147417846
@@ -582,11 +584,14 @@ Private Sub PptTqq_Release(xl As Object, created As Boolean)
     Set xl = Nothing
 End Sub
 
-Public Function PptTqq_ErrorText(en As Long, ed As String) As String
+' prefix (1.11.0): o comeco do texto de erro generico ("" = o da atualizacao); estados e opcoes do dialogo Vinculos passam o proprio.
+Public Function PptTqq_ErrorText(en As Long, ed As String, Optional prefix As String = "") As String
     If en = RPC_E_CALL_REJECTED Or en = RPC_E_RETRYLATER Then
         PptTqq_ErrorText = PPT_MSG_BUSY
     ElseIf en = 429 Then
         PptTqq_ErrorText = PPT_MSG_NO_EXCEL
+    ElseIf Len(prefix) > 0 Then
+        PptTqq_ErrorText = prefix & ed & " (" & en & ")"
     Else
         PptTqq_ErrorText = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
     End If
@@ -760,8 +765,13 @@ Public Sub PptTqq_HandleOpen(pres As Object)
         If act = "sync" Then
             PptTqq_DoSync pres, False
         ElseIf act = "ask" Then
-            If PptTqq_Ask(PptTqq_AskText(n, srcs)) = vbYes Then PptTqq_DoSync pres, False
-        ElseIf n > 0 And BUILD_CONFIG <> "Test" And CLng(pres.ReadOnly) = 0 Then
+            If PptTqq_Ask(PptTqq_AskText(n, srcs)) = vbYes Then
+                PptTqq_DoSync pres, False
+            Else
+                act = ""                                      ' "Nao": as bandeiras aparecem como em "Nao perguntar" (revisao final M9)
+            End If
+        End If
+        If act = "" And n > 0 And BUILD_CONFIG <> "Test" And CLng(pres.ReadOnly) = 0 Then
             mBusy = False                                     ' PptTqq_LinkStates tem a propria guarda de reentrada
             PptLinks_Remember PptTqq_LinkStates(pres, "", False), pres   ' 1.11.0: so com o Excel JA aberto com o core: as bandeiras aparecem (e o dialogo Vinculos ve os estados); sem caixa
             mBusy = True
@@ -1159,7 +1169,7 @@ Fail:
     On Error Resume Next
     PptTqq_Release xl, created
     mBusy = False
-    PptTqq_LinkStates = "!" & PptTqq_ErrorText(en, ed)
+    PptTqq_LinkStates = "!" & PptTqq_ErrorText(en, ed, "Não foi possível verificar os vínculos: ")
 End Function
 
 ' LinkFormat.SourceFullName da forma ("" sem vinculo legivel), para o dialogo Vinculos (1.11.0). Nunca propaga erro.
@@ -1202,7 +1212,7 @@ Public Function PptTqq_SetCoreFlag(key As String, v As Boolean) As String
     If Len(core) = 0 Then
         PptTqq_SetCoreFlag = PPT_MSG_NOCORE_STATES
     ElseIf PptTqq_CoreApi(xl, core) < PPT_API_SHAPES Then
-        PptTqq_SetCoreFlag = PPT_MSG_OLD_CORE_STATES
+        PptTqq_SetCoreFlag = PPT_MSG_OLD_CORE_FLAG
     Else
         xl.Run "'" & core & "'!Core_PptSetFlag", key, v
         PptTqq_SetCoreFlag = "Opção gravada no Excel."
@@ -1214,7 +1224,7 @@ Fail:
     On Error GoTo -1
     On Error Resume Next
     PptTqq_Release xl, created
-    PptTqq_SetCoreFlag = PptTqq_ErrorText(en, ed)
+    PptTqq_SetCoreFlag = PptTqq_ErrorText(en, ed, "Não foi possível gravar a opção no Excel: ")
 End Function
 
 ' ---- 1.8.0 (Parte G): criar graficos pelo PowerPoint. spec 2026-10-15 secao 14. ----
@@ -1431,7 +1441,7 @@ Private Sub PptTqq_FirstHint(pres As Object)
     mHintShown = True
     d = PptTqq_DataPathFor(CStr(pres.FullName))
     If BUILD_CONFIG = "Test" Then mTestTrail = mTestTrail & "hint;"
-    PptTqq_Msg "Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida: o slide acompanha em cerca de 2 segundos." & vbLf & _
+    PptTqq_Msg "Gráfico criado. Clique em OK e digite os dados na planilha do Excel que abre em seguida; depois clique em Atualizar (ou ligue Atualizar automaticamente para o slide acompanhar cerca de 2 segundos depois de cada mudança)." & vbLf & _
                "Os dados ficam em '" & Mid$(d, InStrRev(d, "\") + 1) & "', ao lado da apresentação: envie os dois arquivos juntos (ou use ThinQQ > Empacotar para enviar)."
     If BUILD_CONFIG = "Test" Then mLastHint = mLastMsg
 End Sub

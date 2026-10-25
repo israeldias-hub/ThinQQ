@@ -57,7 +57,7 @@ End Sub
 
 ' Evento de selecao/slide/janela do PowerPoint: acompanha a apresentacao ativa, rele as etiquetas e marca na lista os elementos
 ' selecionados no slide. Nunca chama o Excel; ignorado durante uma acao do proprio dialogo.
-Public Sub SyncView()
+Public Sub SyncView(Optional full As Boolean = True)
     Dim p As Object, keys As Object
     If mActing Or mLoading Then Exit Sub
     On Error Resume Next
@@ -68,8 +68,9 @@ Public Sub SyncView()
         mPresKey = PptLinks_PresKey(p)
         mSig = vbNullChar
         lblStatus.Caption = ""
+        full = True
     End If
-    Reload
+    If full Or mRows Is Nothing Then Reload
     Set keys = PptLinks_SelectedKeys()
     If Not keys Is Nothing Then
         If keys.Count > 0 Then MarkKeys keys

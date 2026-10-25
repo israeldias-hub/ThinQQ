@@ -28,7 +28,7 @@ End Sub
 Private Sub App_WindowSelectionChange(ByVal Sel As Selection)
     On Error Resume Next
     PptRx_InvalidateElem
-    PptLinks_OnSelChange
+    PptLinks_OnSelChange False              ' so marca as linhas (sem reler o deck a cada clique; revisao final M4)
 End Sub
 
 ' Outro slide (painel de miniaturas, classificacao de slides): o dialogo Vinculos aberto acompanha (1.11.0). So etiquetas.

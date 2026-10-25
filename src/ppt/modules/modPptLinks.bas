@@ -10,6 +10,8 @@ Option Explicit
 ' o Excel; fechar a apresentacao (PptLinks_OnClose) ou o PowerPoint (PptLinks_CloseAll, no Auto_Close) descarrega o dialogo dela.
 Public Const PPTLINKS_MSG_SELECT As String = "Selecione um ou mais elementos na lista."
 Public Const PPTLINKS_MSG_EDIT_CHART As String = "Abrir no Excel vale para gráficos. Para mudar um texto ou uma tabela vinculados, altere as células no Excel e clique em Atualizar."
+Public Const PPTLINKS_MSG_READONLY As String = "A apresentação está somente leitura: o ThinQQ não muda o modo nem desvincula elementos nela (abra uma cópia editável)."
+Public Const PPTLINKS_MAX_FIELD As Long = 1024                ' nome e pasta de cada linha cortados (vem do deck, de quem o fez; = o core)
 Private Const PPTLINKS_FORMNAME As String = "frmTqqLinks"
 Private Const PPTLINKS_TAGS As String = "TQQ_CHART,TQQ_BOOK,TQQ_SHEET,TQQ_VER,TQQ_FP,TQQ_TITLE,TQQ_KIND,TQQ_OPTS,TQQ_DATA,TQQ_TEXT,TQQ_TNAME,TQQ_TREF,TQQ_TPRE,TQQ_TSUF,TQQ_TLAST,TQQ_TABLE,TQQ_TBLAST,TQQ_STATE,TQQ_AUTO"
 Private mStates As Object                       ' "apresentacao|slideId|nome em minusculas" -> estado vindo do core nesta sessao
@@ -74,10 +76,14 @@ Public Function PptLinks_PresKey(pres As Object) As String
     Err.Clear
 End Function
 
-' Chave de uma linha do dialogo (e de uma forma): "SlideID|nome em minusculas" (o PowerPoint acha a forma pelo nome sem diferenciar
-' maiusculas). Pura.
+' Chave de uma linha do dialogo (e de uma forma): "SlideID|Shape.Id" (revisao final M1: duas formas com o mesmo nome no mesmo slide, uma
+' copia colada, sao linhas diferentes). Linha sem o Id (formato antigo de 7 campos): "SlideID|nome em minusculas". Pura.
 Public Function PptLinks_RowKey(r As Variant) As String
-    PptLinks_RowKey = CStr(r(1)) & "|" & LCase$(CStr(r(2)))
+    If UBound(r) >= 7 Then
+        PptLinks_RowKey = CStr(r(1)) & "|#" & CStr(r(7))
+    Else
+        PptLinks_RowKey = CStr(r(1)) & "|" & LCase$(CStr(r(2)))
+    End If
 End Function
 
 Private Function PptLinks_Key(presKey As String, slideId As Variant, nm As Variant) As String
@@ -136,7 +142,8 @@ Private Sub PptLinks_ForgetPres(presKey As String)
     Err.Clear
 End Sub
 
-' Linhas do dialogo: Array(slideIndex, slideId, nome, tipo, modo, estado, pasta) de cada forma vinculada solta, na ordem dos slides. Estado:
+' Linhas do dialogo: Array(slideIndex, slideId, nome, tipo, modo, estado, pasta, shapeId) de cada forma vinculada solta, na ordem dos slides
+' (nome e pasta cortados em PPTLINKS_MAX_FIELD). Estado:
 ' "new" pela etiqueta (a bandeira); senao o lembrado do core (o da apresentacao, depois o sem apresentacao; "new" lembrado sem a etiqueta =
 ' "ok": o core marcou e a atualizacao a tirou); senao "". So etiquetas e o vinculo (nunca o arquivo). Nunca propaga.
 Public Function PptLinks_Collect(pres As Object) As Collection
@@ -167,7 +174,7 @@ Public Function PptLinks_Collect(pres As Object) As Collection
                         If st = "new" Then st = "ok"
                     End If
                 End If
-                out.Add Array(CLng(sl.SlideIndex), CLng(sl.SlideID), CStr(s.Name), kind, mode, st, PptTqq_SourcePath(PptTqq_LinkSourceOf(s), PptTqq_Tag(s, PPT_TAG_BOOK)))
+                out.Add Array(CLng(sl.SlideIndex), CLng(sl.SlideID), Left$(CStr(s.Name), PPTLINKS_MAX_FIELD), kind, mode, st, Left$(PptTqq_SourcePath(PptTqq_LinkSourceOf(s), PptTqq_Tag(s, PPT_TAG_BOOK)), PPTLINKS_MAX_FIELD), CLng(s.Id))
             End If
             Err.Clear
         Next
@@ -200,24 +207,37 @@ End Function
 
 ' O que a lista mostra, numa cadeia: o dialogo so redesenha quando ela muda (sem piscar a cada selecao). Pura.
 Public Function PptLinks_Signature(rows As Collection) As String
-    Dim r As Variant, s As String, i As Long
+    Dim r As Variant, a() As String, f() As String, i As Long, n As Long
+    If rows.Count = 0 Then Exit Function
+    ReDim a(1 To rows.Count)
     For Each r In rows
-        For i = 0 To 6
-            s = s & CStr(r(i)) & vbTab
+        ReDim f(0 To UBound(r))
+        For i = 0 To UBound(r)
+            f(i) = CStr(r(i))
         Next
-        s = s & vbLf
+        n = n + 1
+        a(n) = Join(f, vbTab)
     Next
-    PptLinks_Signature = s
+    PptLinks_Signature = Join(a, vbLf) & vbLf
 End Function
 
-' Formas das linhas (slide pelo SlideID, forma pelo nome). Linhas que nao acham mais a forma sao ignoradas. Nunca propaga.
+' Formas das linhas (slide pelo SlideID, forma pelo Shape.Id; linha sem o Id: pelo nome). Linhas que nao acham mais a forma sao ignoradas.
+' Nunca propaga.
 Public Function PptLinks_Shapes(pres As Object, rows As Collection) As Collection
-    Dim out As New Collection, r As Variant, sl As Object, s As Object
+    Dim out As New Collection, r As Variant, sl As Object, s As Object, c As Object
     On Error Resume Next
     For Each r In rows
         Set sl = Nothing: Set s = Nothing
         Set sl = pres.Slides.FindBySlideID(CLng(r(1)))
-        If Not sl Is Nothing Then Set s = sl.Shapes(CStr(r(2)))
+        If Not sl Is Nothing Then
+            If UBound(r) >= 7 Then
+                For Each c In sl.Shapes
+                    If CLng(c.Id) = CLng(r(7)) Then Set s = c: Exit For
+                Next
+            Else
+                Set s = sl.Shapes(CStr(r(2)))
+            End If
+        End If
         If Not s Is Nothing Then out.Add s
         Err.Clear
     Next
@@ -254,6 +274,7 @@ Public Function PptLinks_Do(pres As Object, what As String, rows As Collection) 
     Select Case what
         Case "check"
             msg = PptTqq_LinkStates(pres, "", True, True)
+            If Len(msg) = 0 Then PptLinks_Do = PPT_MSG_STATES_BUSY: Exit Function     ' reentrada (outra acao em andamento)
             If Left$(msg, 1) = "!" Then PptLinks_Do = Mid$(msg, 2): Exit Function
             n = PptLinks_Remember(msg, pres)
             For Each r In PptLinks_Collect(pres)
@@ -266,6 +287,9 @@ Public Function PptLinks_Do(pres As Object, what As String, rows As Collection) 
     End Select
     Set shapes = PptLinks_Shapes(pres, rows)
     If shapes.Count = 0 Then PptLinks_Do = PPTLINKS_MSG_SELECT: Exit Function
+    If what = "auto" Or what = "manual" Or what = "unlink" Then
+        If CLng(pres.ReadOnly) <> 0 Then PptLinks_Do = PPTLINKS_MSG_READONLY: Exit Function   ' revisao final M2: nada de etiquetas
+    End If
     Select Case what
         Case "update"
             For Each s In shapes
@@ -338,7 +362,7 @@ Public Function PptLinks_SelectedKeys() As Object
     Set PptLinks_SelectedKeys = d
     On Error Resume Next
     For Each s In PptTqq_SelectedLinked()
-        d(CStr(s.Parent.SlideID) & "|" & LCase$(CStr(s.Name))) = True
+        d(CStr(s.Parent.SlideID) & "|#" & CStr(s.Id)) = True
     Next
     Err.Clear
 End Function
@@ -368,6 +392,7 @@ Public Sub PptLinks_Show()
     On Error GoTo Fail
     Set p = PptLinks_ActivePres()
     If p Is Nothing Then PptTqq_Msg PPT_MSG_NO_PRES: Exit Sub
+    PptLinks_PrepareIndex p
     If BUILD_CONFIG = "Test" Then Exit Sub
     PptLinks_Remember PptTqq_LinkStates(p, "", False), p
     frmTqqLinks.Prepare p
@@ -378,20 +403,33 @@ Fail:
     PptTqq_Msg "Não foi possível abrir os Vínculos: " & Err.Description & " (" & Err.Number & ")", vbExclamation
 End Sub
 
+' Abrir o dialogo (acao do usuario, revisao final M6): TQQ_LINKIDX reconstruido, para formas coladas/duplicadas depois da abertura entrarem
+' no ciclo das bandeiras (nomes unicos). Somente leitura: nada. Saved preservado. Nunca propaga.
+Public Sub PptLinks_PrepareIndex(pres As Object)
+    Dim was As Boolean
+    On Error Resume Next
+    If CLng(pres.ReadOnly) <> 0 Then Exit Sub
+    was = (CLng(pres.Saved) <> 0)
+    PptTqq_RebuildLinkIdx pres
+    If was And CLng(pres.Saved) = 0 Then pres.Saved = -1
+    Err.Clear
+End Sub
+
 ' O formulario saiu (Fechar, X ou Unload). Chamado pelo proprio formulario.
 Public Sub PptLinks_FormClosed()
     mOpen = False
 End Sub
 
 ' Selecao, slide ou janela mudou no PowerPoint (clsPptEvents): o dialogo aberto acompanha. Sem dialogo aberto, nada (nunca o carrega).
+' full: rele as etiquetas do deck (slide ou janela mudou); False (mudou so a selecao, revisao final M4): so marca as linhas selecionadas.
 ' Nunca chama o Excel nem propaga erro.
-Public Sub PptLinks_OnSelChange()
+Public Sub PptLinks_OnSelChange(Optional full As Boolean = True)
     Dim f As Object
     If Not mOpen Then Exit Sub
     On Error Resume Next
     Set f = PptLinks_Form()
     If f Is Nothing Then mOpen = False: Exit Sub
-    f.SyncView
+    f.SyncView full
     Err.Clear
 End Sub
 
@@ -405,7 +443,11 @@ Public Sub PptLinks_OnClose(pres As Object)
         Set f = Nothing
         Set f = VBA.UserForms(i)
         If TypeName(f) = PPTLINKS_FORMNAME Then
-            If CStr(f.PresKey) = k Then Unload f
+            If CStr(f.PresKey) = k Then
+                Unload f
+            ElseIf f.Pres Is pres Then
+                Unload f
+            End If
         End If
     Next
     Err.Clear

@@ -537,7 +537,11 @@ Public Sub PptAuto_Tick()
         Next
         Set pres = Nothing
         mLastMarked = 0
-        If manual.Count > 0 Then mLastMarked = PptState_MarkItems(manual)
+        If manual.Count > 0 Then
+            ' revisao final M5: com texto em edicao no PowerPoint, nada de gravar etiquetas agora (nova tentativa, como os automaticos)
+            If PptAuto_PptEditingText(app) Then Err.Raise PPTAUTO_ERR_BUSY, "PptAuto_Tick", "texto em edicao no PowerPoint"
+            mLastMarked = PptState_MarkItems(manual)
+        End If
     End If
     w = Empty: Set work = Nothing: Set manual = Nothing: Set app = Nothing
     PptAuto_SaveDataBooks mDirty                    ' ainda com mInTick = True: o AfterSave do salvamento e ignorado

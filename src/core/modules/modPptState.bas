@@ -16,6 +16,7 @@ Public Const PPTSTATE_NOSOURCE As String = "nosource"    ' grafico, celula ou in
 Public Const PPTSTATE_UNLINKED As String = "unlinked"    ' grafico sem o vinculo nativo
 Private Const PPTSTATE_MAX_FIELD As Long = 1024         ' PptState_Lines: teto do nome e da pasta em cada linha (texto vindo do deck)
 Private mTestMarks As Long                             ' gancho de teste: etiquetas TQQ_STATE gravadas/apagadas por PptState_SetTag
+Private mTestProbes As Long                            ' gancho de teste: pastas fechadas sondadas no disco por PptState_Lines (so com Verificar)
 
 Public Function PptState_MarksForTest() As Long
     PptState_MarksForTest = mTestMarks
@@ -23,6 +24,7 @@ End Function
 
 Public Sub PptState_ResetTestHooks()
     mTestMarks = 0
+    mTestProbes = 0
 End Sub
 
 ' Etiqueta lida sem engolir o PowerPoint ocupado (sobe); outro erro ou etiqueta ausente = "".
@@ -146,6 +148,7 @@ Public Sub PptLinkIdx_Add(shp As Object)
     Exit Sub
 Fail:
     Errors_Log "PptLinkIdx_Add" & vbTab & Err.Number & vbTab & Err.Description
+    If Not pres Is Nothing Then PptState_RestoreSaved pres, was        ' revisao final M11
 End Sub
 
 ' Reconstroi TQQ_LINKIDX com todos os itens dados (todas as formas do ThinQQ da apresentacao); so grava se mudou; preserva Saved. Cada forma
@@ -153,6 +156,7 @@ End Sub
 Public Sub PptLinkIdx_Rebuild(pres As Object, items As Collection)
     Dim shp As Object, out As New Collection, s As String, was As Boolean
     On Error GoTo Done
+    was = PptState_SavedOf(pres)                    ' antes de renomear (revisao final M7): a renomeacao de duplicadas tambem nao suja
     For Each shp In items
         On Error Resume Next
         PptSync_EnsureUniqueName shp
@@ -162,13 +166,15 @@ Public Sub PptLinkIdx_Rebuild(pres As Object, items As Collection)
         On Error GoTo Done
     Next
     s = PptIdx_Join(out)
-    If s = PptSync_Tag(pres, PPTSTATE_TAG_LINKIDX) Then Exit Sub
-    was = PptState_SavedOf(pres)
-    If Len(s) = 0 Then PptSync_TagDelete pres, PPTSTATE_TAG_LINKIDX Else pres.Tags.Add PPTSTATE_TAG_LINKIDX, s
+    If s <> PptSync_Tag(pres, PPTSTATE_TAG_LINKIDX) Then
+        If Len(s) = 0 Then PptSync_TagDelete pres, PPTSTATE_TAG_LINKIDX Else pres.Tags.Add PPTSTATE_TAG_LINKIDX, s
+    End If
     PptState_RestoreSaved pres, was
     Exit Sub
 Done:
     Errors_Log "PptLinkIdx_Rebuild" & vbTab & Err.Number & vbTab & Err.Description
+    On Error Resume Next
+    PptState_RestoreSaved pres, was
 End Sub
 
 ' Elementos MANUAIS (sem TQQ_AUTO = "1") de pres cuja pasta de origem esta em dirty, pelo TQQ_LINKIDX (nunca varre as formas; sem o indice:
@@ -215,6 +221,18 @@ Public Function PptState_IsRemotePath(p As String) As Boolean
     If Left$(t, 8) = "\\?\unc\" Then PptState_IsRemotePath = True: Exit Function
     If (Left$(t, 4) = "\\?\" Or Left$(t, 4) = "\\.\") And Mid$(t, 6, 1) = ":" Then Exit Function
     PptState_IsRemotePath = True
+End Function
+
+' Somente leitura (True tambem se ilegivel: na duvida nao grava). Nunca propaga erro.
+Private Function PptState_IsReadOnly(pres As Object) As Boolean
+    PptState_IsReadOnly = True
+    On Error Resume Next
+    PptState_IsReadOnly = (CLng(pres.ReadOnly) <> 0)
+    Err.Clear
+End Function
+
+Public Function PptState_ProbesForTest() As Long
+    PptState_ProbesForTest = mTestProbes
 End Function
 
 Private Function PptState_PresKey(pres As Object) As String
@@ -269,13 +287,16 @@ End Function
 ' Estado de cada elemento (entries no formato do indice; "" = todos os elementos da apresentacao, por varredura, e o TQQ_LINKIDX e
 ' reconstruido). Linha: SlideID|nome|pasta|tipo|modo|estado (campos sem os separadores, PptIdx_SafeField; linhas por vbLf); tipo = "chart:" +
 ' TQQ_KIND, "text" ou "table"; modo = auto|manual; estado = PPTSTATE_*. Pasta fechada: com verifyClosed, aberta SOMENTE LEITURA com as macros
-' desligadas (PptSync_OpenBook) e fechada no fim; sem, "unknown" (o arquivo existe) ou "missing". Atualiza TQQ_STATE (Saved preservado).
-' PowerPoint ocupado sobe.
+' desligadas (PptSync_OpenBook) e fechada no fim ("unknown" se existe e nao abriu, "missing" se nao existe); sem, "unknown" SEM tocar o disco
+' (revisao final M3: como na 1.10.0, so "Verificar" sonda pastas fechadas; uma unidade mapeada fora da VPN travaria a abertura). Atualiza
+' TQQ_STATE e, com entries = "", o TQQ_LINKIDX (Saved preservado); apresentacao somente leitura: nada e gravado nem renomeado, os estados so
+' sao calculados (revisao final M2). PowerPoint ocupado sobe.
 Public Function PptState_Lines(pres As Object, entries As String, verifyClosed As Boolean) As String
     Dim items As Collection, sl As Object, shp As Object, opened As New Collection, books As Object, out() As String, n As Long
-    Dim path As String, wb As Workbook, st As String, kind As String, mode As String, was As Boolean, en As Long, ed As String
+    Dim path As String, wb As Workbook, st As String, kind As String, mode As String, was As Boolean, en As Long, ed As String, ro As Boolean
     On Error GoTo Fail
     was = PptState_SavedOf(pres)
+    ro = PptState_IsReadOnly(pres)
     If Len(entries) = 0 Then
         Set items = New Collection
         For Each sl In pres.Slides
@@ -283,7 +304,7 @@ Public Function PptState_Lines(pres As Object, entries As String, verifyClosed A
                 If Len(PptSync_ItemKind(shp)) > 0 Then items.Add shp
             Next
         Next
-        PptLinkIdx_Rebuild pres, items
+        If Not ro Then PptLinkIdx_Rebuild pres, items
     Else
         Set items = PptSync_ResolveEntries(pres, entries)
     End If
@@ -302,6 +323,7 @@ Public Function PptState_Lines(pres As Object, entries As String, verifyClosed A
                 If Not books.Exists(path) Then
                     Set wb = PptSync_FindOpenBook(path)
                     If wb Is Nothing And verifyClosed And Len(path) > 0 Then
+                        If BUILD_CONFIG = "Test" Then mTestProbes = mTestProbes + 1
                         If PptSync_FileExists(path) Then Set wb = PptSync_OpenBook(path, opened)
                     End If
                     books.Add path, wb
@@ -310,8 +332,8 @@ Public Function PptState_Lines(pres As Object, entries As String, verifyClosed A
                 If wb Is Nothing Then
                     If Len(path) = 0 Then
                         st = PPTSTATE_MISSING
-                    ElseIf Not verifyClosed And PptState_IsRemotePath(path) Then
-                        st = PPTSTATE_UNKNOWN                   ' sem "Verificar": caminho de rede/web nunca e sondado (deck alheio, NTLM)
+                    ElseIf Not verifyClosed Then
+                        st = PPTSTATE_UNKNOWN                   ' sem "Verificar": o disco nunca e tocado (rede, web, unidade mapeada)
                     ElseIf PptSync_FileExists(path) Then
                         st = PPTSTATE_UNKNOWN
                     Else
@@ -321,7 +343,9 @@ Public Function PptState_Lines(pres As Object, entries As String, verifyClosed A
                     st = PptState_Of(shp, wb)
                 End If
             End If
-            If st = PPTSTATE_NEW Or st = PPTSTATE_OK Then PptState_SetTag shp, (st = PPTSTATE_NEW)
+            If st = PPTSTATE_NEW Or st = PPTSTATE_OK Then
+                If Not ro Then PptState_SetTag shp, (st = PPTSTATE_NEW)
+            End If
             If kind = "chart" Then kind = "chart:" & PptSync_OptValue(PptSync_Tag(shp, PPTSYNC_TAG_KIND))
             n = n + 1
             ' campos vindos da apresentacao (de quem a fez): sem separadores e com teto, para a lista do .ppam nunca receber um texto gigante
