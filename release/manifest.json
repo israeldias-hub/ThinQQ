@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "coreVersion": "1.10.1",
-  "coreUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.1/ThinQQ.core.xlam",
-  "coreSha256": "6aa724c92a48ed7113c819765cc2cff1555cab16ad8d4b8155cc26f6242f5d22",
-  "loaderVersion": "1.10.1",
-  "loaderUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.1/ThinQQ.xlam",
-  "loaderSha256": "16bfc20955b076724703920dfb18bb9063e1bd9fc609eb4a5469187a398f490e",
-  "pptAddinVersion": "1.10.1",
-  "pptAddinUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.1/ThinQQ.ppam",
-  "pptAddinSha256": "fe913c6f76a1d0f5f2b21cfb62b0857b5090c3d6762000d23758cd74b0bde031",
-  "tutorialUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.10.1/tutorial.html",
+  "coreVersion": "1.13.0",
+  "coreUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.13.0/ThinQQ.core.xlam",
+  "coreSha256": "9db8fc4ce81b6e4d499b127808ebaa4698fc27764fde571c80bd09d1526930ff",
+  "loaderVersion": "1.13.0",
+  "loaderUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.13.0/ThinQQ.xlam",
+  "loaderSha256": "fcb532555c37f0edc4a2597dc340be6d1574f2bf42d3359a1db19ee7098031ab",
+  "pptAddinVersion": "1.13.0",
+  "pptAddinUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.13.0/ThinQQ.ppam",
+  "pptAddinSha256": "46d99fbff3cd4b283d190856a7d9baf490ff03acbc4c2fdbec7960952812ec09",
+  "tutorialUrl": "https://github.com/israeldias-hub/ThinQQ/releases/download/v1.13.0/tutorial.html",
   "manifestUrl": "https://raw.githubusercontent.com/israeldias-hub/ThinQQ/main/release/manifest.json",
-  "publishedAt": "2026-10-17",
-  "notes": "• Novo: o tutorial do ThinQQ agora aponta para os vídeos (tutorial gravado e cascata comparativa com as setas), numa pasta do Google Drive.\r\n• Sem mudanças no funcionamento do suplemento em relação à 1.10.0."
+  "publishedAt": "2026-10-25",
+  "notes": "• Novo: Vincular ao PowerPoint. O primeiro grupo da aba ThinQQ (e um grupo na guia Inserir) tem uma galeria: selecione a tabela e escolha o tipo para criar o gráfico no Excel já vinculado ao slide ativo; Tabela vinculada e Texto ficam na mesma galeria. Atualizar no PowerPoint atualiza os elementos do slide.\r\n• Atualizar como o think-cell: tudo nasce manual. Quando o Excel muda, o elemento no slide mostra \"Dados novos: atualizar\" ao ser selecionado; a atualização automática é opcional por elemento. A nova janela Vínculos lista todos os vínculos, com atualizar, manual ou automático, desvincular e verificar, e a aba contextual ThinQQ aparece ao selecionar um gráfico.\r\n• Estilos de gráfico: salve estilos de cores, hachura, conectores e rótulos, importe e exporte arquivos de estilo, defina um padrão para os gráficos novos e use os modelos prontos (Cascata MC e Cascata DDE); o estilo acompanha o gráfico até o slide.\r\n• A moldura do intervalo agora mostra o estado: verde quando o gráfico está numa apresentação aberta no PowerPoint e vermelha quando não está; ela também aparece em Copiar como gráfico vinculado.\r\n• Alterar dados continua recriando o gráfico: o que já está no slide pode perder os totais e mostrar dados antigos até você colar de novo, e o aviso agora diz como. Com a pasta aberta, o próprio Office pode atualizar os valores das barras sozinho.\r\n• Fora desta versão: botão direito e duplo clique sobre o gráfico e mudar o tipo do gráfico que já está no slide.\r\n• A galeria, a guia Inserir, a cor da moldura, as janelas Vínculos e Estilos e os menus de estilo ainda não foram verificados por completo no Excel e no PowerPoint reais."
 }
