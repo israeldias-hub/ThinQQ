@@ -2054,7 +2054,8 @@ foreach ($n in ($mvUxPins.Keys | Sort-Object)) {
 # release/notes.txt (1.13.0): de 1 a 8 marcadores, em linguagem do usuario, diferentes da 1.12.0
 Check ($notesLines.Count -ge 4 -and $notesLines.Count -le 8) "notes.txt (1.13.0): de 4 a 8 linhas ($($notesLines.Count))"
 foreach ($ph in 'Vincular ao PowerPoint', 'Atualizar no PowerPoint', 'moldura', 'verde', 'vermelha', 'Alterar dados', 'botão direito', 'não foram verificad') { Check ($notesText.Contains($ph)) "notes.txt (1.13.0) cita '$ph'" }
-Check ($notesText -notmatch 'Cascata MC' -and $notesText -notmatch '\.tqqestilo' -and $notesText -notmatch 'Dados novos: atualizar' -and $notesText -notmatch 'Sem mudanças no funcionamento') 'notes.txt (1.13.0): não repete o texto da 1.12.0, da 1.11.0 nem da 1.10.1'
+Check ($notesText -notmatch 'Sem mudanças no funcionamento') 'notes.txt (1.13.0): não repete o texto da 1.10.1 (a versão combinada 1.11.0 a 1.13.0 pode citar as três)'
+foreach ($ph in 'Dados novos: atualizar', 'Vínculos', 'Estilos de gráfico', 'Cascata MC') { Check ($notesText.Contains($ph)) "notes.txt (versão combinada) cita '$ph'" }
 Check ($notesText -notmatch 'TQQ_|Core_|Ppt[A-Z]\w+_|Style[A-Z]\w+_|LinkFrame_|LINKFRAME') 'notes.txt (1.13.0): linguagem do usuário, sem nomes internos'
 
 if ($script:fail -gt 0) { Write-Host "FALHAS Test-Docs: $script:fail"; exit 1 }
