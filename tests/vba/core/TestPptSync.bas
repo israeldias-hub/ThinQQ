@@ -501,6 +501,43 @@ Private Function PasteLinked(app As Object, pres As Object, wb As Workbook, rng 
     Set PasteLinked = slide.Shapes(slide.Shapes.Count)
 End Function
 
+' Sonda P-U6 (1.13.0, X2), medida NEGATIVA e fixada aqui: o grafico vinculado do slide guarda as proprias formulas de serie (celulas da tabela
+' e do bloco na hora da colagem) e o LinkFormat.Update rele ESSAS celulas, nao o grafico do Excel pelo nome. Depois de "Alterar dados" (bloco
+' novo, tabela com uma linha a mais) o slide continua nas celulas antigas: por isso Alterar dados mantem o id novo e o aviso
+' LINKFRAME_NOTE_REBUILT. (Medido tambem com o id mantido: o Update devolveu "atualizados: 1." mas a serie de totais do slide ficou vazia, e
+' Series.Formula do grafico do slide recusa escrita: "O metodo 'Formula' do objeto 'Series' falhou".) Se um Office futuro mudar isso, este
+' teste avisa.
+Public Sub Test_Rebuild_SlideKeepsOldCells_PU6_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, s1 As Object, own As New Collection, en As Long, ed As String
+    Dim f0 As String, c As Chart
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set s1 = PasteLinked(app, pres, wb, rng, TempDir() & "\pu6.xlsx")
+    Set c = rng.Worksheet.ChartObjects(1).Chart
+    f0 = c.SeriesCollection(1).Formula
+    AssertEqual f0, CStr(s1.Chart.SeriesCollection(1).Formula), "o slide guarda a formula da serie do Excel"
+    rng.Worksheet.Range("A4:C4").Value = Array("T3", 99, 8)
+    AssertTrue Core_RebuildFromRange(c, rng.Worksheet.Range("A1:C4"))
+    Set c = rng.Worksheet.ChartObjects(1).Chart
+    AssertTrue c.SeriesCollection(1).Formula <> f0, "o grafico do Excel passou a ler a tabela nova"
+    s1.LinkFormat.Update
+    AssertEqual f0, CStr(s1.Chart.SeriesCollection(1).Formula), "P-U6 negativa: o slide continua nas celulas antigas"
+    AssertEqual 2, UBound(s1.Chart.SeriesCollection(1).Values) - LBound(s1.Chart.SeriesCollection(1).Values) + 1, "sem a linha nova"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set s1 = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
 ' 1.12.0 (S5): a versao do estilo (opcao stylever, na linha de metadados do bloco) entra na impressao digital: trocar o estilo marca o
 ' elemento do slide como "dados novos" (bandeira/automatico). Sem estilo a impressao nao muda (decks antigos nao viram "novos").
 Public Sub Test_PptSync_Fingerprint_ChangesWithStyle()
@@ -2258,6 +2295,12 @@ Public Sub Test_InsertToPpt_ChartFrameAndSlide_WhenAvailable()
     AssertEqual Registry_IdFromChart(c), PptSync_Tag(shp, PPTSYNC_TAG_CHART)
     AssertEqual 1, Ppt_LinkState(shp)
     AssertTrue Not LinkFrame_Find(c) Is Nothing, "moldura no intervalo"
+    ' X2 (1.13.0): moldura com estado
+    AssertEqual LINKFRAME_GREEN, LinkFrame_Find(c).Line.ForeColor.RGB, "verde: a apresentacao aberta usa o grafico"
+    AssertEqual 1, Core_RefreshFrames(wb), "uma verde"
+    shp.Delete: Set shp = Nothing
+    AssertEqual 0, Core_RefreshFrames(wb), "forma apagada: nenhuma apresentacao usa"
+    AssertEqual LINKFRAME_RED, LinkFrame_Find(c).Line.ForeColor.RGB, "vermelha"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1

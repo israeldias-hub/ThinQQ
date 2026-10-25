@@ -1060,6 +1060,7 @@ Public Sub Core_Refresh()
         Core_SafeRefresh c
         CalcSheet_Cleanup Registry_Workbook(c)
         LinkFrame_CleanOrphans Registry_Workbook(c)      ' molduras orfas da pasta inteira (a ativacao de planilha so limpa a planilha ativada)
+        Core_RefreshFrames Registry_Workbook(c)          ' cor das molduras pelo estado (1.13.0)
     Else
         If ActiveWorkbook Is Nothing Then Exit Sub
         Set wb = ActiveWorkbook
@@ -1073,6 +1074,7 @@ Public Sub Core_Refresh()
         End If
         CalcSheet_Cleanup wb
         LinkFrame_CleanOrphans wb
+        Core_RefreshFrames wb
     End If
     Watchers_Rehook
     Exit Sub
@@ -1152,12 +1154,55 @@ Public Sub Core_ToggleLinkFrames()
     Dim r As Long
     On Error GoTo Fail
     If ActiveWorkbook Is Nothing Then Exit Sub
+    Core_RefreshFrames ActiveWorkbook                   ' cor pelo estado (1.13.0) antes de mostrar
     r = LinkFrame_ToggleAll(ActiveWorkbook)
     If r = -1 Then Core_Notify "Esta pasta não tem molduras de intervalos vinculados ao PowerPoint (elas aparecem ao usar 'Inserir também no slide')."
     Exit Sub
 Fail:
     Errors_Handle "Core_ToggleLinkFrames"
 End Sub
+
+' Molduras da pasta pelo estado (1.13.0): ids dos graficos usados nas apresentacoes ABERTAS (PowerPoint ja aberto, nunca iniciado aqui;
+' TQQ_LINKIDX das entradas desta pasta, etiqueta TQQ_CHART de cada forma) = verde; o resto = vermelha. Chamado por Atualizar (Core_Refresh),
+' Mostrar/ocultar molduras e depois de inserir no slide (nunca no ciclo automatico: mudar a cor altera a pasta e limparia o Desfazer).
+' Devolve quantas verdes. Nunca propaga.
+Public Function Core_RefreshFrames(wb As Workbook) As Long
+    Dim used As Object, app As Object, pres As Object, e As Variant, sl As Object, shp As Object, ws As Worksheet, s As Shape, id As String, co As ChartObject
+    On Error Resume Next
+    If wb Is Nothing Then Exit Function
+    Set used = CreateObject("Scripting.Dictionary")
+    Set app = Ppt_GetApp(False)
+    Err.Clear
+    If Not app Is Nothing Then
+        For Each pres In app.Presentations
+            For Each e In PptIdx_Parse(PptSync_Tag(pres, PPTSTATE_TAG_LINKIDX))
+                If StrComp(CStr(e(2)), wb.FullName, vbTextCompare) = 0 Then
+                    Set sl = Nothing: Set shp = Nothing
+                    Set sl = pres.Slides.FindBySlideID(CLng(e(0)))
+                    If Not sl Is Nothing Then Set shp = sl.Shapes(CStr(e(1)))
+                    If Not shp Is Nothing Then used(PptSync_Tag(shp, PPTSYNC_TAG_CHART)) = True
+                End If
+                Err.Clear
+            Next
+        Next
+    End If
+    Err.Clear
+    For Each ws In wb.Worksheets
+        For Each s In ws.Shapes
+            If Left$(s.Name, Len(LINKFRAME_PREFIX)) = LINKFRAME_PREFIX Then
+                id = Mid$(s.Name, Len(LINKFRAME_PREFIX) + 1)
+                Set co = Nothing
+                Set co = Registry_FindChartObject(wb, id)
+                If Not co Is Nothing Then
+                    LinkFrame_SetState co.Chart, used.Exists(id)
+                    If used.Exists(id) Then Core_RefreshFrames = Core_RefreshFrames + 1
+                End If
+            End If
+            Err.Clear
+        Next
+    Next
+    Err.Clear
+End Function
 
 ' True se a ultima Core_CopyToPowerPoint colou no slide e, no vinculado, manteve o vinculo (Ppt_PasteKept; 1.7.0). Nunca propaga erro.
 Public Function Core_LastPptPasteOk() As Boolean
@@ -1187,7 +1232,7 @@ Public Sub Core_InsertToPowerPoint(kind As String)
     LinkFrame_Ensure c, src
     c.Parent.Activate
     Core_CopyToPowerPoint "chart"
-    If Not mPptPasteOk Then LinkFrame_Remove c
+    If Not mPptPasteOk Then LinkFrame_Remove c Else Core_RefreshFrames rng.Worksheet.Parent       ' colou: cor das molduras pelo estado (1.13.0)
     Exit Sub
 Fail:
     en = Err.Number: ed = Err.Description
@@ -1272,7 +1317,9 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     msg = Break_TakeNotice()                    ' corte de eixo: aviso so depois de o grafico antigo ser trocado
     If Len(msg) > 0 Then Core_Notify msg, vbInformation
     ' Alterar dados recria o grafico com id NOVO: o slide (TQQ_CHART = id antigo) deixa de acompanha-lo. A moldura do antigo (orfa) sai e NAO
-    ' e redesenhada (ela afirmaria um vinculo que nao existe); o aviso pede inserir ou colar de novo.
+    ' e redesenhada (ela afirmaria um vinculo que nao existe); o aviso pede inserir ou colar de novo. Manter o id NAO adiantaria (sonda P-U6,
+    ' 1.13.0, medida: negativa): o grafico do slide guarda as proprias formulas de serie (celulas da tabela e do bloco antigos) e o
+    ' LinkFormat.Update rele essas celulas, nao o grafico pelo nome; com o bloco antigo limpo, a serie de totais do slide ficaria vazia.
     If hadFrame Then
         LinkFrame_CleanOrphans wb
         Core_Notify LINKFRAME_NOTE_REBUILT, vbInformation

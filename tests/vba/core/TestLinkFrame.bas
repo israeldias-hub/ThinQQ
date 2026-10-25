@@ -28,6 +28,8 @@ Public Sub Test_LinkFrame_DrawnAroundRangeAndFollowsRows()
     AssertAlmost rng.Height, s.Height, 0.5: AssertAlmost rng.Width, s.Width, 0.5
     AssertEqual msoFalse, s.Fill.Visible, "sem preenchimento"
     AssertEqual RGB(0, 176, 80), s.Line.ForeColor.RGB
+    AssertEqual RGB(0, 176, 80), LINKFRAME_GREEN, "constante verde"
+    AssertEqual RGB(192, 0, 0), LINKFRAME_RED, "constante vermelha"
     AssertEqual xlMoveAndSize, s.Placement
     rng.Worksheet.Rows(1).Insert
     AssertAlmost rng.Worksheet.Range("A2:C4").Top, s.Top, 0.5, "linha acima: a moldura desce"
@@ -58,7 +60,8 @@ Public Sub Test_LinkFrame_OrphansAndToggle()
 End Sub
 
 ' Alterar dados recria o grafico com id NOVO (o slide deixa de acompanha-lo): a moldura NAO e redesenhada, a do grafico antigo sai e o
-' usuario e avisado para inserir ou colar de novo (revisao final da Parte D, I1). Sem moldura, nenhum aviso.
+' usuario e avisado para inserir ou colar de novo (revisao final da Parte D, I1). Sem moldura, nenhum aviso. 1.13.0 (X2): continua assim, a
+' sonda P-U6 (TestPptSync.Test_Rebuild_SlideKeepsOldCells_PU6_WhenAvailable) mediu que manter o id nao faria o slide acompanhar.
 Public Sub Test_LinkFrame_ChangeSource_DropsFrameAndNotifies()
     Dim wb As Workbook, rng As Range, c As Chart, s As Shape, ws As Worksheet, nc As Chart
     Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
@@ -128,6 +131,33 @@ Cleanup:
     LinkFrame_SetFailDrawForTest False
     If Not wb Is Nothing Then Teardown wb
     If en <> 0 Then Err.Raise en, "TestLinkFrame", ed
+End Sub
+
+' 1.13.0 (X2): cor da moldura pelo estado; sem PowerPoint (build Test: so a instancia injetada) nenhuma apresentacao usa -> vermelha.
+Public Sub Test_LinkFrame_SetState_Colors()
+    Dim wb As Workbook, ws As Worksheet, c As Chart, c2 As Chart
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:B1").Value = Array("Ano", "V"): ws.Range("A2:B2").Value = Array("T1", 1): ws.Range("A3:B3").Value = Array("T2", 2)
+    ws.Range("A1:B3").Select
+    Core_Insert "clustered"
+    Set c = Core_ActiveChart()
+    LinkFrame_Ensure c, ws.Range("A1:B3")
+    AssertEqual LINKFRAME_GREEN, LinkFrame_Find(c).Line.ForeColor.RGB, "nasce verde"
+    LinkFrame_SetState c, False
+    AssertEqual LINKFRAME_RED, LinkFrame_Find(c).Line.ForeColor.RGB
+    LinkFrame_SetState c, True
+    AssertEqual LINKFRAME_GREEN, LinkFrame_Find(c).Line.ForeColor.RGB
+    ws.Range("A1:B3").Select
+    Core_Insert "clustered"
+    Set c2 = Core_ActiveChart()
+    LinkFrame_SetState c2, False                          ' grafico sem moldura: nada acontece, sem erro
+    AssertTrue LinkFrame_Find(c2) Is Nothing
+    Ppt_ResetTestHooks
+    AssertEqual 0, Core_RefreshFrames(wb), "sem PowerPoint: nenhuma apresentacao usa -> vermelha"
+    AssertEqual LINKFRAME_RED, LinkFrame_Find(c).Line.ForeColor.RGB
+    AssertEqual 1, CountFrames(wb), "Core_RefreshFrames nao cria nem apaga molduras"
+    AssertEqual 0, Core_RefreshFrames(Nothing), "pasta Nothing: nada"
+    Teardown wb
 End Sub
 
 Private Function CountFrames(wb As Workbook) As Long
