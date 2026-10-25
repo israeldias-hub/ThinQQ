@@ -434,6 +434,10 @@ try {
                  Invoke-CoreQuiet 'E28' 'Core_SetToggle' 'pairabs' $true | Out-Null
                  Invoke-CoreQuiet 'E28' 'Core_SetOption' 'legend' 'right' | Out-Null
                  Set-ChartBox $ws $co 700 340 }
+             29 { $rng = Write-Table $ws 'A6' @('Etapa', 'R$ mil') $wfBody; $co = Add-Chart $ws $rng 'waterfall'; Set-ChartBox $ws $co 440 260         # menor que o E05: a figura da galeria pesa pouco
+                  $co.Chart.PlotArea.Width = $co.Chart.PlotArea.Width - 70          # folga à direita para o rótulo da seta, como no E05
+                  Invoke-CoreQuiet 'E29' 'Core_StyleApply' 'Cascata MC' 'chart' | Out-Null       # estilo embutido: primeira barra hachurada, totais cinza, aumentos verdes, reduções vermelhas
+                  Invoke-CoreQuiet 'E29' 'Core_AddAnnotation' 'diff' 1 $wfBody.Count | Out-Null }       # a seta nasce com o estilo (seta.* do Cascata MC)
         }
         Invoke-Core 'Core_ClearLastNotice' | Out-Null
     }
@@ -453,11 +457,11 @@ try {
     $idx.Range("A${hdrRow}:E${hdrRow}").Value2 = [object[]]('Nº', 'Exemplo (clique para abrir)', 'Tipo de gráfico', 'Recursos em destaque', 'Como criar no ThinQQ')
     $h = $idx.Range("A${hdrRow}:E${hdrRow}"); $h.Font.Bold = $true; $h.Font.Color = 0xFFFFFF; $h.Interior.Color = 0x79531F
     $featNames = @{ totals = 'Totais'; labels = 'Rótulos'; 'legend-none' = 'Legenda: nenhuma'; lineend = 'Legenda: nome no fim da linha'; numfmt = 'Formato (milhares)'
-                    gap = 'Espaço (muito largo)'; palette = 'Paleta (tons de cinza)'; cagr = 'Seta CAGR'; diff = 'Seta diferença'; delta = 'Delta entre barras'; bracket = 'Colchete'
+                    gap = 'Espaço (muito largo)'; palette = 'Estilo (tons de cinza)'; cagr = 'Seta CAGR'; diff = 'Seta diferença'; delta = 'Delta entre barras'; bracket = 'Colchete'
                     vline = 'Linha de valor (média)'; ind100 = 'Indicador 100%'; samescale = 'Mesma escala'; secondary = 'Eixo secundário'; pieout = 'Rótulos fora da pizza'
                     'gantt-weeks' = 'Escala em semanas'; 'gantt-months' = 'Escala em meses'; roundsum = 'Rótulos com soma consistente'; roundrange = 'Arredondar intervalo'
                     break = 'Corte de eixo'; trend = 'Linha de tendência'; quad = 'Quadrantes (médias)'; connectors = 'Conectores'
-                    pairdiff = 'Setas de variação'; pairabs = 'Variação em valor'; inbar = 'Nome dentro das barras' }
+                    pairdiff = 'Setas de variação'; pairabs = 'Variação em valor'; inbar = 'Nome dentro das barras'; style = 'Estilo (Cascata MC)' }
     $r = $hdrRow + 1
     foreach ($item in $cov) {
         $idx.Cells.Item($r, 1).Value2 = $item.Num

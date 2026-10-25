@@ -6,7 +6,7 @@
 function Get-TqqDemoFeatures {
     return @('totals', 'labels', 'legend-none', 'lineend', 'numfmt', 'gap', 'palette', 'cagr', 'diff', 'delta', 'bracket', 'vline', 'ind100', 'samescale',
              'secondary', 'pieout', 'gantt-weeks', 'gantt-months', 'roundsum', 'roundrange', 'break', 'trend', 'quad', 'connectors',
-             'pairdiff', 'pairabs', 'inbar')
+             'pairdiff', 'pairabs', 'inbar', 'style')
 }
 
 # Nome do tipo como aparece no menu "Inserir gráfico" da faixa.
@@ -94,9 +94,9 @@ function Get-TqqDemoCoverage {
            Title = 'Vendas 2025 por região (pizza, rótulos fora)'
            Desc = 'O nome e o valor de cada fatia ficam fora da pizza, legíveis mesmo na fatia pequena (Norte).' }
         @{ Num = 18; Kind = 'doughnut';      Features = @('palette')
-           Menu = 'Inserir gráfico > Mais tipos > Rosca; Paleta > Tons de cinza'
-           Title = 'Vendas 2025 por região (rosca, paleta em tons de cinza)'
-           Desc = 'A paleta "Tons de cinza" troca as cores de todas as séries de uma vez (útil para impressão).' }
+           Menu = 'Inserir gráfico > Mais tipos > Rosca; Estilo > Tons de cinza'
+           Title = 'Vendas 2025 por região (rosca, estilo em tons de cinza)'
+           Desc = 'O estilo "Tons de cinza" troca as cores de todas as séries de uma vez (útil para impressão).' }
         @{ Num = 19; Kind = 'butterfly';     Features = @()
            Menu = 'Inserir gráfico > Mais tipos > Borboleta'
            Title = 'Vendas B2C x B2B por loja (borboleta)'
@@ -137,6 +137,10 @@ function Get-TqqDemoCoverage {
            Menu = 'Inserir gráfico > Cascata > Cascata comparativa; Setas > Variação em valor; Legenda > Direita'
            Title = 'As duas maiores lojas: da receita ao lucro em 2025 (variação em valor)'
            Desc = 'A mesma ponte para as duas lojas que mais venderam em 2025; a seta de cada etapa mostra a diferença em R$ milhões entre a segunda loja e a primeira, e os nomes das lojas ficam na legenda.' }
+        @{ Num = 29; Kind = 'waterfall';     Features = @('style', 'diff')
+           Menu = 'Inserir gráfico > Cascata > Cascata (colunas); Estilo > Cascata MC; Setas > Seta diferença'
+           Title = 'Da receita ao lucro (cascata no estilo Cascata MC)'
+           Desc = 'A ponte do exemplo 5 no estilo embutido Cascata MC: primeira barra hachurada, totais cinza, reduções vermelhas (os aumentos ficam verdes), conectores pontilhados e seta com rótulo de fundo branco. O estilo fica no gráfico e na pasta e sobrevive a Alterar dados.' }
     )
     foreach ($i in $items) { $i.Sheet = ('E{0:00}' -f $i.Num); $i.KindName = Get-TqqDemoKindName $i.Kind }
     return $items

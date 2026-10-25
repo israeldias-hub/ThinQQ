@@ -38,13 +38,16 @@ function Add-Captions($node) {
         foreach ($i in $node) { Add-Captions $i }
     }
 }
-foreach ($f in @('src\loader\forms\frmUpdate.json', 'src\core\forms\frmAnnotation.json', 'src\ppt\forms\frmTqqLinks.json')) {
+foreach ($f in @('src\loader\forms\frmUpdate.json', 'src\core\forms\frmAnnotation.json', 'src\ppt\forms\frmTqqLinks.json', 'src\core\forms\frmStyles.json')) {
     Add-Captions ((Read-Utf8 (Join-Path $RepoRoot $f)) | ConvertFrom-Json)
 }
 # 1.11.0 (U3): diálogo Vínculos do PowerPoint: as legendas que terminam em ":" ("Ao abrir a apresentação:") valem também sem os dois-pontos, e
 # os itens das listas, que o código põe (AddItem "..."), também são rótulos (Mostrar: Todos...; Ao abrir a apresentação: Perguntar...)
 foreach ($l in @($known)) { if ($l.EndsWith(':')) { [void]$known.Add($l.TrimEnd(':')) } }
 foreach ($m in [regex]::Matches((Read-Utf8 (Join-Path $RepoRoot 'src\ppt\forms\frmTqqLinks.vba')), '\.AddItem "([^"]+)"')) { [void]$known.Add($m.Groups[1].Value) }
+# 1.12.0 (S6): janela Estilos (frmStyles): os itens do escopo (Gráfico selecionado, Planilha, Pasta) também são rótulos
+foreach ($m in [regex]::Matches((Read-Utf8 (Join-Path $RepoRoot 'src\core\forms\frmStyles.vba')), '\.AddItem "([^"]+)"')) { [void]$known.Add($m.Groups[1].Value) }
+Check ($known.Contains('Estilos') -and $known.Contains('Usar valor') -and $known.Contains('Novo do gráfico') -and $known.Contains('Planilha') -and $known.Contains('Pasta') -and $known.Contains('Estilo') -and $known.Contains('Estilos...')) 'janela Estilos e faixa (1.12.0) presentes no conjunto: legendas, itens do escopo, Estilo e Estilos...'
 Check ($known.Count -ge 60) "rótulos conhecidos carregados ($($known.Count))"
 Check ($known.Contains('Colunas empilhadas') -and $known.Contains('Pular esta versão') -and $known.Contains('OK')) 'faixa e formulários presentes no conjunto'
 Check ($known.Contains('Vínculos') -and $known.Contains('Dados do Excel') -and $known.Contains('Atualizar tudo')) 'faixa do PowerPoint presente no conjunto'
@@ -472,7 +475,17 @@ $messages = @(
     'ThinQQ - Delta: clique de novo na mesma barra para escolher só ela.',
     'ThinQQ - Delta cancelado.',
     'ThinQQ - Delta cancelado (outro gráfico).',
-    'ThinQQ - Delta cancelado (60 s sem clique).'
+    'ThinQQ - Delta cancelado (60 s sem clique).',
+    # estilos de gráfico (1.12.0): modStyleStore.bas, modStyleApply.bas e modCoreApi.bas (os trechos variáveis ficam de fora)
+    'Estilo não encontrado: ',
+    'Estilo inválido: ',
+    'O arquivo não é um estilo do ThinQQ válido (falta a linha ',
+    ', ou é grande demais).',
+    'O arquivo é grande demais para um estilo do ThinQQ.',
+    'Estilo importado: ',
+    ' Linhas ignoradas (inválidas ou desconhecidas): ',
+    'Estilos embutidos não podem ser excluídos.',
+    "' é um estilo embutido do ThinQQ: use outro nome (Duplicar)."
 )
 # a nota da colagem e o tutorial nao podem voltar a dizer que o vinculo so le o arquivo salvo (a sonda mediu: com a pasta ABERTA no Excel,
 # LinkFormat.Update le os valores nao salvos)
@@ -516,6 +529,7 @@ $pptMessages = @(
     @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel para ver o estado dos vínculos.'),
     @('ppt', 'powerpoint', 'O ThinQQ não está carregado no Excel: abra o Excel com o ThinQQ para ver o estado dos vínculos.'),
     @('ppt', 'powerpoint', 'Selecione um ou mais elementos na lista.'),
+    @('ppt', 'powerpoint', 'Atualize o ThinQQ no Excel (1.12.0 ou mais novo) para usar os estilos pelo PowerPoint.'),   # 1.12.0: PPT_MSG_OLD_CORE_STYLE
     @('ppt', 'powerpoint', 'Abrir no Excel vale para gráficos. Para mudar um texto ou uma tabela vinculados, altere as células no Excel e clique em Atualizar.'),
     @('ppt', 'powerpoint', 'elemento(s)? O ThinQQ deixa de atualizá-los e eles saem desta lista. '),
     @('ppt', 'powerpoint', 'Um gráfico continua com o vínculo do próprio PowerPoint com a pasta do Excel (Arquivo > Informações > Editar Links para Arquivos).'),
@@ -943,7 +957,7 @@ function Get-ChangelogSection([string]$text, [string]$head) {
     return [regex]::Match($t, "(?ms)^## $head[^\n]*\n(?<b>.*?)(?=^## \[|\z)").Groups['b'].Value
 }
 function Get-AutoChangelogBlock([string]$text) {
-    foreach ($h in '\[Não lançado\]', '\[1\.10\.0\]', '\[1\.9\.0\]', '\[1\.8\.0\]', '\[1\.7\.0\]') {
+    foreach ($h in '\[Não lançado\]', '\[1\.12\.0\]', '\[1\.11\.0\]', '\[1\.10\.0\]', '\[1\.9\.0\]', '\[1\.8\.0\]', '\[1\.7\.0\]') {
         $b = Get-ChangelogSection $text $h
         if ($b.Contains('TQQ_AUTOIDX')) { return $b }
     }
@@ -1039,7 +1053,7 @@ $insTut = Get-SubsectionText 'ppt-inserir'
 $insRec = ([regex]::Match($readme, '(?s)\*\*Inserir também no slide \(1\.7\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
 function Get-InsertChangelogBlock([string]$text) {
     $acc = ''
-    foreach ($h in '\[Não lançado\]', '\[1\.10\.0\]', '\[1\.9\.0\]', '\[1\.8\.0\]', '\[1\.7\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
+    foreach ($h in '\[Não lançado\]', '\[1\.12\.0\]', '\[1\.11\.0\]', '\[1\.10\.0\]', '\[1\.9\.0\]', '\[1\.8\.0\]', '\[1\.7\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
     return $acc
 }
 # True se existe "## [1.6.0]" e ela contém linhas da 1.7.0 (a 1.7.0 anunciada como entregue na 1.6.0)
@@ -1126,7 +1140,7 @@ $criarTut = Get-SubsectionText 'ppt-criar'
 $criarRec = ([regex]::Match($readme, '(?s)\*\*Criar gráficos pelo PowerPoint \(1\.8\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
 function Get-CriarChangelogBlock([string]$text) {
     $acc = ''
-    foreach ($h in '\[Não lançado\]', '\[1\.10\.0\]', '\[1\.9\.0\]', '\[1\.8\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
+    foreach ($h in '\[Não lançado\]', '\[1\.12\.0\]', '\[1\.11\.0\]', '\[1\.10\.0\]', '\[1\.9\.0\]', '\[1\.8\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
     return $acc
 }
 # True se a seção dada (por exemplo '\[1\.7\.0\]') existe e contém linhas da 1.8.0 (a 1.8.0 anunciada como entregue numa versão anterior)
@@ -1257,7 +1271,7 @@ $packTut = Get-H4Text 'ppt-empacotar'
 $cmdRec = ([regex]::Match($readme, '(?s)\*\*Mudar o gráfico e empacotar pelo PowerPoint \(1\.9\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
 function Get-CmdChangelogBlock([string]$text) {
     $acc = ''
-    foreach ($h in '\[Não lançado\]', '\[1\.10\.0\]', '\[1\.9\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
+    foreach ($h in '\[Não lançado\]', '\[1\.12\.0\]', '\[1\.11\.0\]', '\[1\.10\.0\]', '\[1\.9\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
     return $acc
 }
 # True se a seção dada (por exemplo '\[1\.8\.0\]') existe e contém linhas da 1.9.0 (a 1.9.0 anunciada como entregue numa versão anterior)
@@ -1372,7 +1386,7 @@ $foraTut = Get-SubsectionText 'ppt-fora'
 $textoRec = ([regex]::Match($readme, '(?s)\*\*Texto vinculado a célula \(1\.9\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
 function Get-TextoChangelogBlock([string]$text) {
     $acc = ''
-    foreach ($h in '\[Não lançado\]', '\[1\.10\.0\]', '\[1\.9\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
+    foreach ($h in '\[Não lançado\]', '\[1\.12\.0\]', '\[1\.11\.0\]', '\[1\.10\.0\]', '\[1\.9\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
     return $acc
 }
 function Test-TextoInside([string]$text, [string]$head) {
@@ -1486,7 +1500,7 @@ $paridadeTut = Get-SubsectionText 'ppt-paridade'
 $tabelaRec = ([regex]::Match($readme, '(?s)\*\*Tabela vinculada \(1\.10\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
 function Get-TabelaChangelogBlock([string]$text) {
     $acc = ''
-    foreach ($h in '\[Não lançado\]', '\[1\.10\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
+    foreach ($h in '\[Não lançado\]', '\[1\.12\.0\]', '\[1\.11\.0\]', '\[1\.10\.0\]') { $acc += "`n" + (Get-ChangelogSection $text $h) }
     return $acc
 }
 function Test-TabelaInside([string]$text, [string]$head) {
@@ -1530,7 +1544,7 @@ $tabelaPlaces = [ordered]@{
     'tutorial #ppt-paridade' = @{ text = $paridadeTut; phrases = @(
         'Think-cell: o que o ThinQQ já tem', 'Atualizar gráficos', 'Atualizar uma vez', 'Atualizar automaticamente', 'Ao abrir', 'Inserir também no slide', 'moldura verde', 'Inserir gráfico', 'Editar dados',
         'Gráfico do ThinQQ', 'Empacotar para enviar', 'Texto vinculado ao Excel', 'Título ligado a uma célula...', $lblTable, 'Data Links', 'Manage Data Sources', 'Editar Links para Arquivos', 'Alterar Origem',
-        'bolas de Harvey', 'Tableau', 'Planilha interna do elemento', 'não foi verificado num PowerPoint e Excel reais', 'itens 61 a 118', '1.6.0', '1.7.0', '1.8.0', '1.9.0', '1.10.0', '1.11.0') }
+        'bolas de Harvey', 'Tableau', 'Planilha interna do elemento', 'não foi verificado num PowerPoint e Excel reais', 'itens 61 a 125', '1.6.0', '1.7.0', '1.8.0', '1.9.0', '1.10.0', '1.11.0') }
     'tutorial #ppt-mensagens' = @{ text = (Get-SubsectionText 'ppt-mensagens'); phrases = $tableMsgs + @('Tabela vinculada criada no slide N') }
     'tutorial #ppt-fora' = @{ text = $foraTut; phrases = @('Think-cell: o que o ThinQQ já tem', 'Tableau', 'Datasheet interno') }
     'README Recursos' = @{ text = $tabelaRec; phrases = @(
@@ -1609,7 +1623,7 @@ $thinkClPhrases = @('Atualizar como o think-cell (1.11.0)', $lblFlag, 'tqq_flag'
     'API 6', 'Core_PptLinkStates', 'todo vínculo nasce manual', 'Decks da 1.6 a 1.10 continuam como estavam', 'Vínculos > Selecionar tudo > Manual', 'Não perguntar', 'Desfazer do Excel', 'Presentation.Saved', 'Acompanhar mudanças do Excel (bandeiras e automáticos)',
     'Novos vínculos nascem automáticos', 'Atualizar tudo', 'P-U3', 'não promete dados congelados', 'itens 110 a 118', '### Adicionado', '### Alterado', '### Não verificado em PowerPoint real') + $thinkMsgs
 function Get-ThinkChangelogBlock([string]$text) {
-    foreach ($h in '\[Não lançado\]', '\[1\.11\.0\]') {
+    foreach ($h in '\[Não lançado\]', '\[1\.12\.0\]', '\[1\.11\.0\]') {
         $b = Get-ChangelogSection $text $h
         if ($b.Contains('Atualizar como o think-cell (1.11.0)')) { return $b }
     }
@@ -1644,7 +1658,7 @@ $thinkPlaces = [ordered]@{
         'Atualizar sempre', 'vínculo do próprio PowerPoint com a pasta do Excel continua', 'Pasta não encontrada', 'Não encontrado na pasta', 'Sem vínculo', 'Não verificado (pasta fechada)', 'Sem Revert', 'Ctrl+Z',
         'P-U3', 'aba contextual', 'somente leitura', 'itens 110 a 118', $thinkMsgs[0], $thinkMsgs[1]) }
     'tutorial #ppt-mensagens' = @{ text = (Get-SubsectionText 'ppt-mensagens'); phrases = $thinkMsgs + @('Desvincular N elemento(s)? O ThinQQ deixa de atualizá-los e eles saem desta lista.', 'Desvinculados: N.', 'Manual: N elemento(s).', 'Não foi possível concluir: motivo (código).') }
-    'tutorial #ppt-paridade' = @{ text = $paridadeTut; phrases = @($lblFlag, 'Atualização manual por padrão e indicador de dados novos', 'Mini toolbar', 'aba contextual', 'Revert', 'Ctrl+Z', 'Desvincular', 'Editar Links para Arquivos', '1.11.0', 'itens 61 a 118') }
+    'tutorial #ppt-paridade' = @{ text = $paridadeTut; phrases = @($lblFlag, 'Atualização manual por padrão e indicador de dados novos', 'Mini toolbar', 'aba contextual', 'Revert', 'Ctrl+Z', 'Desvincular', 'Editar Links para Arquivos', '1.11.0', 'itens 61 a 125') }
     'README Recursos (1.11.0)' = @{ text = $thinkRec; phrases = @(
         $lblFlag, 'tqq_flag', 'getVisible', 'TQQ_STATE', 'frmTqqLinks', 'não modal', 'sem perguntar nada', 'TabSetChartTools', 'P-U3', 'API 6', 'Core_PptLinkStates', 'BreakLink', 'Selecionar tudo', 'Manual', 'Não perguntar',
         'Revert', 'Ctrl+Z', '0,3 s', 'nunca que os dados do slide estão congelados', 'Decks antigos', 'Vínculos** > **Selecionar tudo** > **Manual', 'Não verificado em PowerPoint real', 'itens 110 a 118') + $thinkMsgs }
@@ -1681,10 +1695,172 @@ foreach ($n in ($mvThinkPins.Keys | Sort-Object)) {
     $line = @($mvThinkLines | Where-Object { $_ -match "^$n\. " })
     foreach ($ph in $mvThinkPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
 }
-# release/notes.txt (1.11.0): de 1 a 8 marcadores, em linguagem do usuário, diferentes da 1.10.1 (a tag v1.10.1 diz "Sem mudanças no funcionamento")
-Check ($notesLines.Count -ge 4 -and $notesLines.Count -le 8) "notes.txt (1.11.0): de 4 a 8 linhas ($($notesLines.Count))"
-foreach ($ph in $lblFlag, 'Vínculos', 'manual', 'Selecionar tudo > Manual', 'aba contextual', 'não foi verificada') { Check ($notesText.Contains($ph)) "notes.txt (1.11.0) cita '$ph'" }
-Check ($notesText -notmatch 'Sem mudanças no funcionamento' -and $notesText -notmatch 'vídeos') 'notes.txt (1.11.0): não repete o texto da 1.10.1 (vídeos / sem mudanças)'
-Check ($notesText -notmatch 'TQQ_|Core_|Ppt[A-Z]\w+_') 'notes.txt (1.11.0): linguagem do usuário, sem nomes internos'
+# (as notas do release/notes.txt são as da 1.12.0: ver o bloco de estilos, abaixo; as da 1.11.0 estão no histórico do Git)
+# ---- Estilos de gráfico (1.12.0, Tarefa S6): a faixa (Estilo e Estilos...), a seção #estilos do tutorial, a janela frmStyles, o arquivo .tqqestilo, o README (Recursos,
+# Arquitetura, Limitações, Publicar uma versão, itens manuais 119 a 125), o release/notes.txt e a [Não lançado] do CHANGELOG. Cada afirmação é conferida contra o CÓDIGO.
+# As linhas da 1.12.0 ficam em [Não lançado] até o publicar-release 1.12.0 (leem-se só [Não lançado] e [1.12.0]; dentro de "## [1.11.0]" ou anteriores elas
+# anunciariam a 1.12.0 como entregue antes: um pino recusa). Se a 1.11.0 e a 1.12.0 saírem juntas, a [Não lançado] inteira vira "## [1.12.0]" e está certo.
+$lblStyle = 'Estilo'; $lblStyles = 'Estilos...'
+$styDefSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modStyleDef.bas')
+$styStoreSrc = Read-Utf8 (Join-Path $RepoRoot 'src\core\modules\modStyleStore.bas')
+$styFormJson = Join-Path $RepoRoot 'src\core\forms\frmStyles.json'
+$styFormVba = Read-Utf8 (Join-Path $RepoRoot 'src\core\forms\frmStyles.vba')
+$ddStyleNode = $ribbon.SelectSingleNode("//*[@id='ddStyle']")
+$btnStylesNode = $ribbon.SelectSingleNode("//*[@id='btnStyles']")
+Check ($null -ne $ddStyleNode -and $ddStyleNode.GetAttribute('label') -ceq $lblStyle -and $ddStyleNode.GetAttribute('tag') -ceq 'style') "faixa do Excel (1.12.0): a lista '$lblStyle' (tag style)"
+Check ($null -ne $btnStylesNode -and $btnStylesNode.GetAttribute('label') -ceq $lblStyles -and $btnStylesNode.GetAttribute('onAction') -ceq 'Rx_OnStyles') "faixa do Excel (1.12.0): o botão '$lblStyles' abre a janela"
+Check ($null -eq $ribbon.SelectSingleNode("//*[@label='Paleta']") -and $null -eq $ribbon.SelectSingleNode("//*[@id='ddPalette']")) 'faixa do Excel (1.12.0): a lista Paleta saiu (virou Estilo)'
+$pptStyleNodes = @($pptRibbon.SelectNodes("//*[local-name()='dynamicMenu'][@label='Estilo']"))
+Check ($pptStyleNodes.Count -eq 2 -and $null -ne $pptRibbon.SelectSingleNode("//*[@id='dmPptStyle']") -and $null -ne $pptRibbon.SelectSingleNode("//*[@id='cdmStyle']")) 'faixa do PowerPoint (1.12.0): o menu Estilo na aba fixa (dmPptStyle) e na contextual (cdmStyle)'
+Check ($pptTqqSrc.Contains('PPT_API_STYLE As Long = 7') -and $syncSrc -match 'CORE_PPT_API As Long = (\d+)\b' -and [int]$Matches[1] -ge 7) 'estilo (código): a API 7 (Core_StyleNames e o comando style) está no suplemento e no core'
+Check ($pptTqqSrc.Contains('PPT_MSG_OLD_CORE_STYLE As String = "Atualize o ThinQQ no Excel (1.12.0 ou mais novo) para usar os estilos pelo PowerPoint."')) 'estilo (código): PPT_MSG_OLD_CORE_STYLE tem o texto citado na documentação'
+# limites e listas do arquivo, lidos do código
+Check ($styDefSrc.Contains('STYLEDEF_HEADER As String = "ThinQQ-Estilo=1"') -and $styDefSrc.Contains('STYLEDEF_EXT As String = ".tqqestilo"') -and $styDefSrc.Contains('STYLEDEF_MAX_BYTES As Long = 16384') -and $styDefSrc.Contains('STYLEDEF_MAX_LINES As Long = 200') -and $styStoreSrc.Contains('STYLEDEF_MAX_BYTES * 3')) 'estilo (código): cabeçalho, extensão, 16.384 caracteres, 200 linhas e o teto de leitura de 48 KB'
+$styKeys = @(([regex]::Match($styDefSrc, 'STYLEDEF_KEYLIST As String = "(?<k>[^"]+)"').Groups['k'].Value).Trim(',').Split(','))
+$styPats = @(([regex]::Match($styDefSrc, 'STYLEDEF_PATTERNS As String = "(?<k>[^"]+)"').Groups['k'].Value).Trim(',').Split(','))
+Check ($styKeys.Count -eq 33 -and $styPats.Count -eq 12) "estilo (código): 33 chaves e 12 hachuras ($($styKeys.Count), $($styPats.Count))"
+Check ($styDefSrc.Contains('Array("Padrão ThinQQ", "Tons de cinza", "Cores do tema", "Cascata MC", "Cascata DDE")')) 'estilo (código): os cinco embutidos são Padrão ThinQQ, Tons de cinza, Cores do tema, Cascata MC e Cascata DDE'
+# o exemplo completo do tutorial é o texto do Cascata MC definido no código (as mesmas linhas chave=valor)
+$mcCode = [regex]::Match($styDefSrc, '(?s)Case "cascata mc"(?<b>.*?)Case "cascata dde"').Groups['b'].Value
+$mcTokens = @([regex]::Matches($mcCode, '"(?<kv>[a-z][a-z0-9.]*=[^"]*)"') | ForEach-Object { $_.Groups['kv'].Value })
+$ddeCode = [regex]::Match($styDefSrc, '(?s)Case "cascata dde"(?<b>.*?)Case Else').Groups['b'].Value
+Check ($mcTokens.Count -eq 21 -and $ddeCode.Contains('aumento=#ED7D31') -and $ddeCode.Contains('reducao=#70AD47') -and $ddeCode.Contains('total=#4472C4') -and $ddeCode.Contains('primeira.padrao=diagonal_escura_para_cima') -and $ddeCode.Contains('conector.traco=solido')) 'estilo (código): Cascata MC tem 21 linhas (fora o cabeçalho) e o Cascata DDE usa laranja nos aumentos, verde nas reduções, azul nos totais, hachura escura e conector contínuo'
+$estSecNode = $null
+if ($parsed) { $estSecNode = $xml.SelectSingleNode("//*[local-name()='section'][@id='estilos']") }
+Check ($null -ne $estSecNode) 'tutorial (1.12.0): a seção #estilos existe'
+if ($parsed -and $null -ne $estSecNode) {
+    Check ($null -ne $xml.SelectSingleNode("//nav//a[@href='#estilos']")) 'tutorial (1.12.0): o índice leva à seção #estilos'
+    Check ($null -ne $xml.SelectSingleNode("//*[@id='estilos-arquivo']") -and $xml.SelectNodes("//a[@href='#estilos']").Count -ge 5) 'tutorial (1.12.0): a subseção #estilos-arquivo existe e a seção tem links das tabelas e da faixa'
+    Check ($null -ne $estSecNode.SelectSingleNode(".//*[contains(concat(' ', normalize-space(@class), ' '), ' stfig ')]") -and $html.Contains('repeating-linear-gradient') -and $html.Contains('.stfig .f')) 'tutorial (1.12.0): a figura da cascata é HTML e CSS (barras div com hachura repeating-linear-gradient), sem imagem nova'
+    $estUi = @($estSecNode.SelectNodes(".//*[contains(concat(' ', normalize-space(@class), ' '), ' ui ')]") | ForEach-Object { ($_.InnerText -replace '\s+', ' ').Trim() } | Sort-Object -Unique)
+    Check ($estUi -contains $lblStyle -and $estUi -contains $lblStyles -and $estUi -contains 'Gráfico selecionado') "tutorial (1.12.0): #estilos cita '$lblStyle', '$lblStyles' e o grupo 'Gráfico selecionado' como span.ui"
+    # todas as legendas da janela Estilos (frmStyles) e os itens do escopo são citados como span.ui em #estilos (Fechar, genérico, fica de fora)
+    $styCaps = New-Object 'System.Collections.Generic.List[string]'
+    function Get-JsonCaptions($node) {
+        if ($node -is [System.Management.Automation.PSCustomObject]) {
+            foreach ($p in $node.PSObject.Properties) {
+                if ($p.Name -ieq 'caption' -and $p.Value -is [string] -and $p.Value.Length -gt 0) { [void]$styCaps.Add($p.Value.TrimEnd(':')) } else { Get-JsonCaptions $p.Value }
+            }
+        } elseif ($node -is [System.Collections.IEnumerable] -and $node -isnot [string]) { foreach ($i in $node) { Get-JsonCaptions $i } }
+    }
+    Get-JsonCaptions ((Read-Utf8 $styFormJson) | ConvertFrom-Json)
+    foreach ($m in [regex]::Matches($styFormVba, '\.AddItem "([^"]+)"')) { [void]$styCaps.Add($m.Groups[1].Value) }
+    Check ($styCaps.Count -ge 17) "janela Estilos: legendas e itens lidos do formulário ($($styCaps.Count))"
+    foreach ($c in $styCaps) {
+        if ($c -ceq 'Fechar') { continue }
+        Check ($estUi -contains $c) "tutorial (1.12.0): a legenda da janela Estilos '$c' é citada como span.ui em #estilos"
+    }
+    # 'Estilos...' (o botão só existe no Excel): na tabela das opções do Excel e NUNCA como linha da tabela do grupo Gráfico do ThinQQ do PowerPoint
+    Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='opcoes']//td/*[contains(concat(' ', normalize-space(@class), ' '), ' ui ')][normalize-space(.)='Estilos...']")) "tutorial (1.12.0): a tabela das opções do Excel (#opcoes) tem a linha '$lblStyles'"
+    Check ($xml.SelectNodes("//*[local-name()='section'][@id='powerpoint']//tr/td[1]/*[contains(concat(' ', normalize-space(@class), ' '), ' ui ')][normalize-space(.)='Estilos...']").Count -eq 0) "tutorial (1.12.0): '$lblStyles' não é linha da tabela do PowerPoint (o botão só existe no Excel)"
+    Check ($xml.SelectNodes("//*[local-name()='section'][@id='powerpoint']//tr/td[1]/*[contains(concat(' ', normalize-space(@class), ' '), ' ui ')][normalize-space(.)='Estilo']").Count -ge 1) "tutorial (1.12.0): a tabela do grupo Gráfico do ThinQQ do PowerPoint tem a linha '$lblStyle'"
+    Check (-not (Get-SectionText 'powerpoint').Contains('Mais detalhes em breve')) 'tutorial (1.12.0): sem o texto provisório "Mais detalhes em breve" em #powerpoint'
+    # o exemplo completo
+    $preNode = $estSecNode.SelectSingleNode('.//pre')
+    $preLines = @()
+    if ($null -ne $preNode) { $preLines = @(($preNode.InnerText -split "\r?\n") | Where-Object { $_.Trim().Length -gt 0 }) }
+    Check ($preLines.Count -gt 0 -and $preLines[0] -ceq 'ThinQQ-Estilo=1' -and @($preLines | Select-Object -Skip 1).Count -eq $mcTokens.Count -and @($preLines | Select-Object -Skip 1 | Where-Object { $mcTokens -cnotcontains $_ }).Count -eq 0) 'tutorial (1.12.0): o exemplo .tqqestilo é o Cascata MC do código, linha por linha'
+    $demoE29 = $xml.SelectSingleNode("//*[local-name()='section'][@id='demonstracao']//tr[@data-ex='E29']")
+    Check ($null -ne $demoE29 -and $null -ne $xml.SelectSingleNode("//*[@id='ex-E29']") -and $estSecNode.SelectNodes(".//a[@href='#ex-E29']").Count -ge 1) 'tutorial (1.12.0): o exemplo E29 (estilo) está na tabela e na galeria e a seção #estilos remete a ele'
+}
+$estTut = Get-SectionText 'estilos'
+$estRaw = [regex]::Match($readme, '(?s)\*\*Estilos de gráfico \(1\.12\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value
+$estRec = ($estRaw -replace '\s+', ' ')
+$estLim = $readmeLimTxt
+$estMsgs = @('Estilo não encontrado: ', 'Estilo inválido: ', 'O arquivo não é um estilo do ThinQQ válido (falta a linha ThinQQ-Estilo=1, ou é grande demais).', 'Estilo importado: ', ' Linhas ignoradas (inválidas ou desconhecidas): ',
+    'Estilos embutidos não podem ser excluídos.', "' é um estilo embutido do ThinQQ: use outro nome (Duplicar).", 'O arquivo é grande demais para um estilo do ThinQQ.')
+$estClPhrases = @('Estilos de gráfico (1.12.0)', 'frmStyles', '.tqqestilo', 'ThinQQ-Estilo=1', 'CustomXMLParts', 'urn:thinqq:styles:1', 'Cascata MC', 'Cascata DDE', 'API 7', 'Core_StyleNames', '33 chaves',
+    '16.384 caracteres', '48 KB', 'E29', 'Documentação (1.12.0)', 'itens 119 a 125', 'Estilos...', 'Estilo não encontrado: nome.', 'Estilo inválido: nome.', 'Estilo importado: nome.', 'Estilos embutidos não podem ser excluídos.',
+    'Atualize o ThinQQ no Excel (1.12.0 ou mais novo) para usar os estilos pelo PowerPoint.', 'não verificado em Excel e PowerPoint reais', '### Adicionado', '### Alterado')
+function Get-EstChangelogBlock([string]$text) {
+    foreach ($h in '\[Não lançado\]', '\[1\.12\.0\]') {
+        $b = Get-ChangelogSection $text $h
+        if ($b.Contains('Estilos de gráfico (1.12.0)')) { return $b }
+    }
+    return ''
+}
+# as linhas da 1.12.0 formam UM bloco contíguo no FIM de cada subseção (### Adicionado, ### Alterado): depois da primeira entrada da 1.12.0, toda entrada é da 1.12.0
+function Get-EstChangelogMissing([string]$block) {
+    $miss = @($estClPhrases | Where-Object { -not $block.Contains($_) })
+    foreach ($sub in 'Adicionado', 'Alterado') {
+        $sm = [regex]::Match($block, "(?ms)^### $sub\s*\n(?<b>.*?)(?=^### |\z)")
+        if (-not $sm.Success) { $miss += "subseção ### $sub"; continue }
+        $entries = @(($sm.Groups['b'].Value -split "\n") | Where-Object { $_ -match '^- ' })
+        $first = -1
+        for ($i = 0; $i -lt $entries.Count; $i++) { if ($entries[$i] -match '\(1\.12\.0\)') { $first = $i; break } }
+        if ($first -lt 0) { $miss += "entradas da 1.12.0 em ### $sub"; continue }
+        for ($i = $first; $i -lt $entries.Count; $i++) { if ($entries[$i] -notmatch '\(1\.12\.0\)') { $miss += "bloco da 1.12.0 contíguo no fim de ### $sub" ; break } }
+        if ($sub -eq 'Adicionado' -and @($entries | Select-Object -Skip $first).Count -lt 4) { $miss += 'pelo menos 4 entradas da 1.12.0 em ### Adicionado' }
+    }
+    if ($block -match '(?m)\S[^\n]*[ \t]-[ \t](Estilos de gráfico|Documentação) \(1\.12\.0\)') { $miss += 'entradas coladas na mesma linha' }
+    return $miss
+}
+$clEst = Get-EstChangelogBlock $cl
+Check ($clEst.Length -gt 2000) "CHANGELOG da 1.12.0 lido de [Não lançado] ou [1.12.0] ($($clEst.Length))"
+Check (@(Get-EstChangelogMissing $clEst).Count -eq 0) "CHANGELOG (1.12.0): frases, entradas e bloco contíguo no fim de Adicionado e Alterado ($(@(Get-EstChangelogMissing $clEst) -join '; '))"
+$clEstLine = "### Adicionado`n- a (1.11.0)`n- Estilos de gráfico (1.12.0): " + (($estClPhrases | Where-Object { $_ -notmatch '^(Estilos de gráfico \(1\.12\.0\)|###)' }) -join ' ') + "`n- b (1.12.0)`n- c (1.12.0)`n- d (1.12.0)`n`n### Alterado`n- e (1.11.0)`n- Documentação (1.12.0): f`n`n### Não verificado`n- g`n"
+Check (@(Get-EstChangelogMissing (Get-EstChangelogBlock "## [Não lançado]`n`n$clEstLine`n## [1.11.0] - 2026-11-01`n`n- x`n")).Count -eq 0) 'CHANGELOG (sintético): as linhas da 1.12.0 em [Não lançado] satisfazem os pinos (1.11.0 publicada antes)'
+Check (@(Get-EstChangelogMissing (Get-EstChangelogBlock "## [Não lançado]`n`n## [1.12.0] - 2026-12-01`n`n$clEstLine`n## [1.11.0] - 2026-11-01`n`n- x`n")).Count -eq 0) 'CHANGELOG (sintético): depois do publicar-release 1.12.0 as linhas na [1.12.0] satisfazem os pinos (1.11.0 e 1.12.0 juntas)'
+Check (@(Get-EstChangelogMissing (Get-EstChangelogBlock "## [Não lançado]`n`n## [1.11.0] - 2026-11-01`n`n- outra coisa`n")).Count -gt 0) 'CHANGELOG (sintético): sem as linhas da 1.12.0 em lugar nenhum = falha'
+Check (@(Get-EstChangelogMissing (Get-EstChangelogBlock "## [Não lançado]`n`n$($clEstLine -replace "`n- b \(1\.12\.0\)", ' - Estilos de gráfico (1.12.0): b')`n## [1.11.0] - 2026-11-01`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): entradas coladas na mesma linha = falha'
+Check (@(Get-EstChangelogMissing (Get-EstChangelogBlock "## [Não lançado]`n`n$($clEstLine -replace '- d \(1\.12\.0\)', "- d (1.12.0)`n- sem marca da versao")`n## [1.11.0] - 2026-11-01`n`n- x`n")).Count -gt 0) 'CHANGELOG (sintético): entrada de outra versão depois do bloco da 1.12.0 (bloco não contíguo no fim) = falha'
+foreach ($old in '\[1\.11\.0\]', '\[1\.10\.1\]', '\[1\.10\.0\]') {
+    Check (-not (Get-ChangelogSection $cl $old).Contains('Estilos de gráfico (1.12.0)')) "CHANGELOG: a $($old -replace '\\', '') não contém linhas da 1.12.0 (elas ficam em [Não lançado]; README, Publicar uma versão)"
+}
+Check ((Get-ChangelogSection $cl '\[1\.10\.0\]').Contains('Tabela vinculada (1.10.0)') -and (Get-ChangelogSection $cl '\[1\.10\.1\]').Contains('Vídeos do ThinQQ')) 'CHANGELOG: as linhas das versões anteriores (1.10.0 e 1.10.1) continuam intactas (1.12.0)'
+$estPlaces = [ordered]@{
+    'tutorial #estilos' = @{ text = $estTut; phrases = @(
+        'Estilos de gráfico', 'Style file', 'reaplica sozinho', 'Reproduzir o gráfico do exemplo', 'Cascata MC', 'Cascata DDE', 'Padrão ThinQQ', 'Tons de cinza', 'Cores do tema', 'Seta diferença', 'balão de comentário', 'previsto para a 1.14',
+        'Estilos embutidos', 'só de leitura', 'Papéis por tipo', 'Gantt', 'só fonte, rótulos, espaço e linha do eixo', 'A janela Estilos...', 'Novo do gráfico', 'cores pintadas à mão', 'O arquivo .tqqestilo', 'ThinQQ-Estilo=1',
+        'chave desconhecida ou valor inválido é ignorado e contado', '16 KB (16.384 caracteres)', '200 linhas', '48 KB', 'Nada dele é executado', '%LOCALAPPDATA%\ThinQQ\styles', 'substituído sem pergunta', '(importado)',
+        'quem recebe só a pasta também vê o visual', 'O que viaja para o PowerPoint', 'a cor "auto" ponto a ponto dos rótulos não é copiada', 'Limites', 'linhas de ligação das colunas empilhadas', 'sobrescrita',
+        'Estilo não encontrado', 'Não há rótulo dentro da barra da cascata', 'itens 119 a 125') }
+    'tutorial #mensagens' = @{ text = (Get-SubsectionText 'mensagens'); phrases = $estMsgs + @('Estilo não encontrado: nome.', 'Estilo inválido: nome.', 'Estilo importado: nome.') }
+    'tutorial #ppt-mensagens' = @{ text = (Get-SubsectionText 'ppt-mensagens'); phrases = @('Atualize o ThinQQ no Excel (1.12.0 ou mais novo) para usar os estilos pelo PowerPoint.') }
+    'tutorial #ppt-paridade' = @{ text = $paridadeTut; phrases = @('Esquema de cores do gráfico', 'Style files', '.tqqestilo', 'Estilos de gráfico', 'O formato do think-cell', 'itens 61 a 125', '1.12.0') }
+    'tutorial #limites' = @{ text = (Get-SectionText 'limites'); phrases = @('Estilos de gráfico (1.12.0)', 'tirar o estilo não desfaz fonte, rótulos nem as linhas de ligação', 'o Gantt só aceita fonte, rótulos, espaço e linha do eixo') }
+    'README Recursos' = @{ text = $estRec; phrases = @(
+        'frmStyles', 'Estilos...', 'Novo do gráfico', 'Padrão ThinQQ', 'Tons de cinza', 'Cores do tema', 'Cascata MC', 'Cascata DDE', '#70AD47', '#E8173C', '#D9D9D9', '#7F7F7F', '#ED7D31', '#4472C4', '#A6A6A6',
+        'ThinQQ-Estilo=1', '33 chaves', '12 hachuras', '16.384 caracteres', '200 linhas', '48 KB', 'GetOpenFilename', 'GetSaveAsFilename', 'StyleDef_SafeName', '%LOCALAPPDATA%\ThinQQ\styles', 'CustomXMLParts', 'urn:thinqq:styles:1',
+        'stylever', 'stylestamp', 'Core_RebuildFromRange', 'Core_SafeRefresh', 'API 7', 'dmPptStyle', 'cdmStyle', 'Core_StyleNames', 'Core_PptCommand', 'PptSync_ApplyFormat', 'Atualize o ThinQQ no Excel (1.12.0 ou mais novo) para usar os estilos pelo PowerPoint.',
+        'SeriesLines', 'desfaz a fonte', 'sobrescrita', 'Gantt', 'balão de comentário', 'Não verificado em Excel e PowerPoint reais', 'itens 119 a 125') + $estMsgs }
+    'README Arquitetura' = @{ text = $archTxt; phrases = @('Estilos de gráfico (1.12.0)', 'modStyleDef', 'modStyleStore', 'modStyleApply', 'modStyleUi', 'frmStyles', 'CustomXMLParts', 'Core_StyleNames', 'Core_StyleApply', 'Core_StyleManage', 'ddStyle', 'btnStyles', 'PPT_API_STYLE', 'PptTqq_StyleMenuXml', 'PptRx_GetStyleMenu') }
+    'README Limitações' = @{ text = $readmeLimTxt; phrases = @('Estilos de gráfico (1.12.0)', 'SeriesLines', 'sobrescrita', 'pasta ativa', 'a cor "auto" por ponto não', 'validado de forma estrita', 'só entra e sai por janelas de arquivo', 'Gantt', 'balão de comentário', 'itens 119 a 125') }
+    'README Publicar uma versão' = @{ text = $pubRelease; phrases = @('Publicando a 1.12.0', 'feat/estilos', 'feat/ux-vinculos', 'Publique **em ordem**: a 1.11.0 a partir da `main` antes de mesclar o ramo da 1.12.0', 'sonda P-U3', 'ou publique tudo junto como uma só versão', 'Estilos de gráfico (1.12.0):', 'Documentação (1.12.0):', 'recusa a `[1.11.0]`') }
+    'CHANGELOG ([Não lançado] ou [1.12.0])' = @{ text = $clEst; phrases = $estClPhrases }
+}
+foreach ($place in $estPlaces.Keys) {
+    $pt = [string]$estPlaces[$place].text
+    foreach ($ph in $estPlaces[$place].phrases) { Check ($pt.Contains($ph)) "estilos (1.12.0), $place cita '$ph'" }
+}
+# os valores das chaves do README (Recursos): cada chave (menos serie2 a serie7, que a faixa 'serie1 a serie8' cobre) e cada hachura
+foreach ($k in $styKeys) { if ($k -cmatch '^serie[2-7]$') { continue }; Check ($estRec.Contains($k)) "README (1.12.0): a chave '$k' do .tqqestilo está nos Recursos" }
+foreach ($p in $styPats) { Check ($estRec.Contains($p)) "README (1.12.0): a hachura '$p' está nos Recursos" }
+# Verificações manuais 119 a 125 do README
+$mvEstLines = @(($mvBlock -split "\r?\n") | Where-Object { $_ -match '^(\d+)\. ' -and [int]$Matches[1] -ge 119 -and [int]$Matches[1] -le 125 })
+Check ($mvEstLines.Count -eq 7 -and @($mvNums | Where-Object { $_ -ge 119 -and $_ -le 125 }).Count -eq 7 -and $mvNums.Count -ge 125) "README: os itens manuais 119 a 125 existem, numerados sem buracos ($($mvEstLines.Count); total $($mvNums.Count))"
+Check (@($mvEstLines | Where-Object { $_ -notmatch 'Não verificado em (Excel|PowerPoint) real' }).Count -eq 0) 'README (itens 119 a 125): todo item marca "Não verificado em Excel real" ou "em PowerPoint real"'
+$mvEstPins = @{
+    119 = @('Cascata MC', 'Seta diferença', 'hachura', 'figura E29', 'balão de comentário')
+    120 = @('Novo do gráfico', 'Salvar', 'Aplicar', 'pintado à mão', '620 x 400', 'nunca foi vista na tela')
+    121 = @('Exportar...', 'Importar...', 'Estilo importado: nome.', '.tqqestilo', '(importado)')
+    122 = @('Alterar dados', 'Conectores', 'Totais', 'Atualizar', 'Tons de cinza')
+    123 = @('pasta', 'outro usuário', 'Alterar dados', 'lista **Estilo**')
+    124 = @('Atualizar', 'aba contextual', 'Atualize o ThinQQ no Excel (1.12.0 ou mais novo) para usar os estilos pelo PowerPoint.', 'dois menus dinâmicos')
+    125 = @('sem o cabeçalho', '16 KB', '48 KB', 'comando=', 'O arquivo não é um estilo do ThinQQ válido (falta a linha ThinQQ-Estilo=1, ou é grande demais).', 'O arquivo é grande demais para um estilo do ThinQQ.', 'Linhas ignoradas (inválidas ou desconhecidas): N.', 'nada é executado')
+}
+foreach ($n in ($mvEstPins.Keys | Sort-Object)) {
+    $line = @($mvEstLines | Where-Object { $_ -match "^$n\. " })
+    foreach ($ph in $mvEstPins[$n]) { Check ($line.Count -eq 1 -and $line[0].Contains($ph)) "README item manual ${n}: cita '$ph'" }
+}
+# o exemplo E29 vem de DemoCoverage (o mesmo que a pasta de demonstração usa) e o texto da paleta antiga saiu
+$cov29 = @(Get-TqqDemoCoverage | Where-Object { $_.Sheet -eq 'E29' })
+Check ($cov29.Count -eq 1 -and $cov29[0].Features -contains 'style' -and $cov29[0].Menu.Contains('Estilo > Cascata MC')) 'demonstração (1.12.0): o exemplo E29 usa o estilo Cascata MC (recurso style) e o menu cita Estilo'
+Check (-not (@(Get-TqqDemoCoverage) | Where-Object { $_.Menu -match 'Paleta >' })) 'demonstração (1.12.0): nenhum exemplo cita o menu Paleta > (virou Estilo >)'
+# release/notes.txt (1.12.0): de 1 a 8 marcadores, em linguagem do usuário, diferentes da 1.11.0
+Check ($notesLines.Count -ge 4 -and $notesLines.Count -le 8) "notes.txt (1.12.0): de 4 a 8 linhas ($($notesLines.Count))"
+foreach ($ph in 'Estilo', 'Estilos...', 'Cascata MC', '.tqqestilo', 'PowerPoint', 'não foram verificados') { Check ($notesText.Contains($ph)) "notes.txt (1.12.0) cita '$ph'" }
+Check ($notesText -notmatch 'Dados novos: atualizar' -and $notesText -notmatch 'Selecionar tudo' -and $notesText -notmatch 'Sem mudanças no funcionamento') 'notes.txt (1.12.0): não repete o texto da 1.11.0 nem o da 1.10.1'
+Check ($notesText -notmatch 'TQQ_|Core_|Ppt[A-Z]\w+_|Style[A-Z]\w+_') 'notes.txt (1.12.0): linguagem do usuário, sem nomes internos'
 if ($script:fail -gt 0) { Write-Host "FALHAS Test-Docs: $script:fail"; exit 1 }
 Write-Host 'Test-Docs: OK'

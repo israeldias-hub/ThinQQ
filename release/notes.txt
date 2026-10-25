@@ -1,5 +1,6 @@
-• Atualizar como o think-cell: tudo nasce manual, também os gráficos criados pelo PowerPoint; quando a pasta do Excel muda, a faixa mostra "Dados novos: atualizar" no elemento selecionado e um clique atualiza, sem caixa de aviso.
-• Novo diálogo Vínculos (aba ThinQQ do PowerPoint): lista os gráficos, textos e tabelas vinculados com o estado de cada um e atualiza, liga o automático, verifica ou desvincula em lote, sem travar o PowerPoint.
-• O automático continua por elemento; apresentações da 1.6 a 1.10 ficam como estavam (para voltar tudo ao manual: Vínculos > Selecionar tudo > Manual).
-• Abrir uma apresentação não pergunta mais por padrão; as opções do automático saíram do menu do Excel e estão no Vínculos.
-• Com a pasta aberta, o próprio vínculo do Office pode trazer os valores do gráfico sozinho; a bandeira avisa que setas, rótulos e textos do ThinQQ ainda não acompanharam. A aba contextual ainda não foi verificada no PowerPoint real.
+• Novo: estilos de gráfico. A lista Paleta virou Estilo e o botão Estilos... abre uma janela para criar, editar, duplicar, importar, exportar e aplicar estilos (ao gráfico, à planilha ou à pasta); o Excel reaplica o estilo quando você muda os dados, liga conectores ou usa Alterar dados.
+• Estilos embutidos: Padrão ThinQQ, Tons de cinza e Cores do tema (as paletas de antes) e dois de cascata: Cascata MC (primeira barra hachurada, totais cinza, aumentos verdes, reduções vermelhas) e Cascata DDE.
+• O estilo é um arquivo .tqqestilo de texto: dá para mandar a um colega e importar; a pasta de trabalho leva uma cópia e quem a recebe vê o mesmo visual.
+• PowerPoint: menu Estilo na aba ThinQQ (e na aba contextual) e, ao atualizar, cores, hachura, rótulos e fonte do estilo chegam ao slide; exige o ThinQQ 1.12.0 no Excel.
+• Limites: tirar o estilo não desfaz fonte, rótulos nem as linhas de ligação das empilhadas; formatação à mão num papel do estilo é sobrescrita; ainda não há rótulo dentro da barra da cascata nem balão de comentário.
+• A janela Estilos..., o menu do PowerPoint e a cópia para o slide ainda não foram verificados no Excel e no PowerPoint reais.

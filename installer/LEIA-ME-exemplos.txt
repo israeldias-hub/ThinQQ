@@ -4,12 +4,12 @@
 ThinQQ-Demonstracao-Materiais-Construcao.xlsx é um Excel de exemplo para conhecer o ThinQQ abrindo e mexendo nos gráficos.
 
 O QUE É
-Uma rede fictícia de materiais de construção (8 lojas, 8 departamentos e 24 meses de vendas) com 28 exemplos, de E01 a E28: um por funcionalidade (os 21 tipos de gráfico e os principais recursos: totais, rótulos, setas, colchete, linha de valor, indicador 100%, mesma escala, soma consistente, corte de eixo, tendência e quadrantes). Todos os dados e nomes são fictícios.
+Uma rede fictícia de materiais de construção (8 lojas, 8 departamentos e 24 meses de vendas) com 29 exemplos, de E01 a E29: um por funcionalidade (os 21 tipos de gráfico e os principais recursos: totais, rótulos, setas, colchete, linha de valor, indicador 100%, mesma escala, soma consistente, corte de eixo, tendência e quadrantes). Todos os dados e nomes são fictícios.
 
 COMO USAR
 1. Abra o arquivo no Excel. Se ele abrir em "Modo Protegido" (arquivo baixado da internet), clique em "Habilitar edição".
 2. A primeira planilha (Indice) lista os exemplos: clique no nome de um exemplo para ir ao gráfico.
-3. Em cada exemplo (planilhas E01 a E28), a legenda diz o que o gráfico mostra e qual menu da aba ThinQQ o cria. A célula A1 ("Voltar ao índice") leva de volta ao índice.
+3. Em cada exemplo (planilhas E01 a E29), a legenda diz o que o gráfico mostra e qual menu da aba ThinQQ o cria. A célula A1 ("Voltar ao índice") leva de volta ao índice.
 4. Mude um número na tabela do exemplo (ou na planilha Dados) e veja o gráfico acompanhar.
 
 COM E SEM O THINQQ

@@ -6,7 +6,7 @@
 .NOTES     Entrada: os PNG de Export-DemoChartImages.ps1 (E01.png ... E28.png; E25 com E25a.png e E25b.png). Os títulos, tipos, menus e descrições
            vêm de tools\DemoCoverage.ps1 (Get-TqqDemoCoverage), nunca copiados à mão: se a cobertura mudar, rode de novo (o Test-Docs falha se a
            legenda de alguma figura não citar o título atual).
-           Saída (idempotente: duas execuções dão o mesmo arquivo): o bloco entre <!-- galeria:inicio --> e <!-- galeria:fim --> é substituído;
+           As figuras saem sem indentação (o tutorial tem teto de tamanho). Saída (idempotente: duas execuções dão o mesmo arquivo): o bloco entre <!-- galeria:inicio --> e <!-- galeria:fim --> é substituído;
            sem os marcadores, o bloco entra logo depois da tabela de exemplos da seção #demonstracao. Na tabela, o número do exemplo (E05) vira
            link para a figura (#ex-E05). Cada <figure id="ex-E05"> tem um <img> de largura/altura reais (lidas do IHDR do PNG) e alt em português.
            Sai com 0 (gravado) ou 1 (falha; o tutorial não é alterado).
@@ -54,8 +54,8 @@ try {
         $files = @(Get-ChildItem -LiteralPath $ImageDir -File | Where-Object { $_.Name -match "^$($it.Sheet)[a-z]?\.png$" } | Sort-Object Name)
         if ($files.Count -lt 1) { throw "sem imagem para $($it.Sheet) em $ImageDir" }
         $sheet = $it.Sheet
-        [void]$sb.Append("    <figure class=""gx"" id=""ex-$sheet"">" + $nl)
-        [void]$sb.Append('      <div class="gx-img">' + $nl)
+        [void]$sb.Append("<figure class=""gx"" id=""ex-$sheet"">" + $nl)
+        [void]$sb.Append('<div class="gx-img">' + $nl)
         $k = 0
         foreach ($f in $files) {
             $bytes = [IO.File]::ReadAllBytes($f.FullName)
@@ -63,16 +63,16 @@ try {
             $alt = "Gráfico do exemplo $sheet"
             if ($files.Count -gt 1) { $alt += " ($($k + 1) de $($files.Count))" }
             $alt += ": $($it.Title). Tipo: $($it.KindName)."
-            [void]$sb.Append("        <img src=""data:image/png;base64,$([Convert]::ToBase64String($bytes))"" width=""$($size.Width)"" height=""$($size.Height)"" alt=""$(ConvertTo-HtmlText $alt)"" />" + $nl)
+            [void]$sb.Append("<img src=""data:image/png;base64,$([Convert]::ToBase64String($bytes))"" width=""$($size.Width)"" height=""$($size.Height)"" alt=""$(ConvertTo-HtmlText $alt)"" />" + $nl)
             $k++; $imgCount++
         }
-        [void]$sb.Append('      </div>' + $nl)
-        [void]$sb.Append('      <figcaption>' + $nl)
-        [void]$sb.Append("        <strong>$sheet, $(ConvertTo-HtmlText $it.Title)</strong>" + $nl)
-        [void]$sb.Append("        <span class=""gx-menu"">Como criar: $(ConvertTo-HtmlText $it.Menu)</span>" + $nl)
-        [void]$sb.Append("        <span class=""gx-desc"">$(ConvertTo-HtmlText $it.Desc)</span>" + $nl)
-        [void]$sb.Append('      </figcaption>' + $nl)
-        [void]$sb.Append('    </figure>' + $nl)
+        [void]$sb.Append('</div>' + $nl)
+        [void]$sb.Append('<figcaption>' + $nl)
+        [void]$sb.Append("<strong>$sheet, $(ConvertTo-HtmlText $it.Title)</strong>" + $nl)
+        [void]$sb.Append("<span class=""gx-menu"">Como criar: $(ConvertTo-HtmlText $it.Menu)</span>" + $nl)
+        [void]$sb.Append("<span class=""gx-desc"">$(ConvertTo-HtmlText $it.Desc)</span>" + $nl)
+        [void]$sb.Append('</figcaption>' + $nl)
+        [void]$sb.Append('</figure>' + $nl)
     }
     [void]$sb.Append('  </div>' + $nl)
     [void]$sb.Append($end)
