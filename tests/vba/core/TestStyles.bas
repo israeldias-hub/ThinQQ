@@ -98,3 +98,84 @@ Public Sub Test_StyleDef_ColorsPatternsAndBuiltins()
     AssertEqual 3, StyleDef_SeriesCount(d)
     AssertFalse StyleDef_IsBuiltin("Meu")
 End Sub
+
+Private Function StyleTestDir() As String
+    Dim d As String
+    d = TempDir() & "\styles"
+    If Len(Dir(d, vbDirectory)) = 0 Then MkDir d
+    StyleStore_SetStoreDirForTest d
+    StyleTestDir = d
+End Function
+
+Public Sub Test_StyleStore_UserSaveGetDelete_TestDirOnly()
+    Dim d As String, t As String
+    StyleStore_ResetTestHooks
+    AssertEqual "", StyleStore_UserDir(), "build Test sem gancho: nunca a pasta real do usuario"
+    AssertTrue Left$(StyleStore_SaveUser("X", STYLEDEF_HEADER), 1) = "!", "sem deposito: recusa"
+    d = StyleTestDir()
+    t = STYLEDEF_HEADER & vbCrLf & "nome=Meu Estilo" & vbCrLf & "aumento=#00FF00"
+    AssertEqual "", StyleStore_SaveUser("Meu Estilo", t)
+    AssertTrue Len(Dir(d & "\Meu Estilo" & STYLEDEF_EXT)) > 0
+    AssertEqual t, StyleStore_UserText("meu estilo"), "sem diferenciar maiusculas"
+    AssertTrue InStr("|" & StyleStore_Names() & "|", "|Meu Estilo|") > 0
+    AssertTrue InStr("|" & StyleStore_Names() & "|", "|Cascata MC|") > 0, "embutidos na lista"
+    AssertTrue Left$(StyleStore_SaveUser("Cascata MC", t), 1) = "!", "nome de embutido recusado"
+    AssertEqual "", StyleStore_DeleteUser("Meu Estilo")
+    AssertEqual "", StyleStore_UserText("Meu Estilo")
+    StyleStore_ResetTestHooks
+End Sub
+
+Public Sub Test_StyleStore_Book_CustomXml_SaveReopen()
+    Dim wb As Workbook, p As String, t As String
+    Set wb = NewTempWorkbook()
+    t = STYLEDEF_HEADER & vbCrLf & "nome=Da Pasta" & vbCrLf & "total=#123456"
+    StyleStore_SaveBook wb, "Da Pasta", t
+    StyleStore_SaveBook wb, "Outro <&>", STYLEDEF_HEADER
+    AssertEqual t, Replace(StyleStore_BookText(wb, "da pasta"), vbLf, vbCrLf), "texto de volta (o XML normaliza CRLF)"
+    AssertEqual 1, wb.CustomXMLParts.SelectByNamespace(STYLESTORE_NS).Count, "uma parte so"
+    p = TempDir() & "\style-book.xlsx"
+    wb.SaveAs p, xlOpenXMLWorkbook
+    wb.Close SaveChanges:=False
+    Set wb = Workbooks.Open(p)
+    AssertTrue InStr(StyleStore_BookText(wb, "Da Pasta"), "total=#123456") > 0, "sobrevive a salvar e reabrir"
+    AssertEqual 2, StyleStore_BookAll(wb).Count
+    AssertTrue InStr(StyleStore_Get("Da Pasta", wb), "#123456") > 0, "a pasta acha o estilo que o usuario nao tem"
+    CloseTemp wb
+    Kill p
+End Sub
+
+Public Sub Test_StyleStore_ImportExport_Validates()
+    Dim d As String, p As String, nm As String, ign As Long, r As String, f As Integer
+    StyleStore_ResetTestHooks
+    d = StyleTestDir()
+    p = d & "\entrada.tqqestilo"
+    f = FreeFile
+    Open p For Output As #f
+    Print #f, STYLEDEF_HEADER
+    Print #f, "nome=Recebido;x"
+    Print #f, "aumento=#ABCDEF"
+    Print #f, "comando=executar o calc"
+    Close #f
+    r = StyleStore_Import(p, nm, ign)
+    AssertTrue Left$(r, 1) <> "!", r
+    AssertEqual "entrada", nm, "nome invalido no arquivo: vale o nome do arquivo"
+    AssertEqual 2, ign
+    AssertTrue InStr(StyleStore_UserText("entrada"), "aumento=#ABCDEF") > 0
+    AssertEqual "", StyleStore_Export("entrada", d & "\saida.tqqestilo")
+    AssertTrue InStr(StyleStore_ReadFile(d & "\saida.tqqestilo", r), "aumento=#ABCDEF") > 0
+    f = FreeFile
+    Open d & "\ruim.tqqestilo" For Output As #f
+    Print #f, "<xml>nada</xml>"
+    Close #f
+    AssertTrue Left$(StyleStore_Import(d & "\ruim.tqqestilo", nm, ign), 1) = "!", "sem cabecalho"
+    StyleStore_ResetTestHooks
+End Sub
+
+Public Sub Test_StyleStore_Default_TestMemory()
+    StyleStore_ResetTestHooks
+    AssertEqual "", StyleStore_DefaultName()
+    StyleStore_SetDefaultName "Cascata MC"
+    AssertEqual "Cascata MC", StyleStore_DefaultName()
+    StyleStore_ResetTestHooks
+    AssertEqual "", StyleStore_DefaultName()
+End Sub

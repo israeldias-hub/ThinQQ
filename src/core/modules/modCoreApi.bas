@@ -2291,3 +2291,56 @@ Private Sub RebuildTestHook(site As String)
         End If
     End If
 End Sub
+
+' ===== Estilos de grafico (1.12.0) =====
+
+' Nomes dos estilos para a faixa (embutidos, do usuario e os da pasta ativa), "|". Nunca propaga erro.
+Public Function Core_StyleNames() As String
+    On Error Resume Next
+    Core_StyleNames = StyleStore_Names(ActiveWorkbook)
+End Function
+
+Public Function Core_StyleDefault() As String
+    On Error Resume Next
+    Core_StyleDefault = StyleStore_DefaultName()
+End Function
+
+Public Sub Core_StyleSetDefault(name As String)
+    On Error Resume Next
+    StyleStore_SetDefaultName StyleDef_SafeName(name)
+End Sub
+
+' Importar estilo (arquivo .tqqestilo escolhido pelo usuario; build Test sai antes do dialogo). Nunca propaga erro.
+Public Sub Core_StyleImport()
+    Dim f As Variant, r As String, nm As String, ign As Long
+    On Error GoTo Fail
+    If BUILD_CONFIG = "Test" Then Exit Sub
+    f = Application.GetOpenFilename("Estilo do ThinQQ (*" & STYLEDEF_EXT & "),*" & STYLEDEF_EXT, , "Importar estilo do ThinQQ")
+    If VarType(f) = vbBoolean Then Exit Sub
+    r = StyleStore_Import(CStr(f), nm, ign)
+    If Left$(r, 1) = "!" Then
+        Core_Notify Mid$(r, 2), vbExclamation
+        Exit Sub
+    End If
+    Core_Notify "Estilo importado: " & nm & "." & IIf(ign > 0, " Linhas ignoradas (inválidas ou desconhecidas): " & ign & ".", ""), vbInformation
+    Exit Sub
+Fail:
+    Errors_Handle "Core_StyleImport"
+End Sub
+
+Public Sub Core_StyleExport(name As String)
+    Dim f As Variant, r As String
+    On Error GoTo Fail
+    If BUILD_CONFIG = "Test" Then Exit Sub
+    f = Application.GetSaveAsFilename(StyleDef_SafeName(name) & STYLEDEF_EXT, "Estilo do ThinQQ (*" & STYLEDEF_EXT & "),*" & STYLEDEF_EXT, , "Exportar estilo do ThinQQ")
+    If VarType(f) = vbBoolean Then Exit Sub
+    r = StyleStore_Export(name, CStr(f), ActiveWorkbook)
+    If Len(r) > 0 Then
+        Core_Notify Mid$(r, 2), vbExclamation
+    Else
+        Core_Notify "Estilo exportado para " & CStr(f) & ".", vbInformation
+    End If
+    Exit Sub
+Fail:
+    Errors_Handle "Core_StyleExport"
+End Sub
