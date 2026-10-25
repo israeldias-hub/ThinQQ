@@ -66,6 +66,9 @@ Public Const PPT_MSG_OLD_CORE_STATES As String = "Atualize o ThinQQ no Excel par
 Public Const PPT_MSG_OLD_CORE_FLAG As String = "Atualize o ThinQQ no Excel para mudar esta opção pelo PowerPoint."
 Public Const PPT_MSG_STATES_BUSY As String = "O ThinQQ está ocupado com outra atualização: tente Verificar de novo em instantes."
 Public Const PPT_MSG_NOCORE_STATES As String = "O ThinQQ não está carregado no Excel: abra o Excel com o ThinQQ para ver o estado dos vínculos."
+Public Const PPT_API_STYLE As Long = 7                     ' Core_StyleNames e comando "style" de Core_PptCommand (core 1.12.0)
+Public Const PPT_MSG_OLD_CORE_STYLE As String = "Atualize o ThinQQ no Excel (1.12.0 ou mais novo) para usar os estilos pelo PowerPoint."
+Private Const PPT_STYLE_MENU_MAX As Long = 60              ' botoes no menu Estilo (o resto e ignorado)
 Private Const RPC_E_CALL_REJECTED As Long = -2147418111
 Private Const RPC_E_RETRYLATER As Long = -2147417846
 Private mEvents As clsPptEvents
@@ -1940,7 +1943,7 @@ End Function
 ' pelo PowerPoint, depois de soltar o Excel. Reentrada ignorada; mBusy liberado em todo caminho. Nunca propaga.
 Public Sub PptTqq_CommandShapes(pres As Object, shapes As Collection, cmd As String, arg As String)
     Dim xl As Object, created As Boolean, core As String, msg As String, cats As String, a As Long, b As Long, a2 As String
-    Dim s As Object, entries As String, en As Long, ed As String
+    Dim s As Object, entries As String, en As Long, ed As String, api As Long
     If mBusy Then Exit Sub
     If shapes Is Nothing Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
     If shapes.Count = 0 Then PptTqq_Msg PPT_MSG_SELECT: Exit Sub
@@ -1955,9 +1958,12 @@ Public Sub PptTqq_CommandShapes(pres As Object, shapes As Collection, cmd As Str
     If xl Is Nothing Then mBusy = False: PptTqq_Msg PPT_MSG_NO_EXCEL_DATA, vbExclamation: PptRx_InvalidateElem: Exit Sub
     core = PptTqq_EnsureCore(xl, created)
     a2 = arg
+    If Len(core) > 0 Then api = PptTqq_CoreApi(xl, core)        ' lida uma vez (cada leitura e uma chamada ao Excel)
     If Len(core) = 0 Then
         msg = PPT_MSG_DATA_NOCORE
-    ElseIf PptTqq_CoreApi(xl, core) < PPT_API_CMD Then
+    ElseIf cmd = "style" And api < PPT_API_STYLE Then
+        msg = PPT_MSG_OLD_CORE_STYLE                                ' core 1.9.0 a 1.11.x: nao conhece o comando (1.12.0)
+    ElseIf api < PPT_API_CMD Then
         msg = PPT_MSG_OLD_CORE_CMD
     Else
         If cmd = "cagr" Or cmd = "diff" Then
@@ -1992,6 +1998,47 @@ Fail:
     PptTqq_Msg PptTqq_DataErrorText("Não foi possível aplicar: ", en, ed), vbExclamation
     PptRx_InvalidateElem                                ' o botao clicado volta ao estado gravado (revisao final G-II, M3)
 End Sub
+
+' ---- Estilo (1.12.0, API 7; spec 2026-10-23 secao 8.5) ----
+
+Private Function PptTqq_XmlEsc(s As String) As String
+    PptTqq_XmlEsc = Replace(Replace(Replace(Replace(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"), """", "&quot;")
+End Function
+
+' Conteudo do menu dinamico "Estilo": um botao por nome (tag = nome). Sem nomes (Excel sem o core 1.12.0): um botao desabilitado com o
+' aviso. prefix: "c" no menu da aba contextual (os ids dos dois menus nunca se repetem). Pura.
+Public Function PptTqq_StyleMenuXml(names As String, Optional prefix As String = "") As String
+    Dim s As String, a() As String, i As Long
+    s = "<menu xmlns=""http://schemas.microsoft.com/office/2009/07/customui"">"
+    If Len(names) = 0 Then
+        s = s & "<button id=""" & prefix & "pst_none"" label=""" & PptTqq_XmlEsc(PPT_MSG_OLD_CORE_STYLE) & """ enabled=""false""/>"
+    Else
+        a = Split(names, "|")
+        For i = 0 To UBound(a)
+            If i >= PPT_STYLE_MENU_MAX Then Exit For
+            s = s & "<button id=""" & prefix & "pst" & i & """ label=""" & PptTqq_XmlEsc(a(i)) & """ tag=""" & PptTqq_XmlEsc(a(i)) & """ onAction=""PptRx_OnStyle""/>"
+        Next
+    End If
+    PptTqq_StyleMenuXml = s & "</menu>"
+End Function
+
+' Nomes dos estilos do core (API 7) no Excel JA aberto (nunca cria um Excel nem abre o core); "" sem Excel/core/API ou se a chamada falha.
+' Nunca propaga.
+Public Function PptTqq_StyleNames() As String
+    Dim xl As Object, created As Boolean, core As String
+    On Error GoTo Done
+    Set xl = PptTqq_GetExcel(created, True)
+    If xl Is Nothing Then Exit Function
+    core = PptTqq_EnsureCore(xl, created)
+    If Len(core) > 0 Then
+        If PptTqq_CoreApi(xl, core) >= PPT_API_STYLE Then PptTqq_StyleNames = CStr(xl.Run("'" & core & "'!Core_StyleNames"))
+    End If
+Done:
+    On Error GoTo -1
+    On Error Resume Next
+    PptTqq_Release xl, created
+    Err.Clear
+End Function
 
 ' ---- Texto vinculado ao Excel (1.9.0, API 5; spec 5.3) ----
 

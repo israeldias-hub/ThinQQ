@@ -24,10 +24,10 @@ Private Const PPTIDX_FS As String = "|"                    ' indice: separador d
 Private Const PPTIDX_ES As String = vbLf                   ' indice: separador de entradas
 Public Const PPTSYNC_TAG_KIND As String = "TQQ_KIND"        ' tipo do grafico (a faixa do PowerPoint le sem chamar o Excel; spec 14.5)
 Public Const PPTSYNC_TAG_OPTS As String = "TQQ_OPTS"        ' estado das opcoes (PptSync_OptsText) para getPressed/getEnabled do .ppam
-Public Const CORE_PPT_API As Long = 6                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
+Public Const CORE_PPT_API As Long = 7                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
                                                            ' 3 = Core_PptInsertChart, Core_PptEditData, Core_PptDataSave (1.8.0);
                                                            ' 4 = Core_PptCommand, Core_PptCategories (1.9.0); 5 = Core_PptLinkText (1.9.0);
-                                                           ' 6 = Core_PptLinkStates (1.11.0)
+                                                           ' 6 = Core_PptLinkStates (1.11.0); 7 = Core_StyleNames e comando "style" (1.12.0)
 Public Const PPTSYNC_NONE As String = "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."
 Public Const PPTSYNC_NOT_FOUND As String = "Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo."
 Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."
@@ -385,6 +385,7 @@ Public Sub PptSync_SyncShape(shp As Object, co As ChartObject, Optional updateDa
         Errors_Log "PptSync: area interna do slide diferente da do Excel (grafico editado no PowerPoint?)" & vbTab & CStr(shp.Name)
     End If
     PptSync_Apply pc, snaps, cht, dx, dy
+    PptSync_ApplyFormat pc, cht                         ' estilo (1.12.0): o Update so traz os dados
     PptSync_Restore co, w0, h0, wb, saved0
     Application.ScreenUpdating = prevSU: Application.EnableEvents = prevEv
     Exit Sub
@@ -396,6 +397,70 @@ Fail:
     Application.ScreenUpdating = prevSU: Application.EnableEvents = prevEv
     On Error GoTo 0
     Err.Raise en, "PptSync_SyncShape", ed
+End Sub
+
+' Estilo (1.12.0; spec 2026-10-23 secao 8.5): LinkFormat.Update traz so os dados; com a opcao style no grafico do Excel, copia para o grafico do
+' slide (pc) a formatacao das series (preenchimento solido/hachura e borda), dos pontos 1 e n (primeira/ultima barra) e o negrito/cor dos
+' rotulos no nivel da serie, e a fonte do grafico. Mesma ordem de series dos dois lados (o slide e uma copia do grafico do Excel). Nunca
+' propaga erro (registrado): o resto da sincronizacao segue. A versao do estilo (stylever) ja entra na impressao digital: fica na linha de
+' metadados do bloco, que PptSync_Fingerprint le inteiro.
+Public Sub PptSync_ApplyFormat(pc As Object, cht As Chart)
+    Dim i As Long, xs As Series, ps As Object, n As Long
+    On Error GoTo Fail
+    If Len(Registry_GetOption(cht, "style", "")) = 0 Then Exit Sub
+    On Error Resume Next
+    pc.ChartArea.Format.TextFrame2.TextRange.Font.Name = cht.ChartArea.Font.Name
+    pc.ChartArea.Format.TextFrame2.TextRange.Font.Size = cht.ChartArea.Font.Size
+    Err.Clear
+    For i = 1 To cht.SeriesCollection.Count
+        Set xs = cht.SeriesCollection(i)
+        Set ps = Nothing
+        Set ps = pc.SeriesCollection(i)
+        If Not ps Is Nothing Then
+            PptSync_CopyFill xs.Format.Fill, ps.Format.Fill
+            ps.Format.Line.Visible = xs.Format.Line.Visible
+            n = xs.Points.Count
+            If n >= 1 Then PptSync_CopyPoint xs.Points(1), ps.Points(1)
+            If n >= 2 Then PptSync_CopyPoint xs.Points(n), ps.Points(n)
+            If xs.HasDataLabels Then
+                ps.DataLabels.Font.Bold = xs.DataLabels.Font.Bold
+                ps.DataLabels.Font.Color = xs.DataLabels.Font.Color
+            End If
+        End If
+        Err.Clear
+    Next
+    Exit Sub
+Fail:
+    Errors_Log "PptSync_ApplyFormat" & vbTab & Err.Number & vbTab & Err.Description
+End Sub
+
+Private Sub PptSync_CopyFill(srcFill As FillFormat, dst As Object)
+    On Error Resume Next
+    If srcFill.Visible = msoFalse Then
+        dst.Visible = msoFalse
+        Exit Sub
+    End If
+    dst.Visible = msoTrue
+    If srcFill.Type = msoFillPatterned Then
+        dst.Patterned srcFill.Pattern
+        dst.ForeColor.RGB = srcFill.ForeColor.RGB
+        dst.BackColor.RGB = srcFill.BackColor.RGB
+    Else
+        dst.Solid
+        dst.ForeColor.RGB = srcFill.ForeColor.RGB
+    End If
+    Err.Clear
+End Sub
+
+Private Sub PptSync_CopyPoint(xp As Point, pp As Object)
+    On Error Resume Next
+    PptSync_CopyFill xp.Format.Fill, pp.Format.Fill
+    pp.Format.Line.Visible = xp.Format.Line.Visible
+    If xp.Format.Line.Visible = msoTrue Then
+        pp.Format.Line.ForeColor.RGB = xp.Format.Line.ForeColor.RGB
+        pp.Format.Line.Weight = xp.Format.Line.Weight
+    End If
+    Err.Clear
 End Sub
 
 ' Titulo ligado a uma celula (1.9.0; revisao final E, I2): MEDIDO, o LinkFormat.Update do PowerPoint so traz os dados, nunca o titulo do

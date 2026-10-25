@@ -43,6 +43,9 @@ Public Sub PptRx_InvalidateElem()
     For Each id In Array("btnPptUpdateNew", "cbtnUpdate", "cbtnUpdateNew", "ctglAuto", "cbtnEditData", "ctglLabels", "ctglTotals", "ctglConnectors", "cddNumFmt", "cddLegend", "cbtnCagr", "cbtnDiff", "cbtnClearAnn")
         mRibbon.InvalidateControl CStr(id)
     Next
+    ' 1.12.0: menu Estilo (fixo e contextual): estado com a selecao
+    mRibbon.InvalidateControl "dmPptStyle"
+    mRibbon.InvalidateControl "cdmStyle"
 End Sub
 
 ' 1.11.0: Atualizar e Automatico valem para grafico, texto e tabela vinculados.
@@ -203,4 +206,17 @@ End Sub
 Public Sub PptRx_OnClearAnn(control As IRibbonControl)
     On Error Resume Next
     PptTqq_CommandShapes Nothing, PptTqq_SelectedTagged(), "clear", ""
+End Sub
+
+' ---- Menu "Estilo" (1.12.0, API 7): nomes do core no Excel ja aberto; o botao aplica pelo Core_PptCommand "style" (tag = nome). ----
+
+Public Sub PptRx_GetStyleMenu(control As IRibbonControl, ByRef content)
+    On Error Resume Next
+    content = PptTqq_StyleMenuXml("")
+    content = PptTqq_StyleMenuXml(PptTqq_StyleNames(), PptRx_ItemPrefix(PptRx_IdOf(control)))
+End Sub
+
+Public Sub PptRx_OnStyle(control As IRibbonControl)
+    On Error Resume Next
+    PptTqq_CommandShapes Nothing, PptTqq_SelectedTagged(), "style", PptRx_TagOf(control)
 End Sub

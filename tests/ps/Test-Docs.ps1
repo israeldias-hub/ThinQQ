@@ -85,8 +85,8 @@ if ($parsed) {
     $pptSec = $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']")
     $pptUi = @()
     if ($pptSec) { $pptUi = @($pptSec.SelectNodes(".//*[contains(concat(' ', normalize-space(@class), ' '), ' ui ')]") | ForEach-Object { ($_.InnerText -replace '\s+', ' ').Trim() } | Sort-Object -Unique) }
-    $pptCtl = @($pptRibbon.SelectNodes("//*[local-name()='tab' or local-name()='group' or local-name()='menu' or local-name()='button' or local-name()='toggleButton' or local-name()='dropDown' or local-name()='item']"))
-    Check ($pptCtl.Count -eq 82) "faixa do PowerPoint: 82 controles (2 abas (a fixa e a contextual da 1.11.0), 6 grupos, 5 menus, 39 botões (21 tipos de Inserir gráfico; Vínculos na fixa e na contextual), 8 alternâncias, 4 listas e 18 itens (a lista Ao abrir foi para o diálogo Vínculos): $($pptCtl.Count))"
+    $pptCtl = @($pptRibbon.SelectNodes("//*[local-name()='tab' or local-name()='group' or local-name()='menu' or local-name()='dynamicMenu' or local-name()='button' or local-name()='toggleButton' or local-name()='dropDown' or local-name()='item']"))
+    Check ($pptCtl.Count -eq 84) "faixa do PowerPoint: 84 controles (2 abas (a fixa e a contextual da 1.11.0), 6 grupos, 5 menus, 2 menus dinâmicos Estilo (1.12.0, fixa e contextual), 39 botões (21 tipos de Inserir gráfico; Vínculos na fixa e na contextual), 8 alternâncias, 4 listas e 18 itens (a lista Ao abrir foi para o diálogo Vínculos): $($pptCtl.Count))"
     foreach ($n in $pptCtl) {
         $l = $n.GetAttribute('label')
         Check ($pptUi -contains $l) "#powerpoint cita o controle da faixa do PowerPoint '$l'"

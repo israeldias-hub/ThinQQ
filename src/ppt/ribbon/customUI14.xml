@@ -91,6 +91,9 @@
                   screentip="Seta diferença" supertip="Acrescenta a seta da diferença entre duas categorias, escolhidas pelo número numa lista."/>
           <button id="btnPptClearAnn" label="Remover setas" imageMso="Delete" onAction="PptRx_OnClearAnn" getEnabled="PptRx_GetElemEnabled"
                   screentip="Remover setas" supertip="Remove as setas (CAGR, diferença e delta) e os colchetes do gráfico do ThinQQ selecionado, como o Remover setas do Excel."/>
+          <!-- 1.12.0: estilos (Core_StyleNames e Core_PptCommand "style", API 7); a lista vem do Excel ja aberto a cada abertura do menu -->
+          <dynamicMenu id="dmPptStyle" label="Estilo" imageMso="FormatPainter" getContent="PptRx_GetStyleMenu" getEnabled="PptRx_GetElemEnabled" invalidateContentOnDrop="true"
+                       screentip="Estilo do gráfico" supertip="Aplica um estilo do ThinQQ ao gráfico selecionado (a lista vem do Excel aberto com o ThinQQ 1.12.0)."/>
         </group>
       </tab>
     </tabs>
@@ -124,6 +127,7 @@
               <item id="clegendright" label="Direita"/>
               <item id="clegendnone" label="Nenhuma"/>
             </dropDown>
+            <dynamicMenu id="cdmStyle" label="Estilo" imageMso="FormatPainter" getContent="PptRx_GetStyleMenu" getEnabled="PptRx_GetElemEnabled" invalidateContentOnDrop="true" screentip="Estilo do gráfico" supertip="Aplica um estilo do ThinQQ ao gráfico selecionado (a lista vem do Excel aberto com o ThinQQ 1.12.0)."/>
             <button id="cbtnCagr" label="Seta CAGR" imageMso="ArrowsMore" tag="cagr" onAction="PptRx_OnArrow" getEnabled="PptRx_GetOptEnabled"/>
             <button id="cbtnDiff" label="Seta diferença" imageMso="ShapeUpArrow" tag="diff" onAction="PptRx_OnArrow" getEnabled="PptRx_GetOptEnabled"/>
             <button id="cbtnClearAnn" label="Remover setas" imageMso="Delete" onAction="PptRx_OnClearAnn" getEnabled="PptRx_GetElemEnabled"/>

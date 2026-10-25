@@ -1891,7 +1891,7 @@ End Function
 
 ' API 4 (1.9.0): comando da faixa do PowerPoint nos graficos listados (spec 14.5): "toggle" (arg = labels|totals|connectors + ":1"/":0" = o
 ' valor, como a faixa do Excel; sem ":valor" inverte), "numfmt"/"legend" (arg = valor), "cagr"/"diff" (arg = "de,ate", indices de categoria a
-' partir de 1), "clear" (remove as anotacoes: setas, delta e colchetes). Cada grafico (pasta + TQQ_CHART) recebe o comando uma vez. Aplica pelo
+' partir de 1), "clear" (remove as anotacoes: setas, delta e colchetes), "style" (arg = nome do estilo; API 7, 1.12.0). Cada grafico (pasta + TQQ_CHART) recebe o comando uma vez. Aplica pelo
 ' MESMO codigo da faixa do Excel, Core_SafeRefresh, salva so a pasta de DADOS (pasta do usuario fica alterada e nao salva: o usuario decide)
 ' e sincroniza (forcado, com o motor de sempre: LinkFormat.Update so com o arquivo presente) so as formas em que o comando deu certo. Pasta do
 ' usuario fechada nunca e aberta (PPTCMD_MSG_OPEN_SOURCE). Devolve "" ou a 1a mensagem (recusa da matriz em texto). Sem caixas (modo
@@ -1911,7 +1911,7 @@ Private Function PptCommandImpl(pres As Object, entries As String, cmd As String
     Dim summary As String, done As Collection, key As String, prev As Variant
     On Error GoTo Fail
     Select Case cmd
-        Case "toggle", "numfmt", "legend", "cagr", "diff", "clear"
+        Case "toggle", "numfmt", "legend", "cagr", "diff", "clear", "style"
         Case Else: PptCommandImpl = PPTCMD_MSG_UNKNOWN & cmd: Exit Function
     End Select
     Set opened = New Collection: Set okItems = New Collection: Set done = New Collection
@@ -2012,6 +2012,9 @@ Private Function PptCmd_One(shp As Object, cmd As String, arg As String, opened 
             If cmd = "cagr" Then Ann_AddCagr c, a, b Else Ann_AddDifference c, a, b
         Case "clear"
             Ann_RemoveAll c, False
+        Case "style"
+            ' 1.12.0 (API 7): o mesmo Style_ApplyNamed da faixa do Excel (estilo inexistente/invalido: 7140 volta como texto pelo Fail)
+            Style_ApplyNamed c, arg, True
     End Select
     Style_Reapply c                                 ' estilo (1.12.0): conectores, rotulos e setas novos recebem o estilo do grafico
     Core_SafeRefresh c
@@ -2019,7 +2022,7 @@ Private Function PptCmd_One(shp As Object, cmd As String, arg As String, opened 
     Exit Function
 Fail:
     Select Case Err.Number
-        Case vbObjectError + 7001, vbObjectError + 7002, vbObjectError + 7100, vbObjectError + 7130
+        Case vbObjectError + 7001, vbObjectError + 7002, vbObjectError + 7100, vbObjectError + 7130, vbObjectError + 7140
             PptCmd_One = Err.Description
         Case Else
             PptCmd_One = "Não foi possível aplicar: " & Err.Description & " (" & Err.Number & ")"
@@ -2315,10 +2318,13 @@ End Sub
 
 ' ===== Estilos de grafico (1.12.0) =====
 
-' Nomes dos estilos para a faixa (embutidos, do usuario e os da pasta ativa), "|". Nunca propaga erro.
+' Nomes dos estilos para a faixa (embutidos, do usuario e os da pasta ativa), "|". Tambem o menu Estilo do PowerPoint (API 7, por xl.Run: modo
+' silencioso equilibrado). Nunca propaga erro.
 Public Function Core_StyleNames() As String
     On Error Resume Next
+    Core_QuietBegin
     Core_StyleNames = StyleStore_Names(ActiveWorkbook)
+    Core_QuietEnd
 End Function
 
 Public Function Core_StyleDefault() As String
