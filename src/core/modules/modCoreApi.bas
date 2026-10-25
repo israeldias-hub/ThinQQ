@@ -1611,7 +1611,8 @@ Private Sub CopyToPowerPointImpl(mode As String)
     If linked And linkState <> 0 And Not wb.Saved Then msg = msg & " " & PPT_NOTE_DIRTY
     Ppt_TestHook "after"
     mPptPasteOk = Ppt_PasteKept(linked, linkState)   ' colou; no modo "chart", com o vinculo (linkState 0: o PowerPoint colou sem vinculo)
-    Core_Notify msg, vbInformation                   ' ANTES de ativar o PowerPoint: a caixa (Release) nao fica escondida atras dele
+    If Ppt_FrameAfterCopy(linked, linkState) Then CopyFrameAfterPaste c      ' 1.13.0 (X2b): so depois do ultimo ponto de falha
+    Core_Notify msg, vbInformation                  ' ANTES de ativar o PowerPoint: a caixa (Release) nao fica escondida atras dele
     If BUILD_CONFIG <> "Test" Then                   ' nos testes o PowerPoint do teste nao aparece nem rouba o foco
         On Error Resume Next
         app.Visible = -1
@@ -1644,6 +1645,19 @@ Fail:
     Else
         Errors_HandleErr "Core_CopyToPowerPoint(" & mode & ")", en, Ppt_ErrorText(en, ed)
     End If
+End Sub
+
+' Moldura do intervalo de origem depois de uma colagem vinculada que manteve o vinculo (1.13.0, X2b): "Copiar como grafico vinculado" passa a
+' marcar, como "Vincular ao PowerPoint", que o grafico foi ao PowerPoint, e assim "Alterar dados" avisa (LINKFRAME_NOTE_REBUILT). Desenhada
+' so depois do ultimo ponto de falha da colagem: colagem que falhou ou ficou sem vinculo nunca deixa moldura. Moldura que ja existe (colagem
+' anterior, Vincular ao PowerPoint, pasta de dados do PowerPoint) fica como esta. Nunca propaga erro.
+Private Sub CopyFrameAfterPaste(c As Chart)
+    Dim src As Range
+    On Error Resume Next
+    If Not LinkFrame_Find(c) Is Nothing Then Exit Sub
+    Set src = Block_SourceRange(c)
+    If Not src Is Nothing Then LinkFrame_Ensure c, src
+    Err.Clear
 End Sub
 
 ' Grafico vinculado recem-colado (Parte A): etiquetas TQQ_* (para a atualizacao ao reabrir) e as anotacoes recalculadas no tamanho do slide

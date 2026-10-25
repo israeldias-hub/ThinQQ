@@ -1096,14 +1096,14 @@ Check (@(Get-InsertChangelogMissing (Get-InsertChangelogBlock "## [Não lançado
 $insPlaces = [ordered]@{
     'tutorial #ppt-inserir' = @{ text = $insTut; phrases = @(
         $lblIns, $lblFrames, 'Salve a pasta de trabalho antes de inserir no PowerPoint', 'Nada foi criado', 'Esta pasta não tem molduras de intervalos vinculados ao PowerPoint',
-        'moldura verde', 'não muda o vínculo', 'Alterar dados', 'Só os gráficos inseridos por este caminho ganham moldura', 'Não é impressa', 'vermelha e azul',
+        'moldura verde', 'não muda o vínculo', 'Alterar dados', 'desde a 1.13.0, também os colados com', 'Não é impressa', 'vermelha e azul',
         'sem moldura', 'sem vínculo com a pasta', 'desmarcada', 'cinco menus', 'sonda P4', 'itens 69 a 74', 'Atualize o ThinQQ para usar este recurso.', 'não insere nada',
         'Não verificado em PowerPoint e Excel reais', 'é só um indicador', 'também existe no Excel') }
     'README Recursos' = @{ text = $insRec; phrases = @(
-        $lblIns, $lblFrames, 'Moldura verde', 'não muda o vínculo', 'Alterar dados', 'só os gráficos inseridos por este caminho ganham moldura', 'vermelha e azul', 'não é impressa',
+        $lblIns, $lblFrames, 'Moldura verde', 'não muda o vínculo', 'Alterar dados', 'desde a 1.13.0, também os colados com', 'vermelha e azul', 'não é impressa',
         'Nada foi criado', 'sem moldura', 'Atualize o ThinQQ para usar este recurso.', 'itens 69 a 74', 'sonda P4', 'Não verificado em Excel e PowerPoint reais', 'volta desmarcada') }
     'README Limitações' = @{ text = $readmeLimTxt; phrases = @(
-        'Inserir também no slide (1.7.0)', 'não muda o vínculo', 'só os gráficos inseridos por este caminho ganham moldura', 'vermelha e azul', 'não é impressa',
+        'Inserir também no slide (1.7.0)', 'não muda o vínculo', 'desde a 1.13.0, também os colados com', 'vermelha e azul', 'não é impressa',
         'Atualize o ThinQQ para usar este recurso.', 'itens 69 a 74', 'sonda P4', 'Alterar dados') }
     'CHANGELOG ([Não lançado] ou [1.7.0])' = @{ text = $clIns; phrases = $clInsPhrases }
 }

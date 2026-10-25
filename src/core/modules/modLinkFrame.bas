@@ -7,7 +7,7 @@ Option Explicit
 ' moldura sai (nao e redesenhada) e o usuario e avisado para inserir ou colar de novo (LINKFRAME_NOTE_REBUILT). Cor pelo estado (1.13.0,
 ' LinkFrame_SetState): verde = alguma apresentacao aberta usa o grafico; vermelha = nenhuma. Nada aqui propaga erro.
 Public Const LINKFRAME_PREFIX As String = "tqqlink_"
-Public Const LINKFRAME_NOTE_REBUILT As String = "O gráfico foi recriado: o slide do PowerPoint não o acompanha mais. Insira ou cole o gráfico de novo no slide."
+Public Const LINKFRAME_NOTE_REBUILT As String = "O gráfico foi recriado: o gráfico que já está no slide do PowerPoint não o acompanha mais e, ao atualizar o vínculo, pode perder os totais e mostrar dados antigos. Cole o gráfico de novo no slide (Vincular ao PowerPoint) e apague o antigo."
 Public Const LINKFRAME_GREEN As Long = 5287936      ' RGB(0, 176, 80)
 Public Const LINKFRAME_RED As Long = 192            ' RGB(192, 0, 0)
 Private mTestFailDraw As Boolean    ' gancho de teste (LinkFrame_SetFailDrawForTest): falha logo depois de criar o retangulo; so no build Test

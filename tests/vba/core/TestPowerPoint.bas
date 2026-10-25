@@ -229,6 +229,7 @@ Public Sub Test_Ppt_RealPaste_WhenAvailable()
     AssertEqual 13, slide.Shapes(1).Type, "msoPicture"
     AssertAlmost 432, CDbl(slide.Shapes(1).Height), 2, "limitado pela altura (432 pt = 80% de 540): largura ~710 (" & slide.Shapes(1).Width & ")"
     AssertTrue InStr(Core_LastNotice(), "slide 1") > 0 And InStr(Core_LastNotice(), "como imagem") > 0, Core_LastNotice()
+    AssertTrue LinkFrame_Find(c) Is Nothing, "X2b: imagem nao ganha moldura"
     Core_ClearLastNotice
     If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "chart"
@@ -238,11 +239,20 @@ Public Sub Test_Ppt_RealPaste_WhenAvailable()
     AssertEqual -1, CLng(shp.Chart.ChartData.IsLinked), "vinculado a pasta salva"
     AssertTrue shp.Chart.Shapes.Count >= 2, "formas da seta CAGR preservadas: " & shp.Chart.Shapes.Count
     AssertTrue InStr(Core_LastNotice(), "gráfico vinculado") > 0, Core_LastNotice()
+    ' X2b (1.13.0): Copiar como grafico vinculado (vinculo mantido) tambem marca o intervalo de origem com a moldura
+    AssertTrue Not LinkFrame_Find(c) Is Nothing, "X2b: colado vinculado ganha moldura"
+    AssertEqual rng.Address, LinkFrame_Find(c).TopLeftCell.Resize(rng.Rows.Count, rng.Columns.Count).Address, "no intervalo de origem"
     rng.Worksheet.Range("B2").Value = 11
     Core_ClearLastNotice
     If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "chart"
     AssertTrue InStr(Core_LastNotice(), PPT_NOTE_DIRTY) > 0, "aviso de alteracoes nao salvas"
+    AssertEqual 1, CountFramesOf(rng.Worksheet), "colar de novo nao duplica a moldura"
+    ' X2b: com a moldura, Alterar dados avisa que o slide precisa ser colado de novo
+    Core_ClearLastNotice
+    AssertTrue Core_RebuildFromRange(c, rng.Worksheet.Range("A1:B3")), "Alterar dados"
+    AssertEqual LINKFRAME_NOTE_REBUILT, Core_LastNotice(), "aviso: colar de novo"
+    AssertEqual 0, CountFramesOf(rng.Worksheet), "a moldura sai"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error Resume Next
@@ -429,6 +439,7 @@ Public Sub Test_Ppt_FailureAfterPaste_RemovesPastedShape_WhenAvailable()
     If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "chart"
     AssertEqual 0, slide.Shapes.Count, "grafico colado e removido quando o ajuste falha"
+    AssertTrue LinkFrame_Find(c) Is Nothing, "X2b: colagem que falhou nao deixa moldura"
     AssertEqual 0, CLng(Application.CutCopyMode), "modo de copia do Excel cancelado na falha"
     Core_ClearLastNotice
     Ppt_SetFailForTest "after"                       ' Onda B (B1.4): falha DEPOIS de colar e ajustar tambem tira a forma do slide
@@ -436,6 +447,7 @@ Public Sub Test_Ppt_FailureAfterPaste_RemovesPastedShape_WhenAvailable()
     Core_CopyToPowerPoint "chart"
     AssertEqual 0, slide.Shapes.Count, "falha depois de colar: a forma colada sai do slide"
     AssertTrue InStr(Core_LastNotice(), "falha injetada (after)") > 0, Core_LastNotice()
+    AssertTrue LinkFrame_Find(c) Is Nothing, "X2b: falha depois de colar nao deixa moldura"
     Ppt_SetFailForTest "place"
     Core_CopyToPowerPoint "xyz"                      ' saida antecipada: o gancho nao pode ficar armado
     Core_ClearLastNotice
@@ -447,6 +459,7 @@ Public Sub Test_Ppt_FailureAfterPaste_RemovesPastedShape_WhenAvailable()
     If UserWindowAppeared(app) Then GoTo Cleanup
     Core_CopyToPowerPoint "chart"
     AssertEqual 2, slide.Shapes.Count, "grafico vinculado colado"
+    AssertTrue Not LinkFrame_Find(c) Is Nothing, "X2b: colagem vinculada que deu certo ganha moldura"
     AssertEqual 0, CLng(Application.CutCopyMode), "modo de copia do Excel cancelado apos colar o grafico"
 Cleanup:
     en = Err.Number: ed = Err.Description
@@ -500,4 +513,17 @@ Public Sub Test_Ppt_PasteKept_UnlinkedPasteDropsFrame()
     AssertTrue Ppt_PasteKept(True, -1), "leitura falhou: o aviso diz vinculado"
     AssertFalse Ppt_PasteKept(True, 0), "colado sem vinculo: sem moldura"
     AssertTrue Ppt_PasteKept(False, -1), "imagem"
+    ' X2b (1.13.0): Copiar como grafico vinculado desenha a moldura so com o vinculo mantido; imagem nunca
+    AssertTrue Ppt_FrameAfterCopy(True, 1)
+    AssertTrue Ppt_FrameAfterCopy(True, -1), "leitura falhou: o aviso diz vinculado"
+    AssertFalse Ppt_FrameAfterCopy(True, 0), "colado sem vinculo: sem moldura"
+    AssertFalse Ppt_FrameAfterCopy(False, 1), "imagem: sem moldura"
+    AssertFalse Ppt_FrameAfterCopy(False, -1), "imagem: sem moldura"
 End Sub
+
+Private Function CountFramesOf(ws As Worksheet) As Long
+    Dim s As Shape
+    For Each s In ws.Shapes
+        If Left$(s.Name, Len(LINKFRAME_PREFIX)) = LINKFRAME_PREFIX Then CountFramesOf = CountFramesOf + 1
+    Next
+End Function

@@ -249,6 +249,11 @@ Public Function Ppt_PasteKept(linked As Boolean, linkState As Long) As Boolean
     Ppt_PasteKept = (Not linked) Or linkState <> 0
 End Function
 
+' A colagem pede a moldura do intervalo de origem (1.13.0, X2b)? So o grafico VINCULADO que manteve o vinculo (Ppt_PasteKept); imagem nunca.
+Public Function Ppt_FrameAfterCopy(linked As Boolean, linkState As Long) As Boolean
+    Ppt_FrameAfterCopy = linked And Ppt_PasteKept(linked, linkState)
+End Function
+
 ' Estado do vinculo do grafico colado: 1 vinculado, 0 colado sem vinculo, -1 desconhecido (leitura falhou). Nunca propaga erro.
 Public Function Ppt_LinkState(shp As Object) As Long
     Dim v As Variant
