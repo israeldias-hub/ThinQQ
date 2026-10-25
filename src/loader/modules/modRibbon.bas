@@ -10,7 +10,6 @@ Private mStyleLegacy As Boolean                ' o core nao tem Core_StyleNames 
 Private mStyleShown As Long                    ' quantos itens a lista Estilo exibiu (Rx_StyleCount): o clique confere
 Private mSupportsProc As String     ' gancho de teste (Rx_TestSetSupportsProc); vazio = "Core_Supports"
 Private mTestProcSuffix As String   ' gancho de teste (Rx_TestSetFeatureProcSuffix): simula um core sem os procedimentos novos
-Private mPptInsert As Boolean       ' "Inserir tambem no slide" (sessao)
 Public Const RX_MSG_UPDATE As String = "Atualize o ThinQQ para usar este recurso."
 Public Const RX_MSG_STYLE_LIST_CHANGED As String = "A lista de estilos mudou. Abra a lista Estilo e escolha de novo."
 Public Const TUTORIAL_URL As String = "https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html"
@@ -121,39 +120,35 @@ Private Function CoreOrWarn() As Boolean
     CoreOrWarn = True
 End Function
 
-' Inserir (menus Colunas, Barras, Cascata, Linha e area, Mais tipos). Com "Inserir tambem no slide" marcada (1.7.0) o grafico tambem vai ao
-' slide ativo (Core_InsertToPowerPoint; core anterior: aviso de atualizar). Rx_InsertProcFor e a parte testavel da escolha.
+' Inserir (menus Colunas, Barras, Cascata, Linha e area, Mais tipos): so no Excel. O caminho para o slide e a galeria "Vincular ao
+' PowerPoint" (Rx_OnLinkToPpt), desde a 1.13.0.
 Public Sub Rx_OnInsert(control As IRibbonControl)
-    Dim p As String
     On Error Resume Next
-    If CoreOrWarn() Then
-        p = Rx_InsertProcFor()
-        If p = "Core_InsertToPowerPoint" Then RunCoreFeature p, control.Tag Else Loader_RunCore p, control.Tag
-    End If
+    If CoreOrWarn() Then Loader_RunCore "Core_Insert", control.Tag
     Loader_InvalidateRibbon                 ' o grafico novo fica selecionado: o tipo mudou
 End Sub
 
-Public Function Rx_InsertProcFor() As String
-    If mPptInsert Then Rx_InsertProcFor = "Core_InsertToPowerPoint" Else Rx_InsertProcFor = "Core_Insert"
+' Galeria "Vincular ao PowerPoint" (1.13.0): o tipo vem do tag. Parte testavel em Rx_LinkProcFor.
+Public Function Rx_LinkProcFor(tag As String) As String
+    If tag = "table" Then
+        Rx_LinkProcFor = "Core_PptInsertTable"
+    ElseIf tag = "text" Then
+        Rx_LinkProcFor = "Core_PptLinkTextFromPpt"
+    ElseIf Len(tag) > 0 And InStr(tag, ",") = 0 And tag Like "[a-z]*" And Not tag Like "*[!a-z0-9]*" Then
+        Rx_LinkProcFor = "Core_InsertToPowerPoint"
+    End If
 End Function
 
-' Gancho de teste: marca/desmarca "Inserir tambem no slide" sem a faixa. So existe no build de Teste.
-Public Sub Rx_SetPptInsertForTest(v As Boolean)
-    If BUILD_CONFIG <> "Test" Then Exit Sub
-    mPptInsert = v
-End Sub
-
-' "Inserir tambem no slide" (1.7.0): estado so da sessao, no loader (nao exige o core). Nunca propaga erro.
-Public Sub Rx_GetPptInsert(control As IRibbonControl, ByRef pressed)
+Public Sub Rx_OnLinkToPpt(control As IRibbonControl)
+    Dim p As String
     On Error Resume Next
-    pressed = mPptInsert
+    p = Rx_LinkProcFor(CStr(control.Tag))
+    If Len(p) = 0 Then Exit Sub
+    If CoreOrWarn() Then
+        If p = "Core_InsertToPowerPoint" Then RunCoreFeature p, CStr(control.Tag) Else RunCoreFeature p
+    End If
+    Loader_InvalidateRibbon
 End Sub
-
-Public Sub Rx_OnPptInsert(control As IRibbonControl, pressed As Boolean)
-    On Error Resume Next
-    mPptInsert = pressed
-End Sub
-
 ' Mostrar/ocultar molduras (1.7.0): todas as molduras da pasta ativa. Sempre ativo; core anterior: aviso de atualizar.
 Public Sub Rx_OnPptFrames(control As IRibbonControl)
     On Error Resume Next
@@ -386,19 +381,6 @@ End Sub
 Public Sub Rx_OnPptChart(control As IRibbonControl)
     On Error Resume Next
     If CoreOrWarn() Then RunCoreFeature "Core_CopyToPowerPoint", "chart"
-End Sub
-
-' Vincular celula ao texto selecionado no PowerPoint (1.9.0): age sobre a celula ativa (sem grafico); sempre ativo; core anterior: aviso de
-' atualizar.
-Public Sub Rx_OnPptLinkText(control As IRibbonControl)
-    On Error Resume Next
-    If CoreOrWarn() Then RunCoreFeature "Core_PptLinkTextFromPpt"
-End Sub
-
-' Inserir tabela vinculada no slide (1.10.0): age sobre as celulas selecionadas (sem grafico); sempre ativo; core anterior: aviso de atualizar.
-Public Sub Rx_OnPptTable(control As IRibbonControl)
-    On Error Resume Next
-    If CoreOrWarn() Then RunCoreFeature "Core_PptInsertTable"
 End Sub
 
 ' Titulo ligado a uma celula (1.9.0): o core pergunta a celula (InputBox) e liga o titulo do grafico ativo; core anterior: aviso de atualizar.

@@ -290,14 +290,33 @@ Check ($null -ne $lt -and $null -eq $lt.NextSibling) 'ppt: Texto vinculado ao Ex
 Check (@($px.SelectNodes("//u:group[@id='grpPptElem']/u:*", $pns)).Count -eq 5) 'ppt: Elemento selecionado com 5 controles (1.11.0: + Dados novos: atualizar)'
 Check ($pptBas -match '(?m)^Public Sub PptRx_GetLinkedEnabled\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetNewVisible\(control As IRibbonControl, ByRef \w+\)' -and $pptBas -match '(?m)^Public Sub PptRx_GetUpdVisible\(control As IRibbonControl, ByRef \w+\)') 'ppt: assinaturas de getEnabled/getVisible da bandeira (1.11.0)'
 Check ($pptBas -match '(?m)^Public Sub PptRx_OnLinkText\(control As IRibbonControl\)') 'ppt: assinatura de Texto vinculado ao Excel'
-# e no Excel: Vincular celula ao texto selecionado (menu PowerPoint) e Titulo ligado a uma celula (Mais opcoes)
-Check ($null -ne $xx.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptLinkText'][@onAction='Rx_OnPptLinkText'][@image='tqq_ppt16']", $xns)) 'excel: Vincular célula ao texto selecionado'
-# 1.10.0 (F3): Inserir tabela vinculada no slide (menu PowerPoint do Excel, logo depois de Vincular celula ao texto; sem getEnabled)
-$tb = $xx.SelectSingleNode("//u:menu[@id='mnuPpt']/u:button[@id='btnPptTable'][@label='Inserir tabela vinculada no slide'][@onAction='Rx_OnPptTable'][@image='tqq_ppt16']", $xns)
-Check ($null -ne $tb) 'excel: Inserir tabela vinculada no slide'
-Check ($null -ne $tb -and -not $tb.HasAttribute('getEnabled')) 'excel: Inserir tabela vinculada no slide sempre ativo'
-Check ($null -ne $tb -and $tb.PreviousSibling.GetAttribute('id') -ceq 'btnPptLinkText') 'excel: tabela vinculada depois de Vincular célula ao texto selecionado'
-Check (@($xx.SelectNodes("//u:menu[@id='mnuPpt']/u:button", $xns)).Count -eq 6) 'excel: menu PowerPoint com 6 botões'
+# 1.13.0 (X1): galeria "Vincular ao PowerPoint" (aba ThinQQ e guia Inserir): 23 itens iguais nas duas, tags = os 21 do grpInsert + table + text,
+# ids com prefixo l / i, mnuPpt e chkPptInsert extintos; unico idMso de aba do Excel = TabInsert (id conhecido; um id invalido faz o Excel descartar a faixa inteira)
+$xTabs = @($xx.SelectNodes('//u:tab', $xns))
+Check ($xTabs.Count -eq 2 -and $xTabs[0].GetAttribute('id') -eq 'tqqTab' -and $xTabs[1].GetAttribute('idMso') -ceq 'TabInsert' -and -not $xTabs[1].HasAttribute('id')) 'excel: abas = tqqTab + guia Inserir (idMso TabInsert)'
+Check ((@($xx.SelectNodes('//u:*[@idMso]', $xns) | Where-Object { $_.LocalName -ne 'button' -and $_.LocalName -ne 'toggleButton' -and $_.LocalName -ne 'menu' -and $_.LocalName -ne 'dropDown' -and $_.LocalName -ne 'tab' }).Count -eq 0)) 'excel: idMso so em abas e controles'
+Check (@($xx.SelectNodes('//u:tab[@idMso]', $xns) | Where-Object { $_.GetAttribute('idMso') -cne 'TabInsert' }).Count -eq 0) 'excel: unico idMso de aba permitido = TabInsert'
+Check ('grpLinkPpt' -ceq $xx.SelectSingleNode("//u:tab[@id='tqqTab']/u:group[1]", $xns).GetAttribute('id')) 'excel: a galeria e o 1o grupo de tqqTab'
+$wantTags = ($excelTags + @('table', 'text')) -join ','
+foreach ($gm in @(@('lmnuLinkPpt', 'l'), @('imnuLinkPpt', 'i'))) {
+    $mn = $xx.SelectSingleNode("//u:menu[@id='$($gm[0])'][@size='large']", $xns)
+    Check ($null -ne $mn) "excel: menu $($gm[0]) grande"
+    $bs = @($mn.SelectNodes('u:button', $xns))
+    Check ($bs.Count -eq 23 -and @($bs | Where-Object { $_.GetAttribute('onAction') -ceq 'Rx_OnLinkToPpt' }).Count -eq 23) "excel: $($gm[0]) com 23 botoes Rx_OnLinkToPpt ($($bs.Count))"
+    Check ((($bs | ForEach-Object { $_.GetAttribute('tag') }) -join ',') -ceq $wantTags) "excel: tags de $($gm[0]) = tipos do grpInsert + table + text"
+    Check (@($bs | Where-Object { -not $_.GetAttribute('id').StartsWith($gm[1]) }).Count -eq 0) "excel: ids de $($gm[0]) com prefixo $($gm[1])"
+    Check (@($mn.SelectNodes('*[@size]', $xns)).Count -eq 0) "excel: filhos de $($gm[0]) sem size"
+}
+Check ($null -ne $xx.SelectSingleNode("//u:tab[@idMso='TabInsert']/u:group[@id='grpTqqInsertTab']/u:menu[@id='imnuLinkPpt']", $xns)) 'excel: galeria na guia Inserir (grpTqqInsertTab)'
+Check ($null -eq $xx.SelectSingleNode("//*[@id='mnuPpt' or @id='chkPptInsert' or @id='btnPptLinkText' or @id='btnPptTable' or @id='sep3']", $xns)) 'excel: mnuPpt, chkPptInsert, btnPptLinkText, btnPptTable e sep3 extintos'
+Check (@($xx.SelectNodes("//u:menu[@id='lmnuPptMore']/u:button", $xns) | ForEach-Object { $_.GetAttribute('id') }) -join ',' -ceq 'btnPptImage,btnPptChart,btnPptFrames') 'excel: Mais (PowerPoint) = imagem, grafico vinculado, molduras'
+Check ($null -ne $xx.SelectSingleNode("//u:group[@id='grpLinkPpt']/u:button[@id='btnPptSync'][@label='Atualizar no PowerPoint'][@onAction='Rx_OnPptSync']", $xns)) 'excel: Atualizar no PowerPoint no grupo da galeria'
+$xIds = @($xx.SelectNodes('//u:*[@id]', $xns) | ForEach-Object { $_.GetAttribute('id') })
+Check ($xIds.Count -eq @($xIds | Sort-Object -Unique).Count) "excel: ids unicos ($($xIds.Count))"
+Check (@($xIds | Where-Object { $_ -notmatch '^[A-Za-z_][A-Za-z0-9_]*$' }).Count -eq 0) 'excel: todos os ids sao ids de XML validos'
+$loaderBas = [IO.File]::ReadAllText((Join-Path $RepoRoot 'src\loader\modules\modRibbon.bas'))
+Check ($loaderBas -match '(?m)^Public Sub Rx_OnLinkToPpt\(control As IRibbonControl\)' -and $loaderBas -match '(?m)^Public Function Rx_LinkProcFor\(tag As String\) As String') 'excel: assinaturas de Rx_OnLinkToPpt e Rx_LinkProcFor'
+Check ($loaderBas -notmatch 'mPptInsert|Rx_OnPptInsert|Rx_GetPptInsert|Rx_InsertProcFor|Rx_OnPptLinkText|Rx_OnPptTable') 'excel: sem restos da caixa Inserir tambem no slide'
 Check ($null -ne $xx.SelectSingleNode("//u:menu[@id='mnuMore']/u:button[@id='btnLinkTitle'][@onAction='Rx_OnLinkTitle'][@getEnabled='Rx_GetEnabled'][@image='tqq_options16']", $xns)) 'excel: Título ligado a uma célula'
 # 1.12.0 (S4): Paleta virou Estilo (itens vindos do core) e o botao Estilos... logo depois da Legenda
 Check ($null -eq $xx.SelectSingleNode("//u:dropDown[@id='ddPalette']", $xns)) 'Excel: Paleta virou Estilo'
