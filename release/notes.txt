@@ -1,6 +1,6 @@
-• Novo: estilos de gráfico. A lista Paleta virou Estilo e o botão Estilos... abre uma janela para criar, editar, duplicar, importar, exportar e aplicar estilos (ao gráfico, à planilha ou à pasta); o Excel reaplica o estilo quando você muda os dados, liga conectores ou usa Alterar dados.
-• Estilos embutidos: Padrão ThinQQ, Tons de cinza e Cores do tema (as paletas de antes) e dois de cascata: Cascata MC (primeira barra hachurada, totais cinza, aumentos verdes, reduções vermelhas) e Cascata DDE.
-• O estilo é um arquivo .tqqestilo de texto: dá para mandar a um colega e importar; a pasta de trabalho leva uma cópia e quem a recebe vê o mesmo visual.
-• PowerPoint: menu Estilo na aba ThinQQ (e na aba contextual) e, ao atualizar, cores, hachura, rótulos e fonte do estilo chegam ao slide; exige o ThinQQ 1.12.0 no Excel.
-• Limites: tirar o estilo não desfaz fonte, rótulos nem as linhas de ligação das empilhadas; formatação à mão num papel do estilo é sobrescrita; ainda não há rótulo dentro da barra da cascata nem balão de comentário.
-• A janela Estilos..., o menu do PowerPoint e a cópia para o slide ainda não foram verificados no Excel e no PowerPoint reais.
+• Novo: Vincular ao PowerPoint. O primeiro grupo da aba ThinQQ agora é PowerPoint, com uma galeria: selecione a tabela e escolha o tipo para criar o gráfico no Excel e colá-lo vinculado no slide (a mesma galeria também aparece na guia Inserir do Excel).
+• Tabela vinculada e Texto: célula ao texto selecionado estão na mesma galeria; a caixa Inserir também no slide e o menu PowerPoint saíram, e Atualizar no PowerPoint e o menu Mais ficam no grupo.
+• A moldura do intervalo agora mostra o estado: verde quando o gráfico está no PowerPoint e vermelha quando não está (ela é revista ao inserir, em Atualizar e em Mostrar/ocultar molduras). Copiar como gráfico vinculado também desenha a moldura.
+• Alterar dados continua recriando o gráfico: o que já está no slide pode perder os totais e mostrar dados antigos até você colar de novo, e o aviso agora diz isso.
+• Fora desta versão: botão direito e duplo clique sobre o gráfico e mudar o tipo do gráfico que já está no slide.
+• A galeria, a guia Inserir e a cor da moldura ainda não foram verificadas no Excel e no PowerPoint reais.
