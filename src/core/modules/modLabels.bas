@@ -5,6 +5,7 @@ Private mLinking As Long        ' Labels_LinkPoints em andamento: um refresh ree
 Private Const SIDE_LABEL_OFFSET As Double = 6   ' o rotulo "Left"/"Right" de um ponto XY comeca ~5,5 pt depois dele (medido nos totais XY)
 Private Const SEGMENT_TEXT_HEIGHT As Double = 12 ' altura (pt) do texto de um rotulo de 9 pt: segmento de cascata mais baixo que isso esconde o rotulo
 Private Const LINE_FMT_KEEP As String = "?"      ' Labels_ComboLineFormat: as celulas da linha nao foram localizadas, o formato atual fica
+Private mRelinked As Boolean    ' LinkOnePoint ligou um rotulo (9 pt, cor padrao) desde o ultimo Labels_TakeRelinked: o estilo refaz rotulo.* (1.12.0)
 
 ' Liga o rótulo de cada ponto à célula correspondente (rótulo "vivo"). Posição: acima/abaixo conforme o sinal
 ' (fixedPos = 0) ou a posição fixa informada (ex.: xlLabelPositionCenter em segmentos empilhados). Com horizontal
@@ -76,7 +77,14 @@ Public Function Labels_IsLinking() As Boolean
     Labels_IsLinking = (mLinking > 0)
 End Function
 
+' True se algum rotulo foi (re)ligado desde a ultima chamada (e zera). Core_SafeRefresh: o estilo do grafico refaz rotulo.*. Nunca propaga.
+Public Function Labels_TakeRelinked() As Boolean
+    Labels_TakeRelinked = mRelinked
+    mRelinked = False
+End Function
+
 Private Sub LinkOnePoint(s As Series, i As Long, cellRef As String, v As Variant, numFmt As String, fixedPos As Long, fontColor As Long, horizontal As Boolean)
+    mRelinked = True
     With s.Points(i)
         .HasDataLabel = True
         .DataLabel.Formula = cellRef

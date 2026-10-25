@@ -24,7 +24,7 @@ Public Const PPTTEXT_MSG_NOCELL As String = "Selecione no Excel a célula com o 
 Public Const PPTTEXT_MSG_CUT As String = "Texto vinculado. O valor da célula tem mais de 255 caracteres: o slide mostra só os primeiros 255."
 Public Const PPTTEXT_MSG_EDITDATA As String = "Editar dados vale para gráficos do ThinQQ. Para mudar o texto vinculado, altere a célula no Excel e atualize."
 Public Const PPTTEXT_MSG_NOTCHART As String = "Este comando vale só para gráficos do ThinQQ (não para texto vinculado)."
-Public Const PPTTEXT_MSG_NOPPT As String = "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em 'Vincular célula ao texto selecionado'."
+Public Const PPTTEXT_MSG_NOPPT As String = "Abra a apresentação no PowerPoint, selecione a caixa de texto (ou parte do texto dela) e clique de novo em Vincular ao PowerPoint > Texto: célula ao texto selecionado."
 Public Const PPTTEXT_MSG_SAVEHINT As String = "Salve a pasta de trabalho: assim o vínculo acompanha linhas e colunas inseridas antes da célula."
 Public Const PPTTEXT_MSG_GROUP As String = "O texto está dentro de um grupo: desagrupe as formas (ou use uma caixa de texto fora do grupo) para vincular."
 Public Const PPTTEXT_MSG_LINKED As String = "Texto vinculado à célula "     ' + Pasta!Planilha!Endereco + "." (o .ppam reconhece o prefixo "Texto vinculado")
@@ -265,6 +265,7 @@ Public Function PptText_Link(shp As Object, startPos As Long, length As Long, ce
     shp.Tags.Add PPTTEXT_TAG, "1"                                ' por ultimo: so vira "texto vinculado" com as etiquetas completas
     ' automatica antes (outra pasta: o indice TQQ_AUTOIDX passa a citar a pasta nova) ou "Novos vinculos automaticos"
     If wasAuto Or PptAuto_NewLinksAuto() Then PptSync_SetAuto shp, True
+    PptLinkIdx_Add shp                                           ' 1.11.0: indice de todos os vinculos (nunca propaga erro)
     If cut Then PptText_Link = PPTTEXT_MSG_CUT
     Exit Function
 Undo:

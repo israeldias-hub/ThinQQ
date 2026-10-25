@@ -24,12 +24,14 @@ Private Const PPTIDX_FS As String = "|"                    ' indice: separador d
 Private Const PPTIDX_ES As String = vbLf                   ' indice: separador de entradas
 Public Const PPTSYNC_TAG_KIND As String = "TQQ_KIND"        ' tipo do grafico (a faixa do PowerPoint le sem chamar o Excel; spec 14.5)
 Public Const PPTSYNC_TAG_OPTS As String = "TQQ_OPTS"        ' estado das opcoes (PptSync_OptsText) para getPressed/getEnabled do .ppam
-Public Const CORE_PPT_API As Long = 5                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
+Private Const PPTSYNC_FORMAT_MAX_POINTS As Long = 100       ' pizza/rosca: fatias copiadas uma a uma ate este teto (1.12.0)
+Public Const CORE_PPT_API As Long = 7                     ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
                                                            ' 3 = Core_PptInsertChart, Core_PptEditData, Core_PptDataSave (1.8.0);
-                                                           ' 4 = Core_PptCommand, Core_PptCategories (1.9.0); 5 = Core_PptLinkText (1.9.0)
+                                                           ' 4 = Core_PptCommand, Core_PptCategories (1.9.0); 5 = Core_PptLinkText (1.9.0);
+                                                           ' 6 = Core_PptLinkStates (1.11.0); 7 = Core_StyleNames e comando "style" (1.12.0)
 Public Const PPTSYNC_NONE As String = "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."
 Public Const PPTSYNC_NOT_FOUND As String = "Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo."
-Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."
+Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo Atualizar no PowerPoint."
 Public Const PPTSYNC_UNKNOWN_SRC As String = "(origem desconhecida)"      ' forma marcada sem SourceFullName e sem TQQ_BOOK
 Public Const PPTSYNC_C_PROCEED As Long = 0                   ' PptSync_Classify: segue para a pasta de origem
 Public Const PPTSYNC_C_UNLINKED As Long = 1                  ' colado sem vinculo ("Sem vinculo com o Excel")
@@ -384,6 +386,7 @@ Public Sub PptSync_SyncShape(shp As Object, co As ChartObject, Optional updateDa
         Errors_Log "PptSync: area interna do slide diferente da do Excel (grafico editado no PowerPoint?)" & vbTab & CStr(shp.Name)
     End If
     PptSync_Apply pc, snaps, cht, dx, dy
+    PptSync_ApplyFormat pc, cht                         ' estilo (1.12.0): o Update so traz os dados
     PptSync_Restore co, w0, h0, wb, saved0
     Application.ScreenUpdating = prevSU: Application.EnableEvents = prevEv
     Exit Sub
@@ -395,6 +398,93 @@ Fail:
     Application.ScreenUpdating = prevSU: Application.EnableEvents = prevEv
     On Error GoTo 0
     Err.Raise en, "PptSync_SyncShape", ed
+End Sub
+
+' Estilo (1.12.0; spec 2026-10-23 secao 8.5): LinkFormat.Update traz so os dados; com a opcao style no grafico do Excel, copia para o grafico do
+' slide (pc) a formatacao das series (preenchimento solido/hachura e borda), dos pontos 1 e n (primeira/ultima barra) e o negrito/cor dos
+' rotulos no nivel da serie, e a fonte do grafico. Mesma ordem de series dos dois lados (o slide e uma copia do grafico do Excel). Nunca
+' propaga erro (registrado): o resto da sincronizacao segue. A versao do estilo (stylever) ja entra na impressao digital: fica na linha de
+' metadados do bloco, que PptSync_Fingerprint le inteiro.
+' Revisao final 1.12.0: copia tambem quando o grafico TEVE estilo e voltou a uma paleta (stylever = STYLE_VER_PALETTE; I3: Padrao ThinQQ, Tons
+' de cinza e Cores do tema chegam ao slide); grafico que nunca teve estilo fica como sempre. Pizza/rosca: todos os pontos (cada fatia tem a
+' sua cor) ate PPTSYNC_FORMAT_MAX_POINTS (acima: so a serie); linha visivel: cor, espessura e traco (e os marcadores das series de linha) (I4).
+Public Sub PptSync_ApplyFormat(pc As Object, cht As Chart)
+    Dim i As Long, xs As Series, ps As Object, n As Long, k As Long, allPoints As Boolean, ct As Long
+    On Error GoTo Fail
+    If Len(Registry_GetOption(cht, "style", "")) = 0 And Len(Registry_GetOption(cht, "stylever", "")) = 0 Then Exit Sub
+    allPoints = (Kinds_Family(Registry_ChartType(cht)) = "pie")
+    On Error Resume Next
+    pc.ChartArea.Format.TextFrame2.TextRange.Font.Name = cht.ChartArea.Font.Name
+    pc.ChartArea.Format.TextFrame2.TextRange.Font.Size = cht.ChartArea.Font.Size
+    Err.Clear
+    For i = 1 To cht.SeriesCollection.Count
+        Set xs = cht.SeriesCollection(i)
+        Set ps = Nothing
+        Set ps = pc.SeriesCollection(i)
+        If Not ps Is Nothing Then
+            PptSync_CopyFill xs.Format.Fill, ps.Format.Fill
+            ps.Format.Line.Visible = xs.Format.Line.Visible
+            If xs.Format.Line.Visible = msoTrue Then
+                ps.Format.Line.ForeColor.RGB = xs.Format.Line.ForeColor.RGB
+                ps.Format.Line.Weight = xs.Format.Line.Weight
+                ps.Format.Line.DashStyle = xs.Format.Line.DashStyle
+            End If
+            ct = 0
+            ct = xs.ChartType
+            Select Case ct
+                Case xlLine, xlLineMarkers, xlLineStacked, xlLineMarkersStacked, xlXYScatter, xlXYScatterLines
+                    ps.MarkerBackgroundColor = xs.MarkerBackgroundColor
+                    ps.MarkerForegroundColor = xs.MarkerForegroundColor
+            End Select
+            Err.Clear
+            n = xs.Points.Count
+            If allPoints And n <= PPTSYNC_FORMAT_MAX_POINTS Then
+                For k = 1 To n
+                    PptSync_CopyPoint xs.Points(k), ps.Points(k)
+                Next
+            Else
+                If n >= 1 Then PptSync_CopyPoint xs.Points(1), ps.Points(1)
+                If n >= 2 Then PptSync_CopyPoint xs.Points(n), ps.Points(n)
+            End If
+            If xs.HasDataLabels Then
+                ps.DataLabels.Font.Bold = xs.DataLabels.Font.Bold
+                ps.DataLabels.Font.Color = xs.DataLabels.Font.Color
+            End If
+        End If
+        Err.Clear
+    Next
+    Exit Sub
+Fail:
+    Errors_Log "PptSync_ApplyFormat" & vbTab & Err.Number & vbTab & Err.Description
+End Sub
+
+Private Sub PptSync_CopyFill(srcFill As FillFormat, dst As Object)
+    On Error Resume Next
+    If srcFill.Visible = msoFalse Then
+        dst.Visible = msoFalse
+        Exit Sub
+    End If
+    dst.Visible = msoTrue
+    If srcFill.Type = msoFillPatterned Then
+        dst.Patterned srcFill.Pattern
+        dst.ForeColor.RGB = srcFill.ForeColor.RGB
+        dst.BackColor.RGB = srcFill.BackColor.RGB
+    Else
+        dst.Solid
+        dst.ForeColor.RGB = srcFill.ForeColor.RGB
+    End If
+    Err.Clear
+End Sub
+
+Private Sub PptSync_CopyPoint(xp As Point, pp As Object)
+    On Error Resume Next
+    PptSync_CopyFill xp.Format.Fill, pp.Format.Fill
+    pp.Format.Line.Visible = xp.Format.Line.Visible
+    If xp.Format.Line.Visible = msoTrue Then
+        pp.Format.Line.ForeColor.RGB = xp.Format.Line.ForeColor.RGB
+        pp.Format.Line.Weight = xp.Format.Line.Weight
+    End If
+    Err.Clear
 End Sub
 
 ' Titulo ligado a uma celula (1.9.0; revisao final E, I2): MEDIDO, o LinkFormat.Update do PowerPoint so traz os dados, nunca o titulo do
@@ -721,7 +811,7 @@ End Function
 ' recomendacao "somente leitura" e a notificacao de arquivo em uso tambem nao perguntam. SEGURANCA: o caminho vem da apresentacao (de quem a
 ' fez): a pasta e aberta com as macros DESLIGADAS (AutomationSecurity = 3, msoAutomationSecurityForceDisable, so durante o Open e restaurada
 ' em todo caminho), entao nenhuma macro dela roda nem ao abrir nem ao fechar.
-Private Function PptSync_OpenBook(path As String, opened As Collection) As Workbook
+Public Function PptSync_OpenBook(path As String, opened As Collection) As Workbook
     Dim w As Workbook, prevAlerts As Boolean, prevEvents As Boolean, en As Long, ed As String, prevSec As Long
     For Each w In Application.Workbooks
         If StrComp(w.FullName, path, vbTextCompare) = 0 Then Set PptSync_OpenBook = w: Exit Function
@@ -748,7 +838,7 @@ Private Function PptSync_OpenBook(path As String, opened As Collection) As Workb
 End Function
 
 ' A pasta ja aberta neste Excel com esse FullName (sem diferenciar maiusculas); Nothing se nao esta aberta. Nunca abre nada.
-Private Function PptSync_FindOpenBook(path As String) As Workbook
+Public Function PptSync_FindOpenBook(path As String) As Workbook
     Dim w As Workbook
     For Each w In Application.Workbooks
         If StrComp(w.FullName, path, vbTextCompare) = 0 Then Set PptSync_FindOpenBook = w: Exit Function
@@ -756,7 +846,7 @@ Private Function PptSync_FindOpenBook(path As String) As Workbook
 End Function
 
 ' Fecha sem salvar as pastas abertas pela sincronizacao, com os eventos desligados (restaurados ao fim; nunca propaga erro).
-Private Sub PptSync_CloseOpened(opened As Collection)
+Public Sub PptSync_CloseOpened(opened As Collection)
     Dim w As Variant, prevEvents As Boolean
     On Error Resume Next
     prevEvents = Application.EnableEvents
@@ -866,10 +956,12 @@ Public Function PptSync_Presentation(pres As Object, force As Boolean) As String
     Next
     If items.Count = 0 Then
         If Len(PptSync_Tag(pres, PPTSYNC_TAG_INDEX)) > 0 Then PptSync_TagDelete pres, PPTSYNC_TAG_INDEX    ' indice velho de formas apagadas
+        If Len(PptSync_Tag(pres, PPTSTATE_TAG_LINKIDX)) > 0 Then PptSync_TagDelete pres, PPTSTATE_TAG_LINKIDX
         PptSync_Presentation = PPTSYNC_NONE
         Exit Function
     End If
     PptSync_RebuildIndex pres, items
+    PptLinkIdx_Rebuild pres, items
     PptSync_Presentation = PptSync_Items(items, force)
 End Function
 
@@ -927,8 +1019,8 @@ Public Function PptSync_Items(items As Collection, force As Boolean, Optional no
                         r = PptSync_SyncOne(shp, wb, force)
                     End If
                     Select Case r
-                        Case PPTSYNC_R_OK: nOk = nOk + 1
-                        Case PPTSYNC_R_SAME: nSame = nSame + 1
+                        Case PPTSYNC_R_OK: nOk = nOk + 1: PptState_SetTag shp, False          ' 1.11.0: atualizado = sem bandeira
+                        Case PPTSYNC_R_SAME: nSame = nSame + 1: PptState_SetTag shp, False
                         Case PPTSYNC_R_NOCHART
                             If kind = "text" Then
                                 nNoCell = nNoCell + 1

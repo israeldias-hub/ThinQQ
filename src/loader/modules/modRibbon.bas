@@ -5,10 +5,13 @@ Private mHasChart As Boolean        ' cache de Core_HasChart por ciclo de Invali
 Private mHasChartValid As Boolean
 Private mSupports As Object         ' cache de Core_Supports por ciclo de Invalidate: Scripting.Dictionary tag -> Boolean
 Private mSupportsMissing As Boolean ' o core nao tem Core_Supports (versao 1.0.0) ou nao esta carregado: vale ate o fim do ciclo
+Private mStyleNames As Variant                 ' nomes dos estilos do ciclo de Invalidate (Rx_StyleNamesFor)
+Private mStyleLegacy As Boolean                ' o core nao tem Core_StyleNames (anterior a 1.12.0): a lista sao as tres paletas
+Private mStyleShown As Long                    ' quantos itens a lista Estilo exibiu (Rx_StyleCount): o clique confere
 Private mSupportsProc As String     ' gancho de teste (Rx_TestSetSupportsProc); vazio = "Core_Supports"
 Private mTestProcSuffix As String   ' gancho de teste (Rx_TestSetFeatureProcSuffix): simula um core sem os procedimentos novos
-Private mPptInsert As Boolean       ' "Inserir tambem no slide" (sessao)
 Public Const RX_MSG_UPDATE As String = "Atualize o ThinQQ para usar este recurso."
+Public Const RX_MSG_STYLE_LIST_CHANGED As String = "A lista de estilos mudou. Abra a lista Estilo e escolha de novo."
 Public Const TUTORIAL_URL As String = "https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html"
 
 Public Sub Rx_OnLoad(ribbon As IRibbonUI)
@@ -22,6 +25,7 @@ Private Sub ResetRibbonCaches()
     mHasChartValid = False
     mSupportsMissing = False
     Set mSupports = Nothing
+    mStyleNames = Empty
 End Sub
 
 ' Gancho de teste: troca o nome do procedimento de capacidade (simula um core 1.0.0, sem Core_Supports). So existe no build de Teste.
@@ -116,39 +120,45 @@ Private Function CoreOrWarn() As Boolean
     CoreOrWarn = True
 End Function
 
-' Inserir (menus Colunas, Barras, Cascata, Linha e area, Mais tipos). Com "Inserir tambem no slide" marcada (1.7.0) o grafico tambem vai ao
-' slide ativo (Core_InsertToPowerPoint; core anterior: aviso de atualizar). Rx_InsertProcFor e a parte testavel da escolha.
+' Inserir (menus Colunas, Barras, Cascata, Linha e area, Mais tipos): so no Excel. O caminho para o slide e a galeria "Vincular ao
+' PowerPoint" (Rx_OnLinkToPpt), desde a 1.13.0.
 Public Sub Rx_OnInsert(control As IRibbonControl)
-    Dim p As String
     On Error Resume Next
-    If CoreOrWarn() Then
-        p = Rx_InsertProcFor()
-        If p = "Core_InsertToPowerPoint" Then RunCoreFeature p, control.Tag Else Loader_RunCore p, control.Tag
-    End If
+    If CoreOrWarn() Then Loader_RunCore "Core_Insert", control.Tag
     Loader_InvalidateRibbon                 ' o grafico novo fica selecionado: o tipo mudou
 End Sub
 
-Public Function Rx_InsertProcFor() As String
-    If mPptInsert Then Rx_InsertProcFor = "Core_InsertToPowerPoint" Else Rx_InsertProcFor = "Core_Insert"
+' Galeria "Vincular ao PowerPoint" (1.13.0): o tipo vem do tag. Parte testavel em Rx_LinkProcFor.
+Public Function Rx_LinkProcFor(tag As String) As String
+    If tag = "table" Then
+        Rx_LinkProcFor = "Core_PptInsertTable"
+    ElseIf tag = "text" Then
+        Rx_LinkProcFor = "Core_PptLinkTextFromPpt"
+    ElseIf Len(tag) > 0 And InStr(tag, ",") = 0 And tag Like "[a-z]*" And Not tag Like "*[!a-z0-9]*" Then
+        Rx_LinkProcFor = "Core_InsertToPowerPoint"
+    End If
 End Function
 
-' Gancho de teste: marca/desmarca "Inserir tambem no slide" sem a faixa. So existe no build de Teste.
-Public Sub Rx_SetPptInsertForTest(v As Boolean)
-    If BUILD_CONFIG <> "Test" Then Exit Sub
-    mPptInsert = v
-End Sub
-
-' "Inserir tambem no slide" (1.7.0): estado so da sessao, no loader (nao exige o core). Nunca propaga erro.
-Public Sub Rx_GetPptInsert(control As IRibbonControl, ByRef pressed)
+Public Sub Rx_OnLinkToPpt(control As IRibbonControl)
+    Dim tg As String
     On Error Resume Next
-    pressed = mPptInsert
+    tg = CStr(control.Tag)
+    If Err.Number <> 0 Then Exit Sub
+    Rx_LinkRun tg
 End Sub
 
-Public Sub Rx_OnPptInsert(control As IRibbonControl, pressed As Boolean)
+' Corpo da galeria Vincular ao PowerPoint (testavel sem IRibbonControl; revisao final 1.13.0, M5): tag desconhecido nao faz nada; core sem o
+' procedimento (anterior a 1.7.0 para os tipos, 1.9.0 para Texto, 1.10.0 para Tabela) = aviso RX_MSG_UPDATE. Nunca propaga.
+Public Sub Rx_LinkRun(tg As String)
+    Dim p As String
     On Error Resume Next
-    mPptInsert = pressed
+    p = Rx_LinkProcFor(tg)
+    If Len(p) = 0 Then Exit Sub
+    If CoreOrWarn() Then
+        If p = "Core_InsertToPowerPoint" Then RunCoreFeature p, tg Else RunCoreFeature p
+    End If
+    Loader_InvalidateRibbon
 End Sub
-
 ' Mostrar/ocultar molduras (1.7.0): todas as molduras da pasta ativa. Sempre ativo; core anterior: aviso de atualizar.
 Public Sub Rx_OnPptFrames(control As IRibbonControl)
     On Error Resume Next
@@ -194,7 +204,6 @@ Public Function Rx_SelectedIdFor(tag As String) As String
     If Len(s) = 0 Then
         Select Case tag
             Case "numfmt": s = "int"
-            Case "palette": s = "padrao"
             Case "gap": s = "50"
             Case "legend": s = "right"
         End Select
@@ -206,6 +215,104 @@ End Function
 Public Sub Rx_GetSelectedId(control As IRibbonControl, ByRef itemId)
     On Error Resume Next
     itemId = Rx_SelectedIdFor(control.Tag)
+End Sub
+
+' ===== Estilos (1.12.0) =====
+
+' Lista de nomes a partir do texto do core ("a|b|c"); vazio (core anterior, sem Core_StyleNames, ou ausente) = as tres paletas de antes, que
+' Rx_OnStyle aplica pela opcao palette (revisao final 1.12.0, M8). Pura.
+Public Function Rx_StyleNamesFor(raw As String) As Variant
+    If Len(raw) = 0 Then Rx_StyleNamesFor = Array("Padrão ThinQQ", "Tons de cinza", "Cores do tema") Else Rx_StyleNamesFor = Split(raw, "|")
+End Function
+
+' Paleta (opcao palette do core anterior) do item index da lista de reserva; "" fora dela. Pura.
+Public Function Rx_LegacyPaletteFor(index As Long) As String
+    Select Case index
+        Case 0: Rx_LegacyPaletteFor = "padrao"
+        Case 1: Rx_LegacyPaletteFor = "cinza"
+        Case 2: Rx_LegacyPaletteFor = "tema"
+    End Select
+End Function
+
+Private Function StyleNames() As Variant
+    Dim v As Variant, p As String
+    If IsEmpty(mStyleNames) Then
+        mStyleLegacy = False
+        If Not Loader_CoreWorkbook() Is Nothing Then
+            p = "Core_StyleNames"
+            If BUILD_CONFIG = "Test" Then p = p & mTestProcSuffix      ' gancho: simula um core anterior a 1.12.0
+            v = Loader_RunCore(p)
+            mStyleLegacy = Loader_RunCoreMissed()
+        End If
+        mStyleNames = Rx_StyleNamesFor(CStr(v))
+    End If
+    StyleNames = mStyleNames
+End Function
+
+Public Sub Rx_StyleCount(control As IRibbonControl, ByRef count)
+    On Error Resume Next
+    count = 0
+    count = UBound(StyleNames()) + 1
+    mStyleShown = count
+End Sub
+
+Public Sub Rx_StyleLabel(control As IRibbonControl, index As Integer, ByRef label)
+    On Error Resume Next
+    label = CStr(StyleNames()(index))
+End Sub
+
+Public Sub Rx_StyleId(control As IRibbonControl, index As Integer, ByRef id)
+    On Error Resume Next
+    id = "st" & index
+End Sub
+
+Public Sub Rx_GetStyleSel(control As IRibbonControl, ByRef itemId)
+    Dim n As String, a As Variant, i As Long
+    On Error Resume Next
+    itemId = "st0"
+    If Loader_CoreWorkbook() Is Nothing Then Exit Sub
+    a = StyleNames()
+    If mStyleLegacy Then
+        ' core anterior: o item da paleta gravada no grafico
+        Select Case CStr(Loader_RunCore("Core_GetOption", "palette"))
+            Case "cinza": itemId = "st1"
+            Case "tema": itemId = "st2"
+        End Select
+        Exit Sub
+    End If
+    n = CStr(Loader_RunCore("Core_GetStyleName"))
+    For i = 0 To UBound(a)
+        If StrComp(CStr(a(i)), n, vbTextCompare) = 0 Then
+            itemId = "st" & i
+            Exit Sub
+        End If
+    Next
+End Sub
+
+' O indice vem da lista EXIBIDA: se o cache foi refeito com outro tamanho entre a exibicao e o clique (um estilo salvo na janela), nada e
+' aplicado e a lista e refeita (revisao final 1.12.0, M7). Core anterior: a paleta pela opcao palette (M8).
+Public Sub Rx_OnStyle(control As IRibbonControl, selectedId As String, selectedIndex As Integer)
+    Dim a As Variant
+    On Error Resume Next
+    If CoreOrWarn() Then
+        a = StyleNames()
+        If mStyleShown > 0 And UBound(a) + 1 <> mStyleShown Then
+            RxMsg RX_MSG_STYLE_LIST_CHANGED, vbInformation
+        ElseIf selectedIndex >= 0 And selectedIndex <= UBound(a) Then
+            If mStyleLegacy Then
+                RunCoreFeature "Core_SetOption", Array("palette", Rx_LegacyPaletteFor(CLng(selectedIndex)))
+            Else
+                RunCoreFeature "Core_StyleApply", Array(CStr(a(selectedIndex)), "chart")
+            End If
+        End If
+    End If
+    Loader_InvalidateRibbon
+End Sub
+
+Public Sub Rx_OnStyles(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_StyleManage"
+    Loader_InvalidateRibbon
 End Sub
 
 Public Sub Rx_OnAnnotation(control As IRibbonControl)
@@ -284,19 +391,6 @@ End Sub
 Public Sub Rx_OnPptChart(control As IRibbonControl)
     On Error Resume Next
     If CoreOrWarn() Then RunCoreFeature "Core_CopyToPowerPoint", "chart"
-End Sub
-
-' Vincular celula ao texto selecionado no PowerPoint (1.9.0): age sobre a celula ativa (sem grafico); sempre ativo; core anterior: aviso de
-' atualizar.
-Public Sub Rx_OnPptLinkText(control As IRibbonControl)
-    On Error Resume Next
-    If CoreOrWarn() Then RunCoreFeature "Core_PptLinkTextFromPpt"
-End Sub
-
-' Inserir tabela vinculada no slide (1.10.0): age sobre as celulas selecionadas (sem grafico); sempre ativo; core anterior: aviso de atualizar.
-Public Sub Rx_OnPptTable(control As IRibbonControl)
-    On Error Resume Next
-    If CoreOrWarn() Then RunCoreFeature "Core_PptInsertTable"
 End Sub
 
 ' Titulo ligado a uma celula (1.9.0): o core pergunta a celula (InputBox) e liga o titulo do grafico ativo; core anterior: aviso de atualizar.

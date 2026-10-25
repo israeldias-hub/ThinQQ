@@ -230,7 +230,7 @@ Public Sub Test_PptTqq_AskText_ListsSources()
     Next
     s = PptTqq_AskText(7, c)
     AssertTrue InStr(s, " gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?") > 0, "frase fixa 1"
-    AssertTrue InStr(s, "Para não perguntar mais: aba ThinQQ > Ao abrir.") > 0, "frase fixa 2"
+    AssertTrue InStr(s, "Para não perguntar mais: Vínculos > Ao abrir a apresentação.") > 0, "frase fixa 2"
     AssertTrue InStr(s, "Pastas de origem:") > 0, "lista"
     AssertTrue InStr(s, "\\srv1\dados\pasta1.xlsx") > 0 And InStr(s, "\\srv5\dados\pasta5.xlsx") > 0, "as 5 primeiras, caminho completo"
     AssertEqual 0, InStr(s, "pasta6.xlsx"), "no maximo 5"
@@ -347,7 +347,7 @@ Public Sub Test_PptTqq_AskText_LongPathsKeepRemoteAndHint()
     c.Add "\\srv\dados\remota.xlsx"
     s = PptTqq_AskText(2, c)
     AssertTrue InStr(s, "Pastas de origem:" & vbLf & "\\srv\dados\remota.xlsx") > 0, "remota primeiro: " & s
-    AssertTrue InStr(s, "Para não perguntar mais: aba ThinQQ > Ao abrir.") > 0, "dica"
+    AssertTrue InStr(s, "Para não perguntar mais: Vínculos > Ao abrir a apresentação.") > 0, "dica"
     AssertTrue InStr(s, " gráfico(s) do ThinQQ vinculado(s) ao Excel. Atualizar agora com os dados atuais?") > 0, "frase da pergunta"
     AssertTrue InStr(s, "\fim.xlsx") > 0 And InStr(s, "C:\aaa") > 0 And InStr(s, "...") > 0, "comeco e fim do caminho longo, com reticencias"
     For Each ln In Split(s, vbLf)
@@ -359,9 +359,9 @@ Public Sub Test_PptTqq_AskText_LongPathsKeepRemoteAndHint()
         c.Add "C:\" & i & String$(246, "b") & ".xlsx"
     Next
     s = PptTqq_AskText(5, c)
-    AssertTrue InStr(s, "Para não perguntar mais: aba ThinQQ > Ao abrir.") > 0, "5 caminhos de 250: dica fica"
+    AssertTrue InStr(s, "Para não perguntar mais: Vínculos > Ao abrir a apresentação.") > 0, "5 caminhos de 250: dica fica"
     AssertTrue Len(s) <= 900, "cabe em 900 (" & Len(s) & ")"
-    AssertTrue Right$(s, Len("Para não perguntar mais: aba ThinQQ > Ao abrir.")) = "Para não perguntar mais: aba ThinQQ > Ao abrir.", "a dica fecha a pergunta"
+    AssertTrue Right$(s, Len("Para não perguntar mais: Vínculos > Ao abrir a apresentação.")) = "Para não perguntar mais: Vínculos > Ao abrir a apresentação.", "a dica fecha a pergunta"
 End Sub
 
 ' ---- 1.6.0 (C3): Atualizar automaticamente / Atualizar uma vez ----
@@ -617,7 +617,7 @@ Public Sub Test_PptTqq_UpdateSelected_DuplicateNames_DistinctEntries()
     AssertEqual "", CStr(s2.Tags(PPT_TAG_AUTO)), "atualizar uma vez nao liga o automatico"
     PptTqq_ClearLastMsg
     PptTqq_UpdateSelected New Collection
-    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg()
+    AssertEqual PPT_MSG_SELECT_LINKED, PptTqq_LastMsg()
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo 0
@@ -671,6 +671,7 @@ Public Sub Test_PptTqq_ToggleAuto_AutoOffNote_AndTagFailure()
     PptTqq_SetExcelForTest f, ""
     PptTqq_ToggleAuto c, True
     AssertEqual "selecionados" & vbLf & PPT_MSG_AUTO_OFF, PptTqq_LastMsg()
+    AssertTrue InStr(PPT_MSG_AUTO_OFF, "Vínculos > Acompanhar mudanças do Excel") > 0, "o caminho da chave geral e o do dialogo Vinculos (1.11.0)"
     f.AutoOn = True
     PptTqq_ToggleAuto c, True
     AssertEqual "selecionados", PptTqq_LastMsg(), "ligada no Excel: sem a nota"
@@ -710,10 +711,10 @@ Public Sub Test_PptRx_ElemCallbacks_NoSelection()
     AssertFalse CBool(pr)
     PptTqq_ClearLastMsg
     PptRx_OnUpdateSel Nothing
-    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg()
+    AssertEqual PPT_MSG_SELECT_LINKED, PptTqq_LastMsg()
     PptTqq_ClearLastMsg
     PptRx_OnAuto Nothing, True
-    AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg()
+    AssertEqual PPT_MSG_SELECT_LINKED, PptTqq_LastMsg()
     PptTqq_ClearLastMsg
     PptRx_OnEditData Nothing
     AssertEqual PPT_MSG_SELECT, PptTqq_LastMsg(), "Editar dados sem selecao"
@@ -971,6 +972,7 @@ Public Sub Test_PptTqq_InsertChartIn_Api3_InsertsAndOpensData()
     AssertEqual "hint;edit;", PptTqq_TrailForTest(), "aviso de primeira vez ANTES de abrir os dados (revisao I2)"
     AssertEqual "edit:Pasta - Excel", PptTqq_LastMsg()
     AssertTrue InStr(PptTqq_LastHintForTest(), "Gráfico criado. Clique em OK e digite os dados") = 1, PptTqq_LastHintForTest()
+    AssertTrue InStr(PptTqq_LastHintForTest(), "depois clique em Atualizar") > 0, "o grafico nasce manual (revisao final I1): " & PptTqq_LastHintForTest()
     AssertTrue InStr(PptTqq_LastHintForTest(), "'tqq-ppam-g4b - dados ThinQQ.xlsx'") > 0, "aviso cita o arquivo de dados: " & PptTqq_LastHintForTest()
     AssertTrue InStr(PptTqq_LastHintForTest(), "ThinQQ > Empacotar para enviar") > 0, "aviso cita o Empacotar (1.9.0): " & PptTqq_LastHintForTest()
     PptTqq_InsertChartIn p, Nothing, "pie"
@@ -1160,6 +1162,81 @@ Public Sub Test_PptTqq_CommandShapes_Paths()
     AssertEqual "clear:", f.LastCmd, "reentrada liberada depois da falha"
     AssertEqual "", PptTqq_LastMsg()
     AssertEqual 0, f.QuitCount, "o Excel do usuario nunca recebe Quit"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    Set s = Nothing: Set c = Nothing
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' 1.12.0 (S5): menu dinamico Estilo: um botao por nome (tag = nome, XML escapado); sem nomes, um botao desabilitado com o aviso; prefixo
+' "c" na aba contextual (ids unicos entre os dois menus).
+Public Sub Test_PptTqq_StyleMenuXml()
+    Dim s As String
+    AssertEqual 7, PPT_API_STYLE, "estilos pelo PowerPoint pedem a API 7"
+    s = PptTqq_StyleMenuXml("A|B <&>")
+    AssertTrue InStr(s, "<menu xmlns=""http://schemas.microsoft.com/office/2009/07/customui"">") = 1, s
+    AssertTrue InStr(s, "<button id=""pst0"" label=""A"" tag=""A"" onAction=""PptRx_OnStyle""/>") > 0, s
+    AssertTrue InStr(s, "<button id=""pst1"" label=""B &lt;&amp;&gt;"" tag=""B &lt;&amp;&gt;"" onAction=""PptRx_OnStyle""/>") > 0, s
+    AssertTrue Right$(s, 7) = "</menu>", s
+    s = PptTqq_StyleMenuXml("")
+    AssertTrue InStr(s, "enabled=""false""") > 0, s
+    AssertTrue InStr(s, PPT_MSG_OLD_CORE_STYLE) > 0, s
+    AssertEqual 0, InStr(s, "onAction"), "botao do aviso nao age"
+    s = PptTqq_StyleMenuXml("A|B", "c")
+    AssertTrue InStr(s, "<button id=""cpst0"" label=""A""") > 0 And InStr(s, "id=""cpst1""") > 0, s
+    AssertTrue InStr(PptTqq_StyleMenuXml("", "c"), "id=""cpst_none""") > 0
+    AssertTrue InStr(PptTqq_StyleMenuXml("x""y"), "label=""x&quot;y""") > 0, "aspas escapadas"
+End Sub
+
+' Nomes dos estilos: so com a API 7 (core antigo: "" sem chamar Core_StyleNames); sem Excel: ""; nunca cria Excel nem da Quit no do usuario.
+Public Sub Test_PptTqq_StyleNames_ByApi()
+    Dim f As TestXlFake
+    PptTqq_ResetTestHooks
+    PptTqq_SetExcelForTest Nothing, ""
+    AssertEqual "", PptTqq_StyleNames(), "sem Excel"
+    Set f = NewFakeXl(6): f.StyleNamesResult = "A|B"
+    PptTqq_SetExcelForTest f, ""
+    AssertEqual "", PptTqq_StyleNames(), "core 1.11.0 (API 6)"
+    AssertEqual 0, InStr(f.Calls, "Core_StyleNames"), f.Calls
+    Set f = NewFakeXl(7): f.StyleNamesResult = "Padrão ThinQQ|Cascata MC"
+    PptTqq_SetExcelForTest f, ""
+    AssertEqual "Padrão ThinQQ|Cascata MC", PptTqq_StyleNames()
+    Set f = NewFakeXl(7): f.FailOn = "Core_StyleNames"
+    PptTqq_SetExcelForTest f, ""
+    AssertEqual "", PptTqq_StyleNames(), "falha na chamada: vazio, sem erro"
+    AssertEqual 0, f.QuitCount, "o Excel do usuario nunca recebe Quit"
+    PptTqq_ResetTestHooks
+End Sub
+
+' Comando "style": core com a API 6 mostra PPT_MSG_OLD_CORE_STYLE sem chamar Core_PptCommand; API 7 manda o nome ao core.
+Public Sub Test_PptTqq_CommandShapes_StyleNeedsApi7()
+    Dim p As Object, s As Object, f As TestXlFake, en As Long, ed As String, c As New Collection
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set s = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50)
+    s.Tags.Add PPT_TAG_CHART, "c1"
+    c.Add s
+    PptTqq_ResetTestHooks
+    Set f = NewFakeXl(6)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_ClearLastMsg
+    PptTqq_CommandShapes p, c, "style", "Cascata MC"
+    AssertEqual PPT_MSG_OLD_CORE_STYLE, PptTqq_LastMsg(), "core 1.11.0 (API 6)"
+    AssertEqual 0, InStr(f.Calls, "Core_PptCommand"), f.Calls
+    AssertEqual 1, UBound(Split(f.Calls, "Core_PptApiVersion")), "API lida uma vez: " & f.Calls
+    PptTqq_ClearLastMsg
+    PptTqq_CommandShapes p, c, "toggle", "labels:1"
+    AssertEqual "toggle:labels:1", f.LastCmd, "outros comandos seguem com a API 6"
+    Set f = NewFakeXl(7)
+    PptTqq_SetExcelForTest f, ""
+    PptTqq_ClearLastMsg
+    PptTqq_CommandShapes p, c, "style", "Cascata MC"
+    AssertEqual "style:Cascata MC", f.LastCmd
+    AssertEqual "", PptTqq_LastMsg()
+    AssertEqual 0, f.QuitCount
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo 0
@@ -1502,5 +1579,505 @@ Cleanup:
     en = Err.Number: ed = Err.Description
     Set s = Nothing
     ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' ---- 1.11.0 (U2): bandeira, todos os tipos, silencio no sucesso, abertura ----
+
+Public Sub Test_PptTqq_IsPlainSuccess()
+    AssertTrue PptTqq_IsPlainSuccess("Gráficos do ThinQQ atualizados: 1.")
+    AssertTrue PptTqq_IsPlainSuccess("Gráficos do ThinQQ atualizados: 0. Sem mudança: 2.")
+    AssertFalse PptTqq_IsPlainSuccess("Gráficos do ThinQQ atualizados: 0." & vbLf & "Pasta de origem não encontrada ou sem acesso: a.xlsx.")
+    AssertFalse PptTqq_IsPlainSuccess(PPT_MSG_BUSY)
+    AssertFalse PptTqq_IsPlainSuccess("")
+End Sub
+
+Public Sub Test_PptTqq_ShowResult_SilentOnSuccess()
+    PptTqq_ClearLastMsg
+    PptTqq_ShowResult "Gráficos do ThinQQ atualizados: 1."
+    AssertEqual "", PptTqq_LastMsg(), "sucesso puro: sem caixa (como o think-cell)"
+    AssertEqual "Gráficos do ThinQQ atualizados: 1.", PptTqq_LastResult()
+    PptTqq_ShowResult "Gráficos do ThinQQ atualizados: 0." & vbLf & "Falha ao atualizar: 1 (veja o log do ThinQQ)."
+    AssertTrue InStr(PptTqq_LastMsg(), "Falha ao atualizar") > 0, "problema: caixa"
+    PptTqq_ShowResult "!" & PPT_MSG_BUSY
+    AssertEqual PPT_MSG_BUSY, PptTqq_LastMsg(), "'!' = aviso de exclamacao, sem o '!'"
+End Sub
+
+Public Sub Test_PptTqq_LinkedShapes_AndAnyNew()
+    Dim p As Object, sl As Object, a As Object, b As Object, c As Object, d As Object, col As New Collection, t As Single, i As Long
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set sl = p.Slides(1)
+    Set a = sl.Shapes.AddShape(1, 10, 10, 50, 50): a.Tags.Add PPT_TAG_CHART, "abc"
+    Set b = sl.Shapes.AddShape(1, 70, 10, 50, 50): b.Tags.Add PPT_TAG_TEXT, "1"
+    Set c = sl.Shapes.AddShape(1, 130, 10, 50, 50): c.Tags.Add PPT_TAG_TABLE, "1"
+    Set d = sl.Shapes.AddShape(1, 190, 10, 50, 50)
+    AssertTrue PptTqq_IsLinkedShape(a) And PptTqq_IsLinkedShape(b) And PptTqq_IsLinkedShape(c)
+    AssertFalse PptTqq_IsLinkedShape(d)
+    col.Add a: col.Add b
+    AssertFalse PptTqq_AnyNew(col)
+    b.Tags.Add PPT_TAG_STATE, "new"
+    AssertTrue PptTqq_AnyNew(col), "texto vinculado com dados novos"
+    b.Tags.Add PPT_TAG_STATE, "x"
+    AssertFalse PptTqq_AnyNew(col), "so 'new' e bandeira"
+    AssertEqual 0, PptTqq_SelectedLinked().Count, "sem janela: nada selecionado"
+    For i = 1 To 196
+        sl.Shapes.AddShape 1, 1, 1, 2, 2
+    Next
+    t = Timer
+    For i = 1 To 200
+        PptTqq_AnyNew col
+    Next
+    PptTqq_Log "P-U2: AnyNew x200 = " & Format$((Timer - t) * 1000, "0") & " ms"
+    AssertTrue (Timer - t) < 1, "P-U2: 200 leituras acima de 5 ms cada: " & PptTqq_LastLog()
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Abertura (1.11.0): bandeiras gravadas no arquivo saem, TQQ_LINKIDX e reconstruido com os elementos vinculados (formato do core), Saved fica.
+Public Sub Test_PptTqq_PrepareOnOpen_ClearsFlags_BuildsIndex_KeepsSaved()
+    Dim p As Object, a As Object, b As Object, c As Object, idx As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    Set a = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_a": a.Tags.Add PPT_TAG_CHART, "abc": a.Tags.Add PPT_TAG_STATE, "new"
+    a.Tags.Add PPT_TAG_BOOK, "C:\x\a.xlsx"
+    Set b = p.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50): b.Name = "txt_b": b.Tags.Add PPT_TAG_TEXT, "1": b.Tags.Add PPT_TAG_BOOK, "C:\x\b.xlsx"
+    Set c = p.Slides(1).Shapes.AddShape(1, 130, 10, 50, 50)
+    p.Saved = -1
+    AssertEqual 2, PptTqq_PrepareOnOpen(p)
+    AssertEqual "", PptTqq_Tag(a, PPT_TAG_STATE), "bandeira do arquivo sai"
+    idx = PptTqq_Tag(p, PPT_TAG_LINKIDX)
+    AssertEqual PptTqq_IdxEntry(CLng(p.Slides(1).SlideID), "tqq_a", "C:\x\a.xlsx") & vbLf & PptTqq_IdxEntry(CLng(p.Slides(1).SlideID), "txt_b", "C:\x\b.xlsx"), idx
+    AssertTrue CLng(p.Saved) <> 0, "Saved preservado"
+    ' a abertura (HandleOpen) tambem limpa: bandeira gravada de novo sai na primeira vista
+    a.Tags.Add PPT_TAG_STATE, "new"
+    PptTqq_ResetTestHooks
+    PptTqq_HandleOpen p
+    AssertEqual "", PptTqq_Tag(a, PPT_TAG_STATE), "HandleOpen chama PptTqq_PrepareOnOpen"
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+Public Sub Test_PptTqq_LinkStates_ApiAndCore()
+    Dim p As Object, f As TestXlFake, en As Long, ed As String
+    Set p = NewTagged()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    Set f = NewFakeXl(5)
+    PptTqq_SetExcelForTest f, ""
+    AssertEqual "!" & PPT_MSG_OLD_CORE_STATES, PptTqq_LinkStates(p, "", False)
+    Set f = NewFakeXl(6)
+    PptTqq_SetExcelForTest f, ""
+    AssertEqual "1|a|b|chart:stacked|manual|ok", PptTqq_LinkStates(p, "E", True)
+    AssertEqual "E", f.LastEntries
+    AssertTrue CBool(f.LastVerify)
+    f.NoCore = True
+    AssertEqual "!" & PPT_MSG_NOCORE_STATES, PptTqq_LinkStates(p, "", False)
+    PptTqq_SetExcelForTest Nothing, ""
+    AssertEqual "!" & PPT_MSG_NO_EXCEL, PptTqq_LinkStates(p, "", False)
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+Public Sub Test_PptRx_LinkedCallbacks_NoSelection()
+    Dim v As Variant
+    v = True: PptRx_GetLinkedEnabled Nothing, v
+    AssertFalse CBool(v)
+    v = True: PptRx_GetNewVisible Nothing, v
+    AssertFalse CBool(v), "sem selecao: sem bandeira"
+    v = False: PptRx_GetUpdVisible Nothing, v
+    AssertTrue CBool(v), "sem selecao: o Atualizar normal aparece (desligado)"
+    AssertEqual "never", PPT_DEFAULT_OPENMODE
+    AssertEqual "c", PptRx_ItemPrefix("cddNumFmt"), "aba contextual: itens com prefixo c"
+    AssertEqual "", PptRx_ItemPrefix("ddPptNumFmt")
+End Sub
+
+' ---- 1.11.0 (U3): dialogo Vinculos (modPptLinks; o formulario so e conferido pela legenda) ----
+
+Public Sub Test_PptForms_LinksCaption()
+    Dim f As Object
+    Set f = VBA.UserForms.Add("frmTqqLinks")
+    AssertEqual "Vínculos do ThinQQ", f.Caption
+    AssertEqual 5, CLng(f.Controls("lstLinks").ColumnCount)
+    Unload f
+    AssertEqual 0, PptLinks_FormCount(), "descarregado"
+End Sub
+
+Public Sub Test_PptLinks_Labels()
+    AssertEqual "Dados novos", PptLinks_StateLabel("new")
+    AssertEqual "Atualizado", PptLinks_StateLabel("ok")
+    AssertEqual "Pasta não encontrada", PptLinks_StateLabel("missing")
+    AssertEqual "Não encontrado na pasta", PptLinks_StateLabel("nosource")
+    AssertEqual "Sem vínculo", PptLinks_StateLabel("unlinked")
+    AssertEqual "Não verificado (pasta fechada)", PptLinks_StateLabel("unknown")
+    AssertEqual "Não verificado", PptLinks_StateLabel("")
+    AssertEqual "Gráfico", PptLinks_KindLabel("chart")
+    AssertEqual "Texto", PptLinks_KindLabel("text")
+    AssertEqual "Tabela", PptLinks_KindLabel("table")
+    AssertEqual "Automático", PptLinks_ModeLabel("auto")
+    AssertEqual "Manual", PptLinks_ModeLabel("manual")
+    AssertEqual "b.xlsx", PptLinks_FileName("C:\a\b.xlsx")
+    AssertEqual "c.xlsx", PptLinks_FileName("https://x/y/c.xlsx")
+    AssertEqual 0, PptLinks_OpenModeIndex("never")
+    AssertEqual 1, PptLinks_OpenModeIndex("ask")
+    AssertEqual 2, PptLinks_OpenModeIndex("always")
+    AssertEqual "never", PptLinks_OpenModeOf(0)
+    AssertEqual "always", PptLinks_OpenModeOf(2)
+End Sub
+
+Public Sub Test_PptLinks_CollectFilterAndCache()
+    Dim p As Object, a As Object, b As Object, c As Object, rows As Collection, sid As Long
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptLinks_ResetTestHooks
+    sid = CLng(p.Slides(1).SlideID)
+    Set a = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_a": a.Tags.Add PPT_TAG_CHART, "abc": a.Tags.Add PPT_TAG_BOOK, "C:\x\a.xlsx"
+    a.Tags.Add PPT_TAG_STATE, "new"
+    Set b = p.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50): b.Name = "txt_b": b.Tags.Add PPT_TAG_TEXT, "1": b.Tags.Add PPT_TAG_BOOK, "C:\x\b.xlsx"
+    b.Tags.Add PPT_TAG_AUTO, "1"
+    Set c = p.Slides(1).Shapes.AddShape(1, 130, 10, 50, 50)
+    Set rows = PptLinks_Collect(p)
+    AssertEqual 2, rows.Count
+    AssertEqual "tqq_a", CStr(rows(1)(2))
+    AssertEqual "chart", CStr(rows(1)(3))
+    AssertEqual "manual", CStr(rows(1)(4))
+    AssertEqual "new", CStr(rows(1)(5))
+    AssertEqual "auto", CStr(rows(2)(4))
+    AssertEqual "", CStr(rows(2)(5)), "sem verificar"
+    AssertEqual 1, PptLinks_Filter(rows, 1).Count, "dados novos"
+    AssertEqual 1, PptLinks_Filter(rows, 3).Count, "automaticos"
+    AssertEqual 0, PptLinks_Filter(rows, 4).Count, "com problema"
+    AssertEqual 1, PptLinks_Remember(sid & "|txt_b|C:\x\b.xlsx|text|auto|missing")
+    Set rows = PptLinks_Collect(p)
+    AssertEqual "missing", CStr(rows(2)(5)), "estado do core lembrado na sessao"
+    AssertEqual 1, PptLinks_Filter(rows, 4).Count
+    AssertEqual 0, PptLinks_Remember("lixo" & vbLf & "1|2"), "linha invalida ignorada"
+    AssertTrue InStr(PptLinks_HeadText(rows), "2 elemento(s)") > 0, PptLinks_HeadText(rows)
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptLinks_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Acoes sem Excel: manual/automatico gravam a marca e o indice; desvincular tira so as etiquetas TQQ_* (a forma fica); sem selecao: aviso.
+Public Sub Test_PptLinks_Do_ModesAndUnlink_NoExcel()
+    Dim p As Object, a As Object, rows As Collection, msg As String
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    Set a = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_a": a.Tags.Add PPT_TAG_CHART, "abc": a.Tags.Add PPT_TAG_BOOK, "C:\x\a.xlsx"
+    Set rows = PptLinks_Collect(p)
+    AssertEqual PPTLINKS_MSG_SELECT, PptLinks_Do(p, "update", New Collection)
+    msg = PptLinks_Do(p, "manual", rows)
+    AssertEqual "", PptTqq_Tag(a, PPT_TAG_AUTO)
+    msg = PptLinks_Do(p, "auto", rows)
+    AssertEqual "1", PptTqq_Tag(a, PPT_TAG_AUTO)
+    AssertTrue InStr(PptTqq_Tag(p, PPT_TAG_INDEX), "tqq_a") > 0, "no indice dos automaticos"
+    AssertTrue Len(msg) > 0, "sem Excel: a dica de abrir o Excel"
+    msg = PptLinks_Do(p, "unlink", rows)
+    AssertEqual "", PptTqq_Tag(a, PPT_TAG_CHART), "desvinculado"
+    AssertEqual "", PptTqq_Tag(a, PPT_TAG_AUTO)
+    AssertEqual "", PptTqq_Tag(p, PPT_TAG_INDEX), "fora do indice dos automaticos"
+    AssertEqual "", PptTqq_Tag(p, PPT_TAG_LINKIDX), "fora do indice de todos"
+    AssertEqual 1, p.Slides(1).Shapes.Count, "a forma continua no slide"
+    AssertEqual "Desvinculados: 1.", msg
+    AssertTrue InStr(PptTqq_LastMsg(), "vínculo do próprio PowerPoint") > 0, "a pergunta diz que o vinculo nativo fica: " & PptTqq_LastMsg()
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+Public Sub Test_PptLinks_Do_Check_UsesCoreAndRemembers()
+    Dim p As Object, a As Object, f As TestXlFake, rows As Collection, msg As String, sid As Long
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    sid = CLng(p.Slides(1).SlideID)
+    Set a = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_a": a.Tags.Add PPT_TAG_CHART, "abc"
+    Set f = NewFakeXl(6)
+    f.StatesResult = sid & "|tqq_a|C:\x\a.xlsx|chart:stacked|manual|nosource"
+    PptTqq_SetExcelForTest f, ""
+    msg = PptLinks_Do(p, "check", PptLinks_Collect(p))
+    AssertTrue CBool(f.LastVerify), "Verificar abre pastas fechadas (somente leitura, no core)"
+    AssertEqual "", f.LastEntries, "todos"
+    AssertEqual "nosource", CStr(PptLinks_Collect(p)(1)(5))
+    AssertTrue InStr(msg, "Verificados: 1") = 1, msg
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Atualizar pelo dialogo: Core_PptSyncShapes so com as linhas dadas (forcado) e, depois, os estados delas pelo core (sem abrir pasta fechada);
+' o estado velho da linha (lembrado antes) e esquecido quando o core nao responde.
+Public Sub Test_PptLinks_Do_Update_SyncsAndRefreshesStates()
+    Dim p As Object, a As Object, b As Object, f As TestXlFake, msg As String, sid As Long, one As New Collection
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    sid = CLng(p.Slides(1).SlideID)
+    Set a = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_a": a.Tags.Add PPT_TAG_CHART, "abc"
+    Set b = p.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50): b.Name = "tqq_b": b.Tags.Add PPT_TAG_CHART, "def"
+    PptLinks_Remember sid & "|tqq_a|C:\x\a.xlsx|chart:stacked|manual|missing" & vbLf & sid & "|tqq_b|C:\x\a.xlsx|chart:stacked|manual|missing", p
+    one.Add PptLinks_Collect(p)(1)
+    Set f = NewFakeXl(6)
+    f.ShapesResult = "Gráficos do ThinQQ atualizados: 1."
+    f.StatesResult = sid & "|tqq_a|C:\x\a.xlsx|chart:stacked|manual|ok"
+    PptTqq_SetExcelForTest f, ""
+    msg = PptLinks_Do(p, "update", one)
+    AssertEqual "Gráficos do ThinQQ atualizados: 1.", msg
+    AssertTrue InStr(f.Calls, "Core_PptSyncShapes;") > 0 And InStr(f.Calls, "Core_PptLinkStates;") > InStr(f.Calls, "Core_PptSyncShapes;"), f.Calls
+    AssertFalse CBool(f.LastVerify), "depois de atualizar: estados sem abrir pasta fechada"
+    AssertTrue InStr(f.LastEntries, "tqq_a") > 0 And InStr(f.LastEntries, "tqq_b") = 0, "so a linha dada: " & f.LastEntries
+    AssertEqual "ok", CStr(PptLinks_Collect(p)(1)(5)), "estado novo do core"
+    AssertEqual "missing", CStr(PptLinks_Collect(p)(2)(5)), "a outra linha fica como estava"
+    PptTqq_SetExcelForTest Nothing, ""
+    PptLinks_Do p, "update", one
+    AssertEqual "", CStr(PptLinks_Collect(p)(1)(5)), "sem Excel: o estado velho da linha atualizada e esquecido (Nao verificado)"
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Abrir no Excel vale para graficos: so texto/tabela na selecao = aviso na linha de status, sem chamar o Excel.
+Public Sub Test_PptLinks_Do_Edit_TextOnly_NoExcel()
+    Dim p As Object, b As Object, f As TestXlFake
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    Set b = p.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50): b.Name = "txt_b": b.Tags.Add PPT_TAG_TEXT, "1"
+    Set f = NewFakeXl(6)
+    PptTqq_SetExcelForTest f, ""
+    AssertEqual PPTLINKS_MSG_EDIT_CHART, PptLinks_Do(p, "edit", PptLinks_Collect(p))
+    AssertEqual "", f.Calls, "o Excel nao e chamado"
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' O cache de estados e por apresentacao (duas apresentacoes tem o mesmo SlideID 256 e o mesmo nome de forma) e sai ao fechar.
+Public Sub Test_PptLinks_StatesPerPresentation_ForgetOnClose()
+    Dim p As Object, q As Object, sid As Long
+    Set p = NewPres()
+    Set q = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50).Name = "tqq_a"
+    q.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50).Name = "tqq_a"
+    p.Slides(1).Shapes("tqq_a").Tags.Add PPT_TAG_CHART, "abc"
+    q.Slides(1).Shapes("tqq_a").Tags.Add PPT_TAG_CHART, "abc"
+    sid = CLng(p.Slides(1).SlideID)
+    AssertEqual sid, CLng(q.Slides(1).SlideID), "premissa: mesmo SlideID"
+    AssertEqual 1, PptLinks_Remember(sid & "|tqq_a|C:\x\a.xlsx|chart:stacked|manual|missing", p)
+    AssertEqual "missing", CStr(PptLinks_Collect(p)(1)(5))
+    AssertEqual "", CStr(PptLinks_Collect(q)(1)(5)), "a outra apresentacao nao herda o estado"
+    PptTqq_OnClose p
+    AssertEqual "", CStr(PptLinks_Collect(p)(1)(5)), "fechar esquece os estados da apresentacao"
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    ClosePres p
+    ClosePres q
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Sem piscar: a assinatura das linhas so muda quando algo visivel muda (modo, estado, nome, slide, origem). Chave da linha = SlideID|nome.
+Public Sub Test_PptLinks_SignatureAndRowKey()
+    Dim r1 As New Collection, r2 As New Collection
+    r1.Add Array(1, 256, "tqq_A", "chart", "manual", "", "C:\a.xlsx")
+    r2.Add Array(1, 256, "tqq_A", "chart", "manual", "", "C:\a.xlsx")
+    AssertEqual PptLinks_Signature(r1), PptLinks_Signature(r2)
+    Set r2 = New Collection
+    r2.Add Array(1, 256, "tqq_A", "chart", "manual", "new", "C:\a.xlsx")
+    AssertTrue PptLinks_Signature(r1) <> PptLinks_Signature(r2), "estado mudou: redesenha"
+    AssertEqual "256|tqq_a", PptLinks_RowKey(r1(1)), "linha antiga (7 campos): pelo nome"
+    AssertEqual "256|#7", PptLinks_RowKey(Array(1, 256, "tqq_A", "chart", "manual", "", "C:\a.xlsx", 7)), "com o Shape.Id (revisao final M1)"
+    AssertEqual "Erro: d (5)", PptTqq_ErrorText(5, "d", "Erro: "), "texto de erro com o prefixo da acao (M10)"
+    AssertEqual "", PptLinks_Signature(New Collection)
+End Sub
+
+' O evento de selecao nunca carrega o formulario (nada aberto: nada acontece) e Collect e barato: 220 formas, 20 vinculadas, 5 leituras < 1 s.
+Public Sub Test_PptLinks_SelChange_NoForm_AndCollectCost()
+    Dim p As Object, i As Long, t As Single, s As Object
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptLinks_ResetTestHooks
+    PptLinks_OnSelChange
+    AssertEqual 0, PptLinks_FormCount(), "a selecao nao abre o dialogo"
+    For i = 1 To 220
+        Set s = p.Slides(1).Shapes.AddShape(1, 1, 1, 2, 2)
+        If i Mod 11 = 0 Then s.Tags.Add PPT_TAG_CHART, "c" & i
+    Next
+    t = Timer
+    For i = 1 To 5
+        AssertEqual 20, PptLinks_Collect(p).Count
+    Next
+    PptTqq_Log "U3: Collect 220 formas x5 = " & Format$((Timer - t) * 1000, "0") & " ms"
+    AssertTrue (Timer - t) < 1, "Collect lento: " & PptTqq_LastLog()
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptLinks_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Opcoes do core pelo dialogo (API 2): leitura so com o Excel ja aberto e o core; gravacao pelo Core_PptSetFlag.
+Public Sub Test_PptTqq_CoreFlag_Fake()
+    Dim f As TestXlFake, avail As Boolean
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    Set f = NewFakeXl(6)
+    PptTqq_SetExcelForTest f, ""
+    AssertTrue PptTqq_CoreFlag("autoon", avail): AssertTrue avail
+    f.AutoOn = False
+    AssertFalse PptTqq_CoreFlag("autoon", avail): AssertTrue avail
+    AssertEqual "Opção gravada no Excel.", PptTqq_SetCoreFlag("autonew", True)
+    AssertEqual "autonew=1", f.LastFlag
+    f.Api = 1
+    AssertFalse PptTqq_CoreFlag("autoon", avail): AssertFalse avail, "core antigo"
+    AssertEqual PPT_MSG_OLD_CORE_FLAG, PptTqq_SetCoreFlag("autonew", True)
+    f.Api = 6: f.NoCore = True
+    AssertFalse PptTqq_CoreFlag("autoon", avail): AssertFalse avail, "sem o core"
+    PptTqq_SetExcelForTest Nothing, ""
+    AssertFalse PptTqq_CoreFlag("autoon", avail): AssertFalse avail, "sem Excel"
+    AssertEqual PPT_MSG_NOCORE_STATES, PptTqq_SetCoreFlag("autonew", True)
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' Ponta a ponta (Test-PptAddin.ps1): Verificar pelo dialogo com o core de verdade. Devolve "linha de status|estado da 1a linha".
+Public Function E2e_LinksCheck(pres As Object) As String
+    Dim msg As String
+    PptLinks_ResetTestHooks
+    msg = PptLinks_Do(pres, "check", PptLinks_Collect(pres))
+    E2e_LinksCheck = msg & "|" & CStr(PptLinks_Collect(pres)(1)(5))
+    PptLinks_ResetTestHooks
+End Function
+
+' ---- 1.11.0, revisao final (M1, M2, M6) ----
+
+' M1: dois elementos com o MESMO nome no mesmo slide (copia colada) sao duas linhas, cada uma resolve a propria forma pelo Shape.Id, e
+' Atualizar manda as duas ao core com nomes ja unicos.
+Public Sub Test_PptLinks_DuplicateNames_ResolveById()
+    Dim p As Object, a As Object, b As Object, f As TestXlFake, rows As Collection, sh As Collection, e As Collection
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    Set a = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_x": a.Tags.Add PPT_TAG_CHART, "abc"
+    Set b = p.Slides(1).Shapes.AddShape(1, 70, 10, 50, 50): b.Name = "tqq_x": b.Tags.Add PPT_TAG_CHART, "abc"
+    AssertEqual "tqq_x", CStr(b.Name), "premissa: o PowerPoint aceita o nome repetido"
+    Set rows = PptLinks_Collect(p)
+    AssertEqual 2, rows.Count
+    AssertTrue PptLinks_RowKey(rows(1)) <> PptLinks_RowKey(rows(2)), "chaves diferentes"
+    Set e = New Collection: e.Add rows(2)
+    Set sh = PptLinks_Shapes(p, e)
+    AssertEqual 1, sh.Count
+    AssertEqual CLng(b.Id), CLng(sh(1).Id), "a 2a linha acha a 2a forma (nao a 1a de mesmo nome)"
+    Set f = NewFakeXl(6)
+    PptTqq_SetExcelForTest f, ""
+    PptLinks_Do p, "update", rows
+    AssertTrue CStr(a.Name) <> CStr(b.Name), "nomes unicos antes de montar as entradas"
+    Set e = PptTqq_IdxParse(f.LastEntries)
+    AssertEqual 2, e.Count, "as duas formas vao ao core: " & f.LastEntries
+    AssertTrue CStr(e(1)(1)) <> CStr(e(2)(1)), f.LastEntries
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    ClosePres p
+    If en <> 0 Then Err.Raise en, "TestPptAddin", ed
+End Sub
+
+' M2: numa apresentacao somente leitura o dialogo nao grava etiquetas (Automatico/Manual/Desvincular recusam; o indice nao e refeito).
+' M6: numa editavel, abrir o dialogo refaz o TQQ_LINKIDX e preserva Saved.
+Public Sub Test_PptLinks_ReadOnly_NoTags_AndShowRebuildsIndex()
+    Dim p As Object, ro As Object, a As Object, path As String, rows As Collection
+    Set p = NewPres()
+    On Error GoTo Cleanup
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    Set a = p.Slides(1).Shapes.AddShape(1, 10, 10, 50, 50): a.Name = "tqq_a": a.Tags.Add PPT_TAG_CHART, "abc": a.Tags.Add PPT_TAG_BOOK, "C:\x\a.xlsx"
+    p.Saved = -1
+    PptLinks_PrepareIndex p
+    AssertTrue InStr(PptTqq_Tag(p, PPT_TAG_LINKIDX), "tqq_a") > 0, "indice refeito ao abrir o dialogo"
+    AssertTrue CLng(p.Saved) <> 0, "Saved preservado"
+    p.Tags.Delete PPT_TAG_LINKIDX
+    path = Environ$("TEMP") & "\thinqq_test_ppt_ro_" & Format$(Now, "hhnnss") & "_" & CLng(Rnd() * 100000) & ".pptx"
+    p.SaveAs path
+    ClosePres p
+    Set p = Nothing
+    Set ro = Application.Presentations.Open(path, -1, 0, 0)
+    AssertTrue CLng(ro.ReadOnly) <> 0, "premissa: somente leitura"
+    Set rows = PptLinks_Collect(ro)
+    AssertEqual 1, rows.Count
+    AssertEqual PPTLINKS_MSG_READONLY, PptLinks_Do(ro, "auto", rows)
+    AssertEqual PPTLINKS_MSG_READONLY, PptLinks_Do(ro, "unlink", rows)
+    AssertEqual "", PptTqq_Tag(ro.Slides(1).Shapes(1), PPT_TAG_AUTO), "nenhuma marca gravada"
+    AssertEqual "abc", PptTqq_Tag(ro.Slides(1).Shapes(1), PPT_TAG_CHART), "nada desvinculado"
+    PptLinks_PrepareIndex ro
+    AssertEqual "", PptTqq_Tag(ro, PPT_TAG_LINKIDX), "somente leitura: indice nao gravado"
+Cleanup:
+    Dim en As Long, ed As String
+    en = Err.Number: ed = Err.Description
+    On Error GoTo 0
+    PptTqq_ResetTestHooks
+    PptLinks_ResetTestHooks
+    If Not p Is Nothing Then ClosePres p
+    If Not ro Is Nothing Then ClosePres ro
+    On Error Resume Next
+    If Len(path) > 0 Then Kill path
+    On Error GoTo 0
     If en <> 0 Then Err.Raise en, "TestPptAddin", ed
 End Sub

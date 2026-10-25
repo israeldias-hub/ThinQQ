@@ -32,6 +32,7 @@ Private mTimerFailures As Long                              ' OnTime que nao pod
 Private mTestRealTimer As Boolean                           ' gancho: build Test so agenda OnTime real quando o teste pede
 Private mTestBusy As Long                                   ' gancho: quantos ciclos simulam PowerPoint ocupado
 Private mTestNotify As String                               ' gancho: o proximo ciclo chama Core_Notify/Core_Confirm com este texto (uso unico)
+Private mLastMarked As Long                                 ' elementos manuais com bandeira no ultimo ciclo (lido pelos testes)
 
 Public Sub PptAuto_SetFlagsForTest(enabled As Variant, newAuto As Variant)
     If BUILD_CONFIG <> "Test" Then Exit Sub
@@ -267,6 +268,7 @@ Public Sub PptAuto_Cancel()
     mTestRealTimer = False
     mTestNow = 0
     mLastResult = ""
+    mLastMarked = 0
 End Sub
 
 ' Texto em edicao no PowerPoint (o ciclo adia em vez de disputar com o usuario). Nunca propaga erro.
@@ -413,6 +415,28 @@ Fail:
     PptAuto_Log "PptAuto: apresentacao pulada" & vbTab & PptAuto_PresName(pres) & vbTab & en & vbTab & ed
 End Sub
 
+Public Function PptAuto_LastMarkedForTest() As Long
+    PptAuto_LastMarkedForTest = mLastMarked
+End Function
+
+' Elementos manuais (1.11.0) de uma apresentacao editavel, para a bandeira. Erro comum: registrado e a apresentacao pulada; ocupado sobe.
+Private Sub PptAuto_CollectManual(pres As Object, out As Collection)
+    Dim items As Collection, shp As Object, en As Long, ed As String
+    On Error GoTo Fail
+    If CLng(pres.ReadOnly) <> 0 Then Exit Sub
+    Set items = PptState_ManualFor(pres, mDirty)
+    For Each shp In items
+        out.Add shp
+    Next
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error GoTo 0
+    If Ppt_IsBusyError(en) Then Err.Raise en, "PptAuto_CollectManual", ed
+    PptAuto_Log "PptAuto: apresentacao pulada (bandeiras)" & vbTab & PptAuto_PresName(pres) & vbTab & en & vbTab & ed
+End Sub
+
 ' 2a passada: sincroniza as formas de uma apresentacao (sem forcar; pasta nao aberta nunca e aberta). Registra so quando algo foi atualizado
 ' ou ha falha/aviso (nao uma linha "sem mudanca" por ciclo). Erro comum: registrado; ocupado sobe.
 Private Sub PptAuto_SyncWork(ByVal pres As Object, ByVal items As Collection)
@@ -468,9 +492,10 @@ End Sub
 ' tentativas, nem registro). Sem PowerPoint ou opcao desligada: esvazia a fila. Operacao do core com o PowerPoint em andamento (colagem,
 ' sincronizacao pedida) ou ciclo em andamento: reagenda. Ocupado (ou texto em edicao): nova tentativa em PPTAUTO_DEBOUNCE_S * (n + 1) s,
 ' ate PPTAUTO_MAX_RETRIES. Um disparo velho (cancelamento que falhou) antes do horario vivo e ignorado sem esquecer o OnTime vivo. Sem caixa
-' de mensagem (so log e barra de status, devolvida como estava). Nunca propaga erro.
+' de mensagem (so log e barra de status, devolvida como estava). Nunca propaga erro. Desde a 1.11.0 tambem marca a bandeira dos manuais
+' (PptState_MarkItems: TQQ_STATE pelo indice TQQ_LINKIDX), sem alterar o Excel nem o slide.
 Public Sub PptAuto_Tick()
-    Dim app As Object, pres As Object, work As Collection, w As Variant, en As Long, ed As String
+    Dim app As Object, pres As Object, work As Collection, w As Variant, en As Long, ed As String, manual As Collection
     On Error GoTo Fail
     If mDueReal Then
         If Now < mDue - TimeSerial(0, 0, 1) Then Errors_Log "PptAuto: OnTime velho ignorado": Exit Sub
@@ -505,8 +530,20 @@ Public Sub PptAuto_Tick()
             Next
             PptAuto_StatusRestore
         End If
+        ' 1.11.0: os MANUAIS da pasta que mudou ganham (ou perdem) a bandeira TQQ_STATE, sem nada mudar no Excel nem no slide
+        Set manual = New Collection
+        For Each pres In app.Presentations
+            PptAuto_CollectManual pres, manual
+        Next
+        Set pres = Nothing
+        mLastMarked = 0
+        If manual.Count > 0 Then
+            ' revisao final M5: com texto em edicao no PowerPoint, nada de gravar etiquetas agora (nova tentativa, como os automaticos)
+            If PptAuto_PptEditingText(app) Then Err.Raise PPTAUTO_ERR_BUSY, "PptAuto_Tick", "texto em edicao no PowerPoint"
+            mLastMarked = PptState_MarkItems(manual)
+        End If
     End If
-    w = Empty: Set work = Nothing: Set app = Nothing
+    w = Empty: Set work = Nothing: Set manual = Nothing: Set app = Nothing
     PptAuto_SaveDataBooks mDirty                    ' ainda com mInTick = True: o AfterSave do salvamento e ignorado
     PptAuto_ClearQueue
     mInTick = False
@@ -515,7 +552,7 @@ Fail:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
-    w = Empty: Set work = Nothing: Set pres = Nothing: Set app = Nothing
+    w = Empty: Set work = Nothing: Set manual = Nothing: Set pres = Nothing: Set app = Nothing
     PptAuto_StatusRestore
     mInTick = False
     If Ppt_IsBusyError(en) And mRetries < PPTAUTO_MAX_RETRIES Then

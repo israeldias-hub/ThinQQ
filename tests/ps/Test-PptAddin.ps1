@@ -63,9 +63,18 @@ try {
     $ws.Range('B3').Value2 = 40
     [void]$pp.Run("$tpName!PptTqq_ResetTestHooks")
     [void]$pp.Run("$tpName!PptTqq_SetExcelForTest", $xl, '', $false)
+    [void]$pp.Run("$tpName!PptTqq_ClearLastMsg")
     [void]$pp.Run("$tpName!PptTqq_Sync", $pres, $true)
-    $msg = [string]$pp.Run("$tpName!PptTqq_LastMsg")
+    $msg = [string]$pp.Run("$tpName!PptTqq_LastResult")
     Check ($msg -like 'Gráficos do ThinQQ atualizados: 1.*') "(a) resumo do core pelo suplemento: $msg"
+    Check ([string]$pp.Run("$tpName!PptTqq_LastMsg") -eq '') '(a) sucesso puro: sem caixa (1.11.0)'
+    # (a1) estados pelo core de verdade (API 6), como na abertura: so o Excel ja aberto, sem abrir pasta fechada
+    $st = [string]$pp.Run("$tpName!PptTqq_LinkStates", $pres, '', $false)
+    Check ($st -match '^\d+\|[^|]+\|[^|]*e2e\.xlsx\|chart:\w*\|manual\|ok$') "(a1) PptTqq_LinkStates pelo core (API 6): $st"
+    # (a3) 1.11.0 (U3): Verificar do dialogo Vinculos pelo core de verdade (API 6; pastas fechadas abertas somente leitura no core; aqui a
+    # pasta esta aberta): a linha de status e o estado lembrado da linha
+    $lk = [string]$pp.Run("$tpName!E2e_LinksCheck", $pres)
+    Check ($lk -match '^Verificados: 1\. Com dados novos: 0\. Com problema: 0\.\|ok$') "(a3) Vínculos > Verificar pelo core: $lk"
     $vals = @($slide.Shapes.Item(1).Chart.SeriesCollection(1).Values)
     Check ($vals -contains 40) "(a) valor novo no slide ($($vals -join ','))"
     $alive = $false; try { $alive = ([string]$xl.Workbooks.Item('e2e.xlsx').Name -eq 'e2e.xlsx') } catch { }   # Workbooks.Count nao conta o core (suplemento)
@@ -84,7 +93,7 @@ try {
     $fp1 = [string]$slide.Shapes.Item(1).Tags.Item('TQQ_FP')
     $fp2 = [string]$shp.Tags.Item('TQQ_FP')
     [void]$pp.Run("$tpName!E2e_UpdateShape", $shp)
-    $msg = [string]$pp.Run("$tpName!PptTqq_LastMsg")
+    $msg = [string]$pp.Run("$tpName!PptTqq_LastResult")
     Check ($msg -like 'Gráficos do ThinQQ atualizados: 1.*') "(a2) Atualizar uma vez pelo core (API 2): $msg"
     Check ([string]$shp.Name -ne [string]$slide.Shapes.Item(1).Name) "(a2) nomes unicos antes de montar as entradas ($($shp.Name))"
     $vals = @($shp.Chart.SeriesCollection(1).Values)
@@ -113,7 +122,7 @@ try {
     $xl2.EnableEvents = $true                             # como um CreateObject("Excel.Application") do suplemento
     [void]$pp.Run("$tpName!PptTqq_SetExcelForTest", $xl2, $ver, $true)
     [void]$pp.Run("$tpName!PptTqq_Sync", $pres, $true)
-    $msg = [string]$pp.Run("$tpName!PptTqq_LastMsg")
+    $msg = [string]$pp.Run("$tpName!PptTqq_LastResult")
     $info = [string]$pp.Run("$tpName!PptTqq_CoreInfoForTest")
     $log = [string]$pp.Run("$tpName!PptTqq_LastLog")
     Check ($info -like "*\9.9.9\$coreFile|ro") "(b) core aberto da versao mais nova que responde, somente leitura: $info"
@@ -143,7 +152,7 @@ try {
     Check ($hint -like "Gráfico criado. Clique em OK e digite os dados*'$dataName'*" -and $trail -eq 'hint;edit;') "(c) inserido pelo suplemento, aviso de primeira vez antes de abrir os dados ($trail): $hint"
     Check ($pres3.Slides.Item(1).Shapes.Count -eq 1) "(c) uma forma no slide ($($pres3.Slides.Item(1).Shapes.Count))"
     $shp3 = $pres3.Slides.Item(1).Shapes.Item(1)
-    Check ([string]$shp3.Tags.Item('TQQ_DATA') -eq '1' -and [string]$shp3.Tags.Item('TQQ_AUTO') -eq '1') '(c) forma marcada TQQ_DATA e automatica'
+    Check ([string]$shp3.Tags.Item('TQQ_DATA') -eq '1' -and [string]$shp3.Tags.Item('TQQ_AUTO') -eq '' -and ([string]$pres3.Tags.Item('TQQ_LINKIDX')).Contains([string]$shp3.Name)) '(c) forma marcada TQQ_DATA, nasce manual (1.11.0) e entra no TQQ_LINKIDX'
     Check ([string]$shp3.LinkFormat.SourceFullName -eq $dataPath -and (Test-Path -LiteralPath $dataPath)) "(c) vinculo com a pasta de dados ao lado da apresentacao ($([string]$shp3.LinkFormat.SourceFullName))"
     $dwb = $xl.Workbooks.Item($dataName)
     Check ([string]$xl.ActiveWorkbook.Name -eq $dataName -and [string]$xl.ActiveSheet.Name -eq 'Gráfico 1') "(c) a planilha dos dados abriu ($([string]$xl.ActiveSheet.Name))"
@@ -161,6 +170,9 @@ try {
     [void]$pp.Run("$tpName!PptTqq_InsertChartIn", $pres3, $pres3.Slides.Item(1), 'line')
     Check ($pres3.Slides.Item(1).Shapes.Count -eq 2) "(c) Salvar como + inserir: segunda forma ($($pres3.Slides.Item(1).Shapes.Count))"
     Check ([string]$pres3.Slides.Item(1).Shapes.Item(2).LinkFormat.SourceFullName -eq (Join-Path $g4 $dataNameB) -and [string]$pres3.Tags.Item('TQQ_DATABOOK') -eq (Join-Path $g4 $dataNameB)) '(c) a segunda forma usa a pasta de dados de B (marca de B)'
+    # nascem manuais (1.11.0): o usuario liga "Automatico" nas duas, para o reapontamento abaixo provar que o indice das automaticas acompanha
+    [void]$xl.Run("'$cn'!PptSync_SetAuto", $pres3.Slides.Item(1).Shapes.Item(1), $true)
+    [void]$xl.Run("'$cn'!PptSync_SetAuto", $pres3.Slides.Item(1).Shapes.Item(2), $true)
     $pres3.Save()
     $dwb.Close($false); $dwb = $null; $shp3 = $null
     $xl.Workbooks.Item($dataNameB).Close($true)
@@ -185,6 +197,8 @@ try {
     Check ([string]$pres4.Tags.Item('TQQ_DATABOOK') -eq $newDataB) '(c) a marca continua a de B'
     $idx = [string]$pres4.Tags.Item('TQQ_AUTOIDX')
     Check ($idx.Contains($newData) -and $idx.Contains($newDataB) -and -not $idx.Contains($dataPath) -and -not $idx.Contains((Join-Path $g4 $dataNameB))) '(c) indice das automaticas acompanha'
+    $lidx = [string]$pres4.Tags.Item('TQQ_LINKIDX')
+    Check ($lidx.Contains($newData) -and $lidx.Contains($newDataB) -and -not $lidx.Contains($dataPath) -and -not $lidx.Contains((Join-Path $g4 $dataNameB))) "(c) TQQ_LINKIDX (todos os vinculos, 1.11.0) acompanha o reapontamento ($lidx)"
     $n = [int]$pp.Run("$tpName!PptTqq_RelinkData", $pres4)
     Check ($n -eq 0) "(c) terceira chamada: nada a reapontar ($n)"
     $pres4.Save()

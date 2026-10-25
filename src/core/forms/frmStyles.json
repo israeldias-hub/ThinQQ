@@ -1,0 +1,30 @@
+{
+  "name": "frmStyles",
+  "caption": "Estilos de gráfico do ThinQQ",
+  "width": 620,
+  "height": 400,
+  "controls": [
+    { "type": "Label", "name": "lblStyles", "Left": 12, "Top": 8, "Width": 170, "Height": 14, "Caption": "Estilos", "fontName": "Segoe UI", "fontSize": 9, "fontBold": true },
+    { "type": "ListBox", "name": "lstStyles", "Left": 12, "Top": 24, "Width": 170, "Height": 250, "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "Label", "name": "lblRoles", "Left": 192, "Top": 8, "Width": 300, "Height": 14, "Caption": "Papel e valor", "fontName": "Segoe UI", "fontSize": 9, "fontBold": true },
+    { "type": "ListBox", "name": "lstRoles", "Left": 192, "Top": 24, "Width": 300, "Height": 250, "ColumnCount": 2, "ColumnWidths": "170 pt;120 pt", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "Label", "name": "lblName", "Left": 12, "Top": 284, "Width": 170, "Height": 12, "Caption": "Nome do estilo:", "fontName": "Segoe UI", "fontSize": 8 },
+    { "type": "TextBox", "name": "txtName", "Left": 12, "Top": 298, "Width": 170, "Height": 20, "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "Label", "name": "lblValue", "Left": 192, "Top": 284, "Width": 120, "Height": 12, "Caption": "Valor:", "fontName": "Segoe UI", "fontSize": 8 },
+    { "type": "TextBox", "name": "txtValue", "Left": 192, "Top": 298, "Width": 100, "Height": 20, "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "ComboBox", "name": "cboPick", "Left": 296, "Top": 298, "Width": 150, "Height": 20, "Style": 2, "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "Label", "name": "lblSwatch", "Left": 450, "Top": 298, "Width": 20, "Height": 20, "Caption": "", "BorderStyle": 1 },
+    { "type": "CommandButton", "name": "btnSetValue", "Left": 474, "Top": 296, "Width": 72, "Height": 24, "Caption": "Usar valor", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnNewFromChart", "Left": 504, "Top": 24, "Width": 104, "Height": 24, "Caption": "Novo do gráfico", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnDuplicate", "Left": 504, "Top": 52, "Width": 104, "Height": 24, "Caption": "Duplicar", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnSave", "Left": 504, "Top": 80, "Width": 104, "Height": 24, "Caption": "Salvar", "fontName": "Segoe UI", "fontSize": 9, "fontBold": true },
+    { "type": "CommandButton", "name": "btnDelete", "Left": 504, "Top": 108, "Width": 104, "Height": 24, "Caption": "Excluir", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnImport", "Left": 504, "Top": 144, "Width": 104, "Height": 24, "Caption": "Importar...", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnExport", "Left": 504, "Top": 172, "Width": 104, "Height": 24, "Caption": "Exportar...", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "ComboBox", "name": "cboScope", "Left": 504, "Top": 210, "Width": 104, "Height": 20, "Style": 2, "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "CommandButton", "name": "btnApply", "Left": 504, "Top": 234, "Width": 104, "Height": 24, "Caption": "Aplicar", "fontName": "Segoe UI", "fontSize": 9, "fontBold": true },
+    { "type": "CheckBox", "name": "chkDefault", "Left": 12, "Top": 330, "Width": 300, "Height": 18, "Caption": "Usar este estilo nos novos gráficos", "fontName": "Segoe UI", "fontSize": 9 },
+    { "type": "Label", "name": "lblStatus", "Left": 12, "Top": 356, "Width": 480, "Height": 28, "Caption": "", "fontName": "Segoe UI", "fontSize": 9, "WordWrap": true },
+    { "type": "CommandButton", "name": "btnClose", "Left": 504, "Top": 352, "Width": 104, "Height": 24, "Caption": "Fechar", "Cancel": true, "fontName": "Segoe UI", "fontSize": 9 }
+  ]
+}

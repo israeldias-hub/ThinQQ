@@ -9,7 +9,7 @@ INSTALAÇÃO AUTOMÁTICA
 2. Feche o Excel e o PowerPoint.
 3. Dê dois cliques em "Instalar-ThinQQ.cmd". Se o Windows perguntar, clique em "Executar" (ou, em "O Windows protegeu o computador", em "Mais informações" > "Executar assim mesmo").
 4. Abra o Excel: a aba "ThinQQ" aparece na faixa de opções.
-5. Para conhecer os recursos, abra exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx (vem neste ZIP, na pasta "exemplos"): a primeira planilha é um índice com links para 28 exemplos (E01 a E28). O instalador não instala nem abre esse arquivo.
+5. Para conhecer os recursos, abra exemplos\ThinQQ-Demonstracao-Materiais-Construcao.xlsx (vem neste ZIP, na pasta "exemplos"): a primeira planilha é um índice com links para 29 exemplos (E01 a E29). O instalador não instala nem abre esse arquivo.
 
 POWERPOINT
 O instalador também instala o suplemento ThinQQ.ppam (aba ThinQQ no PowerPoint, PowerPoint 16.0), que atualiza os gráficos do ThinQQ colados como gráfico vinculado ao abrir a apresentação. Ele fica em %LOCALAPPDATA%\ThinQQ (macros dessa pasta rodam sem aviso, pelo Local Confiável do PowerPoint que o instalador cria). Instalação manual: veja o passo 6 da INSTALAÇÃO MANUAL (PowerPoint > Arquivo > Opções > Suplementos > Gerenciar: Suplementos do PowerPoint > Ir... > Adicionar novo > %LOCALAPPDATA%\ThinQQ\ThinQQ.ppam). Não verificado em PowerPoint real.

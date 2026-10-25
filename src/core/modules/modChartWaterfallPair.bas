@@ -940,8 +940,8 @@ Private Function PointHasLabel(s As Series, i As Long) As Boolean
 End Function
 
 ' Fonte por contraste com a cor atual de cada serie: rotulos de degrau (ponto a ponto: uma escrita no nivel da serie recriaria rotulos apagados)
-' e o nome de cada serie.
-Private Sub Wfp_RefreshFontColors(cht As Chart)
+' e o nome de cada serie. Publica: os estilos (modStyleApply) recolorem as series e refazem a fonte pela mesma regra.
+Public Sub Wfp_RefreshFontColors(cht As Chart)
     Dim s As Series, k As Long, i As Long, fc As Long
     For k = 1 To 2
         fc = Style_ContrastFont(Style_DataSeriesColor(cht, k))

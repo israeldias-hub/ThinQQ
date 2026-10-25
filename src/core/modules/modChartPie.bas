@@ -160,8 +160,9 @@ Private Sub Pie_ApplyLabelContent(cht As Chart)
 End Sub
 
 ' Cor da fonte de cada rotulo existente, ponto a ponto: fora (pieout = 1, so na pizza), cinza-escuro; dentro, contraste com a cor da fatia.
-' Nada no nivel da serie: posicao, conteudo e rotulos apagados pelo usuario ficam como estao.
-Private Sub Pie_ApplyLabelColors(cht As Chart)
+' Nada no nivel da serie: posicao, conteudo e rotulos apagados pelo usuario ficam como estao. Publica: os estilos (modStyleApply) recolorem
+' as fatias e refazem a fonte pela mesma regra.
+Public Sub Pie_ApplyLabelColors(cht As Chart)
     Dim s As Series, outside As Boolean, k As Long
     Set s = PieSeries(cht)
     If s Is Nothing Then Exit Sub

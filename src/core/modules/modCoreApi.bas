@@ -193,6 +193,7 @@ Public Sub Core_Insert(kind As String)
     LinkFrame_CleanOrphans ws.Parent                 ' molduras orfas da pasta inteira (1.7.0)
     Set co = Kinds_Insert(ws, data, kind)
     ApplySourceNumFmt co.Chart, kind, data           ' formato inicial dos rotulos pelo formato da tabela (1a celula de valor)
+    StyleDefault_ApplyNew co.Chart                   ' estilo padrao para novos graficos (1.12.0); sem padrao, a paleta de sempre
     Application.ScreenUpdating = prevSU
     Watchers_Rehook
     co.Select
@@ -213,6 +214,18 @@ Fail:
     Else
         Errors_HandleErr "Core_Insert(" & kind & ")", en, ed
     End If
+End Sub
+
+' Estilo padrao para novos graficos (StyleStore_DefaultName). Falha (estilo apagado): registrada, o grafico fica com a paleta. Nunca propaga.
+Private Sub StyleDefault_ApplyNew(c As Chart)
+    Dim n As String
+    On Error GoTo Fail
+    n = StyleStore_DefaultName()
+    If Len(n) = 0 Then Exit Sub
+    Style_ApplyNamed c, n, True
+    Exit Sub
+Fail:
+    Errors_Log "StyleDefault_ApplyNew" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
 
 ' Chave de numfmt que corresponde a um codigo de formato de celula (ingles): percentual -> pct0 (sem casas) ou pct1; escala de milhares
@@ -493,6 +506,7 @@ Public Sub Core_SetToggle(key As String, value As Boolean)
     Set c = Core_ActiveChart()
     If c Is Nothing Then Exit Sub
     ApplyToggle c, key, value
+    Style_Reapply c                                      ' estilo (1.12.0): conectores e rotulos recriados recebem o estilo de novo
     Core_SafeRefresh c
     If key = "vline" And value Then
         msg = Break_VLineHiddenText(c)                   ' aviso nao bloqueante: a media acima do corte de eixo nao aparece
@@ -523,6 +537,7 @@ Public Sub Core_SetOption(key As String, value As String)
     msg = ValidateOption(key, value)
     If Len(msg) > 0 Then Core_Notify msg, vbExclamation: Exit Sub
     ApplyOption c, key, value                            ' recusa pela matriz (7002) antes de gravar: o Fail: abaixo mostra o aviso
+    If key = "palette" Then Style_Clear c Else Style_Reapply c       ' paleta escolhida = estilo embutido (tira o estilo); demais opcoes reaplicam
     Core_SafeRefresh c
     Exit Sub
 Fail:
@@ -566,6 +581,7 @@ Public Sub Core_AddAnnotation(kind As String, Optional fromIdx As Long = 0, Opti
         Case "diff": Ann_AddDifference c, fromIdx, toIdx
         Case Else: Ann_AddBracket c, fromIdx, toIdx
     End Select
+    Style_Reapply c                                  ' estilo (1.12.0): a seta nova recebe seta.* (nunca propaga)
     Exit Sub
 Fail:
     If Err.Number = vbObjectError + 7001 Then
@@ -585,7 +601,8 @@ Public Sub Core_AddDelta(fromRef As String, toRef As String, Optional fmt As Str
     If c Is Nothing Then Exit Sub
     If fmt <> "abs" And fmt <> "pct" Then fmt = "both"
     Ann_AddDelta c, fromRef, toRef, fmt
-    Core_SafeRefresh c                       ' quem insere sem desenhar (gerador da demonstracao) termina com o refresh completo...
+    Style_Reapply c                          ' estilo (1.12.0): a seta nova recebe seta.* (nunca propaga)
+    Core_SafeRefresh c                      ' quem insere sem desenhar (gerador da demonstracao) termina com o refresh completo...
     Ann_EnsureRoomAfterChange c              ' ...que pode mudar escalas (combinacao: a faixa da linha acima dos totais): a sala do delta de novo
     Exit Sub
 Fail:
@@ -1000,6 +1017,7 @@ End Sub
 ' Reposiciona rótulos e anotações. Chamado por eventos: nunca propaga erro (apenas registra).
 ' Gráficos de planilhas inativas são atualizados quando a planilha é ativada (Watchers_Rehook).
 Public Sub Core_SafeRefresh(cht As Chart)
+    Dim relinked As Boolean
     On Error Resume Next
     NotifySourceMismatchOnce cht
     Deco_ApplyFixedScale cht                         ' mesma escala: os dados mudaram e o eixo automatico recalculou; reaplica a escala gravada
@@ -1026,6 +1044,11 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Gantt" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Ann_Refresh cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Ann" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    relinked = Labels_TakeRelinked()                 ' rotulos religados no refresh (9 pt, cor padrao): o estilo refaz rotulo.* abaixo
+    Style_ReapplyIfNeeded cht                        ' estilo (1.12.0): so quando o carimbo mudou (linha/serie nova, sinal da 1a/ultima barra)
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Style" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    If relinked Then Style_ReapplyLabels cht
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/StyleLabels" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
 End Sub
 
 ' Re-layout do gráfico ativo (ou de todos da planilha) e limpeza de blocos órfãos.
@@ -1037,6 +1060,7 @@ Public Sub Core_Refresh()
         Core_SafeRefresh c
         CalcSheet_Cleanup Registry_Workbook(c)
         LinkFrame_CleanOrphans Registry_Workbook(c)      ' molduras orfas da pasta inteira (a ativacao de planilha so limpa a planilha ativada)
+        Core_RefreshFrames Registry_Workbook(c)          ' cor das molduras pelo estado (1.13.0)
     Else
         If ActiveWorkbook Is Nothing Then Exit Sub
         Set wb = ActiveWorkbook
@@ -1050,6 +1074,7 @@ Public Sub Core_Refresh()
         End If
         CalcSheet_Cleanup wb
         LinkFrame_CleanOrphans wb
+        Core_RefreshFrames wb
     End If
     Watchers_Rehook
     Exit Sub
@@ -1129,12 +1154,76 @@ Public Sub Core_ToggleLinkFrames()
     Dim r As Long
     On Error GoTo Fail
     If ActiveWorkbook Is Nothing Then Exit Sub
+    Core_RefreshFrames ActiveWorkbook                   ' cor pelo estado (1.13.0) antes de mostrar
     r = LinkFrame_ToggleAll(ActiveWorkbook)
-    If r = -1 Then Core_Notify "Esta pasta não tem molduras de intervalos vinculados ao PowerPoint (elas aparecem ao usar 'Inserir também no slide')."
+    If r = -1 Then Core_Notify LINKFRAME_MSG_NONE
     Exit Sub
 Fail:
     Errors_Handle "Core_ToggleLinkFrames"
 End Sub
+
+' Molduras da pasta pelo estado (1.13.0): ids dos graficos usados nas apresentacoes ABERTAS (PowerPoint ja aberto, nunca iniciado aqui;
+' TQQ_LINKIDX das entradas desta pasta, etiqueta TQQ_CHART de cada forma) = verde; o resto = vermelha. Chamado por Atualizar (Core_Refresh),
+' Mostrar/ocultar molduras, Atualizar no PowerPoint (Core_PptSyncOpen) e depois de inserir ou colar vinculado no slide (nunca no ciclo
+' automatico: mudar a cor altera a pasta e limparia o Desfazer). PowerPoint OCUPADO (caixa aberta, texto em edicao: ao pegar o aplicativo
+' ou no meio da leitura) = nada e pintado e devolve 0: as cores ficam como estavam (revisao final 1.13.0, I1). Cada moldura e pintada pela
+' propria forma (uma planilha copiada leva outra moldura com o mesmo nome; M4); moldura orfa (grafico inexistente) fica para a limpeza.
+' Devolve quantas verdes. Nunca propaga.
+Public Function Core_RefreshFrames(wb As Workbook) As Long
+    Dim used As Object, app As Object, pres As Object, e As Variant, sl As Object, shp As Object, ws As Worksheet, s As Shape, id As String
+    Dim idx As String, n As Long
+    On Error Resume Next
+    If wb Is Nothing Then Exit Function
+    Set used = CreateObject("Scripting.Dictionary")
+    Set app = Ppt_GetApp(False)
+    If Err.Number <> 0 Then GoTo Busy                       ' Ppt_GetApp(False) so levanta o ocupado
+    If Not app Is Nothing Then
+        For Each pres In app.Presentations
+            If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+            Err.Clear
+            PptSync_TestPoint "frames"                      ' (teste) ocupado no meio da leitura
+            If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+            idx = ""
+            idx = CStr(pres.Tags.Item(PPTSTATE_TAG_LINKIDX))
+            If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+            Err.Clear
+            For Each e In PptIdx_Parse(idx)
+                If StrComp(CStr(e(2)), wb.FullName, vbTextCompare) = 0 Then
+                    Set sl = Nothing: Set shp = Nothing
+                    Set sl = pres.Slides.FindBySlideID(CLng(e(0)))
+                    If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+                    If Not sl Is Nothing Then Set shp = sl.Shapes(CStr(e(1)))
+                    If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+                    id = ""
+                    If Not shp Is Nothing Then id = CStr(shp.Tags.Item(PPTSYNC_TAG_CHART))
+                    If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+                    If Len(id) > 0 Then used(id) = True
+                End If
+                Err.Clear
+            Next
+        Next
+        If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+    End If
+    Err.Clear
+    For Each ws In wb.Worksheets
+        For Each s In ws.Shapes
+            If Left$(s.Name, Len(LINKFRAME_PREFIX)) = LINKFRAME_PREFIX Then
+                id = Mid$(s.Name, Len(LINKFRAME_PREFIX) + 1)
+                If Not Registry_FindChartObject(wb, id) Is Nothing Then
+                    LinkFrame_SetShapeState s, used.Exists(id)
+                    If used.Exists(id) Then n = n + 1
+                End If
+            End If
+            Err.Clear
+        Next
+    Next
+    Err.Clear
+    Core_RefreshFrames = n
+    Exit Function
+Busy:
+    Errors_Log "Core_RefreshFrames: PowerPoint ocupado; cores das molduras mantidas" & vbTab & Err.Number
+    Err.Clear
+End Function
 
 ' True se a ultima Core_CopyToPowerPoint colou no slide e, no vinculado, manteve o vinculo (Ppt_PasteKept; 1.7.0). Nunca propaga erro.
 Public Function Core_LastPptPasteOk() As Boolean
@@ -1164,7 +1253,7 @@ Public Sub Core_InsertToPowerPoint(kind As String)
     LinkFrame_Ensure c, src
     c.Parent.Activate
     Core_CopyToPowerPoint "chart"
-    If Not mPptPasteOk Then LinkFrame_Remove c
+    If Not mPptPasteOk Then LinkFrame_Remove c Else Core_RefreshFrames rng.Worksheet.Parent       ' colou: cor das molduras pelo estado (1.13.0)
     Exit Sub
 Fail:
     en = Err.Number: ed = Err.Description
@@ -1227,7 +1316,8 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     If Len(Registry_GetOption(nc, "outpos", "")) > 0 Then Registry_SetOption nc, "outpos", ""        ' e as posicoes aplicadas a eles
     If Len(Registry_GetOption(nc, "brklbl", "")) > 0 Then Registry_SetOption nc, "brklbl", ""        ' rotulos ocultos pelo corte de eixo: idem
     ReapplyOptions nc                           ' formato, paleta, espaco, alternadores, escala fixa e legenda: as ESCOLHAS salvas do usuario
-    RebuildTestHook "afterreapply"              ' (teste) falha depois de reaplicar, antes de trocar o grafico
+    Style_Reapply nc                            ' estilo (1.12.0): o grafico novo nasce com a paleta; a camada do estilo volta por cima (nunca propaga)
+    RebuildTestHook "afterreapply"             ' (teste) falha depois de reaplicar, antes de trocar o grafico
     oldCo.Delete
     ' A partir daqui o gráfico antigo não existe mais: nada pode apagar o novo. Falhas só são registradas.
     On Error Resume Next
@@ -1248,7 +1338,9 @@ Public Function Core_RebuildFromRange(c As Chart, rng As Range) As Boolean
     msg = Break_TakeNotice()                    ' corte de eixo: aviso so depois de o grafico antigo ser trocado
     If Len(msg) > 0 Then Core_Notify msg, vbInformation
     ' Alterar dados recria o grafico com id NOVO: o slide (TQQ_CHART = id antigo) deixa de acompanha-lo. A moldura do antigo (orfa) sai e NAO
-    ' e redesenhada (ela afirmaria um vinculo que nao existe); o aviso pede inserir ou colar de novo.
+    ' e redesenhada (ela afirmaria um vinculo que nao existe); o aviso pede inserir ou colar de novo. Manter o id NAO adiantaria (sonda P-U6,
+    ' 1.13.0, medida: negativa): o grafico do slide guarda as proprias formulas de serie (celulas da tabela e do bloco antigos) e o
+    ' LinkFormat.Update rele essas celulas, nao o grafico pelo nome; com o bloco antigo limpo, a serie de totais do slide ficaria vazia.
     If hadFrame Then
         LinkFrame_CleanOrphans wb
         Core_Notify LINKFRAME_NOTE_REBUILT, vbInformation
@@ -1540,7 +1632,8 @@ Private Sub CopyToPowerPointImpl(mode As String)
     If linked And linkState <> 0 And Not wb.Saved Then msg = msg & " " & PPT_NOTE_DIRTY
     Ppt_TestHook "after"
     mPptPasteOk = Ppt_PasteKept(linked, linkState)   ' colou; no modo "chart", com o vinculo (linkState 0: o PowerPoint colou sem vinculo)
-    Core_Notify msg, vbInformation                   ' ANTES de ativar o PowerPoint: a caixa (Release) nao fica escondida atras dele
+    If Ppt_FrameAfterCopy(linked, linkState) Then CopyFrameAfterPaste c      ' 1.13.0 (X2b): so depois do ultimo ponto de falha
+    Core_Notify msg, vbInformation                  ' ANTES de ativar o PowerPoint: a caixa (Release) nao fica escondida atras dele
     If BUILD_CONFIG <> "Test" Then                   ' nos testes o PowerPoint do teste nao aparece nem rouba o foco
         On Error Resume Next
         app.Visible = -1
@@ -1575,6 +1668,20 @@ Fail:
     End If
 End Sub
 
+' Moldura do intervalo de origem depois de uma colagem vinculada que manteve o vinculo (1.13.0, X2b): "Copiar como grafico vinculado" passa a
+' marcar, como "Vincular ao PowerPoint", que o grafico foi ao PowerPoint, e assim "Alterar dados" avisa (LINKFRAME_NOTE_REBUILT). Desenhada
+' so depois do ultimo ponto de falha da colagem: colagem que falhou ou ficou sem vinculo nunca deixa moldura. Moldura que ja existe (colagem
+' anterior, Vincular ao PowerPoint, pasta de dados do PowerPoint) nao e redesenhada, so volta a verde: o slide acabou de recebe-lo
+' (revisao final 1.13.0, M3). Nunca propaga erro.
+Private Sub CopyFrameAfterPaste(c As Chart)
+    Dim src As Range
+    On Error Resume Next
+    If Not LinkFrame_Find(c) Is Nothing Then LinkFrame_SetState c, True: Exit Sub
+    Set src = Block_SourceRange(c)
+    If Not src Is Nothing Then LinkFrame_Ensure c, src
+    Err.Clear
+End Sub
+
 ' Grafico vinculado recem-colado (Parte A): etiquetas TQQ_* (para a atualizacao ao reabrir) e as anotacoes recalculadas no tamanho do slide
 ' (medido: Ppt_PlaceShape estica as formas internas junto com o grafico). Falha aqui NAO desfaz a colagem: fica registrada (o botao
 ' "Atualizar graficos no PowerPoint" refaz). A impressao digital TQQ_FP so e gravada se a sincronizacao deu certo (senao a proxima
@@ -1595,6 +1702,7 @@ Private Sub PptSyncAfterPaste(shp As Object, co As ChartObject)
         PptSync_SetAuto shp, True                     ' opcao "Novos vinculos atualizam automaticamente" (1.6.0)
         If Err.Number <> 0 Then Errors_Log "CopyToPowerPoint/automatico" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     End If
+    PptLinkIdx_Add shp                              ' 1.11.0: indice de todos os vinculos (nunca propaga erro)
 End Sub
 
 ' Parte A (1.4.0): atualiza os graficos ThinQQ vinculados de UMA apresentacao. O suplemento ThinQQ.ppam chama por Application.Run com o
@@ -1645,6 +1753,27 @@ Fail:
     If Ppt_IsBusyError(en) Then Core_PptSyncShapes = PPT_ERR_BUSY Else Core_PptSyncShapes = "Não foi possível atualizar os gráficos do ThinQQ: " & ed & " (" & en & ")"
 End Function
 
+' API 6 (1.11.0): estados dos elementos para o .ppam (dialogo Vinculos e abertura da apresentacao; PptState_Lines). Sem caixas (modo
+' silencioso) e com o ciclo automatico esperando, equilibrados em todo caminho. Devolve as linhas, ou "!" + mensagem. Nunca propaga erro.
+Public Function Core_PptLinkStates(pres As Object, entries As String, verifyClosed As Boolean) As String
+    Dim en As Long, ed As String
+    On Error GoTo Fail
+    Core_QuietBegin
+    Ppt_BeginOp
+    Core_PptLinkStates = PptState_Lines(pres, entries, verifyClosed)
+    Ppt_EndOp
+    Core_QuietEnd
+    Exit Function
+Fail:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Ppt_EndOp
+    Core_QuietEnd
+    Errors_Log "Core_PptLinkStates" & vbTab & en & vbTab & ed
+    If Ppt_IsBusyError(en) Then Core_PptLinkStates = "!" & PPT_ERR_BUSY Else Core_PptLinkStates = "!Não foi possível verificar os vínculos: " & ed & " (" & en & ")"
+End Function
+
 ' Opcoes do PowerPoint para a faixa do Excel: "autoon" (atualizacao automatica ligada) e "autonew" (novos vinculos ja automaticos).
 Public Function Core_PptGetFlag(key As String) As Boolean
     On Error Resume Next
@@ -1664,7 +1793,7 @@ End Sub
 
 ' API 3 (1.8.0): grafico do ThinQQ criado PELO POWERPOINT (spec 14). slide = slide de destino (objeto do PowerPoint, passado pelo .ppam).
 ' Cria a planilha na pasta de dados da apresentacao, insere o grafico, destaca os dados (moldura), salva, cola VINCULADO no slide (o mesmo
-' caminho do "Copiar como grafico vinculado": etiquetas e setas no tamanho do slide), marca TQQ_DATA e liga "Atualizar automaticamente".
+' caminho do "Copiar como grafico vinculado": etiquetas e setas no tamanho do slide), marca TQQ_DATA; nasce manual (1.11.0).
 ' Devolve "" (ok) ou a mensagem; falha desfaz a forma e a planilha criadas. Nunca propaga erro. Nunca chama LinkFormat.Update (a colagem
 ' acabou de trazer os dados; PG4: Update com a origem ausente abre uma caixa modal que trava o PowerPoint). O ciclo automatico espera
 ' (Ppt_BeginOp/Ppt_EndOp, como no Core_CopyToPowerPoint) e nenhuma caixa abre no Excel durante a chamada (Core_QuietBegin/End: o PowerPoint
@@ -1700,7 +1829,7 @@ Private Function PptInsertChartImpl(slide As Object, kind As String) As String
     shp.Tags.Add PPTDATA_TAG, "1"
     PptData_Hook "tagged"
     pres.Tags.Add PPTDATA_MARK, path
-    PptSync_SetAuto shp, True                        ' por ultimo: a ultima gravacao e a do indice (falha antes dele nao deixa entrada orfa)
+    PptLinkIdx_Add shp                               ' 1.11.0: nasce MANUAL (como o think-cell); a colagem ja ligou o automatico se "Novos vinculos" estiver marcada
     PptInsertChartImpl = ""
     Exit Function
 Fail:
@@ -1849,7 +1978,7 @@ End Function
 
 ' API 4 (1.9.0): comando da faixa do PowerPoint nos graficos listados (spec 14.5): "toggle" (arg = labels|totals|connectors + ":1"/":0" = o
 ' valor, como a faixa do Excel; sem ":valor" inverte), "numfmt"/"legend" (arg = valor), "cagr"/"diff" (arg = "de,ate", indices de categoria a
-' partir de 1), "clear" (remove as anotacoes: setas, delta e colchetes). Cada grafico (pasta + TQQ_CHART) recebe o comando uma vez. Aplica pelo
+' partir de 1), "clear" (remove as anotacoes: setas, delta e colchetes), "style" (arg = nome do estilo; API 7, 1.12.0). Cada grafico (pasta + TQQ_CHART) recebe o comando uma vez. Aplica pelo
 ' MESMO codigo da faixa do Excel, Core_SafeRefresh, salva so a pasta de DADOS (pasta do usuario fica alterada e nao salva: o usuario decide)
 ' e sincroniza (forcado, com o motor de sempre: LinkFormat.Update so com o arquivo presente) so as formas em que o comando deu certo. Pasta do
 ' usuario fechada nunca e aberta (PPTCMD_MSG_OPEN_SOURCE). Devolve "" ou a 1a mensagem (recusa da matriz em texto). Sem caixas (modo
@@ -1869,7 +1998,7 @@ Private Function PptCommandImpl(pres As Object, entries As String, cmd As String
     Dim summary As String, done As Collection, key As String, prev As Variant
     On Error GoTo Fail
     Select Case cmd
-        Case "toggle", "numfmt", "legend", "cagr", "diff", "clear"
+        Case "toggle", "numfmt", "legend", "cagr", "diff", "clear", "style"
         Case Else: PptCommandImpl = PPTCMD_MSG_UNKNOWN & cmd: Exit Function
     End Select
     Set opened = New Collection: Set okItems = New Collection: Set done = New Collection
@@ -1970,13 +2099,17 @@ Private Function PptCmd_One(shp As Object, cmd As String, arg As String, opened 
             If cmd = "cagr" Then Ann_AddCagr c, a, b Else Ann_AddDifference c, a, b
         Case "clear"
             Ann_RemoveAll c, False
+        Case "style"
+            ' 1.12.0 (API 7): o mesmo Style_ApplyNamed da faixa do Excel (estilo inexistente/invalido: 7140 volta como texto pelo Fail)
+            Style_ApplyNamed c, arg, True
     End Select
+    If cmd <> "style" Then Style_Reapply c          ' estilo (1.12.0): conectores, rotulos e setas novos recebem o estilo (o "style" acabou de aplicar)
     Core_SafeRefresh c
     If PptData_IsDataBook(wb) Then PptData_SaveQuiet wb
     Exit Function
 Fail:
     Select Case Err.Number
-        Case vbObjectError + 7001, vbObjectError + 7002, vbObjectError + 7100, vbObjectError + 7130
+        Case vbObjectError + 7001, vbObjectError + 7002, vbObjectError + 7100, vbObjectError + 7130, vbObjectError + 7140
             PptCmd_One = Err.Description
         Case Else
             PptCmd_One = "Não foi possível aplicar: " & Err.Description & " (" & Err.Number & ")"
@@ -2237,6 +2370,9 @@ Public Sub Core_PptSyncOpen()
         msg = msg & IIf(Len(msg) > 0, vbLf & vbLf, "") & "'" & PptSyncPresName(pres) & "': " & Core_PptSyncPresentation(pres, True)
     Next
     Ppt_EndOp
+    ' cor das molduras da pasta ativa (1.13.0, revisao final M2): a sincronizacao acabou de reconstruir o TQQ_LINKIDX; so leitura no PowerPoint
+    ' ja aberto, nunca o inicia, sem caixa; ocupado = cores mantidas (Core_RefreshFrames nunca propaga)
+    If Not ActiveWorkbook Is Nothing Then Core_RefreshFrames ActiveWorkbook
     If Len(msg) = 0 Then msg = PPTSYNC_NO_PPT
     Core_Notify msg, vbInformation
     Exit Sub
@@ -2268,4 +2404,152 @@ Private Sub RebuildTestHook(site As String)
             Err.Raise vbObjectError + 9991, "ThinQQ", "Falha simulada (teste) " & site
         End If
     End If
+End Sub
+
+' ===== Estilos de grafico (1.12.0) =====
+
+' Nomes dos estilos para a faixa (embutidos, do usuario e os da pasta ativa), "|". Tambem o menu Estilo do PowerPoint (API 7, por xl.Run: modo
+' silencioso equilibrado). Nunca propaga erro.
+Public Function Core_StyleNames() As String
+    On Error Resume Next
+    Core_QuietBegin
+    Core_StyleNames = StyleStore_Names(ActiveWorkbook)
+    Core_QuietEnd
+End Function
+
+Public Function Core_StyleDefault() As String
+    On Error Resume Next
+    Core_StyleDefault = StyleStore_DefaultName()
+End Function
+
+Public Sub Core_StyleSetDefault(name As String)
+    On Error Resume Next
+    StyleStore_SetDefaultName StyleDef_SafeName(name)
+End Sub
+
+' Importar estilo (arquivo .tqqestilo escolhido pelo usuario; build Test sai antes do dialogo). Nunca propaga erro.
+Public Sub Core_StyleImport()
+    Dim f As Variant, r As String, nm As String, ign As Long
+    On Error GoTo Fail
+    If BUILD_CONFIG = "Test" Then Exit Sub
+    f = Application.GetOpenFilename("Estilo do ThinQQ (*" & STYLEDEF_EXT & "),*" & STYLEDEF_EXT, , "Importar estilo do ThinQQ")
+    If VarType(f) = vbBoolean Then Exit Sub
+    r = StyleStore_Import(CStr(f), nm, ign)
+    If Left$(r, 1) = "?" Then
+        ' o usuario ja tem um estilo com esse nome: pergunta antes de substituir (Nao = nada muda; no modo silencioso a resposta e Nao)
+        If Not Core_Confirm(StyleStore_ReplaceQuestion(nm)) Then Exit Sub
+        r = StyleStore_SaveUser(nm, Mid$(r, 2))
+    End If
+    If Left$(r, 1) = "!" Then
+        Core_Notify Mid$(r, 2), vbExclamation
+        Exit Sub
+    End If
+    Core_Notify "Estilo importado: " & nm & "." & IIf(ign > 0, " Linhas ignoradas (inválidas ou desconhecidas): " & ign & ".", ""), vbInformation
+    Exit Sub
+Fail:
+    Errors_Handle "Core_StyleImport"
+End Sub
+
+Public Sub Core_StyleExport(name As String)
+    Dim f As Variant, r As String
+    On Error GoTo Fail
+    If BUILD_CONFIG = "Test" Then Exit Sub
+    f = Application.GetSaveAsFilename(StyleDef_SafeName(name) & STYLEDEF_EXT, "Estilo do ThinQQ (*" & STYLEDEF_EXT & "),*" & STYLEDEF_EXT, , "Exportar estilo do ThinQQ")
+    If VarType(f) = vbBoolean Then Exit Sub
+    r = StyleStore_Export(name, CStr(f), ActiveWorkbook)
+    If Len(r) > 0 Then
+        Core_Notify Mid$(r, 2), vbExclamation
+    Else
+        Core_Notify "Estilo exportado para " & CStr(f) & ".", vbInformation
+    End If
+    Exit Sub
+Fail:
+    Errors_Handle "Core_StyleExport"
+End Sub
+
+' Paleta embutida (estilos "Padrão ThinQQ", "Tons de cinza", "Cores do tema"): o mesmo ApplyOption da faixa e o estilo sai (Style_Clear depois
+' da paleta: hachura e conectores voltam ao padrao). Propaga erros.
+Public Sub Opt_ApplyPalette(c As Chart, pal As String)
+    ApplyOption c, "palette", pal
+    Style_Clear c
+End Sub
+
+' Estilo do grafico ativo para a faixa: o nome gravado ou, sem estilo, o embutido da paleta. "" sem grafico. Nunca propaga erro.
+Public Function Core_GetStyleName() As String
+    Dim c As Chart, n As String
+    On Error Resume Next
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then Exit Function
+    n = Registry_GetOption(c, "style", "")
+    If Len(n) = 0 Then
+        Select Case Registry_GetOption(c, "palette", "padrao")
+            Case "cinza": n = "Tons de cinza"
+            Case "tema": n = "Cores do tema"
+            Case Else: n = "Padrão ThinQQ"
+        End Select
+    End If
+    Core_GetStyleName = n
+End Function
+
+' Aplica o estilo: scope "chart" (os selecionados ou o ativo), "sheet" (todos os do ThinQQ da planilha ativa) ou "book" (da pasta ativa).
+' Recusa (estilo inexistente ou invalido, 7140) vira aviso. Nunca propaga erro.
+Public Sub Core_StyleApply(name As String, scope As String)
+    Dim targets As New Collection, v As Variant, ws As Object, co As ChartObject, n As Long, ch As Chart
+    On Error GoTo Fail
+    Select Case scope
+        Case "sheet", "book"
+            If ActiveWorkbook Is Nothing Then Exit Sub
+            For Each ws In ActiveWorkbook.Worksheets
+                If scope = "book" Or ws Is ActiveSheet Then
+                    For Each co In ws.ChartObjects
+                        If Registry_IsThinQQChart(co.Chart) Then targets.Add co.Chart
+                    Next
+                End If
+            Next
+        Case Else
+            For Each v In Core_SelectedCharts()
+                targets.Add v
+            Next
+    End Select
+    For Each v In targets
+        Set ch = v
+        Style_ApplyNamed ch, name, True
+        Core_SafeRefresh ch
+        n = n + 1
+    Next
+    If n = 0 Then Core_Notify "Selecione um gráfico do ThinQQ (ou escolha planilha/pasta).", vbInformation
+    Exit Sub
+Fail:
+    If Err.Number = vbObjectError + 7140 Or Err.Number = vbObjectError + 7002 Then
+        Core_Notify Err.Description, vbExclamation
+    Else
+        Errors_Handle "Core_StyleApply"
+    End If
+End Sub
+
+' Salva o visual do grafico ativo como estilo do usuario. "" ok ou a mensagem. Nunca propaga erro.
+Public Function Core_StyleFromChart(name As String) As String
+    Dim c As Chart, r As String
+    On Error GoTo Fail
+    Set c = Core_ActiveChart()
+    If c Is Nothing Then
+        Core_StyleFromChart = "Selecione um gráfico do ThinQQ."
+        Exit Function
+    End If
+    r = StyleStore_SaveUser(name, Style_FromChart(c, name))
+    If Left$(r, 1) = "!" Then Core_StyleFromChart = Mid$(r, 2)
+    Exit Function
+Fail:
+    Core_StyleFromChart = "Não foi possível salvar o estilo: " & Err.Description
+End Function
+
+' Janela Estilos (1.12.0), nao modal. Build Test: nada (formulario). Nunca propaga erro.
+Public Sub Core_StyleManage()
+    On Error GoTo Fail
+    If BUILD_CONFIG = "Test" Then Exit Sub
+    frmStyles.Prepare
+    frmStyles.Show vbModeless
+    Exit Sub
+Fail:
+    Errors_Handle "Core_StyleManage"
 End Sub

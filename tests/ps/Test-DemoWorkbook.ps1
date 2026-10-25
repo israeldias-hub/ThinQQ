@@ -178,6 +178,7 @@ try {
             'pairdiff'     = { param($i, $co, $ws) $n = 0; foreach ($sr in $co.Chart.SeriesCollection()) { if ([string]$sr.Name -eq 'tqq_pd') { $n++ } }; $i.Opt['pairdiff'] -eq '1' -and $n -eq 1 }
             'pairabs'      = { param($i, $co, $ws) $i.Opt['pairabs'] -eq '1' }
             'inbar'        = { param($i, $co, $ws) $i.Opt['legend'] -eq 'inbar' }
+            'style'        = { param($i, $co, $ws) $h = $false; foreach ($sr in $co.Chart.SeriesCollection()) { try { if ([int]$sr.Points(1).Format.Fill.Type -eq 2) { $h = $true } } catch { } }; $i.Opt['style'] -eq 'Cascata MC' -and $h }
         }
         foreach ($f in $feats) { Check ($featCheck.ContainsKey($f)) "o teste sabe conferir o recurso '$f'" }
         foreach ($it in $cov) {

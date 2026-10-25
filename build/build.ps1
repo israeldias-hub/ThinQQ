@@ -51,7 +51,13 @@ if ($Target -eq 'ppt') {
         Import-VbaFile $vbproj $buildInfo
         Get-ChildItem (Join-Path $srcDir 'modules') -Filter *.bas | ForEach-Object { Import-VbaFile $vbproj $_.FullName }
         Get-ChildItem (Join-Path $srcDir 'classes') -Filter *.cls | ForEach-Object { Import-VbaFile $vbproj $_.FullName }
+        # 1.11.0: formularios do suplemento (dialogo Vinculos), pela mesma funcao do Excel (titulo da janela = Properties.Caption)
+        $formsDir = Join-Path $srcDir 'forms'
+        if (Test-Path $formsDir) {
+            Get-ChildItem $formsDir -Filter *.json | ForEach-Object { Add-FormFromJson $vbproj $_.FullName (Join-Path $formsDir ($_.BaseName + '.vba')) }
+        }
         if ($Configuration -eq 'Test') {
+            Import-VbaFile $vbproj (Join-Path $RepoRoot 'tests\vba\common\modFormCheck.bas')   # conferidor comum dos titulos (TestPptForms)
             $tDir = Join-Path $RepoRoot 'tests\vba\ppt'
             Get-ChildItem $tDir -Filter *.bas | ForEach-Object { Import-VbaFile $vbproj $_.FullName }
             Get-ChildItem $tDir -Filter *.cls | ForEach-Object { Import-VbaFile $vbproj $_.FullName }   # dubles (TestXlFake)
