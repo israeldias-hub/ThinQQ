@@ -82,6 +82,7 @@ if ($parsed) {
     Check ($ctlNodes.Count -ge 40) "faixa: controles encontrados pelo XPath com local-name() ($($ctlNodes.Count))"
     foreach ($n in $ctlNodes) {
         $l = $n.GetAttribute('label')
+        if ($l.Length -eq 0) { continue }   # 1.13.0: a guia Inserir do Excel (tab idMso) nao tem rotulo proprio
         Check ($ui -contains $l) "tutorial documenta o controle '$l'"
     }
     # Faixa do suplemento do PowerPoint (src\ppt\ribbon\customUI14.xml): a aba, o grupo, os botões, a lista "Ao abrir" e cada item dela são citados,
@@ -938,7 +939,7 @@ Check ($null -eq $xlOnNode) 'faixa do Excel (1.11.0): chkPptAutoOn saiu (as opç
 Check ($null -eq $xlNewNode) 'faixa do Excel (1.11.0): chkPptAutoNew saiu (as opções do automático ficam em Vínculos, no PowerPoint)'
 Check ($null -ne $pAutoNode -and $pAutoNode.GetAttribute('label') -ceq $lblAuto -and $null -ne $pOnceNode -and $pOnceNode.GetAttribute('label') -ceq $lblOnce) "faixa do PowerPoint: tglPptAuto '$lblAuto' e btnPptUpdateSel '$lblOnce'"
 $xlChk = @($ribbon.SelectNodes("//*[local-name()='checkBox']"))
-Check ($xlChk.Count -ge 1) "faixa do Excel: as caixas de seleção entram na regra 'todo controle aparece no tutorial' ($($xlChk.Count))"
+Check ($xlChk.Count -eq 0) "faixa do Excel (1.13.0): sem caixas de seleção (a caixa Inserir também no slide saiu; a regra 'todo controle aparece no tutorial' vale para a galeria) ($($xlChk.Count))"
 if ($parsed) {
     Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']//*[local-name()='h3'][@id='ppt-auto']")) 'tutorial: a subseção id="ppt-auto" está dentro de #powerpoint'
     Check ($xml.SelectNodes("//a[@href='#ppt-auto']").Count -ge 3) 'tutorial: a subseção #ppt-auto tem links de #powerpoint, da referência da faixa e dos limites'
@@ -1053,14 +1054,16 @@ foreach ($n in ($mvAutoPins.Keys | Sort-Object)) {
 # CHANGELOG. As linhas da 1.7.0 ficam em [Não lançado] (junto com as da 1.6.0) até o publicar-release 1.7.0, que as move para "## [1.7.0]": os pinos
 # leem só essas duas seções. Dentro de "## [1.6.0]" elas anunciariam a 1.7.0 como entregue na 1.6.0 (merge depois do publicar-release 1.6.0, como
 # no delta): um pino recusa (README, "Publicar uma versão").
-$lblIns = 'Inserir também no slide'; $lblFrames = 'Mostrar/ocultar molduras'
+$lblIns = 'Inserir também no slide'; $lblFrames = 'Mostrar/ocultar molduras'; $lblGallery = 'Vincular ao PowerPoint'
 $insNode = $ribbon.SelectSingleNode("//*[@id='chkPptInsert']"); $frNode = $ribbon.SelectSingleNode("//*[@id='btnPptFrames']")
-Check ($null -ne $insNode -and $insNode.LocalName -eq 'checkBox' -and $insNode.GetAttribute('label') -ceq $lblIns) "faixa do Excel: a caixa chkPptInsert tem o rótulo '$lblIns'"
+$galNode = $ribbon.SelectSingleNode("//*[@id='lmnuLinkPpt']")
+Check ($null -eq $insNode) 'faixa do Excel (1.13.0): a caixa chkPptInsert saiu'
+Check ($null -ne $galNode -and $galNode.LocalName -eq 'menu' -and $galNode.GetAttribute('label') -ceq $lblGallery) "faixa do Excel: a galeria lmnuLinkPpt tem o rótulo '$lblGallery'"
 Check ($null -ne $frNode -and $frNode.LocalName -eq 'button' -and $frNode.GetAttribute('label') -ceq $lblFrames) "faixa do Excel: o botão btnPptFrames tem o rótulo '$lblFrames'"
 if ($parsed) {
     Check ($null -ne $xml.SelectSingleNode("//*[local-name()='section'][@id='powerpoint']//*[local-name()='h3'][@id='ppt-inserir']")) 'tutorial: a subseção id="ppt-inserir" está dentro de #powerpoint'
     Check ($xml.SelectNodes("//a[@href='#ppt-inserir']").Count -ge 3) 'tutorial: a subseção #ppt-inserir tem links de #powerpoint, da referência da faixa e dos limites'
-    foreach ($l in $lblIns, $lblFrames) { Check ($pptUi -contains $l) "tutorial: '$l' citado como span.ui dentro de #powerpoint" }
+    foreach ($l in $lblGallery, $lblFrames) { Check ($pptUi -contains $l) "tutorial: '$l' citado como span.ui dentro de #powerpoint" }
 }
 $insTut = Get-SubsectionText 'ppt-inserir'
 $insRec = ([regex]::Match($readme, '(?s)\*\*Inserir também no slide \(1\.7\.0\)\*\*(?<b>.*?)### Galeria').Groups['b'].Value -replace '\s+', ' ')
@@ -1373,12 +1376,12 @@ foreach ($n in ($mvCmdPins.Keys | Sort-Object)) {
 # Estrutura, Limitações, "Publicar uma versão" e itens manuais 93 a 101 do README e a [Não lançado] do CHANGELOG. As linhas da Parte E ficam em [Não lançado]
 # até o publicar-release 1.9.0, junto com as da G-II (leem-se só [Não lançado] e [1.9.0]; dentro de "## [1.8.0]", "## [1.7.0]" ou "## [1.6.0]" elas anunciariam
 # a 1.9.0 como entregue antes: um pino recusa). Se todas as versões saírem juntas, a [Não lançado] inteira vira "## [1.9.0]".
-$lblElem = 'Elemento selecionado'; $lblTextPpt = 'Texto vinculado ao Excel'; $lblTextXl = 'Vincular célula ao texto selecionado'; $lblLinkTitle = 'Título ligado a uma célula...'
+$lblElem = 'Elemento selecionado'; $lblTextPpt = 'Texto vinculado ao Excel'; $lblTextXl = 'Texto: célula ao texto selecionado'; $lblLinkTitle = 'Título ligado a uma célula...'
 $gElemNode = $pptRibbon.SelectSingleNode("//*[@id='grpPptElem']"); $textPptNode = $pptRibbon.SelectSingleNode("//*[@id='btnPptLinkText']")
-$textXlNode = $ribbon.SelectSingleNode("//*[@id='btnPptLinkText']"); $titleNode = $ribbon.SelectSingleNode("//*[@id='btnLinkTitle']")
+$textXlNode = $ribbon.SelectSingleNode("//*[@id='lbtnLinkText']"); $titleNode = $ribbon.SelectSingleNode("//*[@id='btnLinkTitle']")
 Check ($null -ne $gElemNode -and $gElemNode.LocalName -eq 'group' -and $gElemNode.GetAttribute('label') -ceq $lblElem) "faixa do PowerPoint: o grupo grpPptElem tem o rótulo '$lblElem' (era 'Gráfico selecionado' antes da 1.9.0)"
 Check ($null -ne $textPptNode -and $textPptNode.LocalName -eq 'button' -and $textPptNode.GetAttribute('label') -ceq $lblTextPpt -and $textPptNode.ParentNode.GetAttribute('id') -ceq 'grpPptElem') "faixa do PowerPoint: o botão btnPptLinkText ('$lblTextPpt') está no grupo grpPptElem"
-Check ($null -ne $textXlNode -and $textXlNode.GetAttribute('label') -ceq $lblTextXl -and $textXlNode.ParentNode.GetAttribute('id') -ceq 'mnuPpt') "faixa do Excel: o botão btnPptLinkText ('$lblTextXl') está no menu mnuPpt"
+Check ($null -ne $textXlNode -and $textXlNode.GetAttribute('label') -ceq $lblTextXl -and $textXlNode.ParentNode.GetAttribute('id') -ceq 'lmnuLinkPpt') "faixa do Excel: o botão lbtnLinkText ('$lblTextXl') está na galeria lmnuLinkPpt"
 Check ($null -ne $titleNode -and $titleNode.GetAttribute('label') -ceq $lblLinkTitle -and $titleNode.ParentNode.GetAttribute('id') -ceq 'mnuMore') "faixa do Excel: o botão btnLinkTitle ('$lblLinkTitle') está no menu mnuMore (Mais opções)"
 if ($parsed) {
     foreach ($l in @($lblElem, $lblTextPpt, $lblTextXl, $lblLinkTitle)) { Check ($pptUi -contains $l) "tutorial: '$l' citado como span.ui dentro de #powerpoint" }
@@ -1490,9 +1493,9 @@ foreach ($n in ($mvTextPins.Keys | Sort-Object)) {
 # [Não lançado] até o publicar-release 1.10.0 (leem-se só [Não lançado] e [1.10.0]; dentro de "## [1.9.0]", "## [1.8.0]", "## [1.7.0]" ou "## [1.6.0]" elas
 # anunciariam a 1.10.0 como entregue antes: um pino recusa). Se todas as versões saírem juntas, a [Não lançado] inteira vira "## [1.10.0]" e os leitores das
 # versões anteriores (acima) também leem a [1.10.0].
-$lblTable = 'Inserir tabela vinculada no slide'
-$tableNode = $ribbon.SelectSingleNode("//*[@id='btnPptTable']")
-Check ($null -ne $tableNode -and $tableNode.LocalName -eq 'button' -and $tableNode.GetAttribute('label') -ceq $lblTable -and $tableNode.ParentNode.GetAttribute('id') -ceq 'mnuPpt') "faixa do Excel: o botão btnPptTable ('$lblTable') está no menu mnuPpt"
+$lblTable = 'Tabela vinculada'
+$tableNode = $ribbon.SelectSingleNode("//*[@id='lbtnLinkTable']")
+Check ($null -ne $tableNode -and $tableNode.LocalName -eq 'button' -and $tableNode.GetAttribute('label') -ceq $lblTable -and $tableNode.ParentNode.GetAttribute('id') -ceq 'lmnuLinkPpt') "faixa do Excel: o botão lbtnLinkTable ('$lblTable') está na galeria lmnuLinkPpt"
 if ($parsed) {
     Check ($pptUi -contains $lblTable) "tutorial: '$lblTable' citado como span.ui dentro de #powerpoint"
     foreach ($a in 'ppt-tabela', 'ppt-paridade') {
@@ -1573,7 +1576,7 @@ foreach ($place in $tabelaPlaces.Keys) {
     $pt = [string]$tabelaPlaces[$place].text
     foreach ($ph in $tabelaPlaces[$place].phrases) { Check ($pt.Contains($ph)) "tabela vinculada, $place cita '$ph'" }
 }
-foreach ($t in 'PptTable_Insert', 'PptTable_Sync', 'PptTable_Attrs', 'PptTable_Diff', 'PptTable_Parse', 'PptTable_RefusalText', 'Core_PptInsertTable', 'Rx_OnPptTable', 'btnPptTable') {
+foreach ($t in 'PptTable_Insert', 'PptTable_Sync', 'PptTable_Attrs', 'PptTable_Diff', 'PptTable_Parse', 'PptTable_RefusalText', 'Core_PptInsertTable', 'Rx_OnLinkToPpt', 'lbtnLinkTable') {
     Check ($readme.Contains('`' + $t + '`') -or $readme.Contains('`' + $t + '(')) "README (Arquitetura): o fluxo da tabela vinculada cita $t"
 }
 Check ($readme.Contains('`CORE_PPT_API` continua 5')) 'README (Arquitetura): a tabela vinculada não muda a API do suplemento (CORE_PPT_API continua 5)'
