@@ -59,8 +59,9 @@ $html = Read-Utf8 $tutorialPath
 $bytes = (Get-Item $tutorialPath).Length
 Check ($html -notmatch 'THINQQ-TUTORIAL-STUB') 'tutorial sem marcador de esqueleto'
 Check ($bytes -ge 2000) "tutorial com tamanho mínimo ($bytes bytes)"
-# limite de 640 KB (era 192 KB): o tutorial e um arquivo unico e autocontido e a galeria embute as imagens dos exemplos em base64 (~320 KB)
-Check ($bytes -le 655360) "tutorial com até 640 KB ($bytes bytes)"
+# limite de 704 KB (era 640 KB ate a 1.12.0; 192 KB antes): o tutorial e um arquivo unico e autocontido e a galeria embute as imagens dos
+# exemplos em base64 (~320 KB); a 1.12.0 (estilos de grafico) encostou nos 640 KB e a revisao final devolveu as mensagens cortadas
+Check ($bytes -le 720896) "tutorial com até 704 KB ($bytes bytes)"
 Check ($html -match '<html lang="pt-BR">' -and $html -match 'name="viewport"') 'idioma pt-BR e viewport'
 Check ($html -match 'prefers-color-scheme:\s*dark' -and $html -match '@media print') 'modo escuro e impressão'
 Check ($html -match 'class="skip"' -and $html -match '<nav[^>]*aria-label' -and $html -match '<main') 'link de pular, nav e main'
@@ -485,7 +486,15 @@ $messages = @(
     'Estilo importado: ',
     ' Linhas ignoradas (inválidas ou desconhecidas): ',
     'Estilos embutidos não podem ser excluídos.',
-    "' é um estilo embutido do ThinQQ: use outro nome (Duplicar)."
+    "' é um estilo embutido do ThinQQ: use outro nome (Duplicar).",
+    # revisao final da 1.12.0: as quatro mensagens devolvidas ao tutorial, a pergunta do Importar (I1) e o nome reservado do Windows (M10d)
+    'Dê um nome ao estilo.',
+    'O estilo não é válido.',
+    'Estilo exportado para ',
+    'Selecione um gráfico do ThinQQ (ou escolha planilha/pasta).',
+    "Você já tem um estilo chamado '",
+    "'. Substituir pelo do arquivo?",
+    "' é um nome reservado do Windows: use outro nome."
 )
 # a nota da colagem e o tutorial nao podem voltar a dizer que o vinculo so le o arquivo salvo (a sonda mediu: com a pasta ABERTA no Excel,
 # LinkFormat.Update le os valores nao salvos)
@@ -501,6 +510,10 @@ $loaderSrc = (Get-ChildItem (Join-Path $RepoRoot 'src\loader') -Recurse -Include
 $updMsg = 'Atualize o ThinQQ para usar este recurso.'
 Check ($html -match [regex]::Escape($updMsg)) "tutorial cita a mensagem '$updMsg'"
 Check ($loaderSrc -match [regex]::Escape($updMsg)) "o loader emite a mensagem '$updMsg'"
+# 1.12.0 (revisao final, M7): a lista Estilo mudou entre a exibicao e o clique
+$styListMsg = 'A lista de estilos mudou. Abra a lista Estilo e escolha de novo.'
+Check ($html -match [regex]::Escape($styListMsg)) "tutorial cita a mensagem '$styListMsg'"
+Check ($loaderSrc -match [regex]::Escape($styListMsg)) "o loader emite a mensagem '$styListMsg'"
 
 # ---- PowerPoint (Parte A, 1.4.0): cada mensagem que o usuário vê (suplemento do PowerPoint, motor do core e atualizador do loader) precisa
 # estar no código que a emite (na fonte certa: um texto movido de lugar ou reescrito derruba o teste) E dentro da seção do tutorial onde é
@@ -1768,7 +1781,9 @@ $estRaw = [regex]::Match($readme, '(?s)\*\*Estilos de gráfico \(1\.12\.0\)\*\*(
 $estRec = ($estRaw -replace '\s+', ' ')
 $estLim = $readmeLimTxt
 $estMsgs = @('Estilo não encontrado: ', 'Estilo inválido: ', 'O arquivo não é um estilo do ThinQQ válido (falta a linha ThinQQ-Estilo=1, ou é grande demais).', 'Estilo importado: ', ' Linhas ignoradas (inválidas ou desconhecidas): ',
-    'Estilos embutidos não podem ser excluídos.', "' é um estilo embutido do ThinQQ: use outro nome (Duplicar).", 'O arquivo é grande demais para um estilo do ThinQQ.')
+    'Estilos embutidos não podem ser excluídos.', "' é um estilo embutido do ThinQQ: use outro nome (Duplicar).", 'O arquivo é grande demais para um estilo do ThinQQ.',
+    'Dê um nome ao estilo.', 'O estilo não é válido.', 'Estilo exportado para ', 'Selecione um gráfico do ThinQQ (ou escolha planilha/pasta).', "Você já tem um estilo chamado '", "'. Substituir pelo do arquivo?",
+    "' é um nome reservado do Windows: use outro nome.")
 $estClPhrases = @('Estilos de gráfico (1.12.0)', 'frmStyles', '.tqqestilo', 'ThinQQ-Estilo=1', 'CustomXMLParts', 'urn:thinqq:styles:1', 'Cascata MC', 'Cascata DDE', 'API 7', 'Core_StyleNames', '33 chaves',
     '16.384 caracteres', '48 KB', 'E29', 'Documentação (1.12.0)', 'itens 119 a 125', 'Estilos...', 'Estilo não encontrado: nome.', 'Estilo inválido: nome.', 'Estilo importado: nome.', 'Estilos embutidos não podem ser excluídos.',
     'Atualize o ThinQQ no Excel (1.12.0 ou mais novo) para usar os estilos pelo PowerPoint.', 'não verificado em Excel e PowerPoint reais', '### Adicionado', '### Alterado')
@@ -1812,7 +1827,9 @@ $estPlaces = [ordered]@{
     'tutorial #estilos' = @{ text = $estTut; phrases = @(
         'Estilos de gráfico', 'Style file', 'reaplica sozinho', 'Reproduzir o gráfico do exemplo', 'Cascata MC', 'Cascata DDE', 'Padrão ThinQQ', 'Tons de cinza', 'Cores do tema', 'Seta diferença', 'balão de comentário', 'previsto para a 1.14',
         'Estilos embutidos', 'só de leitura', 'Papéis por tipo', 'Gantt', 'só fonte, rótulos, espaço e linha do eixo', 'A janela Estilos...', 'Novo do gráfico', 'cores pintadas à mão', 'O arquivo .tqqestilo', 'ThinQQ-Estilo=1',
-        'chave desconhecida ou valor inválido é ignorado e contado', '16 KB (16.384 caracteres)', '200 linhas', '48 KB', 'Nada dele é executado', '%LOCALAPPDATA%\ThinQQ\styles', 'substituído sem pergunta', '(importado)',
+        'chave desconhecida ou valor inválido é ignorado e contado', '16 KB (16.384 caracteres)', '200 linhas', '48 KB', 'Nada dele é executado', '%LOCALAPPDATA%\ThinQQ\styles', 'pergunta antes de substituir um estilo seu de mesmo nome', '(importado)',
+        'não muda sozinho os gráficos que já o usam', 'na pizza e na rosca, a cor de cada fatia', 'Tirar o estilo (Padrão ThinQQ, Tons de cinza ou Cores do tema) também chega ao slide',
+        'setas, linha do eixo, espaço', 'a lista Espaço manda', 'no máximo 100 estilos',
         'quem recebe só a pasta também vê o visual', 'O que viaja para o PowerPoint', 'a cor "auto" ponto a ponto dos rótulos não é copiada', 'Limites', 'linhas de ligação das colunas empilhadas', 'sobrescrita',
         'Estilo não encontrado', 'Não há rótulo dentro da barra da cascata', 'itens 119 a 125') }
     'tutorial #mensagens' = @{ text = (Get-SubsectionText 'mensagens'); phrases = $estMsgs + @('Estilo não encontrado: nome.', 'Estilo inválido: nome.', 'Estilo importado: nome.') }
@@ -1829,6 +1846,7 @@ $estPlaces = [ordered]@{
     'README Publicar uma versão' = @{ text = $pubRelease; phrases = @('Publicando a 1.12.0', 'feat/estilos', 'feat/ux-vinculos', 'Publique **em ordem**: a 1.11.0 a partir da `main` antes de mesclar o ramo da 1.12.0', 'sonda P-U3', 'ou publique tudo junto como uma só versão', 'Estilos de gráfico (1.12.0):', 'Documentação (1.12.0):', 'recusa a `[1.11.0]`') }
     'CHANGELOG ([Não lançado] ou [1.12.0])' = @{ text = $clEst; phrases = $estClPhrases }
 }
+Check (-not $html.Contains('substituído sem pergunta')) 'tutorial (1.12.0, revisão final I1): Importar não substitui mais sem pergunta'
 foreach ($place in $estPlaces.Keys) {
     $pt = [string]$estPlaces[$place].text
     foreach ($ph in $estPlaces[$place].phrases) { Check ($pt.Contains($ph)) "estilos (1.12.0), $place cita '$ph'" }

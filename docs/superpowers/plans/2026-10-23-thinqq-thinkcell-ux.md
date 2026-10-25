@@ -70,7 +70,7 @@ branch. Sondas pendentes (spec §6.3): **P-U1** antes/dentro da U1 (passo de son
   implementador. **Não** fazer push, **não** criar nem trocar de branch.
 - **Versões:** `version.json` não muda nas tarefas (o controlador/`publicar-release.bat` cuida). O build importa todo `.bas`/`.cls` de
   `src/<alvo>/{modules,classes}`, os formulários de `src/<alvo>/forms` (o alvo `ppt` passa a importar na U3) e todo `Test*.bas` de `tests/vba/<alvo>`.
-- **Docs:** cada versão termina com uma tarefa de docs (tutorial `docs/tutorial/tutorial.html` com teto **655.360 B** — meça antes e depois e
+- **Docs:** cada versão termina com uma tarefa de docs (tutorial `docs/tutorial/tutorial.html` com teto **720.896 B** (704 KB desde a revisão final da 1.12.0; antes 655.360 B) — meça antes e depois e
   condense o que a versão substituiu; README "Recursos", "Arquitetura", "Verificações manuais" (continua do item 110) e "Limitações"; `CHANGELOG.md`
   `[Não lançado]`; `release/notes.txt` reescrito para a versão; `tests/ps/Test-Docs.ps1` com os rótulos, âncoras e mensagens novas, sem pinos presos
   a uma versão antiga: os blocos do CHANGELOG lidos por `[Não lançado]` com recuo para a versão) e uma tarefa de suíte + revisão final.

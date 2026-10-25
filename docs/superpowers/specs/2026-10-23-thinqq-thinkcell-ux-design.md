@@ -2,7 +2,7 @@
 
 Data: 2026-10-23. Base: `main` em 3a30f38 (ThinQQ 1.10.1 publicado). Autor: planejador (opus). Plano: `plan.md` nesta pasta; briefs: `task-<ID>-brief.md`.
 Regras de ambiente: `.superpowers/sdd/2026-10-15-thinkcell-parity/implementer-rules.md` (valem sem exceção, inclusive EDR, PowerPoint de instância única,
-`Get-CimInstance Win32_Process` em vez de `tasklist` com vários `/FI`, sessão bloqueada quebra a área de transferência, teto do tutorial 655.360 B,
+`Get-CimInstance Win32_Process` em vez de `tasklist` com vários `/FI`, sessão bloqueada quebra a área de transferência, teto do tutorial 655.360 B (720.896 B desde a revisão final da 1.12.0),
 disciplina Test-Docs/CHANGELOG).
 
 ## 1. Objetivo e escopo
@@ -319,7 +319,7 @@ PowerPoint entra o menu dinâmico **Estilo** (lista do core, API 7) que aplica p
 (janela `frmStyles`: lista, **Novo a partir do gráfico selecionado** (lê as cores atuais das séries, inclusive as pintadas à mão), Editar,
 Duplicar, Excluir, Importar, Exportar, Aplicar ao gráfico / à planilha / à pasta, Definir como padrão). Editor com uma linha por papel: amostra
 (Label com `BackColor`), caixa `#RRGGBB` e um seletor próprio de 40 amostras (as cores do Office), hachura num dropdown. `xlDialogEditColor`
-rejeitado (modal e altera a paleta da pasta ativa).
+rejeitado (modal e altera a paleta da pasta ativa). **Entregue (1.12.0, S4):** o seletor é uma lista de 20 cores nomeadas mais a caixa `#RRGGBB` (não as 40 amostras).
 
 ### 8.6 Balão de comentário
 
