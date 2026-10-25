@@ -6,10 +6,13 @@ Private mHasChartValid As Boolean
 Private mSupports As Object         ' cache de Core_Supports por ciclo de Invalidate: Scripting.Dictionary tag -> Boolean
 Private mSupportsMissing As Boolean ' o core nao tem Core_Supports (versao 1.0.0) ou nao esta carregado: vale ate o fim do ciclo
 Private mStyleNames As Variant                 ' nomes dos estilos do ciclo de Invalidate (Rx_StyleNamesFor)
+Private mStyleLegacy As Boolean                ' o core nao tem Core_StyleNames (anterior a 1.12.0): a lista sao as tres paletas
+Private mStyleShown As Long                    ' quantos itens a lista Estilo exibiu (Rx_StyleCount): o clique confere
 Private mSupportsProc As String     ' gancho de teste (Rx_TestSetSupportsProc); vazio = "Core_Supports"
 Private mTestProcSuffix As String   ' gancho de teste (Rx_TestSetFeatureProcSuffix): simula um core sem os procedimentos novos
 Private mPptInsert As Boolean       ' "Inserir tambem no slide" (sessao)
 Public Const RX_MSG_UPDATE As String = "Atualize o ThinQQ para usar este recurso."
+Public Const RX_MSG_STYLE_LIST_CHANGED As String = "A lista de estilos mudou. Abra a lista Estilo e escolha de novo."
 Public Const TUTORIAL_URL As String = "https://israeldias-hub.github.io/ThinQQ/tutorial/tutorial.html"
 
 Public Sub Rx_OnLoad(ribbon As IRibbonUI)
@@ -211,15 +214,31 @@ End Sub
 
 ' ===== Estilos (1.12.0) =====
 
-' Lista de nomes a partir do texto do core ("a|b|c"); vazio (core anterior ou ausente) = so "Padrão ThinQQ". Pura.
+' Lista de nomes a partir do texto do core ("a|b|c"); vazio (core anterior, sem Core_StyleNames, ou ausente) = as tres paletas de antes, que
+' Rx_OnStyle aplica pela opcao palette (revisao final 1.12.0, M8). Pura.
 Public Function Rx_StyleNamesFor(raw As String) As Variant
-    If Len(raw) = 0 Then Rx_StyleNamesFor = Array("Padrão ThinQQ") Else Rx_StyleNamesFor = Split(raw, "|")
+    If Len(raw) = 0 Then Rx_StyleNamesFor = Array("Padrão ThinQQ", "Tons de cinza", "Cores do tema") Else Rx_StyleNamesFor = Split(raw, "|")
+End Function
+
+' Paleta (opcao palette do core anterior) do item index da lista de reserva; "" fora dela. Pura.
+Public Function Rx_LegacyPaletteFor(index As Long) As String
+    Select Case index
+        Case 0: Rx_LegacyPaletteFor = "padrao"
+        Case 1: Rx_LegacyPaletteFor = "cinza"
+        Case 2: Rx_LegacyPaletteFor = "tema"
+    End Select
 End Function
 
 Private Function StyleNames() As Variant
-    Dim v As Variant
+    Dim v As Variant, p As String
     If IsEmpty(mStyleNames) Then
-        If Not Loader_CoreWorkbook() Is Nothing Then v = Loader_RunCore("Core_StyleNames")
+        mStyleLegacy = False
+        If Not Loader_CoreWorkbook() Is Nothing Then
+            p = "Core_StyleNames"
+            If BUILD_CONFIG = "Test" Then p = p & mTestProcSuffix      ' gancho: simula um core anterior a 1.12.0
+            v = Loader_RunCore(p)
+            mStyleLegacy = Loader_RunCoreMissed()
+        End If
         mStyleNames = Rx_StyleNamesFor(CStr(v))
     End If
     StyleNames = mStyleNames
@@ -229,6 +248,7 @@ Public Sub Rx_StyleCount(control As IRibbonControl, ByRef count)
     On Error Resume Next
     count = 0
     count = UBound(StyleNames()) + 1
+    mStyleShown = count
 End Sub
 
 Public Sub Rx_StyleLabel(control As IRibbonControl, index As Integer, ByRef label)
@@ -246,8 +266,16 @@ Public Sub Rx_GetStyleSel(control As IRibbonControl, ByRef itemId)
     On Error Resume Next
     itemId = "st0"
     If Loader_CoreWorkbook() Is Nothing Then Exit Sub
-    n = CStr(Loader_RunCore("Core_GetStyleName"))
     a = StyleNames()
+    If mStyleLegacy Then
+        ' core anterior: o item da paleta gravada no grafico
+        Select Case CStr(Loader_RunCore("Core_GetOption", "palette"))
+            Case "cinza": itemId = "st1"
+            Case "tema": itemId = "st2"
+        End Select
+        Exit Sub
+    End If
+    n = CStr(Loader_RunCore("Core_GetStyleName"))
     For i = 0 To UBound(a)
         If StrComp(CStr(a(i)), n, vbTextCompare) = 0 Then
             itemId = "st" & i
@@ -256,9 +284,23 @@ Public Sub Rx_GetStyleSel(control As IRibbonControl, ByRef itemId)
     Next
 End Sub
 
+' O indice vem da lista EXIBIDA: se o cache foi refeito com outro tamanho entre a exibicao e o clique (um estilo salvo na janela), nada e
+' aplicado e a lista e refeita (revisao final 1.12.0, M7). Core anterior: a paleta pela opcao palette (M8).
 Public Sub Rx_OnStyle(control As IRibbonControl, selectedId As String, selectedIndex As Integer)
+    Dim a As Variant
     On Error Resume Next
-    If CoreOrWarn() Then RunCoreFeature "Core_StyleApply", Array(CStr(StyleNames()(selectedIndex)), "chart")
+    If CoreOrWarn() Then
+        a = StyleNames()
+        If mStyleShown > 0 And UBound(a) + 1 <> mStyleShown Then
+            RxMsg RX_MSG_STYLE_LIST_CHANGED, vbInformation
+        ElseIf selectedIndex >= 0 And selectedIndex <= UBound(a) Then
+            If mStyleLegacy Then
+                RunCoreFeature "Core_SetOption", Array("palette", Rx_LegacyPaletteFor(CLng(selectedIndex)))
+            Else
+                RunCoreFeature "Core_StyleApply", Array(CStr(a(selectedIndex)), "chart")
+            End If
+        End If
+    End If
     Loader_InvalidateRibbon
 End Sub
 

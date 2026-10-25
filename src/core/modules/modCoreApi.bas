@@ -1017,6 +1017,7 @@ End Sub
 ' Reposiciona rótulos e anotações. Chamado por eventos: nunca propaga erro (apenas registra).
 ' Gráficos de planilhas inativas são atualizados quando a planilha é ativada (Watchers_Rehook).
 Public Sub Core_SafeRefresh(cht As Chart)
+    Dim relinked As Boolean
     On Error Resume Next
     NotifySourceMismatchOnce cht
     Deco_ApplyFixedScale cht                         ' mesma escala: os dados mudaram e o eixo automatico recalculou; reaplica a escala gravada
@@ -1043,8 +1044,11 @@ Public Sub Core_SafeRefresh(cht As Chart)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Gantt" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
     Ann_Refresh cht
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Ann" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    relinked = Labels_TakeRelinked()                 ' rotulos religados no refresh (9 pt, cor padrao): o estilo refaz rotulo.* abaixo
     Style_ReapplyIfNeeded cht                        ' estilo (1.12.0): so quando o carimbo mudou (linha/serie nova, sinal da 1a/ultima barra)
     If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/Style" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
+    If relinked Then Style_ReapplyLabels cht
+    If Err.Number <> 0 Then Errors_Log "Core_SafeRefresh/StyleLabels" & vbTab & Err.Number & vbTab & Err.Description: Err.Clear
 End Sub
 
 ' Re-layout do gráfico ativo (ou de todos da planilha) e limpeza de blocos órfãos.
@@ -2016,7 +2020,7 @@ Private Function PptCmd_One(shp As Object, cmd As String, arg As String, opened 
             ' 1.12.0 (API 7): o mesmo Style_ApplyNamed da faixa do Excel (estilo inexistente/invalido: 7140 volta como texto pelo Fail)
             Style_ApplyNamed c, arg, True
     End Select
-    Style_Reapply c                                 ' estilo (1.12.0): conectores, rotulos e setas novos recebem o estilo do grafico
+    If cmd <> "style" Then Style_Reapply c          ' estilo (1.12.0): conectores, rotulos e setas novos recebem o estilo (o "style" acabou de aplicar)
     Core_SafeRefresh c
     If PptData_IsDataBook(wb) Then PptData_SaveQuiet wb
     Exit Function
@@ -2345,6 +2349,11 @@ Public Sub Core_StyleImport()
     f = Application.GetOpenFilename("Estilo do ThinQQ (*" & STYLEDEF_EXT & "),*" & STYLEDEF_EXT, , "Importar estilo do ThinQQ")
     If VarType(f) = vbBoolean Then Exit Sub
     r = StyleStore_Import(CStr(f), nm, ign)
+    If Left$(r, 1) = "?" Then
+        ' o usuario ja tem um estilo com esse nome: pergunta antes de substituir (Nao = nada muda; no modo silencioso a resposta e Nao)
+        If Not Core_Confirm(StyleStore_ReplaceQuestion(nm)) Then Exit Sub
+        r = StyleStore_SaveUser(nm, Mid$(r, 2))
+    End If
     If Left$(r, 1) = "!" Then
         Core_Notify Mid$(r, 2), vbExclamation
         Exit Sub

@@ -545,11 +545,71 @@ Public Sub Test_PptSync_StyleFormat_ReachesSlide_WhenAvailable()
     AssertTrue InStr(Core_PptCommand(pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), "style", "Nao Existe"), "Estilo não encontrado") > 0
     AssertFalse wb.Saved, "pasta do usuario: alterada e NAO salva pelo comando (o usuario decide)"
     AssertEqual "Cascata MC", Registry_GetOption(c, "style", ""), "estilo inexistente nao mexe no grafico"
+    ' revisao final 1.12.0 (I3): tirar o estilo (paleta embutida) tambem chega ao slide
+    msg = Core_PptCommand(pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), "style", "Tons de cinza")
+    AssertEqual "", msg
+    AssertEqual "", Registry_GetOption(c, "style", "")
+    AssertTrue CLng(c.SeriesCollection(1).Format.Fill.ForeColor.RGB) <> RGB(112, 173, 71), "Excel: a paleta cinza"
+    AssertEqual CLng(c.SeriesCollection(1).Format.Fill.ForeColor.RGB), CLng(s1.Chart.SeriesCollection(1).Format.Fill.ForeColor.RGB), "slide: a cor da paleta cinza (nao ficou o verde do estilo)"
 Cleanup:
     en = Err.Number: ed = Err.Description
     On Error GoTo -1
     On Error Resume Next
     Set s1 = Nothing: Set pres = Nothing
+    StopScratchPowerPoint app, own
+    If Not wb Is Nothing Then Teardown wb
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
+' Revisao final 1.12.0 (I4): rosca com estilo de 3 cores -> as 3 fatias do slide com as 3 cores; linha com estilo -> a cor da linha no slide.
+Public Sub Test_PptSync_StyleFormat_PieSlicesAndLines_WhenAvailable()
+    Dim wb As Workbook, rng As Range, app As Object, pres As Object, s1 As Object, s2 As Object, own As New Collection, en As Long, ed As String
+    Dim c As Chart, ws As Worksheet, slide As Object, k As Long, msg As String
+    Set app = StartScratchPowerPoint()
+    If app Is Nothing Then Exit Sub
+    On Error GoTo Cleanup
+    Set pres = app.Presentations.Add(0): own.Add pres
+    Set wb = NewTempWorkbook()
+    If UserWindowAppeared(app) Then GoTo Cleanup
+    Set ws = wb.Worksheets(1): ws.Name = "Dados"
+    ws.Range("A1:B1").Value = Array("Canal", "Vendas"): ws.Range("A2:B2").Value = Array("Loja", 55)
+    ws.Range("A3:B3").Value = Array("Online", 30): ws.Range("A4:B4").Value = Array("Atacado", 15)
+    ws.Range("D1:F1").Value = Array("Ano", "Sul", "Norte"): ws.Range("D2:F2").Value = Array("T1", 10, 5): ws.Range("D3:F3").Value = Array("T2", 20, 6)
+    wb.SaveAs TempDir() & "\pptstyle-pie.xlsx", xlOpenXMLWorkbook
+    ' rosca
+    Set slide = pres.Slides.Add(pres.Slides.Count + 1, 12)
+    Ppt_PinTargetForTest slide
+    ws.Range("A1:B4").Select
+    Core_Insert "doughnut"
+    Ppt_SetAppForTest app
+    Core_CopyToPowerPoint "chart"
+    Set s1 = slide.Shapes(slide.Shapes.Count)
+    ' linha
+    Set slide = pres.Slides.Add(pres.Slides.Count + 1, 12)
+    Ppt_PinTargetForTest slide
+    ws.Range("D1:F3").Select
+    Core_Insert "line"
+    Ppt_SetAppForTest app
+    Core_CopyToPowerPoint "chart"
+    Set s2 = slide.Shapes(slide.Shapes.Count)
+    msg = Core_PptCommand(pres, PptIdx_Entry(CLng(s1.Parent.SlideID), CStr(s1.Name), ""), "style", "Cascata MC")
+    AssertEqual "", msg
+    msg = Core_PptCommand(pres, PptIdx_Entry(CLng(s2.Parent.SlideID), CStr(s2.Name), ""), "style", "Cascata MC")
+    AssertEqual "", msg
+    Set c = ws.ChartObjects(1).Chart
+    For k = 1 To 3
+        AssertEqual CLng(c.SeriesCollection(1).Points(k).Format.Fill.ForeColor.RGB), CLng(s1.Chart.SeriesCollection(1).Points(k).Format.Fill.ForeColor.RGB), "fatia " & k & " do slide com a cor do Excel"
+    Next
+    AssertEqual RGB(&HD9, &HD9, &HD9), CLng(s1.Chart.SeriesCollection(1).Points(2).Format.Fill.ForeColor.RGB), "fatia do meio: serie2 do estilo"
+    Set c = ws.ChartObjects(2).Chart
+    AssertEqual RGB(112, 173, 71), CLng(c.SeriesCollection(1).Format.Line.ForeColor.RGB), "Excel: linha 1 com serie1"
+    AssertEqual RGB(112, 173, 71), CLng(s2.Chart.SeriesCollection(1).Format.Line.ForeColor.RGB), "slide: a cor da linha 1"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Set s1 = Nothing: Set s2 = Nothing: Set slide = Nothing: Set pres = Nothing
     StopScratchPowerPoint app, own
     If Not wb Is Nothing Then Teardown wb
     On Error GoTo 0

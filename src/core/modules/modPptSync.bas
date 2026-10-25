@@ -24,7 +24,8 @@ Private Const PPTIDX_FS As String = "|"                    ' indice: separador d
 Private Const PPTIDX_ES As String = vbLf                   ' indice: separador de entradas
 Public Const PPTSYNC_TAG_KIND As String = "TQQ_KIND"        ' tipo do grafico (a faixa do PowerPoint le sem chamar o Excel; spec 14.5)
 Public Const PPTSYNC_TAG_OPTS As String = "TQQ_OPTS"        ' estado das opcoes (PptSync_OptsText) para getPressed/getEnabled do .ppam
-Public Const CORE_PPT_API As Long = 7                      ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
+Private Const PPTSYNC_FORMAT_MAX_POINTS As Long = 100       ' pizza/rosca: fatias copiadas uma a uma ate este teto (1.12.0)
+Public Const CORE_PPT_API As Long = 7                     ' 1 = Core_PptSyncPresentation; 2 = Core_PptSyncShapes, Core_PptGetFlag/SetFlag (1.6.0);
                                                            ' 3 = Core_PptInsertChart, Core_PptEditData, Core_PptDataSave (1.8.0);
                                                            ' 4 = Core_PptCommand, Core_PptCategories (1.9.0); 5 = Core_PptLinkText (1.9.0);
                                                            ' 6 = Core_PptLinkStates (1.11.0); 7 = Core_StyleNames e comando "style" (1.12.0)
@@ -404,10 +405,14 @@ End Sub
 ' rotulos no nivel da serie, e a fonte do grafico. Mesma ordem de series dos dois lados (o slide e uma copia do grafico do Excel). Nunca
 ' propaga erro (registrado): o resto da sincronizacao segue. A versao do estilo (stylever) ja entra na impressao digital: fica na linha de
 ' metadados do bloco, que PptSync_Fingerprint le inteiro.
+' Revisao final 1.12.0: copia tambem quando o grafico TEVE estilo e voltou a uma paleta (stylever = STYLE_VER_PALETTE; I3: Padrao ThinQQ, Tons
+' de cinza e Cores do tema chegam ao slide); grafico que nunca teve estilo fica como sempre. Pizza/rosca: todos os pontos (cada fatia tem a
+' sua cor) ate PPTSYNC_FORMAT_MAX_POINTS (acima: so a serie); linha visivel: cor, espessura e traco (e os marcadores das series de linha) (I4).
 Public Sub PptSync_ApplyFormat(pc As Object, cht As Chart)
-    Dim i As Long, xs As Series, ps As Object, n As Long
+    Dim i As Long, xs As Series, ps As Object, n As Long, k As Long, allPoints As Boolean, ct As Long
     On Error GoTo Fail
-    If Len(Registry_GetOption(cht, "style", "")) = 0 Then Exit Sub
+    If Len(Registry_GetOption(cht, "style", "")) = 0 And Len(Registry_GetOption(cht, "stylever", "")) = 0 Then Exit Sub
+    allPoints = (Kinds_Family(Registry_ChartType(cht)) = "pie")
     On Error Resume Next
     pc.ChartArea.Format.TextFrame2.TextRange.Font.Name = cht.ChartArea.Font.Name
     pc.ChartArea.Format.TextFrame2.TextRange.Font.Size = cht.ChartArea.Font.Size
@@ -419,9 +424,28 @@ Public Sub PptSync_ApplyFormat(pc As Object, cht As Chart)
         If Not ps Is Nothing Then
             PptSync_CopyFill xs.Format.Fill, ps.Format.Fill
             ps.Format.Line.Visible = xs.Format.Line.Visible
+            If xs.Format.Line.Visible = msoTrue Then
+                ps.Format.Line.ForeColor.RGB = xs.Format.Line.ForeColor.RGB
+                ps.Format.Line.Weight = xs.Format.Line.Weight
+                ps.Format.Line.DashStyle = xs.Format.Line.DashStyle
+            End If
+            ct = 0
+            ct = xs.ChartType
+            Select Case ct
+                Case xlLine, xlLineMarkers, xlLineStacked, xlLineMarkersStacked, xlXYScatter, xlXYScatterLines
+                    ps.MarkerBackgroundColor = xs.MarkerBackgroundColor
+                    ps.MarkerForegroundColor = xs.MarkerForegroundColor
+            End Select
+            Err.Clear
             n = xs.Points.Count
-            If n >= 1 Then PptSync_CopyPoint xs.Points(1), ps.Points(1)
-            If n >= 2 Then PptSync_CopyPoint xs.Points(n), ps.Points(n)
+            If allPoints And n <= PPTSYNC_FORMAT_MAX_POINTS Then
+                For k = 1 To n
+                    PptSync_CopyPoint xs.Points(k), ps.Points(k)
+                Next
+            Else
+                If n >= 1 Then PptSync_CopyPoint xs.Points(1), ps.Points(1)
+                If n >= 2 Then PptSync_CopyPoint xs.Points(n), ps.Points(n)
+            End If
             If xs.HasDataLabels Then
                 ps.DataLabels.Font.Bold = xs.DataLabels.Font.Bold
                 ps.DataLabels.Font.Color = xs.DataLabels.Font.Color

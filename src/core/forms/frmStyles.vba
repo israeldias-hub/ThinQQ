@@ -4,6 +4,9 @@ Option Explicit
 Private mEdit As Object                 ' Dictionary do estilo em edicao
 Private mKeys As Variant
 Private mLoading As Boolean
+Private mShown As String                ' estilo mostrado (o item da lista que esta em edicao)
+Private mDirty As Boolean               ' valores mudados com Usar valor e ainda nao salvos
+Private mReverting As Boolean           ' voltando a selecao da lista (o usuario nao quis descartar)
 
 Public Sub Prepare()
     mLoading = True
@@ -44,8 +47,29 @@ Private Sub ShowStyle(name As String)
         End If
     Next
     btnDelete.Enabled = Not StyleDef_IsBuiltin(name)
+    mShown = name
+    mDirty = False
     mLoading = wasLoading
 End Sub
+
+' True se o usuario ja tem um estilo com esse nome que NAO e o mostrado: gravar por cima pergunta antes (revisao final 1.12.0, M2).
+Private Function ConfirmOverwrite(nm As String) As Boolean
+    ConfirmOverwrite = True
+    If Len(StyleStore_UserText(nm)) = 0 Then Exit Function
+    If StrComp(nm, mShown, vbTextCompare) = 0 Then Exit Function
+    ConfirmOverwrite = Core_Confirm("Já existe um estilo seu chamado '" & nm & "'. Substituir?")
+End Function
+
+Private Function ListIndexOf(nm As String) As Long
+    Dim i As Long
+    ListIndexOf = -1
+    For i = 0 To lstStyles.ListCount - 1
+        If StrComp(CStr(lstStyles.List(i)), nm, vbTextCompare) = 0 Then
+            ListIndexOf = i
+            Exit Function
+        End If
+    Next
+End Function
 
 Private Function CurrentKey() As String
     If lstRoles.ListIndex < 0 Then Exit Function
@@ -53,7 +77,19 @@ Private Function CurrentKey() As String
 End Function
 
 Private Sub lstStyles_Click()
-    If lstStyles.ListIndex >= 0 Then ShowStyle CStr(lstStyles.List(lstStyles.ListIndex))
+    If mReverting Then Exit Sub
+    If lstStyles.ListIndex < 0 Then Exit Sub
+    If mDirty And Not mLoading Then
+        If StrComp(CStr(lstStyles.List(lstStyles.ListIndex)), mShown, vbTextCompare) <> 0 Then
+            If Not Core_Confirm("Descartar as mudanças não salvas em '" & mShown & "'?") Then
+                mReverting = True
+                lstStyles.ListIndex = ListIndexOf(mShown)
+                mReverting = False
+                Exit Sub
+            End If
+        End If
+    End If
+    ShowStyle CStr(lstStyles.List(lstStyles.ListIndex))
 End Sub
 
 Private Sub lstRoles_Click()
@@ -96,6 +132,7 @@ Private Sub btnSetValue_Click()
     If Len(Trim$(txtValue.Text)) = 0 Then
         If mEdit.Exists(k) Then mEdit.Remove k
         lstRoles.List(lstRoles.ListIndex, 1) = ""
+        mDirty = True
         lblStatus.Caption = "Valor removido (o ThinQQ usa o padrão)."
         Exit Sub
     End If
@@ -106,17 +143,20 @@ Private Sub btnSetValue_Click()
     End If
     mEdit(k) = v
     lstRoles.List(lstRoles.ListIndex, 1) = v
+    mDirty = True
     lblStatus.Caption = ""
 End Sub
 
 Private Sub btnSave_Click()
     Dim r As String
+    If Not ConfirmOverwrite(StyleDef_SafeName(txtName.Text)) Then Exit Sub
     r = StyleStore_SaveUser(txtName.Text, StyleDef_Serialize(mEdit))
     If Left$(r, 1) = "!" Then
         lblStatus.Caption = Mid$(r, 2)
         Exit Sub
     End If
     If chkDefault.Value Then StyleStore_SetDefaultName StyleDef_SafeName(txtName.Text)
+    mDirty = False
     lblStatus.Caption = "Estilo salvo: " & StyleDef_SafeName(txtName.Text) & "."
     LoadNames StyleDef_SafeName(txtName.Text)
 End Sub
@@ -131,6 +171,10 @@ Private Sub btnNewFromChart_Click()
     Dim r As String, nm As String
     nm = StyleDef_SafeName(txtName.Text)
     If Len(nm) = 0 Or StyleDef_IsBuiltin(nm) Then nm = "Meu estilo"
+    If Len(StyleStore_UserText(nm)) > 0 Then
+        If Not Core_Confirm("Já existe um estilo seu chamado '" & nm & "'. Substituir?") Then Exit Sub
+    End If
+    mDirty = False
     r = Core_StyleFromChart(nm)
     If Len(r) > 0 Then
         lblStatus.Caption = r
@@ -140,14 +184,23 @@ Private Sub btnNewFromChart_Click()
     LoadNames nm
 End Sub
 
+' Exclui o estilo SELECIONADO na lista (nao o texto digitado em Nome), depois de perguntar. Nunca apaga embutidos nem o que nao existe.
 Private Sub btnDelete_Click()
-    Dim r As String
-    r = StyleStore_DeleteUser(txtName.Text)
+    Dim r As String, nm As String
+    If lstStyles.ListIndex < 0 Then Exit Sub
+    nm = CStr(lstStyles.List(lstStyles.ListIndex))
+    If Len(StyleStore_UserText(nm)) = 0 Then
+        lblStatus.Caption = IIf(StyleDef_IsBuiltin(nm), "Estilos embutidos não podem ser excluídos.", "'" & nm & "' não é um estilo seu (vem da pasta): nada a excluir.")
+        Exit Sub
+    End If
+    If Not Core_Confirm("Excluir o estilo '" & nm & "'? Não dá para desfazer.") Then Exit Sub
+    r = StyleStore_DeleteUser(nm)
     If Left$(r, 1) = "!" Then
         lblStatus.Caption = Mid$(r, 2)
         Exit Sub
     End If
-    lblStatus.Caption = "Estilo excluído."
+    mDirty = False
+    lblStatus.Caption = "Estilo excluído: " & nm & "."
     LoadNames ""
 End Sub
 

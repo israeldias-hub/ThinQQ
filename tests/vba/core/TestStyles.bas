@@ -148,7 +148,7 @@ Public Sub Test_StyleStore_ImportExport_Validates()
     Dim d As String, p As String, nm As String, ign As Long, r As String, f As Integer
     StyleStore_ResetTestHooks
     d = StyleTestDir()
-    p = d & "\entrada.tqqestilo"
+    p = TempDir() & "\entrada.tqqestilo"                       ' fora do deposito (senao o proprio arquivo ja seria "o estilo de mesmo nome")
     f = FreeFile
     Open p For Output As #f
     Print #f, STYLEDEF_HEADER
@@ -291,6 +291,13 @@ Public Sub Test_StyleApply_SurvivesValueSignChangeAndSaveReopen()
     Kill p
 End Sub
 
+Private Function MarkerBg(s As Series) As Long
+    MarkerBg = -1
+    On Error Resume Next
+    MarkerBg = s.MarkerBackgroundColor          ' bolhas e auxiliares sem marcador recusam a propriedade
+    Err.Clear
+End Function
+
 ' Todos os 21 tipos aceitam um estilo de series sem erro; nos tipos de series, a 1a serie de dados recebe serie1.
 Public Sub Test_StyleApply_AllKinds_NoError()
     Dim wb As Workbook, k As Variant, c As Chart, rng As Range, d As Object, ign As Long, s As Series, got As Boolean
@@ -307,8 +314,15 @@ Public Sub Test_StyleApply_AllKinds_NoError()
         got = False
         For Each s In c.SeriesCollection
             If s.Format.Fill.ForeColor.RGB = RGB(&H12, &H34, &H56) Or s.Format.Line.ForeColor.RGB = RGB(&H12, &H34, &H56) Then got = True
+            If Kinds_Family(CStr(k)) = "pie" Then
+                If s.Points(1).Format.Fill.ForeColor.RGB = RGB(&H12, &H34, &H56) Then got = True        ' fatia 1
+            ElseIf Kinds_Family(CStr(k)) = "scatter" Then
+                If MarkerBg(s) = RGB(&H12, &H34, &H56) Then got = True                                  ' marcador do grupo
+            End If
         Next
-        If InStr(",stacked,clustered,stacked100,line,barstacked,barclustered,barstacked100,area,area100,combo,", "," & CStr(k) & ",") > 0 Then AssertTrue got, "serie1: " & CStr(k)
+        ' revisao final 1.12.0 (M11): a cor confere em todo tipo com serieN (fora: Gantt, que so recebe fonte/rotulos/espaco, e a cascata de
+        ' uma serie, que usa aumento/reducao/total)
+        If InStr(",gantt,waterfall,barwaterfall,", "," & CStr(k) & ",") = 0 Then AssertTrue got, "serie1: " & CStr(k)
         CloseTemp wb
     Next
 End Sub
@@ -365,4 +379,168 @@ Public Sub Test_StyleUi_RolesAndPicks()
     AssertEqual "diagonal_larga_para_cima", StyleUi_PickValue("primeira.padrao", 3)
     AssertTrue StyleUi_IsColorKey("serie1")
     AssertFalse StyleUi_IsColorKey("espaco")
+End Sub
+
+' ---- Revisao final da 1.12.0 (onda de correcao)
+
+Private Function NewStackedChart(wb As Workbook) As Chart
+    Dim rng As Range
+    Set rng = Samples_WriteTable(wb.Worksheets(1).Range("A1"), Samples_TableFor("stacked"))
+    rng.Select
+    Core_Insert "stacked"
+    Set NewStackedChart = Core_ActiveChart()
+End Function
+
+Private Sub WriteStyleFile(p As String, lines As Variant)
+    Dim f As Integer, i As Long
+    f = FreeFile
+    Open p For Output As #f
+    For i = LBound(lines) To UBound(lines)
+        Print #f, CStr(lines(i))
+    Next
+    Close #f
+End Sub
+
+' I1: importar um arquivo com o nome de um estilo seu NAO grava sem perguntar ("?" + texto); com allowOverwrite substitui.
+Public Sub Test_StyleStore_Import_SameName_AsksBeforeReplacing()
+    Dim d As String, p As String, nm As String, ign As Long, r As String
+    StyleStore_ResetTestHooks
+    d = StyleTestDir()
+    AssertEqual "", StyleStore_SaveUser("Relatorio Mensal", STYLEDEF_HEADER & vbCrLf & "aumento=#111111")
+    p = TempDir() & "\relatorio.tqqestilo"
+    WriteStyleFile p, Array(STYLEDEF_HEADER, "nome=Relatorio Mensal", "aumento=#222222")
+    r = StyleStore_Import(p, nm, ign)
+    AssertEqual "?", Left$(r, 1), "mesmo nome: pergunta (nada gravado)"
+    AssertEqual "Relatorio Mensal", nm
+    AssertTrue InStr(Mid$(r, 2), "aumento=#222222") > 0, "o texto canonico do arquivo volta para quem pergunta"
+    AssertTrue InStr(StyleStore_UserText("Relatorio Mensal"), "#111111") > 0, "o estilo do usuario ficou intacto"
+    AssertTrue InStr(StyleStore_ReplaceQuestion(nm), "Você já tem um estilo chamado 'Relatorio Mensal'. Substituir pelo do arquivo?") > 0
+    r = StyleStore_Import(p, nm, ign, True)
+    AssertTrue Left$(r, 1) <> "?" And Left$(r, 1) <> "!", r
+    AssertTrue InStr(StyleStore_UserText("Relatorio Mensal"), "#222222") > 0, "com allowOverwrite: substitui"
+    Kill p
+    StyleStore_ResetTestHooks
+End Sub
+
+' I2 e M1: pasta hostil. Uma parte com 150 estilos, uma malformada, um <style> sem nome e um "Cascata MC" de outras cores: le no maximo 100,
+' a lista da faixa tem no maximo 200 nomes, o embutido nunca e sombreado e gravar mais um estilo na pasta cheia e recusado (sem travar).
+Public Sub Test_StyleStore_HostileBook_CapsAndBuiltinsWin()
+    Dim wb As Workbook, parts() As String, i As Long, t As Single, c As Chart, k As Long, en As Long
+    Set wb = NewTempWorkbook()
+    ReDim parts(0 To 151)
+    parts(0) = "<tqqStyles xmlns=""" & STYLESTORE_NS & """><style>sem nome</style><style name=""Cascata MC"">" & STYLEDEF_HEADER & "&#10;aumento=#000001</style>"
+    For i = 1 To 150
+        parts(i) = "<style name=""s" & i & """>" & STYLEDEF_HEADER & "</style>"
+    Next
+    parts(151) = "</tqqStyles>"
+    wb.CustomXMLParts.Add Join(parts, "")
+    On Error Resume Next
+    wb.CustomXMLParts.Add "<tqqStyles xmlns=""" & STYLESTORE_NS & """><style name=""x"">"         ' malformada: o Office recusa ou fica sem filhos
+    Err.Clear
+    On Error GoTo 0
+    t = Timer
+    AssertEqual STYLESTORE_BOOK_MAX, StyleStore_BookAll(wb).Count, "no maximo 100 estilos lidos da pasta"
+    AssertTrue UBound(Split(StyleStore_Names(wb), "|")) + 1 <= STYLESTORE_NAMES_MAX, "no maximo 200 nomes para a faixa"
+    AssertTrue InStr(StyleStore_Get("Cascata MC", wb, False), "aumento=#70AD47") > 0, "o embutido vence a copia da pasta (M1)"
+    On Error Resume Next
+    StyleStore_SaveBook wb, "Mais um", STYLEDEF_HEADER
+    en = Err.Number
+    On Error GoTo 0
+    AssertEqual vbObjectError + 7140, en, "pasta cheia: gravar mais um e recusado"
+    ' grafico com style forjado (estilo inexistente) e carimbo forjado: cada refresh tenta reaplicar e falha rapido, sem travar
+    Set c = NewStackedChart(wb)
+    Registry_SetOption c, "style", "Nao Existe"
+    Registry_SetOption c, "stylestamp", "forjado"
+    For k = 1 To 10
+        Core_SafeRefresh c
+    Next
+    AssertTrue Timer - t < 20, "pasta hostil: leitura, lista e 10 refresh em menos de 20 s (" & Format$(Timer - t, "0.0") & " s)"
+    CloseTemp wb
+End Sub
+
+' M1/M10d: nome de dispositivo do Windows e arquivo posto a mao com nome invalido ou de embutido nao entram.
+Public Sub Test_StyleStore_DeviceAndForeignNames()
+    Dim d As String
+    StyleStore_ResetTestHooks
+    d = StyleTestDir()
+    AssertTrue StyleStore_IsDeviceName("con") And StyleStore_IsDeviceName("COM1") And StyleStore_IsDeviceName("lpt9")
+    AssertFalse StyleStore_IsDeviceName("CONTA") Or StyleStore_IsDeviceName("COMX")
+    AssertTrue InStr(StyleStore_SaveUser("NUL", STYLEDEF_HEADER), "nome reservado do Windows") > 0
+    WriteStyleFile d & "\a;b" & STYLEDEF_EXT, Array(STYLEDEF_HEADER)
+    WriteStyleFile d & "\Cascata MC" & STYLEDEF_EXT, Array(STYLEDEF_HEADER, "aumento=#000001")
+    AssertEqual 0, InStr("|" & StyleStore_Names() & "|", "|a;b|"), "arquivo com ; fora da lista"
+    AssertEqual 1, UBound(Split("|" & StyleStore_Names() & "|", "|Cascata MC|")), "Cascata MC uma vez so (o embutido)"
+    AssertTrue InStr(StyleStore_Get("Cascata MC", Nothing, True), "aumento=#70AD47") > 0, "o arquivo posto a mao nao sombreia o embutido"
+    Kill d & "\a;b" & STYLEDEF_EXT
+    Kill d & "\Cascata MC" & STYLEDEF_EXT
+    StyleStore_ResetTestHooks
+End Sub
+
+' I3: tirar o estilo (paleta embutida) marca stylever = "pal": o slide continua recebendo a formatacao (da paleta); a reaplicacao nao age.
+Public Sub Test_StyleClear_MarksPaletteVersion()
+    Dim wb As Workbook, c As Chart
+    Set wb = NewTempWorkbook()
+    Set c = NewWfChart(wb)
+    Style_ApplyNamed c, "Cascata MC"
+    Style_ApplyNamed c, "Tons de cinza"
+    AssertEqual "", Registry_GetOption(c, "style", "")
+    AssertEqual STYLE_VER_PALETTE, Registry_GetOption(c, "stylever", "")
+    AssertEqual "Tons de cinza", Core_GetStyleName()
+    Style_ReapplyIfNeeded c
+    AssertEqual "", Registry_GetOption(c, "style", ""), "sem style: nada reaplicado"
+    Style_ApplyNamed c, "Cascata DDE"
+    AssertEqual 8, Len(Registry_GetOption(c, "stylever", "")), "estilo de novo: a versao do texto"
+    CloseTemp wb
+End Sub
+
+' I5: o espaco do estilo vale no aplicar explicito; a lista Espaco continua mudando o grafico depois (a reaplicacao nao o desfaz).
+Public Sub Test_StyleApply_Gap_OnlyOnExplicitApply()
+    Dim wb As Workbook, c As Chart
+    Set wb = NewTempWorkbook()
+    Set c = NewStackedChart(wb)
+    StyleStore_SaveBook wb, "Com Espaco", STYLEDEF_HEADER & vbCrLf & "nome=Com Espaco" & vbCrLf & "serie1=#123456" & vbCrLf & "espaco=50"
+    Style_ApplyNamed c, "Com Espaco"
+    AssertEqual 50, c.ChartGroups(1).GapWidth, "aplicar: o espaco do estilo"
+    Core_SetOption "gap", "120"
+    AssertEqual 120, c.ChartGroups(1).GapWidth, "Espaco > 120 depois do estilo"
+    AssertEqual "120", Registry_GetOption(c, "gap", "")
+    Core_SetToggle "labels", False
+    AssertEqual 120, c.ChartGroups(1).GapWidth, "a reaplicacao (alternador) nao volta ao 50"
+    AssertEqual RGB(&H12, &H34, &H56), CLng(c.SeriesCollection(1).Format.Fill.ForeColor.RGB), "as cores continuam reaplicadas"
+    CloseTemp wb
+End Sub
+
+' M5: rotulo religado pelo refresh (9 pt) volta ao rotulo.tamanho do estilo sem o carimbo mudar.
+Public Sub Test_StyleApply_RelinkedLabels_GetStyleSize()
+    Dim wb As Workbook, c As Chart, ws As Worksheet
+    Set wb = NewTempWorkbook()
+    Set c = NewStackedChart(wb)
+    Set ws = wb.Worksheets(1)
+    StyleStore_SaveBook wb, "Rotulo 12", STYLEDEF_HEADER & vbCrLf & "nome=Rotulo 12" & vbCrLf & "rotulo.tamanho=12"
+    Style_ApplyNamed c, "Rotulo 12"
+    AssertEqual 12, CLng(c.SeriesCollection(1).Points(1).DataLabel.Font.Size), "aplicado"
+    Labels_TakeRelinked
+    Application.EnableEvents = False                           ' sem o refresh do observador no meio (ele ja refaria o estilo)
+    Labels_LinkPoints c.SeriesCollection(1), ws.Range("B2:B5"), "0", xlLabelPositionCenter
+    Application.EnableEvents = True
+    AssertEqual 9, CLng(c.SeriesCollection(1).Points(1).DataLabel.Font.Size), "religado com 9 pt"
+    Core_SafeRefresh c
+    AssertEqual 12, CLng(c.SeriesCollection(1).Points(1).DataLabel.Font.Size), "o refresh refaz rotulo.tamanho"
+    CloseTemp wb
+End Sub
+
+' M10a: Novo do grafico numa pizza le a cor de cada fatia.
+Public Sub Test_StyleFromChart_Pie_ReadsSlices()
+    Dim wb As Workbook, c As Chart, rng As Range, d As Object, ign As Long
+    Set wb = NewTempWorkbook()
+    Set rng = Samples_WriteTable(wb.Worksheets(1).Range("A1"), Samples_TableFor("pie"))
+    rng.Select
+    Core_Insert "pie"
+    Set c = Core_ActiveChart()
+    Style_ApplyNamed c, "Cascata MC"
+    Set d = StyleDef_Parse(Style_FromChart(c, "Da Pizza"), ign)
+    AssertEqual "#70AD47", StyleDef_Get(d, "serie1")
+    AssertEqual "#D9D9D9", StyleDef_Get(d, "serie2")
+    AssertEqual "#E8173C", StyleDef_Get(d, "serie3")
+    CloseTemp wb
 End Sub

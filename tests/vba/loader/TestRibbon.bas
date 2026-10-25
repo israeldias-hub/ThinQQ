@@ -1047,6 +1047,34 @@ Public Sub Test_Ribbon_Styles_XmlAndNames()
     v = Rx_StyleNamesFor("A|B|C")
     AssertEqual 3, UBound(v) - LBound(v) + 1
     v = Rx_StyleNamesFor("")
-    AssertEqual 1, UBound(v) - LBound(v) + 1
+    AssertEqual 3, UBound(v) - LBound(v) + 1, "core anterior: as tres paletas de antes (revisao final 1.12.0, M8)"
     AssertEqual "Padrão ThinQQ", CStr(v(0))
+    AssertEqual "Tons de cinza", CStr(v(1))
+    AssertEqual "Cores do tema", CStr(v(2))
+    AssertEqual "padrao", Rx_LegacyPaletteFor(0)
+    AssertEqual "cinza", Rx_LegacyPaletteFor(1)
+    AssertEqual "tema", Rx_LegacyPaletteFor(2)
+    AssertEqual "", Rx_LegacyPaletteFor(3)
+End Sub
+
+' Revisao final 1.12.0 (M8): loader novo com core anterior (sem Core_StyleNames): a lista Estilo mostra as tres paletas de antes.
+Public Sub Test_Ribbon_Styles_OldCore_ListsPalettes()
+    Dim cnt As Variant, lbl As Variant, en As Long, ed As String
+    On Error GoTo Cleanup
+    If Loader_CoreWorkbook() Is Nothing Then Loader_Log "TestRibbon: core nao carregado (teste pulado)": GoTo Cleanup
+    Rx_TestSetFeatureProcSuffix "_inexistente"
+    Loader_InvalidateRibbon
+    Rx_StyleCount Nothing, cnt
+    AssertEqual 3, CLng(cnt), "core anterior: tres itens"
+    Rx_StyleLabel Nothing, 1, lbl
+    AssertEqual "Tons de cinza", CStr(lbl)
+    Rx_TestSetFeatureProcSuffix ""
+    Loader_InvalidateRibbon
+    Rx_StyleCount Nothing, cnt
+    AssertTrue CLng(cnt) >= 5, "core atual: os cinco embutidos (" & CStr(cnt) & ")"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    Rx_TestSetFeatureProcSuffix ""
+    Loader_InvalidateRibbon
+    If en <> 0 Then Err.Raise en, "TestRibbon", ed
 End Sub

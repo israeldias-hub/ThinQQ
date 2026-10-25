@@ -5,6 +5,8 @@ Option Explicit
 ' stylestamp (carimbo do ultimo aplicar: versao, series, categorias, series que carregam a 1a e a ultima barra da cascata). Nunca mexe na
 ' formatacao que o estilo nao define. Hachura e cor de ponto sobrevivem a mudar valores (PX1); recriar o grafico perde: por isso a reaplicacao.
 Private Const STYLE_ERR As Long = 7140
+Public Const STYLE_VER_PALETTE As String = "pal"     ' stylever de um grafico que teve estilo e voltou a uma paleta embutida (o slide segue a paleta)
+Private Const STYLE_MAX_LABEL_POINTS As Long = 2000  ' teto de pontos percorridos por Style_Labels/Style_SegmentLabels (acima: pulado e registrado)
 Private Const STYLE_MAX_LBL_SERIES As Long = 64     ' teto das auxiliares tqq_lbl_j procuradas (areas e Mekko)
 
 ' Preenchimento por papel: hachura (padrao valido) com a cor do padrao na frente e a do papel atras; senao cor solida. Nunca propaga (registrado).
@@ -238,10 +240,30 @@ Fail:
     Errors_Log "Style_PairRoles" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
 
+' Pontos somados de todas as series (teto das passadas ponto a ponto; revisao final 1.12.0, M6). Nunca propaga.
+Private Function Style_PointTotal(c As Chart) As Long
+    Dim s As Series
+    On Error Resume Next
+    For Each s In c.SeriesCollection
+        Style_PointTotal = Style_PointTotal + s.Points.Count
+    Next
+    Err.Clear
+End Function
+
+' True (e registrado) quando o grafico tem pontos demais para uma passada ponto a ponto de rotulos. Nunca propaga.
+Private Function Style_TooManyPoints(c As Chart, who As String) As Boolean
+    Dim n As Long
+    n = Style_PointTotal(c)
+    If n <= STYLE_MAX_LABEL_POINTS Then Exit Function
+    Style_TooManyPoints = True
+    Errors_Log who & ": " & n & " pontos (teto " & STYLE_MAX_LABEL_POINTS & "): rotulos sem o estilo"
+End Function
+
 ' Rotulos de segmento das areas e do Mekko (auxiliares tqq_lbl_j): fonte por contraste com a cor nova da serie j. Nunca propaga.
 Private Sub Style_SegmentLabels(c As Chart)
     Dim j As Long, ls As Series, fc As Long, r As Long
     On Error Resume Next
+    If Style_TooManyPoints(c, "Style_SegmentLabels") Then Exit Sub
     For j = 1 To STYLE_MAX_LBL_SERIES
         Set ls = Nothing
         Set ls = Chart_FindSeries(c, "tqq_lbl_" & j)
@@ -282,6 +304,7 @@ Private Sub Style_Labels(c As Chart, d As Object)
     col = StyleDef_Get(d, "rotulo.cor"): bold = StyleDef_Get(d, "rotulo.negrito"): sz = StyleDef_Get(d, "rotulo.tamanho")
     If Len(col) = 0 And Len(bold) = 0 And Len(sz) = 0 Then Exit Sub
     On Error Resume Next
+    If Style_TooManyPoints(c, "Style_Labels") Then Exit Sub
     For Each s In c.SeriesCollection
         helper = Style_IsHelperSeries(s)
         For i = 1 To s.Points.Count
@@ -390,7 +413,9 @@ End Sub
 
 ' Aplica o estilo d (validado) ao grafico. Chaves sem papel no tipo sao ignoradas. Gantt (1.12.0): so fonte, rotulos e espaco (as cores do Gantt
 ' seguem a paleta; backlog). Propaga so erro estrutural (quem chama trata).
-Public Sub Style_ApplyTo(c As Chart, d As Object)
+' explicit = escolha do usuario (Aplicar, menu Estilo, padrao para novos): so ai o espaco do estilo e aplicado. Na reaplicacao (toggle, opcao,
+' Alterar dados, refresh) o espaco fica o da opcao gap, que a lista Espaco da faixa muda (revisao final 1.12.0, I5).
+Public Sub Style_ApplyTo(c As Chart, d As Object, Optional explicit As Boolean = True)
     Dim fam As String
     fam = Kinds_Family(Registry_ChartType(c))
     On Error Resume Next
@@ -424,7 +449,7 @@ Public Sub Style_ApplyTo(c As Chart, d As Object)
         Err.Clear
         On Error GoTo 0
     End If
-    If Len(StyleDef_Get(d, "espaco")) > 0 Then
+    If Len(StyleDef_Get(d, "espaco")) > 0 And explicit Then
         If Kinds_SupportsChart(c, "gap") Then Style_Gap c, CLng(StyleDef_Get(d, "espaco"))
     End If
 End Sub
@@ -459,7 +484,7 @@ End Function
 ' Estilo pelo nome aplicado e gravado nas opcoes do grafico. Embutido so-paleta (ou "") = a paleta antiga (ApplyOption) e sem style. A pasta
 ' passa a levar o estilo. Erro STYLE_ERR (vbObjectError + 7140) com a mensagem quando o nome nao existe ou o texto nao vale.
 Public Sub Style_ApplyNamed(c As Chart, name As String, Optional preferUser As Boolean = True)
-    Dim txt As String, d As Object, ign As Long, pal As String, nm As String
+    Dim txt As String, d As Object, ign As Long, pal As String, nm As String, stamp As String
     pal = StyleDef_BuiltinPalette(name)
     If Len(pal) > 0 Or Len(name) = 0 Then
         If Len(pal) = 0 Then pal = "padrao"
@@ -474,13 +499,15 @@ Public Sub Style_ApplyNamed(c As Chart, name As String, Optional preferUser As B
     StyleStore_EnsureInBook Registry_Workbook(c), nm, txt
     If Registry_GetOption(c, "style", "") <> nm Then Registry_SetOption c, "style", nm
     If Registry_GetOption(c, "stylever", "") <> StyleDef_Version(txt) Then Registry_SetOption c, "stylever", StyleDef_Version(txt)
-    Style_ApplyTo c, d
-    Registry_SetOption c, "stylestamp", Style_Stamp(c)
+    Style_ApplyTo c, d, preferUser                              ' preferUser = escolha explicita (Style_Reapply passa False)
+    stamp = Style_Stamp(c)
+    If Registry_GetOption(c, "stylestamp", "") <> stamp Then Registry_SetOption c, "stylestamp", stamp      ' cada gravacao no bloco recalcula
 End Sub
 
 ' Tira o estilo do grafico depois de quem chamou reaplicar a paleta (as cores das series ficam as da paleta). O que a paleta nao refaz volta ao
 ' padrao do ThinQQ: a 1a/ultima barra da cascata (hachura, borda, cor do ponto) toma a cor atual da sua serie e os conectores da cascata voltam
-' a linha cinza continua de 0,75 pt. Fonte e rotulos ficam como estao. Nunca propaga.
+' a linha cinza continua de 0,75 pt. Fonte e rotulos ficam como estao. stylever passa a STYLE_VER_PALETTE ("ja teve estilo; o slide segue a
+' paleta"): PptSync_ApplyFormat continua copiando a formatacao para o slide (revisao final 1.12.0, I3). Nunca propaga.
 Public Sub Style_Clear(c As Chart)
     Dim s As Series, n As Long, i As Long, hx As String
     On Error Resume Next
@@ -509,7 +536,7 @@ Public Sub Style_Clear(c As Chart)
         Err.Clear
     Next
     Registry_SetOption c, "style", ""
-    Registry_SetOption c, "stylever", ""
+    Registry_SetOption c, "stylever", STYLE_VER_PALETTE
     Registry_SetOption c, "stylestamp", ""
     Err.Clear
 End Sub
@@ -524,6 +551,21 @@ Public Sub Style_Reapply(c As Chart)
     Exit Sub
 Fail:
     Errors_Log "Style_Reapply" & vbTab & Err.Number & vbTab & Err.Description
+End Sub
+
+' Core_SafeRefresh com rotulos religados pelo refresh (Labels: segmento fino que voltou a caber nasce com 9 pt e a cor de contraste): so os
+' rotulo.* do estilo voltam, sem o carimbo mudar (revisao final 1.12.0, M5). Nunca propaga erro.
+Public Sub Style_ReapplyLabels(c As Chart)
+    Dim nm As String, d As Object, ign As Long
+    On Error GoTo Fail
+    nm = Registry_GetOption(c, "style", "")
+    If Len(nm) = 0 Then Exit Sub
+    Set d = StyleDef_Parse(StyleStore_Get(nm, Registry_Workbook(c), False), ign)
+    If d Is Nothing Then Exit Sub
+    Style_Labels c, d
+    Exit Sub
+Fail:
+    Errors_Log "Style_ReapplyLabels" & vbTab & Err.Number & vbTab & Err.Description
 End Sub
 
 ' Core_SafeRefresh: so reaplica quando o carimbo mudou (linha nova, serie nova, sinal da 1a/ultima barra). Nunca propaga erro.
@@ -574,6 +616,18 @@ Public Function Style_FromChart(c As Chart, name As String) As String
             End If
             Err.Clear
         Next
+    ElseIf fam = "pie" Then
+        ' pizza e rosca: a cor de cada fatia (Style_PointRoles pinta por ponto), ate serie8
+        Set s = Nothing
+        Set s = c.SeriesCollection(1)
+        If Not s Is Nothing Then
+            For i = 1 To s.Points.Count
+                If i > 8 Then Exit For
+                d("serie" & i) = StyleDef_HexOf(CLng(s.Points(i).Format.Fill.ForeColor.RGB))
+                Err.Clear
+            Next
+        End If
+        Err.Clear
     Else
         For Each s In c.SeriesCollection
             If Not Style_IsHelperSeries(s) And k < 8 Then
