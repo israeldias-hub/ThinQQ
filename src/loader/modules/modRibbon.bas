@@ -5,6 +5,7 @@ Private mHasChart As Boolean        ' cache de Core_HasChart por ciclo de Invali
 Private mHasChartValid As Boolean
 Private mSupports As Object         ' cache de Core_Supports por ciclo de Invalidate: Scripting.Dictionary tag -> Boolean
 Private mSupportsMissing As Boolean ' o core nao tem Core_Supports (versao 1.0.0) ou nao esta carregado: vale ate o fim do ciclo
+Private mStyleNames As Variant                 ' nomes dos estilos do ciclo de Invalidate (Rx_StyleNamesFor)
 Private mSupportsProc As String     ' gancho de teste (Rx_TestSetSupportsProc); vazio = "Core_Supports"
 Private mTestProcSuffix As String   ' gancho de teste (Rx_TestSetFeatureProcSuffix): simula um core sem os procedimentos novos
 Private mPptInsert As Boolean       ' "Inserir tambem no slide" (sessao)
@@ -22,6 +23,7 @@ Private Sub ResetRibbonCaches()
     mHasChartValid = False
     mSupportsMissing = False
     Set mSupports = Nothing
+    mStyleNames = Empty
 End Sub
 
 ' Gancho de teste: troca o nome do procedimento de capacidade (simula um core 1.0.0, sem Core_Supports). So existe no build de Teste.
@@ -194,7 +196,6 @@ Public Function Rx_SelectedIdFor(tag As String) As String
     If Len(s) = 0 Then
         Select Case tag
             Case "numfmt": s = "int"
-            Case "palette": s = "padrao"
             Case "gap": s = "50"
             Case "legend": s = "right"
         End Select
@@ -206,6 +207,65 @@ End Function
 Public Sub Rx_GetSelectedId(control As IRibbonControl, ByRef itemId)
     On Error Resume Next
     itemId = Rx_SelectedIdFor(control.Tag)
+End Sub
+
+' ===== Estilos (1.12.0) =====
+
+' Lista de nomes a partir do texto do core ("a|b|c"); vazio (core anterior ou ausente) = so "Padrão ThinQQ". Pura.
+Public Function Rx_StyleNamesFor(raw As String) As Variant
+    If Len(raw) = 0 Then Rx_StyleNamesFor = Array("Padrão ThinQQ") Else Rx_StyleNamesFor = Split(raw, "|")
+End Function
+
+Private Function StyleNames() As Variant
+    Dim v As Variant
+    If IsEmpty(mStyleNames) Then
+        If Not Loader_CoreWorkbook() Is Nothing Then v = Loader_RunCore("Core_StyleNames")
+        mStyleNames = Rx_StyleNamesFor(CStr(v))
+    End If
+    StyleNames = mStyleNames
+End Function
+
+Public Sub Rx_StyleCount(control As IRibbonControl, ByRef count)
+    On Error Resume Next
+    count = 0
+    count = UBound(StyleNames()) + 1
+End Sub
+
+Public Sub Rx_StyleLabel(control As IRibbonControl, index As Integer, ByRef label)
+    On Error Resume Next
+    label = CStr(StyleNames()(index))
+End Sub
+
+Public Sub Rx_StyleId(control As IRibbonControl, index As Integer, ByRef id)
+    On Error Resume Next
+    id = "st" & index
+End Sub
+
+Public Sub Rx_GetStyleSel(control As IRibbonControl, ByRef itemId)
+    Dim n As String, a As Variant, i As Long
+    On Error Resume Next
+    itemId = "st0"
+    If Loader_CoreWorkbook() Is Nothing Then Exit Sub
+    n = CStr(Loader_RunCore("Core_GetStyleName"))
+    a = StyleNames()
+    For i = 0 To UBound(a)
+        If StrComp(CStr(a(i)), n, vbTextCompare) = 0 Then
+            itemId = "st" & i
+            Exit Sub
+        End If
+    Next
+End Sub
+
+Public Sub Rx_OnStyle(control As IRibbonControl, selectedId As String, selectedIndex As Integer)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_StyleApply", Array(CStr(StyleNames()(selectedIndex)), "chart")
+    Loader_InvalidateRibbon
+End Sub
+
+Public Sub Rx_OnStyles(control As IRibbonControl)
+    On Error Resume Next
+    If CoreOrWarn() Then RunCoreFeature "Core_StyleManage"
+    Loader_InvalidateRibbon
 End Sub
 
 Public Sub Rx_OnAnnotation(control As IRibbonControl)

@@ -2441,3 +2441,14 @@ Public Function Core_StyleFromChart(name As String) As String
 Fail:
     Core_StyleFromChart = "Não foi possível salvar o estilo: " & Err.Description
 End Function
+
+' Janela Estilos (1.12.0), nao modal. Build Test: nada (formulario). Nunca propaga erro.
+Public Sub Core_StyleManage()
+    On Error GoTo Fail
+    If BUILD_CONFIG = "Test" Then Exit Sub
+    frmStyles.Prepare
+    frmStyles.Show vbModeless
+    Exit Sub
+Fail:
+    Errors_Handle "Core_StyleManage"
+End Sub

@@ -92,12 +92,9 @@
             <item id="mil"  label="Milhares (1.234 → 1)"/>
             <item id="mi"   label="Milhões (1,2)"/>
           </dropDown>
-          <dropDown id="ddPalette" label="Paleta" tag="palette" onAction="Rx_OnDropdown"
-                    getSelectedItemID="Rx_GetSelectedId" getEnabled="Rx_GetEnabled" screentip="Cores das séries">
-            <item id="padrao" label="Padrão ThinQQ"/>
-            <item id="cinza"  label="Tons de cinza"/>
-            <item id="tema"   label="Cores do tema"/>
-          </dropDown>
+          <dropDown id="ddStyle" label="Estilo" tag="style" getItemCount="Rx_StyleCount" getItemLabel="Rx_StyleLabel" getItemID="Rx_StyleId"
+                    getSelectedItemID="Rx_GetStyleSel" onAction="Rx_OnStyle" getEnabled="Rx_GetEnabled" screentip="Estilo do gráfico"
+                    supertip="Cores por papel (séries, aumentos, reduções, totais, primeira e última barra com hachura), conectores, setas, rótulos, fonte e espaço. Os embutidos Padrão ThinQQ, Tons de cinza e Cores do tema são as paletas de antes; Cascata MC e Cascata DDE são exemplos; os seus aparecem aqui depois de salvos em Estilos..."/>
           <dropDown id="ddGap" label="Espaço" tag="gap" onAction="Rx_OnDropdown"
                     getSelectedItemID="Rx_GetSelectedId" getEnabled="Rx_GetEnabled" screentip="Espaço entre colunas ou barras"
                     supertip="Largura do vão entre as colunas ou barras (no Gantt, entre as linhas). Linha, área, Mekko e pizza não têm vão.">
@@ -115,6 +112,7 @@
             <item id="lineend" label="Nome no fim da linha"/>
             <item id="inbar"   label="Nome dentro das barras"/>
           </dropDown>
+          <button id="btnStyles" label="Estilos..." image="tqq_options16" onAction="Rx_OnStyles" screentip="Estilos de gráfico" supertip="Cria, edita, importa, exporta e aplica estilos (ao gráfico, à planilha ou à pasta) e escolhe o estilo dos gráficos novos. 'Novo do gráfico' guarda as cores do gráfico selecionado, inclusive as pintadas à mão."/>
           <separator id="sep2"/>
           <!-- Mais opcoes fica sempre ativo (sem getEnabled): contem Mesma escala, Escala automatica e Arredondar intervalo, que valem sem gráfico
                selecionado. Os alternadores e os dois botoes de corte de eixo consultam a matriz pela tag (Core_Supports). -->
