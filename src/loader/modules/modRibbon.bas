@@ -140,12 +140,22 @@ Public Function Rx_LinkProcFor(tag As String) As String
 End Function
 
 Public Sub Rx_OnLinkToPpt(control As IRibbonControl)
+    Dim tg As String
+    On Error Resume Next
+    tg = CStr(control.Tag)
+    If Err.Number <> 0 Then Exit Sub
+    Rx_LinkRun tg
+End Sub
+
+' Corpo da galeria Vincular ao PowerPoint (testavel sem IRibbonControl; revisao final 1.13.0, M5): tag desconhecido nao faz nada; core sem o
+' procedimento (anterior a 1.7.0 para os tipos, 1.9.0 para Texto, 1.10.0 para Tabela) = aviso RX_MSG_UPDATE. Nunca propaga.
+Public Sub Rx_LinkRun(tg As String)
     Dim p As String
     On Error Resume Next
-    p = Rx_LinkProcFor(CStr(control.Tag))
+    p = Rx_LinkProcFor(tg)
     If Len(p) = 0 Then Exit Sub
     If CoreOrWarn() Then
-        If p = "Core_InsertToPowerPoint" Then RunCoreFeature p, CStr(control.Tag) Else RunCoreFeature p
+        If p = "Core_InsertToPowerPoint" Then RunCoreFeature p, tg Else RunCoreFeature p
     End If
     Loader_InvalidateRibbon
 End Sub

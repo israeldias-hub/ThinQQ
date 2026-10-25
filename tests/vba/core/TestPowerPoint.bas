@@ -241,6 +241,7 @@ Public Sub Test_Ppt_RealPaste_WhenAvailable()
     AssertTrue InStr(Core_LastNotice(), "gráfico vinculado") > 0, Core_LastNotice()
     ' X2b (1.13.0): Copiar como grafico vinculado (vinculo mantido) tambem marca o intervalo de origem com a moldura
     AssertTrue Not LinkFrame_Find(c) Is Nothing, "X2b: colado vinculado ganha moldura"
+    LinkFrame_SetState c, False                       ' revisao final 1.13.0 (M3): moldura vermelha de antes volta a verde ao colar de novo
     AssertEqual rng.Address, LinkFrame_Find(c).TopLeftCell.Resize(rng.Rows.Count, rng.Columns.Count).Address, "no intervalo de origem"
     rng.Worksheet.Range("B2").Value = 11
     Core_ClearLastNotice
@@ -248,6 +249,7 @@ Public Sub Test_Ppt_RealPaste_WhenAvailable()
     Core_CopyToPowerPoint "chart"
     AssertTrue InStr(Core_LastNotice(), PPT_NOTE_DIRTY) > 0, "aviso de alteracoes nao salvas"
     AssertEqual 1, CountFramesOf(rng.Worksheet), "colar de novo nao duplica a moldura"
+    AssertEqual LINKFRAME_GREEN, LinkFrame_Find(c).Line.ForeColor.RGB, "M3: colou de novo = verde"
     ' X2b: com a moldura, Alterar dados avisa que o slide precisa ser colado de novo
     Core_ClearLastNotice
     AssertTrue Core_RebuildFromRange(c, rng.Worksheet.Range("A1:B3")), "Alterar dados"

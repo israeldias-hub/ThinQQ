@@ -1017,7 +1017,7 @@ End Sub
 
 ' O clique na galeria com controle nulo ou tag desconhecida: nada acontece e nada propaga (o callback nunca levanta erro).
 Public Sub Test_Ribbon_LinkToPpt_NullControl()
-    Dim en As Long, ed As String
+    Dim en As Long, ed As String, tg As Variant
     On Error GoTo Cleanup
     If Loader_CoreWorkbook() Is Nothing Then Loader_Log "TestRibbon: core nao carregado (parte do aviso pulada)": GoTo Cleanup
     Rx_TestSetFeatureProcSuffix "_inexistente"
@@ -1025,6 +1025,18 @@ Public Sub Test_Ribbon_LinkToPpt_NullControl()
     Rx_OnLinkToPpt Nothing
     AssertEqual "", Loader_LastMsg, "controle nulo: nada acontece"
     Err.Clear
+    ' revisao final 1.13.0 (M5): core sem o procedimento (sufixo armado) = aviso de atualizar, para os tres caminhos da galeria
+    For Each tg In Array("table", "text", "stacked")
+        Loader_LastMsg = ""
+        Rx_LinkRun CStr(tg)
+        AssertEqual RX_MSG_UPDATE, Loader_LastMsg, "core anterior: " & tg
+    Next
+    Loader_LastMsg = ""
+    Rx_LinkRun "x,y"
+    AssertEqual "", Loader_LastMsg, "tag invalido: nada"
+    Loader_LastMsg = ""
+    Rx_LinkRun ""
+    AssertEqual "", Loader_LastMsg, "tag vazio: nada"
 Cleanup:
     en = Err.Number: ed = Err.Description
     Rx_TestSetFeatureProcSuffix ""

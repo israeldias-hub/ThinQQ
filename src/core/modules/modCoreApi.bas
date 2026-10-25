@@ -1156,7 +1156,7 @@ Public Sub Core_ToggleLinkFrames()
     If ActiveWorkbook Is Nothing Then Exit Sub
     Core_RefreshFrames ActiveWorkbook                   ' cor pelo estado (1.13.0) antes de mostrar
     r = LinkFrame_ToggleAll(ActiveWorkbook)
-    If r = -1 Then Core_Notify "Esta pasta não tem molduras de intervalos vinculados ao PowerPoint (elas aparecem ao usar 'Inserir também no slide')."
+    If r = -1 Then Core_Notify LINKFRAME_MSG_NONE
     Exit Sub
 Fail:
     Errors_Handle "Core_ToggleLinkFrames"
@@ -1164,43 +1164,64 @@ End Sub
 
 ' Molduras da pasta pelo estado (1.13.0): ids dos graficos usados nas apresentacoes ABERTAS (PowerPoint ja aberto, nunca iniciado aqui;
 ' TQQ_LINKIDX das entradas desta pasta, etiqueta TQQ_CHART de cada forma) = verde; o resto = vermelha. Chamado por Atualizar (Core_Refresh),
-' Mostrar/ocultar molduras e depois de inserir no slide (nunca no ciclo automatico: mudar a cor altera a pasta e limparia o Desfazer).
+' Mostrar/ocultar molduras, Atualizar no PowerPoint (Core_PptSyncOpen) e depois de inserir ou colar vinculado no slide (nunca no ciclo
+' automatico: mudar a cor altera a pasta e limparia o Desfazer). PowerPoint OCUPADO (caixa aberta, texto em edicao: ao pegar o aplicativo
+' ou no meio da leitura) = nada e pintado e devolve 0: as cores ficam como estavam (revisao final 1.13.0, I1). Cada moldura e pintada pela
+' propria forma (uma planilha copiada leva outra moldura com o mesmo nome; M4); moldura orfa (grafico inexistente) fica para a limpeza.
 ' Devolve quantas verdes. Nunca propaga.
 Public Function Core_RefreshFrames(wb As Workbook) As Long
-    Dim used As Object, app As Object, pres As Object, e As Variant, sl As Object, shp As Object, ws As Worksheet, s As Shape, id As String, co As ChartObject
+    Dim used As Object, app As Object, pres As Object, e As Variant, sl As Object, shp As Object, ws As Worksheet, s As Shape, id As String
+    Dim idx As String, n As Long
     On Error Resume Next
     If wb Is Nothing Then Exit Function
     Set used = CreateObject("Scripting.Dictionary")
     Set app = Ppt_GetApp(False)
-    Err.Clear
+    If Err.Number <> 0 Then GoTo Busy                       ' Ppt_GetApp(False) so levanta o ocupado
     If Not app Is Nothing Then
         For Each pres In app.Presentations
-            For Each e In PptIdx_Parse(PptSync_Tag(pres, PPTSTATE_TAG_LINKIDX))
+            If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+            Err.Clear
+            PptSync_TestPoint "frames"                      ' (teste) ocupado no meio da leitura
+            If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+            idx = ""
+            idx = CStr(pres.Tags.Item(PPTSTATE_TAG_LINKIDX))
+            If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+            Err.Clear
+            For Each e In PptIdx_Parse(idx)
                 If StrComp(CStr(e(2)), wb.FullName, vbTextCompare) = 0 Then
                     Set sl = Nothing: Set shp = Nothing
                     Set sl = pres.Slides.FindBySlideID(CLng(e(0)))
+                    If Ppt_IsBusyError(Err.Number) Then GoTo Busy
                     If Not sl Is Nothing Then Set shp = sl.Shapes(CStr(e(1)))
-                    If Not shp Is Nothing Then used(PptSync_Tag(shp, PPTSYNC_TAG_CHART)) = True
+                    If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+                    id = ""
+                    If Not shp Is Nothing Then id = CStr(shp.Tags.Item(PPTSYNC_TAG_CHART))
+                    If Ppt_IsBusyError(Err.Number) Then GoTo Busy
+                    If Len(id) > 0 Then used(id) = True
                 End If
                 Err.Clear
             Next
         Next
+        If Ppt_IsBusyError(Err.Number) Then GoTo Busy
     End If
     Err.Clear
     For Each ws In wb.Worksheets
         For Each s In ws.Shapes
             If Left$(s.Name, Len(LINKFRAME_PREFIX)) = LINKFRAME_PREFIX Then
                 id = Mid$(s.Name, Len(LINKFRAME_PREFIX) + 1)
-                Set co = Nothing
-                Set co = Registry_FindChartObject(wb, id)
-                If Not co Is Nothing Then
-                    LinkFrame_SetState co.Chart, used.Exists(id)
-                    If used.Exists(id) Then Core_RefreshFrames = Core_RefreshFrames + 1
+                If Not Registry_FindChartObject(wb, id) Is Nothing Then
+                    LinkFrame_SetShapeState s, used.Exists(id)
+                    If used.Exists(id) Then n = n + 1
                 End If
             End If
             Err.Clear
         Next
     Next
+    Err.Clear
+    Core_RefreshFrames = n
+    Exit Function
+Busy:
+    Errors_Log "Core_RefreshFrames: PowerPoint ocupado; cores das molduras mantidas" & vbTab & Err.Number
     Err.Clear
 End Function
 
@@ -1650,11 +1671,12 @@ End Sub
 ' Moldura do intervalo de origem depois de uma colagem vinculada que manteve o vinculo (1.13.0, X2b): "Copiar como grafico vinculado" passa a
 ' marcar, como "Vincular ao PowerPoint", que o grafico foi ao PowerPoint, e assim "Alterar dados" avisa (LINKFRAME_NOTE_REBUILT). Desenhada
 ' so depois do ultimo ponto de falha da colagem: colagem que falhou ou ficou sem vinculo nunca deixa moldura. Moldura que ja existe (colagem
-' anterior, Vincular ao PowerPoint, pasta de dados do PowerPoint) fica como esta. Nunca propaga erro.
+' anterior, Vincular ao PowerPoint, pasta de dados do PowerPoint) nao e redesenhada, so volta a verde: o slide acabou de recebe-lo
+' (revisao final 1.13.0, M3). Nunca propaga erro.
 Private Sub CopyFrameAfterPaste(c As Chart)
     Dim src As Range
     On Error Resume Next
-    If Not LinkFrame_Find(c) Is Nothing Then Exit Sub
+    If Not LinkFrame_Find(c) Is Nothing Then LinkFrame_SetState c, True: Exit Sub
     Set src = Block_SourceRange(c)
     If Not src Is Nothing Then LinkFrame_Ensure c, src
     Err.Clear
@@ -2348,6 +2370,9 @@ Public Sub Core_PptSyncOpen()
         msg = msg & IIf(Len(msg) > 0, vbLf & vbLf, "") & "'" & PptSyncPresName(pres) & "': " & Core_PptSyncPresentation(pres, True)
     Next
     Ppt_EndOp
+    ' cor das molduras da pasta ativa (1.13.0, revisao final M2): a sincronizacao acabou de reconstruir o TQQ_LINKIDX; so leitura no PowerPoint
+    ' ja aberto, nunca o inicia, sem caixa; ocupado = cores mantidas (Core_RefreshFrames nunca propaga)
+    If Not ActiveWorkbook Is Nothing Then Core_RefreshFrames ActiveWorkbook
     If Len(msg) = 0 Then msg = PPTSYNC_NO_PPT
     Core_Notify msg, vbInformation
     Exit Sub

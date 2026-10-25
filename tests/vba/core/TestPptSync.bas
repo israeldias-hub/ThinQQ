@@ -2048,6 +2048,46 @@ Cleanup:
     If en <> 0 Then Err.Raise en, "TestPptSync", ed
 End Sub
 
+' Revisao final 1.13.0 (I1): PowerPoint ocupado NO MEIO da leitura das apresentacoes (gancho "frames") = nada pintado, devolve 0.
+' (M2): Atualizar no PowerPoint (Core_PptSyncOpen) reve a cor das molduras da pasta ativa (aqui: apresentacao sem indice = vermelha).
+Public Sub Test_RefreshFrames_BusyInLoop_AndSyncOpen_Fake()
+    Dim wb As Workbook, rng As Range, c As Chart, app As TestPptFake, pres As TestPptFake, en As Long, ed As String
+    On Error GoTo Cleanup
+    AutoBegin
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    LinkFrame_Ensure c, rng
+    LinkFrame_SetState c, True
+    Set pres = New TestPptFake: Set pres.Tags = CreateObject("Scripting.Dictionary")
+    Set app = FakeApp(pres)
+    Ppt_SetAppForTest app
+    PptSync_SetFailNumberForTest "frames", -2147418111
+    AssertEqual 0, Core_RefreshFrames(wb), "ocupado no meio: nada pintado"
+    AssertEqual LINKFRAME_GREEN, LinkFrame_Find(c).Line.ForeColor.RGB, "continua verde"
+    AssertEqual 0, Core_RefreshFrames(wb), "sem o gancho: a apresentacao nao usa o grafico"
+    AssertEqual LINKFRAME_RED, LinkFrame_Find(c).Line.ForeColor.RGB, "vermelha"
+    LinkFrame_SetState c, True
+    Set app = FakeApp(Nothing)
+    Ppt_SetAppForTest app
+    wb.Activate
+    Core_ClearLastNotice
+    Core_PptSyncOpen
+    AssertEqual LINKFRAME_RED, LinkFrame_Find(c).Line.ForeColor.RGB, "Atualizar no PowerPoint reviu a cor (nenhuma apresentacao usa)"
+    AssertEqual 1, Core_NoticeCount(), "uma caixa so (o resumo), sem caixa extra"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    On Error GoTo -1
+    On Error Resume Next
+    Ppt_ResetTestHooks
+    PptSync_ResetTestHooks
+    If Not wb Is Nothing Then Teardown wb
+    AutoEnd
+    On Error GoTo 0
+    If en <> 0 Then Err.Raise en, "TestPptSync", ed
+End Sub
+
 ' Menor (a) da revisao final: Ppt_GetApp(False) com o GetObject recusado pelo PowerPoint ocupado (caixa de dialogo aberta) levanta o erro
 ' em vez de dizer "sem PowerPoint": o ciclo tenta de novo (fila mantida) e o botao do Excel diz que o PowerPoint esta ocupado. Outro erro
 ' do GetObject continua sendo "sem PowerPoint"; com create = True nada muda.

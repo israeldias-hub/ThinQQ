@@ -31,7 +31,7 @@ Public Const CORE_PPT_API As Long = 7                     ' 1 = Core_PptSyncPres
                                                            ' 6 = Core_PptLinkStates (1.11.0); 7 = Core_StyleNames e comando "style" (1.12.0)
 Public Const PPTSYNC_NONE As String = "Esta apresentação não tem gráficos do ThinQQ vinculados (copiados com 'Copiar como gráfico vinculado')."
 Public Const PPTSYNC_NOT_FOUND As String = "Os gráficos selecionados não foram encontrados na apresentação (renomeados?): selecione-os de novo."
-Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo 'Atualizar gráficos no PowerPoint'."
+Public Const PPTSYNC_NO_PPT As String = "Abra a apresentação no PowerPoint e use de novo Atualizar no PowerPoint."
 Public Const PPTSYNC_UNKNOWN_SRC As String = "(origem desconhecida)"      ' forma marcada sem SourceFullName e sem TQQ_BOOK
 Public Const PPTSYNC_C_PROCEED As Long = 0                   ' PptSync_Classify: segue para a pasta de origem
 Public Const PPTSYNC_C_UNLINKED As Long = 1                  ' colado sem vinculo ("Sem vinculo com o Excel")

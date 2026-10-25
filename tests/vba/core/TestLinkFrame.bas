@@ -160,6 +160,80 @@ Public Sub Test_LinkFrame_SetState_Colors()
     Teardown wb
 End Sub
 
+' Revisao final 1.13.0 (I1): PowerPoint OCUPADO ao pegar o aplicativo (gancho getapp com o erro de ocupado) = nada e pintado, a moldura
+' verde continua verde e devolve 0; outro erro do GetObject = "sem PowerPoint" (vermelha), como antes.
+Public Sub Test_LinkFrame_RefreshFrames_BusyKeepsColors()
+    Dim wb As Workbook, ws As Worksheet, c As Chart, en As Long, ed As String
+    On Error GoTo Cleanup
+    Ppt_ResetTestHooks
+    Set wb = NewTempWorkbook(): Set ws = wb.Worksheets(1)
+    ws.Range("A1:B1").Value = Array("Ano", "V"): ws.Range("A2:B2").Value = Array("T1", 1): ws.Range("A3:B3").Value = Array("T2", 2)
+    ws.Range("A1:B3").Select
+    Core_Insert "clustered"
+    Set c = Core_ActiveChart()
+    LinkFrame_Ensure c, ws.Range("A1:B3")
+    LinkFrame_SetState c, True
+    PptSync_SetFailNumberForTest "getapp", -2147418111
+    AssertEqual 0, Core_RefreshFrames(wb), "ocupado: nada pintado"
+    AssertEqual LINKFRAME_GREEN, LinkFrame_Find(c).Line.ForeColor.RGB, "ocupado (RPC_E_CALL_REJECTED): continua verde"
+    PptSync_SetFailNumberForTest "getapp", -2147417846
+    AssertEqual 0, Core_RefreshFrames(wb)
+    AssertEqual LINKFRAME_GREEN, LinkFrame_Find(c).Line.ForeColor.RGB, "ocupado (RPC_E_RETRYLATER): continua verde"
+    PptSync_SetFailForTest "getapp"
+    AssertEqual 0, Core_RefreshFrames(wb)
+    AssertEqual LINKFRAME_RED, LinkFrame_Find(c).Line.ForeColor.RGB, "outro erro = sem PowerPoint: vermelha"
+Cleanup:
+    en = Err.Number: ed = Err.Description
+    PptSync_ResetTestHooks
+    If Not wb Is Nothing Then Teardown wb
+    If en <> 0 Then Err.Raise en, "TestLinkFrame", ed
+End Sub
+
+' Revisao final 1.13.0 (M4): uma planilha copiada leva outra moldura com o mesmo nome (tqqlink_<id>); Core_RefreshFrames pinta CADA forma.
+Public Sub Test_LinkFrame_RefreshFrames_PaintsEachShape()
+    Dim wb As Workbook, rng As Range, c As Chart, ws2 As Worksheet, n As Long, s As Shape, ws As Worksheet
+    Ppt_ResetTestHooks
+    Set wb = NewTempWorkbook(): Set rng = Fixture(wb)
+    rng.Select
+    Core_Insert "stacked"
+    Set c = Core_ActiveChart()
+    LinkFrame_Ensure c, rng
+    rng.Worksheet.Copy After:=rng.Worksheet
+    Set ws2 = wb.Worksheets(2)
+    AssertEqual 2, CountFrames(wb), "pre-condicao: a copia levou a moldura"
+    For Each ws In wb.Worksheets
+        For Each s In ws.Shapes
+            If Left$(s.Name, Len(LINKFRAME_PREFIX)) = LINKFRAME_PREFIX Then s.Line.ForeColor.RGB = LINKFRAME_GREEN
+        Next
+    Next
+    AssertEqual 0, Core_RefreshFrames(wb)
+    For Each ws In wb.Worksheets
+        For Each s In ws.Shapes
+            If Left$(s.Name, Len(LINKFRAME_PREFIX)) = LINKFRAME_PREFIX Then
+                AssertEqual LINKFRAME_RED, s.Line.ForeColor.RGB, "moldura em " & ws.Name
+                n = n + 1
+            End If
+        Next
+    Next
+    AssertEqual 2, n
+    Teardown wb
+End Sub
+
+' Revisao final 1.13.0 (M1): Mostrar/ocultar molduras sem moldura cita os nomes atuais (constante lida pelo Test-Docs).
+Public Sub Test_LinkFrame_Toggle_NoFrames_Message()
+    Dim wb As Workbook
+    Ppt_ResetTestHooks
+    Set wb = NewTempWorkbook()
+    wb.Activate
+    Core_ClearLastNotice
+    Core_ToggleLinkFrames
+    AssertEqual LINKFRAME_MSG_NONE, Core_LastNotice()
+    AssertTrue InStr(LINKFRAME_MSG_NONE, "Vincular ao PowerPoint") > 0 And InStr(LINKFRAME_MSG_NONE, "Copiar como gráfico vinculado") > 0
+    AssertEqual 0, InStr(LINKFRAME_MSG_NONE, "Inserir também no slide"), "sem o nome antigo"
+    AssertTrue InStr(LINKFRAME_NOTE_REBUILT, "(Mais > Copiar como gráfico vinculado)") > 0, "I2: o caminho que cola o grafico recriado"
+    Teardown wb
+End Sub
+
 Private Function CountFrames(wb As Workbook) As Long
     Dim ws As Worksheet, s As Shape
     For Each ws In wb.Worksheets

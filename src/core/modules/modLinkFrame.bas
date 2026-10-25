@@ -7,7 +7,8 @@ Option Explicit
 ' moldura sai (nao e redesenhada) e o usuario e avisado para inserir ou colar de novo (LINKFRAME_NOTE_REBUILT). Cor pelo estado (1.13.0,
 ' LinkFrame_SetState): verde = alguma apresentacao aberta usa o grafico; vermelha = nenhuma. Nada aqui propaga erro.
 Public Const LINKFRAME_PREFIX As String = "tqqlink_"
-Public Const LINKFRAME_NOTE_REBUILT As String = "O gráfico foi recriado: o gráfico que já está no slide do PowerPoint não o acompanha mais e, ao atualizar o vínculo, pode perder os totais e mostrar dados antigos. Cole o gráfico de novo no slide (Vincular ao PowerPoint) e apague o antigo."
+Public Const LINKFRAME_NOTE_REBUILT As String = "O gráfico foi recriado: o gráfico que já está no slide do PowerPoint não o acompanha mais e, ao atualizar o vínculo, pode perder os totais e mostrar dados antigos. Cole o gráfico de novo no slide (Mais > Copiar como gráfico vinculado) e apague o antigo."
+Public Const LINKFRAME_MSG_NONE As String = "Esta pasta não tem molduras de intervalos vinculados ao PowerPoint (elas aparecem ao usar Vincular ao PowerPoint ou Copiar como gráfico vinculado)."
 Public Const LINKFRAME_GREEN As Long = 5287936      ' RGB(0, 176, 80)
 Public Const LINKFRAME_RED As Long = 192            ' RGB(192, 0, 0)
 Private mTestFailDraw As Boolean    ' gancho de teste (LinkFrame_SetFailDrawForTest): falha logo depois de criar o retangulo; so no build Test
@@ -74,11 +75,17 @@ Public Sub LinkFrame_SetState(cht As Chart, used As Boolean)
     On Error Resume Next
     Set s = LinkFrame_Find(cht)
     If s Is Nothing Then Exit Sub
-    If used Then
-        If s.Line.ForeColor.RGB <> LINKFRAME_GREEN Then s.Line.ForeColor.RGB = LINKFRAME_GREEN
-    Else
-        If s.Line.ForeColor.RGB <> LINKFRAME_RED Then s.Line.ForeColor.RGB = LINKFRAME_RED
-    End If
+    LinkFrame_SetShapeState s, used
+    Err.Clear
+End Sub
+
+' A mesma cor de estado numa moldura ja achada (Core_RefreshFrames pinta cada forma, inclusive a de uma planilha copiada). Nunca propaga.
+Public Sub LinkFrame_SetShapeState(s As Shape, used As Boolean)
+    Dim want As Long
+    On Error Resume Next
+    If s Is Nothing Then Exit Sub
+    If used Then want = LINKFRAME_GREEN Else want = LINKFRAME_RED
+    If s.Line.ForeColor.RGB <> want Then s.Line.ForeColor.RGB = want
     Err.Clear
 End Sub
 
